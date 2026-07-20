@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <AssemblyName>CoderCommander</AssemblyName>
+    <RootNamespace>CoderCommander</RootNamespace>
+    <!-- Was unset, which makes ApplicationConfiguration.Initialize() (Program.cs) fall back to
+         the SDK default of SystemAware - under that mode DeviceDpi is fixed at the primary
+         monitor's startup DPI and Windows bitmap-stretches the window on any other monitor,
+         instead of raising DpiChanged and letting the app rescale itself. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.3" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="app.ico" Pack="false" />
+  </ItemGroup>
+
+  <!-- UiTests is a separate FlaUI/NUnit test project nested under this folder for convenience -
+       exclude it from this project's default SDK-style globbing so its packages/attributes don't
+       leak into the main app's compilation. -->
+  <ItemGroup>
+    <Compile Remove="UiTests\**" />
+    <EmbeddedResource Remove="UiTests\**" />
+    <None Remove="UiTests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

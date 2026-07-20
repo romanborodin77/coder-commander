@@ -1,0 +1,509 @@
+# Coder Commander — Русский язык
+# Формат: ключ=значение
+# Строки начиная с # — комментарии
+
+# ═══ Общее ═══
+Common.OK=ОК
+Common.Cancel=Отмена
+Common.Close=Закрыть
+Common.Browse=Обзор…
+Common.Yes=Да
+Common.No=Нет
+Common.Save=Сохранить
+Common.Reset=Сброс
+Common.Apply=Применить
+Common.Delete=Удалить
+Common.Folder=Папка
+Common.Rename=Переименовать
+Common.Refresh=Обновить
+Common.Error=Ошибка
+
+# ═══ Меню ═══
+Menu.File=&Файл
+Menu.File.View=&Просмотр
+Menu.File.Edit=&Редактировать
+Menu.File.EditNew=Редактировать &новый
+Menu.File.Copy=&Копировать
+Menu.File.Move=&Переместить
+Menu.File.Rename=Пере&именовать
+Menu.File.CreateFolder=Создать &папку
+Menu.File.Delete=&Удалить
+Menu.File.Wipe=&Стереть
+Menu.File.Properties=&Свойства
+Menu.File.Attributes=&Атрибуты
+Menu.File.Pack=&Упаковать
+Menu.File.Extract=&Распаковать
+Menu.File.Split=Раз&делить
+Menu.File.Combine=Объ&единить
+Menu.File.Checksum=Контрольная &сумма
+Menu.File.Exit=Вы&ход
+Menu.Selection=&Выделение
+Menu.Selection.All=Выделить &всё
+Menu.Selection.None=&Снять выделение
+Menu.Selection.Invert=&Инвертировать выделение
+Menu.Selection.Group=Выделить &группу…
+Menu.Selection.DeselectGroup=Снять &группу…
+Menu.Commands=&Команды
+Menu.Commands.Search=&Поиск…
+Menu.Commands.MultiRename=&Групповое переименование…
+Menu.Commands.SyncDirs=Синхронизация &каталогов…
+Menu.Commands.SwapPanels=По&менять панели
+Menu.Commands.SyncPanels=&Цель = Источник
+Menu.Commands.Terminal=&Терминал
+Menu.Commands.DirTree=Дерево &каталогов
+Menu.Commands.DiskInfo=Информация о &диске
+Menu.Commands.OpQueue=&Очередь операций
+Menu.View=&Вид
+Menu.View.Hidden=Показывать &скрытые
+Menu.View.Refresh=&Обновить
+Menu.View.Theme=&Тема
+Menu.View.Theme.Dark=&Тёмная
+Menu.View.Theme.Light=&Светлая
+Menu.View.Language=&Язык
+Menu.View.Sort=Сортиров&ка
+Menu.View.Sort.Name=&Имя
+Menu.View.Sort.Extension=&Расширение
+Menu.View.Sort.Size=&Размер
+Menu.View.Sort.Modified=Дата &изменения
+Menu.View.Sort.DirsFirst=&Папки в начале
+Menu.View.Sort.Descending=&По убыванию
+Menu.View.ShowExtInName=Показывать рас&ширение в имени
+Language.English=English
+Language.Russian=Русский
+Menu.Config=&Конфигурация
+Menu.Config.Settings=&Настройки…
+Menu.Config.Bookmarks=&Закладки…
+Menu.Help=&Справка
+Menu.Help.About=&О программе
+
+# ═══ Тулбар ═══
+Toolbar.Back=Назад
+Toolbar.Forward=Вперёд
+Toolbar.Up=Вверх
+Toolbar.Copy=Копировать
+Toolbar.Move=Переместить
+Toolbar.Delete=Удалить
+Toolbar.NewDir=Новая папка
+Toolbar.Refresh=Обновить
+Toolbar.Search=Поиск
+Toolbar.Settings=Настройки
+
+# ═══ Функциональные кнопки ═══
+Fn.View=F3 Просмотр
+Fn.Edit=F4 Редактор
+Fn.Copy=F5 Копировать
+Fn.Move=F6 Переместить
+Fn.MkDir=F7 Папка
+Fn.Delete=F8 Удалить
+Fn.Terminal=F9 Терминал
+Fn.Exit=F10 Выход
+
+# ═══ Панель ═══
+Panel.Name=Имя
+Panel.Ext=Тип
+Panel.Size=Размер
+Panel.Modified=Изменён
+Panel.Attributes=Атр
+Panel.Path=Путь
+Panel.Created=Создан
+Panel.Dir=<ПАПКА>
+Panel.Parent=..
+Panel.Filter=Фильтр
+Panel.Selected={0} выделено
+Panel.Items={0} элементов
+Panel.FileInfo={0}  {1}  {2}
+Panel.DirInfo=[ПАПКА] {0}
+Panel.DriveTooltip=Перейти на {0}
+
+# ═══ Статус-бар ═══
+Status.ElementsCount={0} элементов
+Status.FreeSpace={0} своб. / {1} всего
+
+# ═══ О программе ═══
+About.Title=О программе
+About.AppName=Coder Commander
+About.Version=Версия {0}
+About.Subtitle=Двухпанельный файловый менеджер для программистов
+About.Description=Современный файловый менеджер для разработчиков
+About.Tech=WinForms + MVVM + паттерн команд
+
+# ═══ Диалог копирования/перемещения ═══
+CopyMove.Title.Copy=Копирование
+CopyMove.Title.Move=Перемещение
+CopyMove.Source=Источник:
+CopyMove.Destination=Назначение:
+CopyMove.Files={0} файл(ов)
+CopyMove.TotalSize=Всего: {0}
+CopyMove.OverwritePolicy=При перезаписи:
+CopyMove.CopyAttributes=Копировать атрибуты
+CopyMove.CopyTimestamps=Копировать метки времени
+CopyMove.Queue=Добавить в очередь
+CopyMove.Col.Name=Имя
+CopyMove.Col.Size=Размер
+CopyMove.Col.Type=Тип
+CopyMove.MoreFiles=…и ещё {0}
+
+# ═══ Перезапись ═══
+Overwrite.Ask=Спросить
+Overwrite.Skip=Пропустить
+Overwrite.Overwrite=Перезаписать
+Overwrite.OverwriteOlder=Перезаписать если старее
+Overwrite.OverwriteAll=Перезаписать все
+Overwrite.SkipAll=Пропустить все
+Overwrite.Rename=Переименовать
+
+OverwriteDlg.Title=Файл существует
+OverwriteDlg.Source=Источник:
+OverwriteDlg.Destination=Назначение:
+OverwriteDlg.Vs=и
+
+# ═══ Диалог операции ═══
+OpDlg.CurrentFile=Текущий файл:
+OpDlg.Total=Всего:
+OpDlg.Skip=Пропустить
+OpDlg.Pause=Пауза
+OpDlg.Resume=Продолжить
+OpDlg.Cancel=Отмена
+OpDlg.Speed=Скорость: {0}/с
+OpDlg.ETA=Осталось: {0:m\:ss}
+OpDlg.Files=Файлы: {0} / {1}
+OpDlg.Running=Выполняется…
+OpDlg.Paused=Приостановлено
+OpDlg.Completed=Завершено
+OpDlg.Canceled=Отменено
+OpDlg.Failed=Ошибка
+
+# ═══ Очередь операций ═══
+OpQueue.Title=Очередь операций
+OpQueue.Pause=Пауза
+OpQueue.Resume=Продолжить
+OpQueue.CancelAll=Отменить все
+OpQueue.Clear=Очистить завершённые
+OpQueue.Close=Закрыть
+OpQueue.Col.Type=Тип
+OpQueue.Col.Source=Источник
+OpQueue.Col.Destination=Назначение
+OpQueue.Col.Status=Статус
+OpQueue.Empty=Нет операций
+OpQueue.Count={0} операци(й)
+OpQueue.Status.Running=Выполняется
+OpQueue.Status.Paused=Приостановлено
+OpQueue.Status.Completed=Готово
+OpQueue.Status.Canceled=Отменено
+OpQueue.Status.Failed=Ошибка
+OpQueue.Status.Queued=В очереди
+OpQueue.Type.Copy=Копирование
+OpQueue.Type.Move=Перемещение
+OpQueue.Type.Delete=Удаление
+OpQueue.Type.Pack=Упаковка
+OpQueue.Type.Unpack=Распаковка
+
+# ═══ Настройки ═══
+Settings.Title=Настройки
+Settings.Appearance=Внешний вид
+Settings.Editor=Редактор
+Settings.FileOps=Файловые операции
+Settings.Confirmations=Подтверждения
+Settings.Theme=Тема:
+Settings.Theme.Dark=Тёмная
+Settings.Theme.Light=Светлая
+Settings.Language=Язык:
+Settings.ShowHidden=Показывать скрытые файлы
+Settings.ShowToolbar=Показывать тулбар
+Settings.ShowStatusBar=Показывать статус-бар
+Settings.ShowCommandLine=Показывать командную строку
+Settings.ShowFunctionButtons=Показывать кнопки F1-F10
+Settings.DirectoriesFirst=Каталоги первыми
+Settings.ShowExtInName=Показывать расширение в имени файла
+Settings.ConfirmDelete=Подтверждать удаление
+Settings.ConfirmOverwrite=Подтверждать перезапись
+Settings.CopyAttributes=Копировать атрибуты по умолчанию
+Settings.CopyTimestamps=Копировать метки времени по умолчанию
+Settings.ArchiveCompressionFormat=Формат архива:
+Settings.ArchiveCompressionPreset=Сжатие:
+
+# ═══ Поиск ═══
+Search.Title=Поиск
+Search.Path=Путь:
+Search.Pattern=Маска файла:
+Search.Content=Содержит текст:
+Search.CaseSensitive=Учитывать регистр
+Search.UseRegex=Регулярное выражение
+Search.Subdirs=Искать в подпапках
+Search.Start=Найти
+Search.Stop=Стоп
+Search.Results=Результаты
+Search.Found=Найдено {0} файл(ов)
+Search.Searching=Поиск…
+Search.NoResults=Файлы не найдены
+
+# ═══ Закладки ═══
+Bookmark.Title=Закладки
+Bookmark.Col.Name=Имя
+Bookmark.Col.Path=Путь
+Bookmark.Add=Добавить…
+Bookmark.Remove=Удалить
+Bookmark.Empty=Нет закладок
+
+# ═══ Дерево каталогов ═══
+DirTree.Title=Дерево каталогов
+DirTree.Root=Корень
+
+# ═══ Свойства ═══
+Props.Title=Свойства
+Props.Name=Имя:
+Props.Path=Путь:
+Props.Size=Размер:
+Props.Modified=Изменён:
+Props.Created=Создан:
+Props.Attributes=Атрибуты:
+Props.Files=Файлов:
+Props.Subdirs=Подкаталогов:
+Props.TotalSize=Общий размер:
+Props.EditAttributes=Изменить атрибуты:
+Props.EditTimestamps=Изменить даты:
+Props.ReadOnly=Только чтение
+Props.Hidden=Скрытый
+Props.System=Системный
+Props.Archive=Архивный
+Props.Accessed=Доступ:
+Props.Applied=Свойства применены.
+Props.Reseted=Изменения отменены.
+Props.MultiTitle=Несколько элементов ({0})
+Props.Selection=Выбрано:
+Props.Type=Тип:
+Props.Recursive=Применять рекурсивно
+Props.TimestampHint=Отметьте поле рядом с датой для изменения; снимите, чтобы оставить без изменений.
+Props.AttrHint=Выберите «Задать», «Очистить» или «Оставить» для каждого атрибута.
+SelectionChanged=Задать всем
+SelectionUnchanged=Оставить
+SelectionCleared=Очистить всем
+Props.Folder=Папка
+Props.File=Файл
+Props.ApplyToAll=Применить к {0} элем.
+Props.Stale=Размер/статистика устарели — откройте диалог заново.
+Props.CountFilesDirs={0} файлов, {1} папок
+
+# ═══ Ввод ═══
+Input.Title=Ввод
+Input.CreateDir=Создать каталог
+Input.CreateDirPrompt=Имя папки:
+Input.Rename=Переименование
+Input.RenamePrompt=Новое имя:
+Input.AddBookmark=Добавить закладку
+Input.BookmarkName=Имя закладки:
+Input.BookmarkPath=Путь:
+Input.ChangeDirPrompt=Путь:
+Input.SelectPattern=Шаблон (например, *.txt):
+Menu.Commands.ChangeDir=&Сменить каталог…
+
+# ═══ Подтверждения ═══
+Confirm.Delete=Удалить {0} элемент(ов)?
+Confirm.DeleteItems=Удалить {0} элемент(ов)?\n\n{1}
+Confirm.RecycleBinFailedPermanent=Не удалось переместить в Корзину {0} элемент(ов). Удалить их безвозвратно? Это действие нельзя отменить.\n\n{1}
+Confirm.Wipe=Стереть {0} элемент(ов)? Это действие необратимо.
+
+# ═══ Контекстное меню ═══
+Ctx.View=Просмотр
+Ctx.Edit=Редактировать
+Ctx.Copy=Копировать
+Ctx.Move=Переместить
+Ctx.Rename=Переименовать
+Ctx.Delete=Удалить
+Ctx.Properties=Свойства
+Ctx.CreateLink=Создать ссылку
+Ctx.CreateSymlink=Символическая ссылка…
+Ctx.CreateHardlink=Жёсткая ссылка…
+Ctx.CopyPath=Копировать путь
+Ctx.CopyPath.Full=Полный путь
+Ctx.CopyPath.Name=Только имя
+Ctx.CopyPath.NoExt=Путь без расширения
+Ctx.SelectAll=Выделить всё
+Ctx.InvertSelection=Инвертировать
+Ctx.OpenWith=Открыть с помощью…
+
+# ═══ Ошибки ═══
+Err.PathNotFound=Путь не найден: {0}
+Err.AccessDenied=Доступ запрещён: {0}
+Err.FileExists=Файл уже существует: {0}
+Err.InvalidName=Недопустимое имя файла: {0}
+
+# ═══ Групповое переименование ═══
+MultiRename.Title=Групповое переименование
+MultiRename.Pattern=Шаблон:
+MultiRename.Extension=Расширение:
+MultiRename.StartAt=Начало счётчика:
+MultiRename.Step=Шаг:
+MultiRename.Hint=[N]=имя  [E]=расш  [N3]=первые 3 симв  [N-3]=последние 3  [C]=счётчик  [C2:10]=ширина 2 старт 10  [D]=дата  [T]=время  [P]=родительский каталог
+MultiRename.OldName=Старое имя
+MultiRename.NewName=Новое имя
+MultiRename.Status=Статус
+MultiRename.ErrDuplicate=Обнаружены дубликаты целевых имён. Скорректируйте шаблон.
+
+# ═══ Просмотр ══
+View.Title=Просмотр
+View.Text=Текст
+View.Hex=Hex
+View.Image=Изображение
+View.WordWrap=Перенос
+View.TextMode=Текстовый режим — {0}
+View.HexMode=Hex-режим — {0}
+View.ImageMode=Режим изображения
+View.TooBigForText=Файл слишком большой для текстового режима ({0}). Лимит: {1}.
+View.HexTruncated=Показано первые {0} из {1}.
+View.Error=Ошибка
+View.FileNotFound=Файл не найден.
+View.Toolbar.Previous=Предыдущий
+View.Toolbar.Next=Следующий
+View.ZoomOut=Уменьшить
+View.ZoomIn=Увеличить
+
+# ═══ Редактор ═══
+Edit.Title=Редактор
+Edit.NewFile=Без имени
+Edit.SaveAs=Сохранить как
+Edit.Saved=Сохранено в {0}
+Edit.NotFound=Текст не найден
+Edit.UnsavedChanges=Сохранить изменения в {0}?
+Edit.WordWrap=Перенос строк
+Edit.ShowWhitespace=Показывать пробелы
+Edit.FilterAll=Все файлы (*.*)|*.*|Текстовые (*.txt)|*.txt
+Edit.Find=Найти
+Edit.Modified=Изменено
+Edit.Bytes=байт
+Edit.KB=КБ
+Edit.FindBar.MatchCount={0} из {1}
+Edit.FindBar.MatchCase=Учитывать регистр
+Edit.FindBar.ReplaceAll=Заменить всё
+Edit.FindBar.ReplaceAllConfirm=Заменить все {0} совпадений?
+Edit.FindBar.ReplacedCount=Заменено: {0}
+Edit.FindBar.WrappedToTop=Поиск продолжен с начала
+Edit.FindBar.WrappedToBottom=Поиск продолжен с конца
+Edit.GoToLine=Перейти к строке
+Edit.GoToLinePrompt=Номер строки:
+Edit.ErrorLoading=Ошибка загрузки файла: {0}
+Edit.ErrorSaving=Ошибка сохранения файла: {0}
+Edit.TabClose=Закрыть вкладку
+Edit.TabCloseOthers=Закрыть другие вкладки
+Edit.TabCloseAll=Закрыть все вкладки
+Edit.UnsavedChangesAll=Есть {0} несохранённых файлов. Закрыть все?
+Edit.StatusPosition=Стр {0}, Кол {1}
+Lang.PlainText=Обычный текст
+View.TabText=Текст/Hex
+View.TabImage=Изображение
+View.ModeAuto=Авто
+Main.OperationsActive=Операций: {0}
+Op.DisplayDelete=Удаление: {0} файл(ов)
+Op.DisplayWipe=Стирание: {0} файл(ов)
+Op.DisplayPack=Упаковка {0} файл(ов) в {1}
+Op.DisplayUnpack=Распаковка {0} в {1}
+Edit.Toolbar.New=Создать
+Edit.Toolbar.Open=Открыть
+Edit.Toolbar.Save=Сохранить
+Edit.Toolbar.SaveAll=Сохранить всё
+Edit.Toolbar.Undo=Отменить
+Edit.Toolbar.Redo=Повторить
+Edit.Toolbar.Cut=Вырезать
+Edit.Toolbar.Copy=Копировать
+Edit.Toolbar.Paste=Вставить
+Edit.Toolbar.Find=Найти
+Edit.Toolbar.Replace=Заменить
+Common.Confirm=Подтверждение
+
+# ═══ Архив ═══
+Archive.Title=Архив
+Archive.ChooseTarget=Выберите папку назначения
+Archive.UnsupportedFormat=«{0}» не является поддерживаемым архивом.
+Archive.PackTitle=Упаковать файлы
+Archive.PackPrompt=Имя архива:
+Archive.PackFormat=Формат:
+Archive.PackCompression=Сжатие:
+Archive.PackMoveOriginals=Удалить исходники после упаковки (перемещение)
+Archive.Format.Zip=ZIP
+Archive.Format.Tar=TAR
+Archive.Format.TarGz=TAR.GZ
+Archive.Format.SevenZip=7Z
+Archive.Format.Rar=RAR
+Archive.Format.TarBz2=TAR.BZ2
+Archive.Format.TarXz=TAR.XZ
+Archive.ReadOnlyFormat=«{0}» — архив только для чтения, изменить его нельзя.
+Archive.Compression.Store=Без сжатия
+Archive.Compression.Fastest=Быстрое
+Archive.Compression.Balanced=Сбалансированное
+Archive.Compression.Maximum=Максимальное
+Archive.PackExists=Архив «{0}» уже существует. Добавить файлы в него?
+Archive.UnpackTitle=Распаковать файлы
+Archive.UnpackNoArchive=Выберите файл архива или войдите в архив.
+Archive.Packed=Упаковано {0} файл(ов) в {1}
+Archive.Unpacked=Распаковано {0} файл(ов) в {1}
+Archive.PackFailed=Ошибка упаковки: {0}
+Archive.UnpackFailed=Ошибка распаковки: {0}
+Archive.EnterArchive=Войти в архив
+Archive.ExitArchive=Выйти из архива
+Archive.SameArchiveTransfer=Копирование внутри одного архива не поддерживается. Сначала распакуйте файлы.
+Transfer.SourceEqualsDestination=Источник и назначение совпадают. Выберите другую папку назначения.
+Archive.WipeUnsupported=Безопасное затирание недоступно для элементов архива. Используйте удаление.
+Archive.NestedUnsupported=Архив внутри архива нельзя открыть напрямую. Сначала распакуйте «{0}».
+
+# ═══ Синхронизация каталогов ═══
+SyncDirs.Title=Синхронизация каталогов
+SyncDirs.Left=Лево:
+SyncDirs.Right=Право:
+SyncDirs.Subdirs=Включая подкаталоги
+SyncDirs.IgnoreTime=Игнорировать время (только размер)
+SyncDirs.Compare=Сравнить
+SyncDirs.Status=Статус
+SyncDirs.Path=Путь
+SyncDirs.LeftSize=Размер слева
+SyncDirs.RightSize=Размер справа
+SyncDirs.Action=Действие
+SyncDirs.CopyToLeft=Копировать ←
+SyncDirs.CopyToRight=Копировать →
+SyncDirs.BadPaths=Оба каталога должны существовать.
+SyncDirs.Scanning=Сканирование…
+SyncDirs.Summary=Всего {0} | равны {1} | отличаются {2} | только слева {3} | только справа {4}
+SyncDirs.NothingToCopy=Не выбрано ни одного элемента для копирования.
+SyncDirs.StatusEqual=Равны
+SyncDirs.StatusSize=Размер отличается
+SyncDirs.StatusTime=Время отличается
+SyncDirs.StatusType=Тип отличается
+SyncDirs.StatusLeftOnly=Только слева
+SyncDirs.StatusRightOnly=Только справа
+
+# ═══ Контрольная сумма ═══
+Checksum.Title=Контрольная сумма
+Checksum.FileName=Файл
+Checksum.FileSize=Размер
+Checksum.Algorithm=Алгоритм:
+Checksum.Hash=Хеш
+Checksum.Calculate=Рассчитать
+Checksum.CopyToClipboard=Копировать хеш
+Checksum.Calculating=Расчёт…
+Checksum.Done=Готово — {0} файл(ов)
+Checksum.Copied=Хеш скопирован в буфер обмена
+Checksum.SelectFiles=Выберите файлы для расчёта контрольной суммы.
+Menu.Commands.Checksum=Рассчитать &контрольную сумму…
+
+# ═══ Сравнение файлов ═══
+Differ.Title=Сравнение файлов
+Differ.Left=Лево:
+Differ.Right=Право:
+Differ.Compare=Сравнить
+Differ.FilesNotFound=Оба файла должны существовать.
+Differ.Summary=Лево: {0} строк | Право: {1} строк | Отличий: {2}
+Differ.FilterAll=Все файлы (*.*)|*.*|Текстовые (*.txt)|*.txt
+Menu.Commands.Differ=Сравнить &файлы…
+
+# ═══ Терминал ═══
+Terminal.SelectType=Выберите тип терминала
+Terminal.Cmd=Командная строка (cmd.exe)
+Terminal.PowerShell=PowerShell (powershell.exe)
+Terminal.NewTab=Новая вкладка терминала
+Terminal.CloseTab=Закрыть вкладку
+Terminal.NextTab=Следующая вкладка
+Terminal.PreviousTab=Предыдущая вкладка
+Terminal.MaxTabsReached=Достигнут максимум вкладок терминала ({0})
+Terminal.ProcessTerminated=Процесс завершён
+Terminal.NoShellAvailable=Ни одна оболочка терминала (cmd.exe или PowerShell) не найдена в системе
+Settings.Terminal=Терминал
+Settings.DefaultShell=Оболочка по умолчанию:

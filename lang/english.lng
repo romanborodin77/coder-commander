@@ -1,0 +1,511 @@
+# Coder Commander — English language file
+# Format: key=value
+# Lines starting with # are comments
+
+# ═══ Common ═══
+Common.OK=OK
+Common.Cancel=Cancel
+Common.Close=Close
+Common.Browse=Browse…
+Common.Yes=Yes
+Common.No=No
+Common.Save=Save
+Common.Reset=Reset
+Common.Apply=Apply
+Common.Delete=Delete
+Common.Folder=Folder
+Common.Rename=Rename
+Common.Refresh=Refresh
+Common.Error=Error
+
+# ═══ Menu ═══
+Menu.File=&File
+Menu.File.View=&View
+Menu.File.Edit=&Edit
+Menu.File.EditNew=Edit &New
+Menu.File.Copy=&Copy
+Menu.File.Move=&Move/Rename
+Menu.File.Rename=Rena&me
+Menu.File.CreateFolder=M&ake Dir
+Menu.File.Delete=&Delete
+Menu.File.Wipe=&Wipe
+Menu.File.Properties=&Properties
+Menu.File.Attributes=&Attributes
+Menu.File.Pack=&Pack
+Menu.File.Extract=&Extract
+Menu.File.Split=Spl&it
+Menu.File.Combine=Com&bine
+Menu.File.Checksum=Chec&ksum
+Menu.File.Exit=E&xit
+Menu.Selection=&Selection
+Menu.Selection.All=Select &All
+Menu.Selection.None=&Deselect All
+Menu.Selection.Invert=&Invert Selection
+Menu.Selection.Group=Select &Group…
+Menu.Selection.DeselectGroup=Deselect &Group…
+Menu.Commands=&Commands
+Menu.Commands.Search=&Search…
+Menu.Commands.MultiRename=&Multi-Rename…
+Menu.Commands.SyncDirs=Synchronize &Dirs…
+Menu.Commands.SwapPanels=Swap &Panels
+Menu.Commands.SyncPanels=&Target = Source
+Menu.Commands.Terminal=&Terminal
+Menu.Commands.DirTree=Directory &Tree
+Menu.Commands.DiskInfo=Disk &Info
+Menu.Commands.OpQueue=&Operation Queue…
+Menu.Commands.Checksum=Check&sum…
+Menu.Commands.Differ=Compare &Files…
+Menu.Commands.ChangeDir=&Change Directory…
+Menu.View=&View
+Menu.View.Hidden=Show &Hidden
+Menu.View.Refresh=&Refresh
+Menu.View.Theme=&Theme
+Menu.View.Theme.Dark=&Dark
+Menu.View.Theme.Light=&Light
+Menu.View.Language=&Language
+Menu.View.Sort=Sort &by
+Menu.View.Sort.Name=&Name
+Menu.View.Sort.Extension=E&xtension
+Menu.View.Sort.Size=&Size
+Menu.View.Sort.Modified=Date &modified
+Menu.View.Sort.DirsFirst=&Directories first
+Menu.View.Sort.Descending=&Descending
+Menu.View.ShowExtInName=Show e&xtension in name
+Language.English=English
+Language.Russian=Русский
+Menu.Config=&Configuration
+Menu.Config.Settings=&Settings…
+Menu.Config.Bookmarks=&Bookmarks…
+Menu.Help=&Help
+Menu.Help.About=&About
+
+# ═══ Toolbar ═══
+Toolbar.Back=Back
+Toolbar.Forward=Forward
+Toolbar.Up=Up
+Toolbar.Copy=Copy
+Toolbar.Move=Move
+Toolbar.Delete=Delete
+Toolbar.NewDir=New Dir
+Toolbar.Refresh=Refresh
+Toolbar.Search=Search
+Toolbar.Settings=Settings
+
+# ═══ Function buttons ═══
+Fn.View=F3 View
+Fn.Edit=F4 Edit
+Fn.Copy=F5 Copy
+Fn.Move=F6 Move
+Fn.MkDir=F7 MkDir
+Fn.Delete=F8 Delete
+Fn.Terminal=F9 Terminal
+Fn.Exit=F10 Exit
+
+# ═══ Panel ═══
+Panel.Name=Name
+Panel.Ext=Type
+Panel.Size=Size
+Panel.Modified=Modified
+Panel.Attributes=Attr
+Panel.Created=Created
+Panel.Dir=<DIR>
+Panel.Parent=..
+Panel.Filter=Filter
+Panel.Selected={0} selected
+Panel.Items={0} items
+Panel.FileInfo={0}  {1}  {2}
+Panel.DirInfo=[DIR] {0}
+Panel.DriveTooltip=Go to {0}
+Panel.Path=Path
+
+# ═══ Status bar ═══
+Status.ElementsCount={0} items
+Status.FreeSpace={0} free / {1} total
+
+# ═══ About ═══
+About.Title=About
+About.AppName=Coder Commander
+About.Version=Version {0}
+About.Subtitle=Dual-panel file manager for programmers
+About.Description=Modern file manager for developers
+About.Tech=Built with WinForms + MVVM + Command Pattern
+
+# ═══ Copy/Move dialog ═══
+CopyMove.Title.Copy=Copy
+CopyMove.Title.Move=Move
+CopyMove.Source=Source:
+CopyMove.Destination=Destination:
+CopyMove.Files={0} file(s)
+CopyMove.TotalSize=Total: {0}
+CopyMove.OverwritePolicy=Overwrite policy:
+CopyMove.CopyAttributes=Copy attributes
+CopyMove.CopyTimestamps=Copy timestamps
+CopyMove.Queue=Add to queue
+CopyMove.Col.Name=Name
+CopyMove.Col.Size=Size
+CopyMove.Col.Type=Type
+CopyMove.MoreFiles=…and {0} more
+
+# ═══ Overwrite ═══
+Overwrite.Skip=Skip
+Overwrite.Overwrite=Overwrite
+Overwrite.OverwriteOlder=Overwrite if older
+Overwrite.OverwriteAll=Overwrite all
+Overwrite.SkipAll=Skip all
+Overwrite.Rename=Rename
+Overwrite.ApplyToAll=Apply to all
+Overwrite.Ask=Ask
+OverwriteDlg.Title=File exists
+OverwriteDlg.Source=Source:
+OverwriteDlg.Destination=Destination:
+OverwriteDlg.Vs=vs
+
+# ═══ Operation dialog ═══
+OpDlg.CurrentFile=Current file:
+OpDlg.Total=Overall:
+OpDlg.Skip=Skip
+OpDlg.Pause=Pause
+OpDlg.Resume=Resume
+OpDlg.Cancel=Cancel
+OpDlg.Speed=Speed: {0}/s
+OpDlg.ETA=ETA: {0:m\:ss}
+OpDlg.Files=Files: {0} / {1}
+OpDlg.Running=Running…
+OpDlg.Paused=Paused
+OpDlg.Completed=Completed
+OpDlg.Canceled=Canceled
+OpDlg.Failed=Failed
+
+# ═══ Operation queue ═══
+OpQueue.Title=Operation Queue
+OpQueue.Pause=Pause
+OpQueue.Resume=Resume
+OpQueue.CancelAll=Cancel All
+OpQueue.Clear=Clear Completed
+OpQueue.Close=Close
+OpQueue.Col.Type=Type
+OpQueue.Col.Source=Source
+OpQueue.Col.Destination=Destination
+OpQueue.Col.Status=Status
+OpQueue.Empty=No operations
+OpQueue.Status.Running=Running
+OpQueue.Status.Paused=Paused
+OpQueue.Status.Completed=Done
+OpQueue.Status.Canceled=Canceled
+OpQueue.Status.Failed=Failed
+OpQueue.Status.Queued=Queued
+OpQueue.Count={0} operation(s)
+OpQueue.Type.Copy=Copy
+OpQueue.Type.Move=Move
+OpQueue.Type.Delete=Delete
+OpQueue.Type.Pack=Pack
+OpQueue.Type.Unpack=Unpack
+
+# ═══ Settings ═══
+Settings.Title=Settings
+Settings.Appearance=Appearance
+Settings.Editor=Editor
+Settings.FileOps=File Operations
+Settings.Confirmations=Confirmations
+Settings.Theme=Theme:
+Settings.Theme.Dark=Dark
+Settings.Theme.Light=Light
+Settings.Language=Language:
+Settings.ShowHidden=Show hidden files
+Settings.ShowToolbar=Show toolbar
+Settings.ShowStatusBar=Show status bar
+Settings.ShowCommandLine=Show command line
+Settings.ShowFunctionButtons=Show function buttons
+Settings.DirectoriesFirst=Directories first
+Settings.ShowExtInName=Show extension in file name
+Settings.ConfirmDelete=Confirm delete
+Settings.ConfirmOverwrite=Confirm overwrite
+Settings.CopyAttributes=Copy attributes by default
+Settings.CopyTimestamps=Copy timestamps by default
+Settings.ArchiveCompressionFormat=Archive format:
+Settings.ArchiveCompressionPreset=Compression:
+
+# ═══ Search ═══
+Search.Title=Search
+Search.Path=Path:
+Search.Pattern=File mask:
+Search.Content=Containing text:
+Search.CaseSensitive=Case sensitive
+Search.UseRegex=Regular expression
+Search.Subdirs=Search subdirectories
+Search.Start=Search
+Search.Stop=Stop
+Search.Results=Results
+Search.Found=Found {0} file(s)
+Search.Searching=Searching…
+Search.NoResults=No files found
+
+# ═══ Bookmarks ═══
+Bookmark.Title=Bookmarks
+Bookmark.Col.Name=Name
+Bookmark.Col.Path=Path
+Bookmark.Add=Add…
+Bookmark.Remove=Remove
+Bookmark.Empty=No bookmarks
+
+# ═══ Directory tree ═══
+DirTree.Title=Directory Tree
+DirTree.Root=Root
+
+# ═══ Properties ═══
+Props.Title=Properties
+Props.Name=Name:
+Props.Path=Path:
+Props.Size=Size:
+Props.Modified=Modified:
+Props.Created=Created:
+Props.Attributes=Attributes:
+Props.Files=Files:
+Props.Subdirs=Subdirectories:
+Props.TotalSize=Total size:
+
+# ═══ Input dialog ═══
+Input.Title=Input
+Input.CreateDir=Create Directory
+Input.CreateDirPrompt=Folder name:
+Input.Rename=Rename
+Input.RenamePrompt=New name:
+Input.AddBookmark=Add Bookmark
+Input.BookmarkName=Bookmark name:
+Input.BookmarkPath=Path:
+Input.ChangeDirPrompt=Path:
+Input.SelectPattern=Pattern (e.g. *.txt):
+
+# ═══ Confirmations ═══
+Confirm.Delete=Delete {0} item(s)?
+Confirm.DeleteItems=Delete {0} item(s)?\n\n{1}
+Confirm.RecycleBinFailedPermanent=The Recycle Bin could not be used for {0} item(s). Permanently delete them instead? This cannot be undone.\n\n{1}
+Confirm.Wipe=Wipe {0} item(s)? This cannot be undone.
+
+# ═══ Context menu ═══
+Ctx.View=View
+Ctx.Edit=Edit
+Ctx.Copy=Copy
+Ctx.Move=Move
+Ctx.Rename=Rename
+Ctx.Delete=Delete
+Ctx.Properties=Properties
+Ctx.CreateLink=Create Link
+Ctx.CreateSymlink=Symbolic Link…
+Ctx.CreateHardlink=Hard Link…
+Ctx.CopyPath=Copy Path
+Ctx.CopyPath.Full=Full Path
+Ctx.CopyPath.Name=Name Only
+Ctx.CopyPath.NoExt=Path Without Extension
+Ctx.SelectAll=Select All
+Ctx.InvertSelection=Invert Selection
+Ctx.OpenWith=Open With…
+
+# ═══ Errors ═══
+Err.PathNotFound=Path not found: {0}
+Err.AccessDenied=Access denied: {0}
+Err.FileExists=File already exists: {0}
+Err.InvalidName=Invalid file name: {0}
+
+# ═══ Editor ═══
+Edit.Title=Editor
+Edit.NewFile=Untitled
+Edit.SaveAs=Save As
+Edit.Saved=Saved to {0}
+Edit.NotFound=Text not found
+Edit.UnsavedChanges=Save changes to {0}?
+Edit.WordWrap=Word Wrap
+Edit.ShowWhitespace=Show Whitespace
+Edit.FilterAll=All files (*.*)|*.*|Text files (*.txt)|*.txt
+Edit.Find=Find
+Edit.Modified=Modified
+Edit.Bytes=bytes
+Edit.KB=KB
+Edit.FindBar.MatchCount={0} of {1}
+Edit.FindBar.MatchCase=Match case
+Edit.FindBar.ReplaceAll=Replace All
+Edit.FindBar.ReplaceAllConfirm=Replace all {0} occurrences?
+Edit.FindBar.ReplacedCount=Replaced: {0}
+Edit.FindBar.WrappedToTop=Search wrapped to top
+Edit.FindBar.WrappedToBottom=Search wrapped to bottom
+Edit.GoToLine=Go to Line
+Edit.GoToLinePrompt=Line number:
+Edit.Toolbar.New=New
+Edit.Toolbar.Open=Open
+Edit.Toolbar.Save=Save
+Edit.Toolbar.SaveAll=Save All
+Edit.Toolbar.Undo=Undo
+Edit.Toolbar.Redo=Redo
+Edit.Toolbar.Cut=Cut
+Edit.Toolbar.Copy=Copy
+Edit.Toolbar.Paste=Paste
+Edit.Toolbar.Find=Find
+Edit.Toolbar.Replace=Replace
+Edit.ErrorLoading=Error loading file: {0}
+Edit.ErrorSaving=Error saving file: {0}
+Edit.TabClose=Close Tab
+Edit.TabCloseOthers=Close Other Tabs
+Edit.TabCloseAll=Close All Tabs
+Edit.UnsavedChangesAll=There are {0} unsaved files. Close all?
+Edit.StatusPosition=Ln {0}, Col {1}
+Lang.PlainText=Plain Text
+View.TabText=Text/Hex
+View.TabImage=Image
+View.ModeAuto=Auto
+Main.OperationsActive=Operations: {0}
+Op.DisplayDelete=Delete {0} item(s)
+Op.DisplayWipe=Wipe {0} item(s)
+Op.DisplayPack=Pack {0} item(s) to {1}
+Op.DisplayUnpack=Unpack {0} to {1}
+Common.Confirm=Confirm
+
+# ═══ Viewer ═══
+View.Title=Viewer
+View.Text=Text
+View.Hex=Hex
+View.Image=Image
+View.WordWrap=Word Wrap
+View.TextMode=Text mode — {0}
+View.HexMode=Hex mode — {0}
+View.ImageMode=Image mode
+View.TooBigForText=File too large for text mode ({0}). Limit: {1}.
+View.HexTruncated=Showing first {0} of {1}.
+View.Error=Error
+View.FileNotFound=File not found.
+View.Toolbar.Previous=Previous
+View.Toolbar.Next=Next
+View.ZoomOut=Zoom Out
+View.ZoomIn=Zoom In
+
+# ═══ Multi-rename ═══
+MultiRename.Title=Multi-Rename
+MultiRename.Pattern=Pattern:
+MultiRename.Extension=Extension:
+MultiRename.StartAt=Start at:
+MultiRename.Step=Step:
+MultiRename.Hint=[N]=name  [E]=ext  [N3]=first 3 chars  [N-3]=last 3  [C]=counter  [C2:10]=width 2 start 10  [D]=date  [T]=time  [P]=parent dir
+MultiRename.OldName=Old Name
+MultiRename.NewName=New Name
+MultiRename.Status=Status
+MultiRename.ErrDuplicate=Duplicate target names detected. Adjust the pattern.
+
+# ═══ Archive ═══
+Archive.Title=Archive
+Archive.ChooseTarget=Choose destination folder
+Archive.UnsupportedFormat="{0}" is not a supported archive.
+Archive.PackTitle=Pack Files
+Archive.PackPrompt=Archive name:
+Archive.PackFormat=Format:
+Archive.PackCompression=Compression:
+Archive.PackMoveOriginals=Delete originals after packing (move)
+Archive.Format.Zip=ZIP
+Archive.Format.Tar=TAR
+Archive.Format.TarGz=TAR.GZ
+Archive.Format.SevenZip=7Z
+Archive.Format.Rar=RAR
+Archive.Format.TarBz2=TAR.BZ2
+Archive.Format.TarXz=TAR.XZ
+Archive.ReadOnlyFormat="{0}" is a read-only archive format and cannot be modified.
+Archive.Compression.Store=None (store only)
+Archive.Compression.Fastest=Fastest
+Archive.Compression.Balanced=Balanced
+Archive.Compression.Maximum=Maximum
+Archive.PackExists=Archive "{0}" already exists. Add files to it?
+Archive.UnpackTitle=Unpack Files
+Archive.UnpackNoArchive=Select an archive file to unpack.
+Archive.Packed=Packed {0} file(s) into {1}
+Archive.Unpacked=Unpacked {0} file(s) into {1}
+Archive.PackFailed=Pack failed: {0}
+Archive.UnpackFailed=Unpack failed: {0}
+Archive.EnterArchive=Enter Archive
+Archive.ExitArchive=Exit Archive
+Archive.SameArchiveTransfer=Copying within the same archive is not supported. Extract files first.
+Transfer.SourceEqualsDestination=Source and destination are the same. Choose a different destination folder.
+Archive.WipeUnsupported=Secure wipe is not available for archive entries. Use delete instead.
+Archive.NestedUnsupported=Cannot open an archive inside an archive. Extract "{0}" first.
+
+# ═══ Sync Dirs ═══
+SyncDirs.Title=Synchronize Directories
+SyncDirs.Left=Left:
+SyncDirs.Right=Right:
+SyncDirs.Subdirs=Include subdirectories
+SyncDirs.IgnoreTime=Ignore time (size only)
+SyncDirs.Compare=Compare
+SyncDirs.Status=Status
+SyncDirs.Path=Path
+SyncDirs.LeftSize=Left size
+SyncDirs.RightSize=Right size
+SyncDirs.Action=Action
+SyncDirs.CopyToLeft=Copy ←
+SyncDirs.CopyToRight=Copy →
+SyncDirs.BadPaths=Both directories must exist.
+SyncDirs.Scanning=Scanning…
+SyncDirs.Summary=Total {0} | equal {1} | different {2} | left only {3} | right only {4}
+SyncDirs.NothingToCopy=No items selected for copying.
+SyncDirs.StatusEqual=Equal
+SyncDirs.StatusSize=Size differs
+SyncDirs.StatusTime=Time differs
+SyncDirs.StatusType=Type differs
+SyncDirs.StatusLeftOnly=Left only
+SyncDirs.StatusRightOnly=Right only
+
+# ═══ Checksum ═══
+Checksum.Title=Checksum
+Checksum.FileName=File
+Checksum.FileSize=Size
+Checksum.Algorithm=Algorithm:
+Checksum.Hash=Hash
+Checksum.Calculate=Calculate
+Checksum.CopyToClipboard=Copy Hash
+Checksum.Calculating=Calculating…
+Checksum.Done=Done — {0} file(s)
+Checksum.Copied=Hash copied to clipboard
+Checksum.SelectFiles=Select files to calculate checksum.
+
+# ═══ Differ ═══
+Differ.Title=File Compare
+Differ.Left=Left:
+Differ.Right=Right:
+Differ.Compare=Compare
+Differ.FilesNotFound=Both files must exist.
+Differ.Summary=Left: {0} lines | Right: {1} lines | Differences: {2}
+Differ.FilterAll=All files (*.*)|*.*|Text files (*.txt)|*.txt
+
+# ═══ Properties (extra) ═══
+Props.EditAttributes=Edit attributes:
+Props.EditTimestamps=Edit timestamps:
+Props.ReadOnly=Read-only
+Props.Hidden=Hidden
+Props.System=System
+Props.Archive=Archive
+Props.Accessed=Accessed:
+Props.Applied=Properties applied.
+Props.Reseted=Changes reverted.
+Props.MultiTitle=Multiple items ({0})
+Props.Selection=Selection:
+Props.Type=Type:
+Props.Recursive=Apply recursively
+Props.TimestampHint=Check the box next to a date to change it; uncheck to leave unchanged.
+Props.AttrHint=Select "Set", "Clear", or "Keep" for each attribute.
+SelectionChanged=Set all
+SelectionUnchanged=Keep
+SelectionCleared=Clear all
+Props.Folder=Folder
+Props.File=File
+Props.ApplyToAll=Apply to {0} items
+Props.Stale=Size/stats may be stale — reopen the dialog.
+Props.CountFilesDirs={0} files, {1} folders
+
+# ═══ Terminal ═══
+Terminal.SelectType=Select Terminal Type
+Terminal.Cmd=Command Prompt (cmd.exe)
+Terminal.PowerShell=PowerShell (powershell.exe)
+Terminal.NewTab=New Terminal Tab
+Terminal.CloseTab=Close Tab
+Terminal.NextTab=Next Tab
+Terminal.PreviousTab=Previous Tab
+Terminal.MaxTabsReached=Maximum number of terminal tabs reached ({0})
+Terminal.ProcessTerminated=Process terminated
+Terminal.NoShellAvailable=No terminal shell (cmd.exe or PowerShell) is available on this system
+Settings.Terminal=Terminal
+Settings.DefaultShell=Default shell:
