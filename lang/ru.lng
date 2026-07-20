@@ -1,0 +1,1344 @@
+# ═══════════════════════════════════════════════════════════════
+# Coder Commander — Russian Language Pack
+# Файл перевода: русский язык
+# Формат: ключ=значение (# — комментарий)
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════
+# ГЛАВНОЕ ОКНО / ЗАГОЛОВОК
+# ═══════════════════════════════════════════
+AppTitle=Coder Commander
+AppSubtitle=Файловый менеджер
+
+# ═══════════════════════════════════════════
+# О ПРОГРАММЕ
+# ═══════════════════════════════════════════
+About.Title=О программе
+About.Close=Закрыть
+About.Subtitle=Двухпанельный файловый менеджер для разработчиков
+
+# ═══════════════════════════════════════════
+# МЕНЮ
+# ═══════════════════════════════════════════
+Menu.Left=Левая
+Menu.Left.Refresh=Обновить панель
+Menu.Left.ChangeDrive=Изменить диск...
+
+Menu.File=Файл
+Menu.File.View=Просмотр
+Menu.File.Edit=Редактирование
+Menu.File.Copy=Копирование
+Menu.File.Move=Перемещение/переименование
+Menu.File.CreateFolder=Создание каталога
+Menu.File.Delete=Удаление
+Menu.File.Rename=Переименовать
+Menu.File.Info=Информация
+Menu.File.Properties=Свойства...
+Menu.File.Exit=Выход
+
+Menu.Selection=Выделение
+Menu.Selection.All=Выделить всё
+Menu.Selection.None=Снять выделение
+Menu.Selection.Invert=Инвертировать
+Menu.Selection.Group=Выделить группу...
+Menu.Selection.DeselectGroup=Снять выделение группы...
+
+Menu.Commands=Команды
+Menu.Commands.Search=Поиск файлов
+Menu.Commands.Compare=Сравнить каталоги
+Menu.Commands.DiskInfo=Информация о дисках
+Menu.Commands.SyncPanels=Синхронизировать панели
+Menu.Commands.SwapPanels=Поменять панели местами
+Menu.Commands.SwitchPanel=Переключить панель
+Menu.Commands.Terminal=Терминал
+Menu.Commands.Palette=Палитра команд
+Menu.Commands.SyncDirs=Синхронизация папок…
+Menu.Search.Dialog=Поиск…
+
+Menu.Tools=Инструменты
+Menu.Tools.Git=Git
+Menu.Tools.Docker=Docker
+Menu.Tools.Ssh=SSH
+Menu.Tools.Sftp=SFTP
+Menu.Tools.Archive=Архивы
+Menu.Tools.ArchiveCreate=Создать архив…
+Menu.Tools.ArchiveExtract=Извлечь из архива…
+Menu.Tools.SplitCombine=Разделить / Соединить
+Menu.Tools.Split=Разделить файл…
+Menu.Tools.Combine=Соединить тома…
+Menu.Tools.Duplicates=Поиск дубликатов…
+Menu.Tools.MultiRename=Мульти-переименование…
+
+Menu.View=Вид
+Menu.View.Refresh=Обновить
+Menu.View.Hidden=Скрытые файлы
+Menu.View.Columns=Настроить колонки…
+Menu.View.FlatView=Рекурсивный список (Flat View)
+Menu.View.FlatViewLeft=Flat View (левая)
+Menu.View.FlatViewRight=Flat View (правая)
+
+Menu.Settings=Настройки
+Menu.Settings.Dialog=Настройки...
+Menu.Settings.Theme=Тема
+Menu.Settings.Theme.Dark=Тёмная
+Menu.Settings.Theme.Light=Светлая
+Menu.Settings.Theme.System=Как в системе
+
+Menu.Right=Правая
+Menu.Right.Refresh=Обновить панель
+Menu.Right.ChangeDrive=Изменить диск...
+
+Menu.Help=Справка
+Menu.Help.About=О программе
+Menu.Bookmarks=Избранное
+
+# ═══════════════════════════════════════════
+# ТУЛБАР TOOLTIPS
+# ═══════════════════════════════════════════
+Tip.Refresh=Обновить (Ctrl+R)
+Tip.Back=Назад
+Tip.Forward=Вперёд
+Tip.Up=Вверх
+Tip.NewFolder=Новая папка (F7)
+Tip.Copy=Копировать (F5)
+Tip.Move=Переместить (F6)
+Tip.Delete=Удалить (F8)
+Tip.Rename=Переименовать (F2)
+Tip.Bookmarks=Закладки
+Tip.Git=Git (F9)
+Tip.Docker=Docker
+Tip.Ssh=SSH
+Tip.Sftp=SFTP
+
+# ═══════════════════════════════════════════
+# ПАЛИТРА КОМАНД
+# ═══════════════════════════════════════════
+Palette.Select=  выбор    
+Palette.Navigate=  навигация
+
+# ═══════════════════════════════════════════
+# ПАНЕЛЬ ФАЙЛОВ
+# ═══════════════════════════════════════════
+Panel.EditPath=Редактировать путь
+Panel.Back=Назад (Alt+←)
+Panel.Forward=Вперёд (Alt+→)
+Panel.Up=Вверх (PgUp)
+Panel.Refresh=Обновить (Ctrl+R)
+Panel.Filter=Фильтр...
+Panel.ClearFilter=Очистить фильтр
+Panel.ColName=ИМЯ...
+Panel.ColSize=РАЗМЕР
+Panel.ColDate=ДАТА
+
+# ═══════════════════════════════════════════
+# КОНТЕКСТНОЕ МЕНЮ ПАНЕЛИ
+# ═══════════════════════════════════════════
+Ctx.Open=Открыть
+Ctx.View=Просмотреть (F3)
+Ctx.Edit=Редактировать (F4)
+Ctx.Copy=Копировать (F5)
+Ctx.Move=Переместить (F6)
+Ctx.CreateFolder=Создать папку (F7)
+Ctx.Delete=Удалить (F8)
+Ctx.Rename=Переименовать (F2)
+Ctx.Refresh=Обновить (Ctrl+R)
+Ctx.Split=Разделить на тома…
+Ctx.Combine=Соединить тома…
+Ctx.FlatView=Рекурсивный список (Flat View)
+Ctx.AddBookmark=Добавить в избранное…
+Ctx.ArchiveCreate=Создать архив…
+Ctx.ArchiveExtract=Извлечь из архива…
+
+# ═══════════════════════════════════════════
+# КОНТЕКСТНОЕ МЕНЮ — РАСШИРЕННОЕ
+# ═══════════════════════════════════════════
+Ctx.CopyPath=Копировать путь
+Ctx.CopyPath.Full=Полный путь
+Ctx.CopyPath.Name=Имя файла
+Ctx.CopyPath.NoExt=Путь без расширения
+Ctx.CopyPath.NameNoExt=Имя без расширения
+Ctx.OpenInExplorer=Открыть в проводнике
+Ctx.OpenInTerminal=Открыть в терминале
+Ctx.CopyToOther=Скопировать в другую панель
+Ctx.MoveToOther=Переместить в другую панель
+Ctx.Compare=Сравнить файлы
+Ctx.Checksum=Контрольная сумма (SHA-256)
+Ctx.SelectGroup=Выбрать группу…
+Ctx.DeselectGroup=Снять выделение группы…
+Ctx.GroupMask=Маска файлов (например *.txt):
+Ctx.PathCopied=Путь скопирован
+Ctx.NameCopied=Имя скопировано
+Ctx.Copied=Скопировано: {0}
+Ctx.Moved=Перемещено: {0}
+
+# ═══════════════════════════════════════════
+# GIT-ПАНЕЛЬ
+# ═══════════════════════════════════════════
+Git.Refresh=⟳ Обновить
+Git.Fetch=↓ Получить
+Git.Pull=⤓ Стянуть
+Git.Push=⤒ Отправить
+Git.Stash=📥 Спрятать
+Git.PopStash=📤 Применить
+Git.NewBranch=⎇ Новая ветка
+Git.Branch=Ветка:
+Git.Changes=изменений
+Git.Commit=✔ Коммит (Ctrl+Enter)
+Git.Amend=Изменить
+Git.StageAll=+ Все
+Git.UnstageAll=- Все
+Git.OpenInEditor=◉ редактор
+Git.ChangesTitle=Изменения
+Git.NoRepo=Не репозиторий git
+Git.NoChanges=Нет изменений
+Git.NoUntracked=Нет неотслеживаемых изменений
+Git.SelectFileHint=Выберите файл для просмотра изменений
+Git.CommitHistory=История коммитов
+Git.CommitMsgPlaceholder=Введите сообщение коммита...
+
+Git.Tip.Refresh=Обновить состояние репозитория
+Git.Tip.Fetch=Получить изменения из upstream без слияния
+Git.Tip.Pull=Получить и слить изменения
+Git.Tip.Push=Отправить изменения в удалённый репозиторий
+Git.Tip.Stash=Спрятать изменения в stash
+Git.Tip.PopStash=Достать изменения из stash
+Git.Tip.NewBranch=Создать новую ветку
+Git.Tip.StageAll=Индексировать все изменения
+Git.Tip.UnstageAll=Убрать всё из индекса
+Git.Tip.OpenDiff=Открыть diff в редакторе
+Git.Tip.Stage=Добавить в индекс
+Git.Tip.Unstage=Убрать из индекса
+Git.Tip.OpenEditor=Открыть в редакторе
+Git.Tip.Discard=Отменить изменения
+Git.Tip.Amend=Изменить последний коммит
+Git.Tip.Branch=Переключиться на другую ветку
+Git.Tip.Ahead=Опережает удалённую ветку
+Git.Tip.Behind=Отстаёт от удалённой ветки
+
+# ═══════════════════════════════════════════
+# DOCKER-ПАНЕЛЬ
+# ═══════════════════════════════════════════
+Docker.Containers=Контейнеры
+Docker.NoContainers=Нет контейнеров
+Docker.RunHint=Запустите docker run из терминала
+Docker.Exec=Exec
+Docker.Logs=Логи
+Docker.Images=Образы
+
+Docker.Tip.Refresh=Обновить список контейнеров и образов
+Docker.Tip.Start=Запустить выбранный контейнер
+Docker.Tip.Stop=Остановить выбранный контейнер
+Docker.Tip.Remove=Удалить выбранный контейнер
+Docker.Tip.Logs=Показать логи выбранного контейнера
+Docker.Tip.Exec=Выполнить команду в выбранном контейнере
+Docker.Tip.ExecCmd=Введите команду для выполнения в контейнере
+Docker.Tip.RemoveImage=Удалить выбранный образ
+
+# ═══════════════════════════════════════════
+# SSH-ПАНЕЛЬ
+# ═══════════════════════════════════════════
+Ssh.Profiles=Профили серверов
+Ssh.New=＋ Новый
+Ssh.Save=Сохранить
+Ssh.Delete=Удалить
+Ssh.CheckConnection=Проверить подключение
+Ssh.NoProfiles=Нет профилей. Нажмите «Новый», чтобы создать.
+Ssh.Editor=Редактор профиля
+Ssh.ProfileName=Имя профиля
+Ssh.Host=Хост (IP или домен)
+Ssh.User=Пользователь
+Ssh.Port=Порт
+Ssh.RemotePath=Удалённый путь
+Ssh.IdentityFile=Приватный ключ (Identity File)
+Ssh.Publish=Публикация
+Ssh.PublishHint=Выберите файл или папку в активной панели и нажмите «Опубликовать на сервер». Выбранный профиль используется по умолчанию.
+
+Ssh.Tip.New=Создать новый профиль
+Ssh.Tip.Save=Сохранить изменения профиля
+Ssh.Tip.Delete=Удалить выбранный профиль
+Ssh.Tip.Check=Проверить доступность сервера
+Ssh.Tip.Edit=Редактировать профиль
+Ssh.Tip.Key=Абсолютный путь к файлу приватного ключа (опционально)
+Ssh.Tip.KeyFile=Выбрать файл приватного ключа
+
+# ═══════════════════════════════════════════
+# SFTP-ПАНЕЛЬ
+# ═══════════════════════════════════════════
+Sftp.Connect=Подключиться
+Sftp.Reconnect=Переподключиться
+Sftp.Refresh=⟳ Обновить
+Sftp.Download=⬇ Скачать
+Sftp.Upload=⬆ Загрузить
+Sftp.NewFolder=＋ Папка
+Sftp.Up=↑ Вверх
+Sftp.Path=Путь:
+Sftp.Loading=Загрузка...
+
+Sftp.Tip.SelectProfile=Выберите SSH-профиль для подключения
+Sftp.Tip.Refresh=Обновить список файлов
+Sftp.Tip.Download=Скачать выбранный файл в локальную папку
+Sftp.Tip.Upload=Загрузить файл на сервер
+Sftp.Tip.NewFolder=Создать новую папку на сервере
+Sftp.Tip.Up=Перейти в родительскую директорию
+
+Sftp.Ctx.Open=Открыть / войти в папку
+Sftp.Ctx.Download=Скачать
+Sftp.Ctx.Rename=Переименовать
+Sftp.Ctx.Delete=Удалить
+Sftp.Ctx.NewFolder=Создать папку
+
+# ═══════════════════════════════════════════
+# ОКНО РЕДАКТОРА
+# ═══════════════════════════════════════════
+Editor.Title=Редактор
+Editor.Viewer=Просмотр
+Editor.Lines=строк
+Editor.Modified=[Изменён]
+Editor.ViewMode=[просмотр]
+Editor.Restore=Восстановить
+Editor.Maximize=Развернуть
+Editor.Normal=Обычный
+Editor.Saved=Файл сохранён: {0}
+Editor.SaveOk=Сохранено
+Editor.SaveError=Ошибка сохранения: {0}
+Editor.SaveErrTitle=Ошибка
+Editor.UnsavedPrompt=Файл был изменён. Сохранить изменения?
+Editor.UnsavedTitle=Несохранённые изменения
+Editor.Tip.Minimize=Свернуть
+Editor.Tip.Maximize=Развернуть
+Editor.Tip.Close=Закрыть (Esc)
+Editor.Tab.Close=Закрыть вкладку
+Editor.Tab.CloseOthers=Закрыть остальные
+Editor.Tab.CloseAll=Закрыть все
+Editor.Tab.New=Новая вкладка
+Editor.Tabs.UnsavedPrompt=Сохранить изменения в {0}?
+Editor.Tabs.UnsavedTitle=Несохранённые изменения
+
+# ═══════════════════════════════════════════
+# ОКНО НАСТРОЕК
+# ═══════════════════════════════════════════
+Settings.Title=Настройки
+Settings.Appearance=Внешний вид
+Settings.Editor=Редактор
+Settings.Terminal=Терминал
+Settings.Behavior=Поведение
+Settings.Language=Язык
+Settings.LanguageDesc=Язык интерфейса
+Settings.Theme=Тема оформления
+Settings.ThemeDesc=Цветовая схема интерфейса
+Settings.Theme.Dark=Тёмная
+Settings.Theme.Light=Светлая
+Settings.Theme.System=Как в системе
+Settings.ShowHidden=Показывать скрытые файлы
+Settings.ShowHiddenDesc=Отображать файлы с атрибутом Hidden
+Settings.EditorFont=Шрифт редактора
+Settings.EditorFontDesc=Семейство шрифтов для отображения кода
+Settings.EditorFontSize=Размер шрифта
+Settings.EditorFontSizeDesc=Размер шрифта в пунктах
+Settings.LineNumbers=Нумерация строк
+Settings.LineNumbersDesc=Показывать номера строк слева
+Settings.WordWrap=Перенос строк
+Settings.WordWrapDesc=Переносить длинные строки
+Settings.DefaultShell=Оболочка по умолчанию
+Settings.DefaultShellDesc=Командная оболочка для новых вкладок
+Settings.TerminalFont=Шрифт терминала
+Settings.TerminalFontDesc=Семейство шрифтов для консоли
+Settings.TerminalFontSize=Размер шрифта
+Settings.ConfirmDelete=Подтверждение удаления
+Settings.ConfirmDeleteDesc=Запрашивать подтверждение при удалении файлов
+Settings.ConfirmOverwrite=Подтверждение перезаписи
+Settings.ConfirmOverwriteDesc=Запрашивать подтверждение при перезаписи файлов
+Settings.AutoRefresh=Автообновление панелей
+Settings.AutoRefreshDesc=Автоматически обновлять содержимое папок
+Settings.RefreshInterval=Интервал обновления (мс)
+Settings.RefreshIntervalDesc=Период автообновления в миллисекундах
+Settings.Reset=Сбросить
+Settings.Save=Сохранить
+Settings.Saved=Настройки сохранены
+Settings.ResetConfirm=Восстановить настройки по умолчанию?
+Settings.ResetTitle=Сброс настроек
+Settings.Hotkeys=Горячие клавиши
+Settings.HotkeysDesc=Настройка горячих клавиш панелей
+
+# ═══════════════════════════════════════════
+# ДИАЛОГ ПОИСКА
+# ═══════════════════════════════════════════
+Search.LastResults=Последние результаты поиска
+Search.Dialog.Title=Поиск файлов
+Search.Root=Папка
+Search.NameMasks=Маски имён (через «;», * и ?):
+Search.NameRegex=Regex-режим имён
+Search.Content=Искать в содержимом (регулярное выражение):
+Search.MatchCase=Учитывать регистр
+Search.RecurseLabel=Рекурсия
+Search.Recurse=Включая вложенные папки
+Search.SizeFilter=Размер (от/до):
+Search.SizeFrom=от
+Search.SizeTo=до
+Search.Date=Дата изменения (от/до):
+Search.DateFrom=от
+Search.DateTo=до
+Search.Encoding=Кодировка:
+Search.EncodingFallback=(если нет BOM)
+Search.Attributes=Атрибуты (требуются):
+Search.Attr.ReadOnly=Только чтение
+Search.Attr.Hidden=Скрытый
+Search.Attr.System=Системный
+Search.Attr.Archive=Архивный
+Search.InArchives=Искать в архивах:
+Search.InArchives.Tip=ZIP, 7Z, RAR, TAR, GZ (до 500 МБ)
+Search.Start=Начать поиск
+Search.Cancel=Отмена
+Search.Clear=Очистить
+Search.Name=Имя
+Search.Path=Путь
+Search.Col.Size=Размер
+Search.Col.Line=Строка
+Search.Col.Match=Совпадение
+
+# ═══════════════════════════════════════════
+# МУЛЬТИ-ПЕРЕИМЕНОВАНИЕ
+# ═══════════════════════════════════════════
+MultiRename.Title=Мульти-переименование
+MultiRename.ModeMask=Маска
+MultiRename.ModeRegex=Найти / заменить
+MultiRename.Mask=Маска:
+MultiRename.MaskHint=[N] имя, [E] расширение, [C] счётчик, [G] GUID, [Y][M][D] дата, [h][n][s] время, [V:имя] переменная. Подстроки: [N2], [N2:5], [E2:4]. Отрицательные индексы: [-1] — последний символ.
+MultiRename.CounterStart=Старт:
+MultiRename.CounterStep=Шаг:
+MultiRename.CounterWidth=Ширина:
+MultiRename.Find=Найти (regex):
+MultiRename.Replace=Заменить ($1, $2 — группы):
+MultiRename.CaseSensitive=Учитывать регистр
+MultiRename.Variables=Переменные [V:имя] (одно значение на все файлы):
+MultiRename.NameStyle=Стиль имени:
+MultiRename.StyleAsIs=Без изменений
+MultiRename.StyleUpper=ВЕРХНИЙ РЕГИСТР
+MultiRename.StyleLower=нижний регистр
+MultiRename.StyleTitle=Заглавные Буквы
+MultiRename.BadChar=Замена запрещённых символов:
+MultiRename.BadCharTip=<>:\"/\\|?* → заменяются на указанный символ
+MultiRename.EnableLog=Записывать лог переименования
+MultiRename.LogPath=Путь к логу:
+MultiRename.Preset=Пресет:
+MultiRename.PresetSave=Сохранить
+MultiRename.PresetLoad=Загрузить
+MultiRename.PresetDelete=Удалить
+MultiRename.Preview=Предпросмотр:
+MultiRename.ColOriginal=Исходное имя
+MultiRename.ColNew=Новое имя
+MultiRename.Apply=Применить
+MultiRename.PreviewStatus=Изменений: {0} из {1}
+MultiRename.Done=Переименовано: {0}
+MultiRename.DoneErrors=Переименовано: {0}, ошибок: {1}
+MultiRename.NoSelection=Нет выделенных элементов для переименования
+MultiRename.Applied=Мульти-переименование завершено: {0} элементов
+MultiRename.PresetSaveTitle=Сохранить пресет
+MultiRename.PresetSavePrompt=Имя пресета:
+MultiRename.PresetSaved=Пресет сохранён: {0}
+MultiRename.PresetLoaded=Пресет загружен: {0}
+MultiRename.PresetDeleted=Пресет удалён: {0}
+MultiRename.PresetError=Ошибка пресета: {0}
+
+# ═══════════════════════════════════════════
+# НАСТРОЙКА КОЛОНОК
+# ═══════════════════════════════════════════
+Columns.Name=Имя
+Columns.Extension=Расширение
+Columns.Size=Размер
+Columns.Modified=Дата изм.
+Columns.Created=Дата созд.
+Columns.Attributes=Атрибуты
+Columns.Type=Тип
+Columns.Configure=Настроить колонки…
+Columns.Reset=Сбросить
+Columns.Apply=Применить
+Columns.Available=Доступные колонки:
+Columns.Active=Активные колонки:
+Columns.Add=Добавить
+Columns.Remove=Убрать
+Columns.MoveUp=Вверх
+Columns.MoveDown=Вниз
+Columns.Width=Ширина:
+Columns.Hide=Скрыть колонку
+
+# ═══════════════════════════════════════════
+# БЫСТРЫЙ ФИЛЬТР
+# ═══════════════════════════════════════════
+QuickFilter.Placeholder=Быстрый фильтр…
+Quick.MatchCase=Учитывать регистр (Aa)
+Quick.MatchStart=Совпадение в начале имени
+Quick.Scope=Область фильтра: все / файлы / папки
+
+# ═══════════════════════════════════════════
+# УПРАВЛЕНИЕ ЗАКЛАДКАМИ
+# ═══════════════════════════════════════════
+Bookmark.Add=Добавить закладку
+Bookmark.Remove=Удалить закладку
+Bookmark.Rename=Переименовать закладку
+Bookmark.Navigate=Перейти к закладке
+Bookmark.Manage=Управление закладками…
+Bookmark.AlreadyExists=Этот путь уже в закладках
+Bookmark.Added=Закладка добавлена: {0}
+Bookmark.Name=Имя:
+Bookmark.Export=Экспорт в JSON
+Bookmark.Import=Импорт из JSON
+Bookmark.ExportDone=Экспортировано закладок: {0}
+Bookmark.ImportResult=Импорт: добавлено {0}, пропущено {1}
+Bookmark.Tip.Up=Вверх
+Bookmark.Tip.Down=Вниз
+
+# ═══════════════════════════════════════════
+# РАЗДЕЛЕНИЕ / СКЛЕЙКА
+# ═══════════════════════════════════════════
+Split.NoFiles=Нет выбранных файлов для разбиения
+Split.SizeTitle=Размер тома
+Split.SizePrompt=Укажите размер тома (например 100M, 1.5G, 500K):
+Split.BadSize=Некорректный размер тома
+Split.Started=Разбиение файла…
+Split.Done=Разбиение завершено: {0} файл(ов)
+Combine.NoFile=Выберите summary (.sum) или первый том (.001)
+Combine.Started=Склейка томов…
+Combine.Done=Склейка завершена: {0} ({1} томов)
+
+# ═══════════════════════════════════════════
+# ПОИСК ДУБЛИКАТОВ
+# ═══════════════════════════════════════════
+Dup.Title=Поиск дубликатов
+Dup.Folder=Папка:
+Dup.Browse=Выберите папку
+Dup.IncludeSubfolders=Включая подпапки
+Dup.Criterion=Критерий:
+Dup.Search=Найти дубликаты
+Dup.Cancel=Отмена
+Dup.MarkExceptFirst=Отметить всё, кроме первого
+Dup.ClearMarks=Снять отметки
+Dup.DeleteMarked=Удалить отмеченные
+Dup.DeleteTitle=Подтверждение удаления
+Dup.Status.Gather=Сбор файлов…
+Dup.Status.Hashing=Вычисление хешей…
+Dup.Status.None=Дубликатов не найдено
+Dup.Status.Found=Найдено групп: {0}, дубликатов: {1}
+Dup.Status.NoFolder=Папка не выбрана или не существует
+Dup.Status.DeleteConfirm=Удалить {0} файл(ов) из «{1}»? Действие необратимо.
+Dup.Status.Deleted=Удалено: {0}, с ошибками: {1}
+Dup.NothingMarked=Нет файлов, отмеченных для удаления
+Dup.Differ=отличается (не дубликат)
+Dup.FileCount={0} файл(ов)
+Dup.FileCountSuffix= файл(ов)
+Dup.Criterion.Size=По размеру
+Dup.Criterion.SizeName=По размеру и имени
+Dup.Criterion.Hash=По хешу (SHA-256)
+Dup.Criterion.Content=По содержимому (побайтово)
+Dup.Ready=Готово
+Dup.Cancelled=Поиск отменён
+
+# ═══════════════════════════════════════════
+# СИНХРОНИЗАЦИЯ ПАПОК
+# ═══════════════════════════════════════════
+Sync.Title=Синхронизация папок
+Sync.Left=Левая:
+Sync.Right=Правая:
+Sync.Mask=Маска:
+Sync.IncludeSubfolders=Включая подпапки
+Sync.OnlySelected=Только выделенное
+Sync.Mode=Сравнение:
+Sync.Direction=Направление:
+Sync.Col.Apply=✓
+Sync.Col.Path=Путь
+Sync.Col.LeftSize=Размер ←
+Sync.Col.LeftTime=Изменён ←
+Sync.Col.RightSize=Размер →
+Sync.Col.RightTime=Изменён →
+Sync.Col.Diff=Различия
+Sync.Col.Action=Действие
+Sync.All=Все
+Sync.None=Снять
+Sync.Set=Для выбранных:
+Sync.CopyLeft=← В левую
+Sync.CopyRight=В правую →
+Sync.DeleteBoth=Удалить обе
+Sync.ClearAction=Без действия
+Sync.ToApply=к применению
+Sync.Compare=Сравнить
+Sync.Apply=Применить
+Sync.Cancel=Отмена
+Sync.Status.Scan=Сканирование папок…
+Sync.Status.Found=Пар: {0}, требуют действия: {1}
+Sync.Status.Cancelled=Отменено
+Sync.Status.Applying=Применение действий…
+Sync.Status.ApplyingFile=Применение: {0}
+Sync.Status.Applied=Готово: успешно {0}, ошибок {1}
+Sync.Mode.SizeMtime=По размеру и дате
+Sync.Mode.Content=По содержимому (хеш SHA-256)
+Sync.Direction.CopyToNewer=Новее → старее
+Sync.Direction.CopyToLeft=В левую панель
+Sync.Direction.CopyToRight=В правую панель
+Sync.Action.None=Без действия
+Sync.Action.Equal=Одинаковы
+Sync.Action.CopyLeft=← В левую
+Sync.Action.CopyRight=В правую →
+Sync.Action.DeleteLeft=Удалить ←
+Sync.Action.DeleteRight=Удалить →
+Sync.Action.DeleteBoth=Удалить обе
+Sync.Asymmetric=Асимметричный
+Sync.AsymmetricDesc=Копировать только из левой панели; файлы справа пропускаются, удаления не выполняются
+Sync.Ready=Готово
+
+# ═══════════════════════════════════════════
+# АТРИБУТЫ ФАЙЛА
+# ═══════════════════════════════════════════
+Attr.Title=Свойства файла
+Attr.Menu=Атрибуты:
+Attr.Single=Файл: {0}
+Attr.FilesSelected=Файлов выбрано: {0} (применяется ко всем)
+Attr.NoSelection=Нет выбранных файлов
+Attr.SectionAttr=Атрибуты
+Attr.ReadOnly=Только чтение (ReadOnly)
+Attr.Hidden=Скрытый (Hidden)
+Attr.System=Системный (System)
+Attr.Archive=Архивный (Archive)
+Attr.SectionTime=Метки времени
+Attr.Created=Создан
+Attr.Modified=Изменён
+Attr.Accessed=Доступ
+Attr.ApplyCreated=Применить дату создания
+Attr.ApplyModified=Применить дату изменения
+Attr.ApplyAccessed=Применить дату доступа
+Attr.SectionLink=Жёсткие и символические ссылки
+Attr.LinkTarget=Цель / новая ссылка
+Attr.LinkPlaceholder=Для Hardlink — новый путь; для Symlink — существующий файл (для нескольких — папка)
+Attr.CreateHardlink=Создать жёсткую ссылку (Hardlink)
+Attr.CreateSymlink=Создать символическую ссылку (Symlink)
+Attr.Apply=Применить
+Attr.Cancel=Отмена
+Attr.Done=Готово
+Attr.AttrApplied=Атрибуты и даты применены к {0} элементам
+Attr.HardlinkDone=Жёсткие ссылки созданы: {0}, ошибок: {1}
+Attr.SymlinkDone=Символические ссылки созданы: {0}, ошибок: {1}
+Attr.ErrTargetEmpty=Не указана цель ссылки
+Attr.ErrTargetNotDir=Для нескольких файлов цель должна быть папкой
+Attr.ErrLinkExists=Ссылка уже существует: {0}
+Attr.ErrAccess=Нет прав (запустите от администратора для ссылок): {0}
+Attr.ErrSuffix= ош.)
+Attr.AccessDenied=отказано
+
+# ═══════════════════════════════════════════
+# СТРОКИ СОСТОЯНИЯ
+# ═══════════════════════════════════════════
+Status.Ready=Готов
+Status.ItemsIn={0} элементов в {1}
+Status.Dir=[DIR] {0}
+Status.File={0} {1} {2}
+Status.Copied=Скопировано: 
+Status.Moved=Перемещено: 
+Status.Deleted=Удалено: {0}
+Status.DeletedOf=Удалено {0} из {1}. Ошибка: {2}
+Status.Searching=Поиск...
+Status.Found=Найдено: {0}
+Status.NotFound=Ничего не найдено
+Status.PanelsSynced=Панели синхронизированы
+Status.PanelsSwapped=Панели поменяны местами
+Status.Compared=Каталоги сравнены
+Status.NoSshProfiles=Нет SSH-профилей
+Status.Error=Ошибка: {0}
+
+# ═══════════════════════════════════════════
+# ДИАЛОГИ
+# ═══════════════════════════════════════════
+Dialog.ConfirmDelete=Удалить {0} элемент(ов)?
+Dialog.ConfirmDeleteTitle=Подтверждение
+Dialog.Overwrite=«{0}» уже существует. Перезаписать?
+Dialog.OverwriteTitle=Конфликт
+Dialog.ApplyAll=Применить всем?
+Dialog.NewFolderTitle=Новая папка
+Dialog.NewFolderName=Имя:
+Dialog.RenameTitle=Переименование
+Dialog.RenameName=Новое имя:
+Dialog.SelectFilesTitle=Выделить файлы
+Dialog.SelectFilesMask=Маска (например, *.txt):
+Dialog.DeselectFilesTitle=Снять выделение
+Dialog.SearchTitle=Поиск файлов
+Dialog.SearchName=Имя (маски: *, ?):
+Dialog.SearchText=Текст в файле (пусто = по имени):
+Dialog.SearchResults=Найдено: {0}
+Dialog.SearchEmpty=Файлы не найдены
+Dialog.SearchTruncated=\n\n... и ещё {0}
+Dialog.FileInfo=Информация
+Dialog.DiskInfo=Информация о дисках
+Dialog.AboutTitle=О программе
+Dialog.About=Coder Commander v1.0\n2-панельный файловый менеджер для программиста\n\n.NET 8 + WPF + AvalonEdit + Git + Docker + SSH + SFTP
+Dialog.Cancel=Отмена
+Dialog.Ok=OK
+Dialog.UnhandledException=Необработанное исключение
+Dialog.Close=Закрыть
+Dialog.Message=Сообщение
+
+# ═══════════════════════════════════════════
+# ДИАЛОГ ОПЕРАЦИЙ
+# ═══════════════════════════════════════════
+OpDlg.Title.Copy=Копирование
+OpDlg.Title.Move=Перенос
+OpDlg.Title.Delete=Удаление
+OpDlg.Speed=Скорость:
+OpDlg.ETA=Осталось:
+OpDlg.of=из
+OpDlg.Cancel=Отмена
+OpDlg.State.Running=Выполняется…
+OpDlg.State.Completed=Завершено
+OpDlg.State.Canceled=Отменено
+OpDlg.State.Failed=Ошибка
+OpDlg.Overwrite.Title=Конфликт перезаписи
+OpDlg.Overwrite.Source=Источник:
+OpDlg.Overwrite.Dest=Назначение:
+OpDlg.Overwrite.Skip=Пропустить
+OpDlg.Overwrite.Overwrite=Перезаписать
+OpDlg.Overwrite.Older=Если старше
+OpDlg.Overwrite.Rename=Переименовать
+OpDlg.Overwrite.Abort=Прервать
+OpDlg.Overwrite.ApplyAll=Применить ко всем конфликтам
+
+# ═══════════════════════════════════════════
+# ОЧЕРЕДЬ ОПЕРАЦИЙ
+# ═══════════════════════════════════════════
+OpQueue.Title=Очередь операций
+OpQueue.Stats.Active=активных
+OpQueue.Stats.Pending=ожидающих
+OpQueue.Stats.Completed=завершено
+OpQueue.CancelAll=Отменить все
+OpQueue.ClearCompleted=Очистить завершённые
+OpQueue.RetryFailed=Повторить неудачные
+OpQueue.Section.Active=▸ Активные операции
+OpQueue.Section.Pending=▸ Ожидающие
+OpQueue.Col.Description=Описание
+OpQueue.Col.Status=Статус
+OpQueue.Col.File=Файл
+OpQueue.Col.Progress=Прогресс
+OpQueue.Col.Percent=%
+OpQueue.Col.Actions=Действие
+OpQueue.Tip.CancelOne=Отменить операцию
+OpQueue.Tip.Close=Закрыть (Esc)
+OpQueue.Footer.Hint=Максимум 3 параллельные операции. Отменённые и завершённые можно повторить.
+OpQueue.StatusBar.Tooltip=Очередь операций: {0} активных, {1} ожидает
+
+# ═══════════════════════════════════════════
+# ОТКРЫТЬ КАК
+# ═══════════════════════════════════════════
+OpenWith.Title=Открыть как
+OpenWith.Menu=Открыть как…
+OpenWith.SetDefault=Использовать по умолчанию
+OpenWith.Browse=Обзор…
+OpenWith.BrowseTitle=Выберите приложение
+OpenWith.Open=Открыть
+OpenWith.Cancel=Отмена
+OpenWith.Opened=Открыто {0} в {1}
+
+# ═══════════════════════════════════════════
+# БЫСТРЫЙ ПРОСМОТР
+# ═══════════════════════════════════════════
+QuickView.Title=Быстрый просмотр
+QuickView.Toggle=Быстрый просмотр
+QuickView.NoPreview=Предпросмотр недоступен
+QuickView.CannotLoad=Не удалось загрузить изображение
+
+# ═══════════════════════════════════════════
+# CROSS-VFS (SFTP)
+# ═══════════════════════════════════════════
+CrossVfs.Connecting=Подключение к SFTP: {0}…
+CrossVfs.Connected=SFTP подключён: {0}
+CrossVfs.ConnectFailed=Не удалось подключиться к {0}
+CrossVfs.Disconnected=SFTP отключён
+CrossVfs.Uploading=Загрузка на сервер: {0}
+CrossVfs.Downloading=Скачивание: {0}
+CrossVfs.Moving=Перенос на сервер: {0}
+CrossVfs.CopyDone=Скопировано на SFTP: {0}
+CrossVfs.CopyDoneErrors=Скопировано: {0}, ошибок: {1}
+CrossVfs.MoveDone=Перенесено на SFTP: {0}
+CrossVfs.MoveDoneErrors=Перенесено: {0}, ошибок: {1}
+CrossVfs.Cancelled=Операция отменена
+CrossVfs.Error=Ошибка: {0}
+CrossVfs.ConfirmMove=Перенести {0} элемент(ов) на SFTP-сервер?\nИсточники будут удалены после переноса.
+CrossVfs.MoveTitle=Перенос на SFTP
+CrossVfs.CopyToSftp=Копировать на SFTP…
+CrossVfs.MoveToSftp=Перенести на SFTP…
+CrossVfs.DownloadFromSftp=Скачать с SFTP…
+CrossVfs.Disconnect=Отключить SFTP
+CrossVfs.NoConnection=Нет подключения к SFTP
+
+# ═══════════════════════════════════════════
+# АРХИВЫ
+# ═══════════════════════════════════════════
+Archive.Title=Управление архивами
+Archive.TabCreate=Создать архив
+Archive.TabExtract=Извлечь из архива
+Archive.Create=Создать
+Archive.Extract=Извлечь
+Archive.Cancel=Отмена
+Archive.Format=Формат:
+Archive.Compression=Сжатие:
+Archive.CompNone=Без сжатия
+Archive.CompFast=Быстро
+Archive.CompOptimal=Оптимально
+Archive.CompBest=Максимально
+Archive.Format.Zip=ZIP
+Archive.Password=Пароль:
+Archive.OutputPath=Архив:
+Archive.ArchivePath=Архив:
+Archive.ExtractTo=Извлечь в:
+Archive.ClearFiles=Очистить
+Archive.SelectAll=Все
+Archive.SelectNone=Снять
+Archive.Ready=Готово
+Archive.NoFiles=Нет файлов для архивации
+Archive.NoOutputPath=Не указан путь к архиву
+Archive.NoArchive=Архив не найден
+Archive.NoArchiveSelected=Выберите архив (.zip/.7z/.rar/.tar/.gz)
+Archive.NoExtractPath=Не указан каталог назначения
+Archive.Creating=Создание архива…
+Archive.Extracting=Извлечение архива…
+Archive.CreateDone=Архив создан: {0}
+Archive.ExtractDone=Извлечено в: {0}
+Archive.Cancelled=Операция отменена
+Archive.Loading=Загрузка содержимого архива…
+Archive.EntriesLoaded=Записей в архиве: {0}
+Archive.Tip.Minimize=Свернуть
+Archive.Tip.Maximize=Развернуть
+Archive.Tip.Close=Закрыть
+
+# ═══════════════════════════════════════════
+# ВКЛАДКИ
+# ═══════════════════════════════════════════
+Tab.New=Новая вкладка
+Tab.Close=Закрыть вкладку
+Tab.CloseOthers=Закрыть другие
+Tab.CloseAll=Закрыть все
+
+# ═══════════════════════════════════════════
+# РЕКУРСИВНЫЙ СПИСОК (FLAT VIEW)
+# ═══════════════════════════════════════════
+
+# ═══════════════════════════════════════════
+# ПЕРЕТАСКИВАНИЕ (DRAG & DROP)
+# ═══════════════════════════════════════════
+DragDrop.Copied=Скопировано перетаскиванием: {0}
+DragDrop.Moved=Перемещено перетаскиванием: {0}
+
+# ═══════════════════════════════════════════
+# ТЕРМИНАЛ
+# ═══════════════════════════════════════════
+Terminal.Split=Разделить терминал
+Terminal.Pwsh=PowerShell Core (pwsh)
+
+# ═══════════════════════════════════════════
+# ГОРЯЧИЕ КЛАВИШИ
+# ═══════════════════════════════════════════
+Hotkey.Action=Действие
+Hotkey.Key=Комбинация клавиш
+Hotkey.Description=Описание
+Hotkey.CaptureHint=Нажмите «Изменить», затем клавишу...
+Hotkey.Capturing=Нажмите клавишу...
+Hotkey.Change=Изменить
+Hotkey.Reset=Сбросить
+Hotkey.ResetConfirm=Сбросить все горячие клавиши к умолчанию?
+
+# ═══════════════════════════════════════════
+# БЫСТРЫЕ КОМАНДЫ
+# ═══════════════════════════════════════════
+Quick.GitStatus=Git: Статус
+Quick.GitStatusDesc=Показать git-панель
+Quick.GitStatusResult=Git открыт
+Quick.GitCommitAll=Git: Commit всего
+Quick.GitCommitAllDesc=Добавить и закоммитить
+Quick.GitCommitMsg=Сообщение:
+Quick.GitCommitResult=Коммит создан
+Quick.GitNotRepo=Не репозиторий
+Quick.GitCancelled=Отменено
+Quick.GitPush=Git: Push
+Quick.GitPushDesc=Отправить в удалённый репозиторий
+Quick.GitPushResult=Push выполнен
+Quick.GitPull=Git: Pull
+Quick.GitPullDesc=Забрать изменения
+Quick.GitPullResult=Pull выполнен
+Quick.DockerPanel=Docker: Панель
+Quick.DockerPanelDesc=Показать docker-контейнеры
+Quick.DockerResult=Docker открыт
+Quick.ComposeUp=Docker Compose: Up
+Quick.ComposeUpDesc=Поднять compose в текущей папке
+Quick.ComposeUpResult=Compose up
+Quick.ComposeDown=Docker Compose: Down
+Quick.ComposeDownDesc=Опустить compose
+Quick.ComposeDownResult=Compose down
+Quick.SshPanel=SSH: Панель публикации
+Quick.SshPanelDesc=Показать профили серверов
+Quick.SshResult=SSH открыт
+Quick.SftpPanel=SFTP: Панель
+Quick.SftpPanelDesc=Показать браузер удалённой ФС
+Quick.SftpResult=SFTP открыт
+Quick.TerminalOpen=Терминал: Открыть
+Quick.TerminalOpenDesc=Открыть встроенный терминал
+Quick.TerminalResult=Терминал открыт
+
+# ═══════════════════════════════════════════
+# ЗАКЛАДКИ
+# ═══════════════════════════════════════════
+Bookmark.Desktop=Рабочий стол
+Bookmark.Documents=Документы
+Bookmark.Downloads=Загрузки
+
+# ═══════════════════════════════════════════
+# ИНФОРМАЦИЯ О ФАЙЛЕ
+# ═══════════════════════════════════════════
+FileInfo.Name=Имя: {0}
+FileInfo.Path=Путь: {0}
+FileInfo.Type=Тип: {0}
+FileInfo.TypeDir=Каталог
+FileInfo.TypeFile=Файл
+FileInfo.Size=Размер: {0}
+FileInfo.Modified=Изменён: {0}
+FileInfo.Created=Создан: {0}
+FileInfo.Attributes=Атрибуты: {0}
+
+# ═══════════════════════════════════════════
+# ПРОГРЕСС / КОПИРОВАНИЕ-ПЕРЕМЕЩЕНИЕ
+# ═══════════════════════════════════════════
+Progress.Copying=Копирование
+Progress.Moving=Перемещение
+Progress.Deleting=Удаление: 
+
+# ═══════════════════════════════════════════
+# СРАВНЕНИЕ ФАЙЛОВ (DIFF)
+# ═══════════════════════════════════════════
+Diff.Title=Сравнение файлов
+Diff.SideBySide=Рядом (Side-by-Side)
+Diff.Inline=Встроку (Inline)
+Diff.Legend.Added=добавлено
+Diff.Legend.Removed=удалено
+Diff.Legend.Modified=изменено
+Diff.PrevDiff=Предыдущее отличие
+Diff.NextDiff=Следующее отличие
+Diff.BinaryCompareError=Ошибка сравнения: {0}
+
+# ═══════════════════════════════════════════
+# HEX-ВЬЮВЕР
+# ═══════════════════════════════════════════
+Hex.Tab=Бинарный (Hex)
+Hex.Identical=Файлы идентичны (бинарно)
+Hex.Status=Левый: {0}, Правый: {1} · Отличается: {2} байт в {3} диапазонах
+Hex.Prev=Предыдущее отличие
+Hex.Next=Следующее отличие
+Hex.PrevDiff=◀ Пред.
+Hex.NextDiff=След. ▶
+
+# ═══════════════════════════════════════════
+# СВОЙСТВА ФАЙЛА
+# ═══════════════════════════════════════════
+Props.Title=Свойства
+Props.Type=Тип:
+Props.Size=Размер:
+Props.Files=Файлов:
+Props.Folders=Папок:
+Props.Symlinks=Симлинков:
+Props.Created=Создан:
+Props.Modified=Изменён:
+Props.Accessed=Открыт:
+Props.Attributes=Атрибуты:
+Props.Folder=Папка
+Props.File=Файл
+Props.Computing=Вычисление размера папки…
+Props.Processed=Обработано элементов: {0}
+Props.DoneTime=Готово за {0} с
+Props.Error=Ошибка: {0}
+Props.Done=Готово
+Props.CopyPath=Копировать путь
+Props.OpenFolder=Открыть папку
+Props.OpenFile=Открыть
+Props.Copied=Путь скопирован
+Props.Attr.ReadOnly=Ч
+Props.Attr.Hidden=С
+Props.Attr.System=Сис
+Props.Attr.Archive=Арх
+Props.Attr.ReadOnly.Full=Только чтение
+Props.Attr.Hidden.Full=Скрытый
+Props.Attr.System.Full=Системный
+Props.Attr.Archive.Full=Архивный
+
+# ═══════════════════════════════════════════
+# ДЕРЕВО КАТАЛОГОВ
+# ═══════════════════════════════════════════
+DirTree.Tip.Close=Закрыть (Esc)
+
+# ═══════════════════════════════════════════
+# СТИЛИЗОВАННЫЙ MESSAGE BOX
+# ═══════════════════════════════════════════
+MsgBox.Message=Сообщение
+MsgBox.OK=OK
+MsgBox.Cancel=Отмена
+MsgBox.Yes=Да
+MsgBox.No=Нет
+
+# ═══════════════════════════════════════════
+# ОКНО «О ПРОГРАММЕ»
+# ═══════════════════════════════════════════
+About.Title=О программе
+About.Subtitle=2-панельный файловый менеджер для разработчиков
+About.Close=Закрыть
+
+# ═══════════════════════════════════════════
+# ПАНЕЛЬ ФАЙЛОВ (расширенное)
+# ═══════════════════════════════════════════
+FilePanel.Tip.AutoRefresh=Авто-обновление папки
+FilePanel.SortBy=Сортировать по: {0}
+
+# ═══════════════════════════════════════════
+# ГЛАВНОЕ ОКНО (расширенное)
+# ═══════════════════════════════════════════
+Main.Wipe=Безопасное удаление (Wipe)
+Main.Properties=Свойства…
+Main.CompareFiles=Сравнить файлы…
+Main.Tip.Commands=Команды (F1)
+Main.Commands=команды
+Main.Panel=панель
+Main.Tools=Инструменты
+Main.Tip.Minimize=Свернуть (Esc)
+Main.Terminal=Терминал
+Main.Tip.TerminalCmd=Создать терминал Windows Command
+Main.Tip.TerminalPs=Создать терминал PowerShell
+Main.Tip.TerminalPwsh=Создать терминал PowerShell Core (pwsh)
+Main.Tip.TerminalClose=Закрыть (Shift+F10)
+
+# ═══════════════════════════════════════════
+# ОШИБКИ
+# ═══════════════════════════════════════════
+Error.OpenSync=Ошибка открытия синхронизации папок: {0}
+Error.OpenQueue=Ошибка открытия очереди операций: {0}
+Error.OpenBookmarks=Ошибка открытия закладок: {0}
+Error.OpenArchive=Ошибка открытия окна архивов: {0}
+Error.OpenTree=Ошибка открытия дерева каталогов: {0}
+Error.OpenColumnSettings=Ошибка открытия настроек колонок: {0}
+Error.Title=Ошибка
+Error.OpenFile=Не удалось открыть файл: {0}
+Error.SearchFile=Не удалось открыть файл: {0}
+
+# ═══════════════════════════════════════════
+# ИНФОРМАЦИЯ О ДИСКАХ
+# ═══════════════════════════════════════════
+Disk.Title=Информация о дисках
+Disk.Label=Метка
+Disk.Free=Свободно
+Disk.Used=Занято
+Disk.Total=Объём
+Disk.FS=Файловая система
+Disk.Type=Тип
+Disk.NA=Н/Д
+Disk.NotReady=Не готов
+Disk.Type.Fixed=Локальный
+Disk.Type.Removable=Съёмный
+Disk.Type.CDRom=CD-ROM
+Disk.Type.Network=Сетевой
+Disk.Type.Ram=RAM-диск
+Disk.Type.Unknown=Неизвестно
+
+# ═══════════════════════════════════════════
+# КОНТРОЛЬНЫЕ СУММЫ
+# ═══════════════════════════════════════════
+Checksum.Ready=Готово
+Checksum.NoFiles=Нет выбранных файлов
+Checksum.Calculating=Расчёт {0}…
+Checksum.DoneExport=Готово, экспорт {0} файлов → {1}
+Checksum.Done=Готово: {0} файлов
+Checksum.SumNotFound=Sum-файл не найден
+Checksum.Verifying=Проверка по {0}…
+Checksum.AllMatch=Все {0} совпадают
+Checksum.Mismatches=Несовпадений: {0} из {1}
+
+# ═══════════════════════════════════════════
+# SFTP (расширенное)
+# ═══════════════════════════════════════════
+Sftp.SelectProfileAndConnect=Выберите профиль и подключитесь
+Sftp.ProfileNotSelected=Профиль не выбран
+Sftp.CheckingConnection=Проверка подключения…
+Sftp.ConnectFailed=Не удалось подключиться к {0}
+Sftp.LoadingPath=Загрузка {0}
+Sftp.ItemsIn={0} элементов в {1}
+Sftp.ItemNotSelected=Элемент не выбран
+Sftp.DirDownloadNotSupported=Скачивание папок не поддерживается
+Sftp.Downloading=Скачивание {0}
+Sftp.DownloadingBytes=Скачивание {0}: {1} байт
+Sftp.Downloaded=Скачано: {0}
+Sftp.UploadTitle=Загрузка на сервер
+Sftp.UploadLocalFile=Имя локального файла:
+Sftp.SpecifyLocalFile=Укажите локальный файл
+Sftp.FileNotFound=Файл не найден: {0}
+Sftp.Uploading=Загрузка {0}
+Sftp.UploadingBytes=Загрузка {0}: {1} байт
+Sftp.MkdirTitle=Новая папка
+Sftp.FolderName=Имя папки:
+Sftp.Creating=Создание {0}
+Sftp.ConfirmDelete=Удалить «{0}» на сервере?
+Sftp.DeleteTitle=Подтверждение
+Sftp.Deleting=Удаление {0}
+Sftp.Renaming=Переименование {0}
+
+# ═══════════════════════════════════════════
+# SSH (расширенное)
+# ═══════════════════════════════════════════
+Ssh.NameHostRequired=Имя и хост обязательны
+Ssh.ProfileSaved=Профиль сохранён
+
+# ═══════════════════════════════════════════
+# GIT (расширенное)
+# ═══════════════════════════════════════════
+Git.DiffTitle=Diff
+Git.GitStatusError=Ошибка получения статуса git
+Git.EnterCommitMessage=Введите сообщение коммита
+Git.CommitCreated=Коммит создан
+Git.CommitAmended=Коммит изменён
+Git.BranchCreated=Создана ветка {0}
+Git.CannotDeleteCurrentBranch=Нельзя удалить текущую ветку
+Git.ConfirmDeleteBranch=Удалить ветку «{0}»?
+Git.BranchDeleted=Ветка {0} удалена
+Git.BranchTitle=Git
+
+# ═══════════════════════════════════════════
+# ОБЛАЧНЫЕ ХРАНИЛИЩА (расширенное)
+# ═══════════════════════════════════════════
+Cloud.SelectProfile=Выберите профиль облачного хранилища
+Cloud.Reconnect=Переподключить
+Cloud.DisconnectBtn=Отключить
+Cloud.DisconnectTip=Отключиться от облачного хранилища
+Cloud.NewFolder=Папка
+Cloud.Up=Вверх
+Cloud.Path=Путь:
+Cloud.LoadingFiles=Загрузка {0}...
+Cloud.LoadingOverlay=Загрузка...
+Cloud.ProfileNotSelected=Профиль не выбран
+Cloud.ConnectingStatus=Подключение...
+Cloud.ConnectedTo=Подключено: {0}
+Cloud.Cancelled=Отменено
+Cloud.DisconnectedStatus=Отключено
+Cloud.ItemNotSelected=Элемент не выбран
+Cloud.ItemNotSelectedOrDir=Элемент не выбран или это папка
+Cloud.NoConnectionStatus=Нет подключения
+Cloud.DownloadingFile=Скачивание {0}...
+Cloud.Downloaded=Скачано: {0}
+Cloud.UploadingFile=Загрузка {0}...
+Cloud.Uploaded=Загружено: {0}
+Cloud.UploadTitle=Загрузка в облако
+Cloud.UploadLocalFile=Имя локального файла:
+Cloud.SpecifyFileName=Укажите имя файла
+Cloud.FileNotFound=Файл не найден: {0}
+Cloud.DirDownloadNotSupported=Скачивание папок не поддерживается
+Cloud.CreateFolderTitle=Новая папка
+Cloud.FolderName=Имя папки:
+Cloud.Creating=Создание {0}...
+Cloud.ConfirmDelete=Удалить «{0}» в облаке?
+Cloud.ConfirmDeleteTitle=Подтверждение
+Cloud.DeletingFile=Удаление {0}...
+Cloud.RenamingFile=Переименование {0}...
+Cloud.RenameTitle=Переименование
+Cloud.RenameName=Новое имя:
+Cloud.DeleteProfileConfirm=Удалить профиль «{0}»?
+Cloud.DeleteProfileTitle=Подтверждение
+Cloud.GDrive.SaveCredentialsTip=Сохранить учётные данные в профиль
+Cloud.GDrive.SelectProfileFirst=Сначала выберите профиль Google Drive
+Cloud.GDrive.CredentialsSaved=Учётные данные Google Drive сохранены
+Cloud.GDrive.AuthorizeInBrowser=Авторизоваться в браузере
+Cloud.GDrive.GetCredentialsAt=Получите учётные данные на
+Cloud.GDrive.OAuthTitle=Google Drive OAuth2
+Cloud.GDrive.GoogleCloudConsole=Google Cloud Console
+Cloud.AuthCancelled=Авторизация отменена
+Cloud.AuthCancelledStatus=Авторизация отменена
+Cloud.OpenCtx=Открыть
+Cloud.DownloadCtx=Скачать
+Cloud.RenameCtx=Переименовать
+Cloud.DeleteCtx=Удалить
+Cloud.MakeDirCtx=Создать папку
+
+# ═══════════════════════════════════════════
+# ОПИСАНИЯ ОПЕРАЦИЙ (Очередь)
+# ═══════════════════════════════════════════
+Operation.Copying=Копирование
+Operation.Moving=Перемещение
+Operation.Deleting=Удаление
+
+# ═══════════════════════════════════════════
+# ДИАЛОГИ ( Недостающие ключи)
+# ═══════════════════════════════════════════
+Dialog.OverwriteConfirm=«{0}» уже существует. Перезаписать?
+
+# ═══════════════════════════════════════════
+# XAML — ЛОКАЛИЗАЦИЯ
+# ═══════════════════════════════════════════
+Menu.Tools.CloudTab=Облако
+Editor.Image.Fit=Вписать
+Columns.Px=пкс
+
+# ═══════════════════════════════════════════
+# GIT (расширенное, ph10)
+# ═══════════════════════════════════════════
+Git.StatusFormat={0} ↑{1} ↓{2} {3} изменений
+Git.DiscardConfirm=Отменить изменения «{0}»?
+Git.PushDone=Push выполнен
+Git.PullDone=Pull выполнен
+Git.FetchDone=Fetch выполнен
+Git.StashApplied=Стэш применён
+Git.SwitchedTo=Переключено на {0}
+Git.ErrorPrefix=Ошибка: {0}
+Git.NewBranchPrompt=Новая ветка
+Git.BranchNamePrompt=Имя ветки:
+
+# ═══════════════════════════════════════════
+# DOCKER (ph10)
+# ═══════════════════════════════════════════
+Docker.StatusFormat=Контейнеров: {0}, образов: {1}
+
+# ═══════════════════════════════════════════
+# СРАВНЕНИЕ ФАЙЛОВ (ph10)
+# ═══════════════════════════════════════════
+Diff.SelectTwoFiles=Выберите два файла для сравнения (два в активной панели или по одному в каждой).
+Diff.DirCompareNotSupported=Сравнение каталогов пока не поддерживается — выберите два файла.
+Diff.Comparing=Сравнение: {0} ⇄ {1}
+Diff.CompareError=Ошибка сравнения: {0}
+
+# ═══════════════════════════════════════════
+# БЕЗОПАСНОЕ УДАЛЕНИЕ (WIPE)
+# ═══════════════════════════════════════════
+Wipe.Confirm=Безопасно удалить (Wipe) {0} элемент(ов)? Данные нельзя будет восстановить.
+Wipe.Title=Безопасное удаление
+Wipe.Done=Wipe: вытерто {0} элементов
+Wipe.DoneErrors=Wipe: вытерто {0}, ошибок: {1}
+Wipe.Cancelled=Wipe: отменено
+
+# ═══════════════════════════════════════════
+# SSH ПУБЛИКАЦИЯ (ph10)
+# ═══════════════════════════════════════════
+Ssh.Published=Опубликовано: {0}
+
+# ═══════════════════════════════════════════
+# ПОИСК (диалог, статусы ph10)
+# ═══════════════════════════════════════════
+Search.CriteriaError=Ошибка критериев: {0}
+Search.SearchingStatus=Поиск…
+Search.FoundScanned=Найдено: {0} (проверено {1})
+Search.NothingFoundStatus=Ничего не найдено
+Search.CancelledStatus=Поиск отменён
+
+# ═══════════════════════════════════════════
+# ГОРЯЧИЕ КЛАВИШИ (ph10)
+# ═══════════════════════════════════════════
+Hotkey.CapturingFor=Ожидание нажатия для «{0}»…
+
+# ═══════════════════════════════════════════
+# БЫСТРЫЙ ФИЛЬТР/ПОИСК (статусы ph10)
+# ═══════════════════════════════════════════
+Quick.NoMatch=Поиск: «{0}» — нет совпадений
+Quick.MatchStatus=Поиск: {0}/{1} «{2}»
+Quick.FilterStatus=Фильтр: {0}/{1}
+
+# ═══════════════════════════════════════════
+# ПАНЕЛЬ (статусы ph10)
+# ═══════════════════════════════════════════
+Status.FilesDirs={0} файлов, {1} папок
+
+# ═══════════════════════════════════════════
+# ДИАЛОГ ОПЕРАЦИЙ (формат ph10)
+# ═══════════════════════════════════════════
+OpDlg.Speed.Bs=Б/с
+OpDlg.Speed.KBs=КБ/с
+OpDlg.Speed.MBs=МБ/с
+OpDlg.Speed.GBs=ГБ/с
+OpDlg.ETA.LessSec=< 1 сек
+OpDlg.ETA.Sec=~{0} сек
+OpDlg.ETA.MinSec=~{0} мин {1} сек
+OpDlg.ETA.Min=~{0} мин
+
+# ═══════════════════════════════════════════
+# ФОРМАТ БАЙТ (ph10)
+# ═══════════════════════════════════════════
+Format.B=Б
+Format.KB=КБ
+Format.MB=МБ
+Format.GB=ГБ
+
+# ═══════════════════════════════════════════
+# ОБЛАЧНЫЕ ХРАНИЛИЩА GDRIVE СТАТУС (ph10)
+# ═══════════════════════════════════════════
+Cloud.GDrive.AuthorizedStatus=Авторизован
+Cloud.GDrive.NotAuthorizedStatus=Не авторизован
+
+# ═══════════════════════════════════════════
+# ОШИБКИ (ph10)
+# ═══════════════════════════════════════════
+Error.OpenEditor=Ошибка открытия редактора: {0}
+Error.OpenViewer=Ошибка открытия просмотрщика: {0}
+Error.OpenDuplicates=Ошибка открытия поиска дубликатов: {0}
+
+# ═══════════════════════════════════════════
+# Недостающие ключи XAML (ph11)
+# ═══════════════════════════════════════════
+DirTree.Title=Дерево каталогов
+DirTree.Status.Hint=Двойной щелчок для выбора
+Search.BackToFolder=Вернуться к папке
+Search.ShowInPanel=Показать результаты в панели
+Search.ShowInPanel.Tip=Отобразить результаты поиска в активной файловой панели
+Tab.Git=Git
+Tab.Docker=Docker
+Tab.Ssh=SSH
+Tab.Sftp=SFTP
+Terminal.NewCmd=+ CMD
+Terminal.NewPs=+ PowerShell
+Terminal.NewPwsh=+ pwsh
+Archive.FilesForArchive=Файлы для архивации: {0}
+Archive.EntriesInArchive=Записей в архиве: {0}
+Bookmark.Count={0} закладок
+
+# ═══════════════════════════════════════════
+# ПЕРЕЧИСЛЕНИЕ OVERWRITEPOLICY (ph12)
+# ═══════════════════════════════════════════
+OverwritePolicy.Skip=Пропустить
+OverwritePolicy.Overwrite=Перезаписать
+OverwritePolicy.OverwriteOlder=Перезаписать, если старше
+OverwritePolicy.OverwriteSmaller=Перезаписать, если меньше
+OverwritePolicy.AutoRename=Авто-переименование
+OverwritePolicy.Ask=Спросить
+
+# ═══════════════════════════════════════════
+# ДИАЛОГ КОПИРОВАНИЯ/ПЕРЕМЕЩЕНИЯ (ph12)
+# ═══════════════════════════════════════════
+CopyMove.Title.Copy=Копирование
+CopyMove.Title.Move=Перемещение
+CopyMove.Source=Источник:
+CopyMove.Destination=Назначение:
+CopyMove.Browse=Обзор
+CopyMove.FileCount=Файлов:
+CopyMove.TotalSize=Общий размер:
+CopyMove.OverwritePolicy=При совпадении имён:
+CopyMove.CopyAttributes=Копировать атрибуты
+CopyMove.CopyTimestamps=Копировать метки времени
+CopyMove.CopyNtfsPermissions=Копировать NTFS-права (требуются права администратора)
+CopyMove.SelfCopyWarning=Внимание: источник и назначение — одна и та же папка
+CopyMove.AddToQueue=Добавить в очередь
+CopyMove.OK=OK
+CopyMove.Cancel=Отмена
+CopyMove.SelectFolder=Выберите папку назначения
+
+# ═══════════════════════════════════════════
+# ФАЙЛОВЫЕ ОПЕРАЦИИ — НАСТРОЙКИ (ph12)
+# ═══════════════════════════════════════════
+Settings.FileOps=Файловые операции
+Settings.DefaultOverwrite=Политика перезаписи по умолчанию:
+Settings.DefaultOverwriteDesc=Действие при совпадении имён файлов
+Settings.OverwriteAsk=Спросить
+Settings.OverwriteAlways=Всегда перезаписывать
+Settings.OverwriteNever=Не перезаписывать
+Settings.OverwriteOlder=Перезаписать, если старше
+Settings.OverwriteSmaller=Перезаписать, если меньше
+Settings.OverwriteAutoRename=Авто-переименование
+Settings.BufferSize=Размер буфера (КБ):
+Settings.BufferSizeDesc=Размер буфера копирования в килобайтах
+Settings.CopyAttributesCheck=Копировать атрибуты файлов
+Settings.CopyAttributesDesc=Сохранять атрибуты файлов при копировании
+Settings.CopyTimestampsCheck=Копировать метки времени
+Settings.CopyTimestampsDesc=Сохранять метки времени файлов при копировании
+Settings.ReserveSpace=Резервировать место на диске
+Settings.ReserveSpaceDesc=Предварительно выделять место на диске перед копированием

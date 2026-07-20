@@ -1,0 +1,141 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Light Theme (VS Code Light+ palette) -->
+    <Color x:Key="BgDark">#FFFFFF</Color>
+    <Color x:Key="BgPanel">#FFFFFF</Color>
+    <Color x:Key="BgHeader">#F3F3F3</Color>
+    <Color x:Key="BgHover">#E8E8E8</Color>
+    <Color x:Key="Surface">#F3F3F3</Color>
+    <Color x:Key="SurfaceHover">#E8E8E8</Color>
+    <Color x:Key="SurfaceLight">#ECECEC</Color>
+    <Color x:Key="SurfaceDeep">#FFFFFF</Color>
+    <Color x:Key="Overlay">#801A1C24</Color>
+    <Color x:Key="Accent">#0066BF</Color>
+    <Color x:Key="AccentHover">#0077DD</Color>
+    <Color x:Key="AccentSoft">#4DABFF</Color>
+    <Color x:Key="AccentDim">#0066BF22</Color>
+    <Color x:Key="AccentGlow">#0066BF22</Color>
+    <Color x:Key="AccentSecondary">#267F99</Color>
+    <Color x:Key="AccentTertiary">#2E9E4E</Color>
+    <Color x:Key="FgLight">#1F1F1F</Color>
+    <Color x:Key="FgDim">#5A5A5A</Color>
+    <Color x:Key="FgMuted">#6B7280</Color>
+    <Color x:Key="Border">#D4D4D4</Color>
+    <Color x:Key="BorderMuted">#E5E7EC</Color>
+    <Color x:Key="BorderFocus">#0066BF</Color>
+    <Color x:Key="PanelBorder">#D4D4D4C0</Color>
+    <Color x:Key="Selection">#3366BF44</Color>
+    <Color x:Key="SelectionActive">#5566BF77</Color>
+    <Color x:Key="Ok">#2E9E4E</Color>
+    <Color x:Key="Warn">#B8860B</Color>
+    <Color x:Key="Err">#D32F2F</Color>
+    <Color x:Key="DiffAdd">#2E9E4E</Color>
+    <Color x:Key="DiffAddBg">#2E9E4E12</Color>
+    <Color x:Key="DiffDel">#D32F2F</Color>
+    <Color x:Key="DiffDelBg">#D32F2F12</Color>
+    <Color x:Key="DiffMod">#B8860B</Color>
+    <Color x:Key="DiffModBg">#B8860B16</Color>
+    <Color x:Key="DiffHunk">#267F99</Color>
+    <Color x:Key="DiffMeta">#AF00DB</Color>
+    <Color x:Key="DiffFile">#267F99</Color>
+    <Color x:Key="RowAltColor">#E7EAF0</Color>
+    <Color x:Key="TitleBarGradientTopColor">#F5F5F5</Color>
+    <Color x:Key="EditorSelectionBorder">#89B4D9</Color>
+    <Color x:Key="EditorCurrentLine">#E8F0FE</Color>
+    <Color x:Key="EditorGutterBg">#FFFFFF</Color>
+    <Color x:Key="EditorScrollbarBg">#FFFFFF</Color>
+    <Color x:Key="EditorScrollbarThumb">#C1C1C1</Color>
+    <Color x:Key="EditorScrollbarThumbHover">#A1A1A1</Color>
+    <Color x:Key="GlassOverlay">#E0E2E8E0</Color>
+    <Color x:Key="MenuBg">#F3F3F3</Color>
+    <Color x:Key="TitleBarBg">#ECECEC</Color>
+    <Color x:Key="AppTitleColor">#1A1C24</Color>
+    <Color x:Key="AppSubtitleColor">#6B7280</Color>
+
+    <SolidColorBrush x:Key="BgDarkBrush" Color="{DynamicResource BgDark}"/>
+    <SolidColorBrush x:Key="BgPanelBrush" Color="{DynamicResource BgPanel}"/>
+    <SolidColorBrush x:Key="BgHeaderBrush" Color="{DynamicResource BgHeader}"/>
+    <SolidColorBrush x:Key="BgHoverBrush" Color="{DynamicResource BgHover}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource Surface}"/>
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{DynamicResource SurfaceHover}"/>
+    <SolidColorBrush x:Key="SurfaceLightBrush" Color="{DynamicResource SurfaceLight}"/>
+    <SolidColorBrush x:Key="SurfaceDeepBrush" Color="{DynamicResource SurfaceDeep}"/>
+    <SolidColorBrush x:Key="OverlayBrush" Color="{DynamicResource Overlay}"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource Accent}"/>
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{DynamicResource AccentHover}"/>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="{DynamicResource AccentSoft}"/>
+    <SolidColorBrush x:Key="AccentDimBrush" Color="{DynamicResource AccentDim}"/>
+    <SolidColorBrush x:Key="AccentGlowBrush" Color="{DynamicResource AccentGlow}"/>
+    <SolidColorBrush x:Key="AccentSecondaryBrush" Color="{DynamicResource AccentSecondary}"/>
+    <SolidColorBrush x:Key="AccentTertiaryBrush" Color="{DynamicResource AccentTertiary}"/>
+    <SolidColorBrush x:Key="FgLightBrush" Color="{DynamicResource FgLight}"/>
+    <SolidColorBrush x:Key="FgDimBrush" Color="{DynamicResource FgDim}"/>
+    <SolidColorBrush x:Key="FgMutedBrush" Color="{DynamicResource FgMuted}"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource Border}"/>
+    <SolidColorBrush x:Key="BorderMutedBrush" Color="{DynamicResource BorderMuted}"/>
+    <SolidColorBrush x:Key="BorderFocusBrush" Color="{DynamicResource BorderFocus}"/>
+    <SolidColorBrush x:Key="PanelBorderBrush" Color="{DynamicResource PanelBorder}"/>
+    <SolidColorBrush x:Key="SelectionBrush" Color="{DynamicResource Selection}"/>
+    <SolidColorBrush x:Key="SelectionActiveBrush" Color="{DynamicResource SelectionActive}"/>
+    <SolidColorBrush x:Key="DiffAddBrush" Color="{DynamicResource DiffAdd}"/>
+    <SolidColorBrush x:Key="DiffAddBgBrush" Color="{DynamicResource DiffAddBg}"/>
+    <SolidColorBrush x:Key="DiffDelBrush" Color="{DynamicResource DiffDel}"/>
+    <SolidColorBrush x:Key="DiffDelBgBrush" Color="{DynamicResource DiffDelBg}"/>
+    <SolidColorBrush x:Key="DiffModBrush" Color="{DynamicResource DiffMod}"/>
+    <SolidColorBrush x:Key="DiffModBgBrush" Color="{DynamicResource DiffModBg}"/>
+    <SolidColorBrush x:Key="DiffHunkBrush" Color="{DynamicResource DiffHunk}"/>
+    <SolidColorBrush x:Key="DiffMetaBrush" Color="{DynamicResource DiffMeta}"/>
+    <SolidColorBrush x:Key="DiffFileBrush" Color="{DynamicResource DiffFile}"/>
+    <SolidColorBrush x:Key="EditorSelectionBorderBrush" Color="{DynamicResource EditorSelectionBorder}"/>
+    <SolidColorBrush x:Key="EditorCurrentLineBrush" Color="{DynamicResource EditorCurrentLine}"/>
+    <SolidColorBrush x:Key="EditorGutterBgBrush" Color="{DynamicResource EditorGutterBg}"/>
+    <SolidColorBrush x:Key="EditorScrollbarBgBrush" Color="{DynamicResource EditorScrollbarBg}"/>
+    <SolidColorBrush x:Key="EditorScrollbarThumbBrush" Color="{DynamicResource EditorScrollbarThumb}"/>
+    <SolidColorBrush x:Key="EditorScrollbarThumbHoverBrush" Color="{DynamicResource EditorScrollbarThumbHover}"/>
+    <SolidColorBrush x:Key="OkBrush" Color="{DynamicResource Ok}"/>
+    <SolidColorBrush x:Key="WarnBrush" Color="{DynamicResource Warn}"/>
+    <SolidColorBrush x:Key="ErrBrush" Color="{DynamicResource Err}"/>
+    <SolidColorBrush x:Key="GlassOverlayBrush" Color="{DynamicResource GlassOverlay}"/>
+    <SolidColorBrush x:Key="RowAltBrush" Color="{StaticResource RowAltColor}"/>
+    <SolidColorBrush x:Key="MenuBgBrush" Color="{DynamicResource MenuBg}"/>
+    <SolidColorBrush x:Key="TitleBarBgBrush" Color="{DynamicResource TitleBarBg}"/>
+    <SolidColorBrush x:Key="TitleBarFgBrush" Color="{DynamicResource FgLight}"/>
+    <SolidColorBrush x:Key="BgInputBrush" Color="#E8EBF0"/>
+    <SolidColorBrush x:Key="BgButtonBrush" Color="#D8DCE6"/>
+    <SolidColorBrush x:Key="AppTitleBrush" Color="{StaticResource AppTitleColor}"/>
+    <SolidColorBrush x:Key="AppSubtitleBrush" Color="{StaticResource AppSubtitleColor}"/>
+
+    <!-- VS Code syntax tokens (resolved by AvalonEdit via resource name) -->
+    <SolidColorBrush x:Key="VsKeyword"  Color="#0000FF"/>
+    <SolidColorBrush x:Key="VsString"   Color="#A31515"/>
+    <SolidColorBrush x:Key="VsComment"  Color="#008000"/>
+    <SolidColorBrush x:Key="VsNumber"   Color="#098658"/>
+    <SolidColorBrush x:Key="VsType"     Color="#267F99"/>
+    <SolidColorBrush x:Key="VsFunction" Color="#795E26"/>
+    <SolidColorBrush x:Key="VsVariable" Color="#001080"/>
+    <SolidColorBrush x:Key="VsOperator" Color="#000000"/>
+    <SolidColorBrush x:Key="VsPreproc"  Color="#AF00DB"/>
+    <SolidColorBrush x:Key="VsTag"      Color="#800000"/>
+    <SolidColorBrush x:Key="VsAttr"     Color="#FF0000"/>
+    <SolidColorBrush x:Key="VsPunct"    Color="#000000"/>
+    <SolidColorBrush x:Key="VsConst"    Color="#0000FF"/>
+    <SolidColorBrush x:Key="VsBool"     Color="#0000FF"/>
+    <SolidColorBrush x:Key="VsEditorBg"   Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="VsEditorFg"   Color="#1F1F1F"/>
+    <SolidColorBrush x:Key="VsLineNumber" Color="#237893"/>
+    <SolidColorBrush x:Key="VsSelection"  Color="#ADD6FF"/>
+
+    <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="{DynamicResource Accent}" Offset="0"/>
+        <GradientStop Color="{DynamicResource AccentSecondary}" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="AccentGradientVertical" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{DynamicResource Accent}" Offset="0"/>
+        <GradientStop Color="{DynamicResource AccentSecondary}" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="TitleBarGradient" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="{StaticResource TitleBarGradientTopColor}" Offset="0"/>
+        <GradientStop Color="{DynamicResource TitleBarBg}" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PanelShadow" Color="#00000020"/>
+</ResourceDictionary>

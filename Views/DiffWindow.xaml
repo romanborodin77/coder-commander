@@ -1,0 +1,187 @@
+<Window x:Class="CoderCommander.Views.DiffWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:local="clr-namespace:CoderCommander.Views"
+        Title="{DynamicResource Diff.Title}"
+        WindowStyle="None"
+        WindowStartupLocation="CenterOwner"
+        Width="1100" Height="720"
+        MinWidth="600" MinHeight="400"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource BgDarkBrush}">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0"
+                      ResizeBorderThickness="6" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+
+        <!-- Легенда статусбара -->
+        <Style x:Key="LegendItemStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="28"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="26"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Custom TitleBar -->
+        <Border Grid.Row="0" Height="36"
+                Background="{DynamicResource TitleBarBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="&#xE8A9;"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="15"
+                           VerticalAlignment="Center"
+                           Margin="12,0,4,0"/>
+                <TextBlock Grid.Column="1"
+                           Text="{DynamicResource Diff.Title}"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           VerticalAlignment="Center"
+                           FontSize="13"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="&#xE921;" ToolTip="{DynamicResource Editor.Tip.Minimize}" Click="MinimizeButton_Click"
+                            Style="{StaticResource TitleBarButtonStyle}"/>
+                    <Button x:Name="MaximizeButton" Content="&#xE922;" ToolTip="{DynamicResource Editor.Tip.Maximize}"
+                            Click="MaximizeButton_Click" Style="{StaticResource TitleBarButtonStyle}"/>
+                    <Button Content="&#xE8BB;" ToolTip="{DynamicResource Editor.Tip.Close}" Click="CloseButton_Click"
+                            Style="{StaticResource CloseButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Row 1: Пути к файлам -->
+        <Border Grid.Row="1" Height="28"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding LeftPathDisplay}"
+                           Foreground="{DynamicResource DiffDelBrush}"
+                           FontSize="11" VerticalAlignment="Center" Margin="10,0"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding LeftPath}"/>
+                <TextBlock Grid.Column="1" Text="⇄" Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding RightPathDisplay}"
+                           Foreground="{DynamicResource DiffAddBrush}"
+                           FontSize="11" VerticalAlignment="Center" Margin="10,0"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding RightPath}"/>
+            </Grid>
+        </Border>
+
+        <!-- Row 2: Содержимое (вкладки: рядом / встроку / бинарный hex) -->
+        <TabControl x:Name="DiffTabControl" Grid.Row="2" Background="{DynamicResource VsEditorBg}" BorderThickness="0">
+            <TabControl.Resources>
+                <!-- Убираем стандартный фон вкладок, оставляем текст -->
+                <Style TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}"/>
+            </TabControl.Resources>
+
+            <!-- Вкладка «Рядом»: два AvalonEdit бок о бок -->
+            <TabItem Header="{DynamicResource Diff.SideBySide}">
+                <Grid Background="{DynamicResource VsEditorBg}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="{DynamicResource VsEditorBg}">
+                        <avalonEdit:TextEditor x:Name="LeftEditor"
+                                                FontFamily="Cascadia Code, Consolas, Courier New"
+                                                FontSize="13"
+                                                ShowLineNumbers="True"
+                                                IsReadOnly="True"
+                                                Foreground="{DynamicResource VsEditorFg}"
+                                                Background="{DynamicResource VsEditorBg}"
+                                                LineNumbersForeground="{DynamicResource VsLineNumber}"
+                                                BorderThickness="0" Padding="8,4"/>
+                    </Border>
+                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch" Background="{DynamicResource BorderBrush}"
+                                  ResizeBehavior="PreviousAndNext"/>
+                    <Border Grid.Column="2" Background="{DynamicResource VsEditorBg}">
+                        <avalonEdit:TextEditor x:Name="RightEditor"
+                                                FontFamily="Cascadia Code, Consolas, Courier New"
+                                                FontSize="13"
+                                                ShowLineNumbers="True"
+                                                IsReadOnly="True"
+                                                Foreground="{DynamicResource VsEditorFg}"
+                                                Background="{DynamicResource VsEditorBg}"
+                                                LineNumbersForeground="{DynamicResource VsLineNumber}"
+                                                BorderThickness="0" Padding="8,4"/>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Вкладка «Встроку»: объединённый inline diff -->
+            <TabItem Header="{DynamicResource Diff.Inline}">
+                <Border Background="{DynamicResource VsEditorBg}">
+                    <avalonEdit:TextEditor x:Name="InlineEditor"
+                                            FontFamily="Cascadia Code, Consolas, Courier New"
+                                            FontSize="13"
+                                            ShowLineNumbers="True"
+                                            IsReadOnly="True"
+                                            Foreground="{DynamicResource VsEditorFg}"
+                                            Background="{DynamicResource VsEditorBg}"
+                                            LineNumbersForeground="{DynamicResource VsLineNumber}"
+                                            BorderThickness="0" Padding="8,4"/>
+                </Border>
+            </TabItem>
+
+            <!-- Вкладка «Бинарный»: hex-сравнение с подсветкой отличающихся байтов (ph3.2) -->
+            <TabItem x:Name="BinaryTab" Header="{DynamicResource Hex.Tab}">
+                <Border Background="{DynamicResource VsEditorBg}">
+                    <local:HexViewer x:Name="HexViewerControl"/>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- Row 3: Статусбар с легендой и сводкой -->
+        <Border Grid.Row="3" Height="26"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffAddBgBrush}" Stroke="{DynamicResource DiffAddBrush}" Margin="0,0,4,0"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Added}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                    <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffDelBgBrush}" Stroke="{DynamicResource DiffDelBrush}" Margin="12,0,4,0"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Removed}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                    <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffModBgBrush}" Stroke="{DynamicResource DiffModBrush}" Margin="12,0,4,0"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Modified}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding DiffSummary}"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,223 @@
+<Window x:Class="CoderCommander.Views.SearchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:CoderCommander.ViewModels"
+        Title="{DynamicResource Search.Dialog.Title}"
+        Width="840" Height="620"
+        WindowStyle="None"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BgDarkBrush}"
+        Foreground="{DynamicResource FgLightBrush}">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" GlassFrameThickness="0"
+                      ResizeBorderThickness="6" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <!-- Локальный акцентный стиль кнопки (ToolbarAccentStyle недоступен вне MainWindow). -->
+        <Style x:Key="SearchAccentButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="7" Padding="10,4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Window.DataContext>
+        <vm:SearchDialogViewModel/>
+    </Window.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Title bar ═══ -->
+        <Border Grid.Row="0" Height="36" Background="{DynamicResource TitleBarBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <Border Width="18" Height="18" Background="{DynamicResource AccentDimBrush}" CornerRadius="5" Margin="0,0,9,0">
+                        <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                   Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="{DynamicResource Search.Dialog.Title}" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Grid Grid.Column="1" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseDown"/>
+                <Button Grid.Column="2" Style="{StaticResource CloseButtonStyle}" Click="Close_Click">
+                    <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ══ Критерии поиска / Search criteria ══ -->
+        <Border Grid.Row="1" Margin="14,10,14,0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                CornerRadius="10" Padding="12">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                <StackPanel>
+                    <!-- Папка / Folder -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.Root}" Width="160" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding RootPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}"
+                                 BorderBrush="{DynamicResource BorderBrush}" Padding="6,4"/>
+                    </DockPanel>
+
+                    <!-- Маски имён / Name masks -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.NameMasks}" Width="160" VerticalAlignment="Center"/>
+                        <CheckBox DockPanel.Dock="Right" Content="{DynamicResource Search.NameRegex}" IsChecked="{Binding NameRegexMode}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <TextBox x:Name="NameMasksBox" Text="{Binding NameMasks, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}"
+                                 BorderBrush="{DynamicResource BorderBrush}" Padding="6,4"/>
+                    </DockPanel>
+
+                    <!-- Содержимое / Content -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.Content}" Width="160" VerticalAlignment="Center"/>
+                        <CheckBox DockPanel.Dock="Right" Content="{DynamicResource Search.MatchCase}" IsChecked="{Binding MatchCase}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <TextBox Text="{Binding ContentPattern, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}"
+                                 BorderBrush="{DynamicResource BorderBrush}" Padding="6,4"/>
+                    </DockPanel>
+
+                    <!-- Рекурсия / Recursion -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.RecurseLabel}" Width="160" VerticalAlignment="Center"/>
+                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding RecurseSubdirectories}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{DynamicResource Search.Recurse}" VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <!-- Кодировка / Encoding -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.Encoding}" Width="160" VerticalAlignment="Center"/>
+                        <ComboBox DockPanel.Dock="Left" ItemsSource="{Binding EncodingOptions}" SelectedItem="{Binding SelectedEncodingKey}" Width="160" Margin="0,0,8,0"
+                                  Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}" BorderBrush="{DynamicResource BorderBrush}"/>
+                        <TextBlock Text="{DynamicResource Search.EncodingFallback}" VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <!-- Размер / Size -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.SizeFilter}" Width="160" VerticalAlignment="Center"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{DynamicResource Search.SizeFrom}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding MinSizeText, UpdateSourceTrigger=PropertyChanged}" Width="90"
+                                     Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}" BorderBrush="{DynamicResource BorderBrush}"/>
+                            <TextBlock Text="{DynamicResource Search.SizeTo}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                            <TextBox Text="{Binding MaxSizeText, UpdateSourceTrigger=PropertyChanged}" Width="90"
+                                     Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}" BorderBrush="{DynamicResource BorderBrush}"/>
+                            <ComboBox ItemsSource="{Binding SizeUnitOptions}" SelectedItem="{Binding SizeUnit}" Width="70" Margin="8,0,0,0"
+                                      Background="{DynamicResource BgHeaderBrush}" Foreground="{DynamicResource FgLightBrush}" BorderBrush="{DynamicResource BorderBrush}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Дата / Date -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.Date}" Width="160" VerticalAlignment="Center"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{DynamicResource Search.DateFrom}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <DatePicker SelectedDate="{Binding DateFrom}" Width="130" Height="28"/>
+                            <TextBlock Text="{DynamicResource Search.DateTo}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                            <DatePicker SelectedDate="{Binding DateTo}" Width="130" Height="28"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- Атрибуты / Attributes -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.Attributes}" Width="160" VerticalAlignment="Center"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <CheckBox Content="{DynamicResource Search.Attr.ReadOnly}" IsChecked="{Binding AttrReadOnly}" Margin="0,0,8,0"/>
+                            <CheckBox Content="{DynamicResource Search.Attr.Hidden}" IsChecked="{Binding AttrHidden}" Margin="0,0,8,0"/>
+                            <CheckBox Content="{DynamicResource Search.Attr.System}" IsChecked="{Binding AttrSystem}" Margin="0,0,8,0"/>
+                            <CheckBox Content="{DynamicResource Search.Attr.Archive}" IsChecked="{Binding AttrArchive}"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- ph4.1: Искать в архивах / Search inside archives -->
+                    <DockPanel Margin="0,3">
+                        <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Search.InArchives}" Width="160" VerticalAlignment="Center"/>
+                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding SearchInArchives}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{DynamicResource Search.InArchives.Tip}" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource FgMutedBrush}" FontSize="11"/>
+                    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ══ Результаты / Results ══ -->
+        <ListView Grid.Row="2" Margin="14,10,14,0" x:Name="ResultsList"
+                  ItemsSource="{Binding Results}"
+                  MouseDoubleClick="Results_MouseDoubleClick"
+                  Background="{DynamicResource SurfaceBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+        Foreground="{DynamicResource FgLightBrush}"
+        Loaded="Window_Loaded"
+        PreviewKeyDown="Window_PreviewKeyDown">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="{DynamicResource Search.Name}" Width="170" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn Header="{DynamicResource Search.Path}" Width="250" DisplayMemberBinding="{Binding FullPath}"/>
+                    <GridViewColumn Header="{DynamicResource Search.Col.Size}" Width="80" DisplayMemberBinding="{Binding SizeDisplay}"/>
+                    <GridViewColumn Header="{DynamicResource Search.Col.Line}" Width="55" DisplayMemberBinding="{Binding LineNumber}"/>
+                    <GridViewColumn Header="{DynamicResource Search.Col.Match}" Width="340" DisplayMemberBinding="{Binding MatchLine}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <!-- ══ Статус + кнопки / Status + buttons ══ -->
+        <Grid Grid.Row="3" Margin="14,10,14,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center"
+                       Foreground="{DynamicResource FgMutedBrush}" TextTrimming="CharacterEllipsis"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="{DynamicResource Search.Start}" Command="{Binding SearchCommand}"
+                        Style="{StaticResource SearchAccentButtonStyle}" Width="130" Height="32" Margin="0,0,8,0"/>
+                <Button Content="{DynamicResource Search.ShowInPanel}" Command="{Binding ShowInPanelCommand}"
+                        IsEnabled="{Binding CanShowInPanel}" Width="220" Height="32" Margin="0,0,8,0"
+                        Style="{DynamicResource DefaultButtonStyle}"
+                        ToolTip="{DynamicResource Search.ShowInPanel.Tip}"/>
+                <Button Content="{DynamicResource Search.Cancel}" Command="{Binding CancelCommand}"
+                        Width="100" Height="32" Margin="0,0,8,0" IsEnabled="{Binding IsRunning}"
+                        Style="{DynamicResource DefaultButtonStyle}"/>
+                <Button Content="{DynamicResource Search.Clear}" Command="{Binding ClearCommand}"
+                        Width="100" Height="32"
+                        Style="{DynamicResource DefaultButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

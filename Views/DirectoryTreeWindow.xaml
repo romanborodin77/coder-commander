@@ -1,0 +1,227 @@
+<Window x:Class="CoderCommander.Views.DirectoryTreeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:CoderCommander.ViewModels"
+        Title="{DynamicResource DirTree.Title}"
+        WindowStyle="None"
+        WindowStartupLocation="CenterOwner"
+        Width="420" Height="560"
+        MinWidth="320" MinHeight="300"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource BgDarkBrush}">
+
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}"/>
+    </Window.InputBindings>
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Custom TitleBar -->
+        <Border Grid.Row="0" Height="36"
+                Background="{DynamicResource TitleBarBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Иконка дерева -->
+                <TextBlock Grid.Column="0"
+                           Text="&#xE8DE;"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="15"
+                           VerticalAlignment="Center"
+                           Margin="12,0,4,0"/>
+
+                <!-- Заголовок -->
+                <TextBlock Grid.Column="1"
+                           Text="{DynamicResource DirTree.Title}"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           VerticalAlignment="Center"
+                           FontSize="13"/>
+
+                <!-- Кнопки окна -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="&#xE8BB;" ToolTip="{DynamicResource DirTree.Tip.Close}" Click="CloseButton_Click"
+                            Style="{StaticResource CloseButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Row 1: Filter -->
+        <Border Grid.Row="1" Padding="8,6"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="&#xE721;"
+                           FontFamily="Segoe MDL2 Assets" FontSize="13"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBox x:Name="FilterBox" Grid.Column="1"
+                         Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                         Background="{DynamicResource SurfaceBrush}"
+                         Foreground="{DynamicResource FgLightBrush}"
+                         BorderBrush="{DynamicResource BorderBrush}"
+                         BorderThickness="1"
+                         Padding="6,4"
+                         FontSize="13"
+                         VerticalContentAlignment="Center">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+            </Grid>
+        </Border>
+
+        <!-- Row 2: TreeView -->
+        <Border Grid.Row="2" Background="{DynamicResource BgDarkBrush}" Padding="4,4">
+            <TreeView x:Name="DirTree"
+                      BorderThickness="0"
+                      Background="Transparent"
+                      Foreground="{DynamicResource FgLightBrush}"
+                      SelectedItemChanged="DirTree_SelectedItemChanged"
+                      MouseDoubleClick="DirTree_MouseDoubleClick"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+                <TreeView.Resources>
+                    <!-- Стиль TreeViewItem с поддержкой темы -->
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="Padding" Value="2,1"/>
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                        <Setter Property="Visibility" Value="{Binding Visibility, Mode=OneWay, FallbackValue=Visible}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TreeViewItem">
+                                    <StackPanel>
+                                        <GridViewRowPresenter x:Name="PART_Header"
+                                                              VerticalAlignment="Center"
+                                                              Margin="2,1"/>
+                                        <ItemsControl x:Name="PART_Items"
+                                                      Margin="16,0,0,0"
+                                                      Visibility="Collapsed">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsExpanded" Value="True">
+                                            <Setter TargetName="PART_Items" Property="Visibility" Value="Visible"/>
+                                        </Trigger>
+                                        <Trigger Property="HasItems" Value="False">
+                                            <Setter TargetName="PART_Items" Property="Visibility" Value="Collapsed"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TreeView.Resources>
+
+                <!-- Генерация корневых элементов -->
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate ItemsSource="{Binding Children}"
+                                              DataType="{x:Type vm:DirectoryTreeViewModel}">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Иконка: диск или папка -->
+                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                       VerticalAlignment="Center" Margin="0,0,6,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="&#xE8B7;"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDrive}" Value="True">
+                                                <Setter Property="Text" Value="&#xEDA2;"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding DisplayName}"
+                                       Foreground="{DynamicResource FgLightBrush}"
+                                       VerticalAlignment="Center"/>
+                            <!-- Индикатор загрузки -->
+                            <TextBlock Text="…" FontSize="12"
+                                       Foreground="{DynamicResource FgMutedBrush}"
+                                       Margin="6,0,0,0" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+        </Border>
+
+        <!-- Row 3: StatusBar -->
+        <Border Grid.Row="3" Height="30"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="12,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding SelectedNode.DisplayName, FallbackValue=''}"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="11" VerticalAlignment="Center"
+                           ToolTip="{Binding SelectedNode.FullPath, FallbackValue=''}"/>
+                <TextBlock Grid.Column="1"
+                           Text="{DynamicResource DirTree.Status.Hint}"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="11" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,747 @@
+﻿<UserControl x:Class="CoderCommander.Views.FilePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:CoderCommander.Converters"
+             xmlns:views="clr-namespace:CoderCommander.Views"
+             xmlns:services="clr-namespace:CoderCommander.Services"
+             Focusable="True">
+
+    <UserControl.Resources>
+        <!-- ═══ Nav Button Style ═══ -->
+        <Style x:Key="NavButtonStyle" TargetType="Button">
+            <Setter Property="Width"          Value="30"/>
+            <Setter Property="Height"         Value="28"/>
+            <Setter Property="Background"     Value="Transparent"/>
+            <Setter Property="Foreground"    Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"        Value="Hand"/>
+            <Setter Property="FontSize"      Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.25"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ Drive Button Style ═══ -->
+        <Style x:Key="DriveButtonStyle" TargetType="Button">
+            <Setter Property="Width"          Value="Auto"/>
+            <Setter Property="MinWidth"      Value="36"/>
+            <Setter Property="Height"        Value="28"/>
+            <Setter Property="Background"    Value="Transparent"/>
+            <Setter Property="Foreground"    Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush"   Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="Cursor"        Value="Hand"/>
+            <Setter Property="FontSize"      Value="11"/>
+            <Setter Property="FontWeight"    Value="SemiBold"/>
+            <Setter Property="Margin"        Value="2,0"/>
+            <Setter Property="Padding"        Value="8,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ Breadcrumb Style ═══ -->
+        <Style x:Key="BreadcrumbStyle" TargetType="Button">
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="Foreground"       Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Padding"          Value="5,3"/>
+            <Setter Property="FontSize"         Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ Breadcrumb Separator ═══ -->
+        <Style x:Key="BreadcrumbSepStyle" TargetType="TextBlock">
+            <Setter Property="Foreground"    Value="{DynamicResource FgMutedBrush}"/>
+            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin"       Value="2,0"/>
+            <Setter Property="Text"          Value="›"/>
+        </Style>
+
+        <!-- ═══ Clear Filter Button ═══ -->
+        <Style x:Key="ClearBtnStyle" TargetType="Button">
+            <Setter Property="Width"          Value="24"/>
+            <Setter Property="Height"         Value="24"/>
+            <Setter Property="Background"     Value="Transparent"/>
+            <Setter Property="Foreground"    Value="{DynamicResource FgMutedBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"         Value="Hand"/>
+            <Setter Property="FontSize"      Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Padding="0">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ Column Header Style ═══ -->
+        <Style x:Key="ColumnHeaderStyle" TargetType="TextBlock">
+            <Setter Property="Foreground"    Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="FontSize"     Value="10"/>
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="FontFamily"   Value="Segoe UI Variable, Segoe UI"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource BgDarkBrush}"
+          Focusable="True"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- 0: навигация + диски -->
+            <RowDefinition Height="Auto"/>  <!-- 1: фильтр          -->
+            <RowDefinition Height="Auto"/>  <!-- 2: заголовки кол.  -->
+            <RowDefinition Height="*"/>     <!-- 3: список файлов   -->
+            <RowDefinition Height="Auto"/>  <!-- 4: счётчик         -->
+            <RowDefinition Height="3"/>     <!-- 5: активный индик. -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════ Row 0: Навигация ══════ -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="10,5,10,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ── Drives strip (со скроллом при переполнении) ── -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="7"
+                        Padding="4,2"
+                        Margin="0,0,10,0"
+                        MaxWidth="300">
+                    <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  CanContentScroll="True">
+                        <ItemsControl ItemsSource="{Binding Drives}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{DynamicResource DriveButtonStyle}"
+                                            Command="{Binding DataContext.GoToDriveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding Name}"
+                                            ToolTip="{Binding Name}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Type, Converter={StaticResource DriveIcon}}"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- ── Path bar: breadcrumbs or edit ── -->
+                <Border Grid.Column="1"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="7"
+                        Padding="8,2">
+                    <Grid>
+                        <!-- Breadcrumbs view -->
+                        <ScrollViewer x:Name="BreadcrumbScroller"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      Visibility="{Binding IsChecked, ElementName=PathToggle, Converter={StaticResource BoolToVisInv}}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <ItemsControl ItemsSource="{Binding CurrentPath, Converter={StaticResource PathToBreadcrumbs}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="{Binding}"
+                                                        Style="{DynamicResource BreadcrumbStyle}"
+                                                        FontSize="12"
+                                                        Command="{Binding DataContext.NavigateToSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <TextBlock Style="{DynamicResource BreadcrumbSepStyle}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Path edit view -->
+                        <TextBox x:Name="PathEditBox"
+                                 Text="{Binding CurrentPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding IsChecked, ElementName=PathToggle, Converter={StaticResource BoolToVis}}"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="12"
+                                 KeyDown="PathBox_KeyDown"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="0"/>
+                    </Grid>
+                </Border>
+
+                <!-- ── Nav buttons ── -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="8,0,0,0">
+
+                    <!-- Path toggle -->
+                    <ToggleButton x:Name="PathToggle"
+                                  Width="28" Height="28"
+                                  ToolTip="{DynamicResource Panel.EditPath}"
+                                  Padding="0">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="Bd"
+                                        Background="Transparent"
+                                        CornerRadius="6">
+                                                 <TextBlock x:Name="Icon"
+                                                Text="&#xE104;"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding Source={x:Static services:ThemeColors.FgDimBrush}}"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                        <Setter TargetName="Icon" Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                                        <Setter TargetName="Icon" Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                            Command="{Binding GoBackCommand}"
+                            ToolTip="{DynamicResource Panel.Back}">
+                        <TextBlock Text="&#x25C0;" FontSize="12"/>
+                    </Button>
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                            Command="{Binding GoForwardCommand}"
+                            ToolTip="{DynamicResource Panel.Forward}">
+                        <TextBlock Text="&#x25B6;" FontSize="12"/>
+                    </Button>
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                            Command="{Binding GoUpCommand}"
+                            ToolTip="{DynamicResource Panel.Up}">
+                        <TextBlock Text="&#x2191;" FontSize="14"/>
+                    </Button>
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                            Command="{Binding RefreshCommand}"
+                            ToolTip="{DynamicResource Panel.Refresh}">
+                        <TextBlock Text="&#x21BB;" FontSize="15"/>
+                    </Button>
+
+                    <!-- Возврат из виртуального режима «результаты поиска» (ph2.2) -->
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                            Command="{Binding DataContext.BackToFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"
+                            ToolTip="{DynamicResource Search.BackToFolder}">
+                        <TextBlock Text="&#x21A9;" FontSize="15"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ══════ Row 1: Filter Bar ══════ -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource BgPanelBrush}"
+                Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>   <!-- 0: иконка        -->
+                    <ColumnDefinition Width="*"/>      <!-- 1: поле ввода     -->
+                    <ColumnDefinition Width="Auto"/>   <!-- 2: опции фильтра  -->
+                    <ColumnDefinition Width="Auto"/>   <!-- 3: очистить        -->
+                    <ColumnDefinition Width="Auto"/>   <!-- 4: статус          -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Search icon -->
+                     <Border Grid.Column="0"
+                             Width="30" Height="26"
+                             CornerRadius="6"
+                             Background="{DynamicResource SurfaceBrush}"
+                             Margin="0,0,8,0"
+                             VerticalAlignment="Center">
+                         <TextBlock Text="&#xE721;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="13"
+                                    Foreground="{DynamicResource FgMutedBrush}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"/>
+                     </Border>
+
+                <!-- Filter input -->
+                <Border Grid.Column="1"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="6"
+                        Padding="10,0">
+                    <Grid>
+                        <TextBlock x:Name="FilterPlaceholder"
+                                   Text="{DynamicResource QuickFilter.Placeholder}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource FgMutedBrush}"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding Text.Length, ElementName=FilterInput, Converter={StaticResource LengthToVisInv}}"/>
+                        <TextBox x:Name="FilterInput"
+                                 Text="{Binding QuickFilterText, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 FontSize="12"
+                                 VerticalContentAlignment="Center"
+                                 Foreground="{DynamicResource FgLightBrush}"
+                                 CaretBrush="{DynamicResource AccentBrush}"
+                                 Padding="0"/>
+                    </Grid>
+                </Border>
+
+                <!-- Quick filter options (ph1.1): регистр / начало имени / область действия -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="8,0,0,0">
+                    <StackPanel.Resources>
+                        <Style x:Key="QOptToggle" TargetType="ToggleButton">
+                            <Setter Property="Width" Value="30"/>
+                            <Setter Property="Height" Value="26"/>
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </StackPanel.Resources>
+
+                    <ToggleButton Style="{DynamicResource QOptToggle}"
+                                  Content="Aa"
+                                  IsChecked="{Binding QuickMatchCase}"
+                                  ToolTip="{DynamicResource Quick.MatchCase}"
+                                  Margin="0,0,4,0"/>
+                    <ToggleButton Style="{DynamicResource QOptToggle}"
+                                  Content="&#x21E4;"
+                                  IsChecked="{Binding QuickMatchStart}"
+                                  ToolTip="{DynamicResource Quick.MatchStart}"
+                                  Margin="0,0,4,0"/>
+                    <Button Style="{DynamicResource NavButtonStyle}"
+                             Width="Auto" MinWidth="48"
+                             Content="{Binding QuickScopeText}"
+                             FontSize="11"
+                             Click="CycleScope_Click"
+                             ToolTip="{DynamicResource Quick.Scope}"/>
+
+                    <!-- ph3.4: Авто-обновление панели (watcher) -->
+                    <ToggleButton Style="{DynamicResource QOptToggle}"
+                                  Content="&#x21BB;"
+                                  IsChecked="{Binding AutoRefresh}"
+                                   ToolTip="{DynamicResource FilePanel.Tip.AutoRefresh}"
+                                  Margin="4,0,0,0"/>
+                </StackPanel>
+
+                <!-- Clear button -->
+                <Button Grid.Column="3"
+                        Style="{DynamicResource ClearBtnStyle}"
+                        Content="&#x2715;"
+                        Margin="8,0,0,0"
+                        Click="ClearFilter_Click"
+                        ToolTip="{DynamicResource Panel.ClearFilter}"
+                        Visibility="{Binding QuickFilterText.Length, Converter={StaticResource LengthToVis}}"/>
+
+                <!-- Quick search/filter status (ph1.1) -->
+                <TextBlock Grid.Column="4"
+                           Text="{Binding QuickStatus}"
+                           Foreground="{DynamicResource AccentBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="260"
+                           Visibility="{Binding QuickStatus.Length, Converter={StaticResource LengthToVis}}"/>
+            </Grid>
+        </Border>
+
+<!-- ══════ Row 2: Column Headers (динамические) ══════ -->
+<Border Grid.Row="2"
+        Background="{DynamicResource BgHeaderBrush}"
+        BorderBrush="{DynamicResource BorderBrush}"
+        BorderThickness="0,0,0,1"
+        MinHeight="26">
+    <Border.ContextMenu>
+        <ContextMenu>
+            <MenuItem Header="{DynamicResource Columns.Configure}"
+                      Click="ConfigureColumns_Click"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+        </ContextMenu>
+    </Border.ContextMenu>
+    <Grid x:Name="ColumnHeadersGrid" Margin="11,0,6,0"/>
+</Border>
+
+        <!-- ══════ Row 3: File List + QuickView (ph5.5) ══════ -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto" MinWidth="0"/>
+            </Grid.ColumnDefinitions>
+            <!-- Drag target highlight overlay (ph6.3) -->
+            <Border x:Name="DragHighlightBorder"
+                    Grid.ColumnSpan="2"
+                    Background="{DynamicResource AccentDimBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    BorderThickness="2"
+                    CornerRadius="4"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed"
+                    Panel.ZIndex="100"/>
+            <!-- QuickView splitter -->
+            <GridSplitter Grid.Column="1"
+                          Width="3"
+                          Background="{DynamicResource BorderBrush}"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          Visibility="{Binding IsQuickViewOpen, Converter={StaticResource BoolToVis}}"
+                          ResizeBehavior="PreviousAndNext"/>
+            <!-- QuickView panel -->
+            <views:QuickViewHost x:Name="QuickView"
+                                 Grid.Column="1"
+                                 Width="300"
+                                 VerticalAlignment="Stretch"
+                                 Visibility="{Binding IsQuickViewOpen, Converter={StaticResource BoolToVis}}"/>
+<!--
+Локально отключаем виртуализацию горизонтального скролла:
+глобальный стиль ListBox использует VirtualizingStackPanel, который
+передаёт дочерним элементам жёсткое ограничение ширины фазе
+Measure, из-за чего TextTrimming длинных именах срабатывает
+строка вылезает пределы панели. StackPanel CanContentScroll=False
+гарантирует, что каждый ListBoxItem получит ровно AvailableWidth и
+колонка имени "*" сожмётся корректно.
+-->
+<ListBox x:Name="FileList"
+         Grid.Column="0"
+                 ItemsSource="{Binding ItemsView}"
+                  SelectedItem="{Binding SelectedItem}"
+                  SelectionMode="Extended"
+                  MouseDoubleClick="LB_Dbl"
+                  KeyDown="ListBox_KeyDown"
+                  Focusable="True"
+                  AllowDrop="True"
+                  PreviewMouseLeftButtonDown="ListBox_PreviewMouseLeftButtonDown"
+                  PreviewMouseMove="ListBox_PreviewMouseMove"
+                  PreviewMouseLeftButtonUp="ListBox_PreviewMouseLeftButtonUp"
+                  DragEnter="ListBox_DragEnter"
+                  DragLeave="ListBox_DragLeave"
+                  DragOver="ListBox_DragOver"
+                  Drop="ListBox_Drop"
+                   HorizontalContentAlignment="Stretch"
+                   HorizontalAlignment="Stretch"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                   ScrollViewer.VerticalScrollBarVisibility="Visible"
+                   ScrollViewer.CanContentScroll="False"
+                   FontFamily="{DynamicResource PanelFontFamily}"
+                   FontSize="{DynamicResource PanelFontSize}"
+                   AlternationCount="2"
+                   Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+
+            <!-- Context Menu -->
+            <ListBox.ContextMenu>
+                <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="{DynamicResource Ctx.Open}"
+                      Command="{Binding OpenItemCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource OpenWith.Menu}" InputGestureText="Shift+Enter"
+                      Command="{Binding OpenWithCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource Ctx.CopyPath}" Style="{DynamicResource ContextMenuItemStyle}">
+                <MenuItem Header="{DynamicResource Ctx.CopyPath.Full}" Style="{DynamicResource ContextMenuItemStyle}"
+                          Command="{Binding CopyFullPathCommand}"/>
+                <MenuItem Header="{DynamicResource Ctx.CopyPath.Name}" Style="{DynamicResource ContextMenuItemStyle}"
+                          Command="{Binding CopyFileNameCommand}"/>
+                <MenuItem Header="{DynamicResource Ctx.CopyPath.NoExt}" Style="{DynamicResource ContextMenuItemStyle}"
+                          Command="{Binding CopyPathNoExtensionCommand}"/>
+                <MenuItem Header="{DynamicResource Ctx.CopyPath.NameNoExt}" Style="{DynamicResource ContextMenuItemStyle}"
+                          Command="{Binding CopyNameNoExtensionCommand}"/>
+            </MenuItem>
+            <Separator/>
+            <MenuItem Header="{DynamicResource Ctx.View}"
+                              Command="{Binding ViewFileCommand}"
+                              Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Ctx.Edit}"
+                              Command="{Binding EditFileCommand}"
+                              Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Ctx.CopyToOther}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding CopyToOtherPanelCommand}"/>
+                    <MenuItem Header="{DynamicResource Ctx.MoveToOther}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding MoveToOtherPanelCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Ctx.Split}"
+                              Command="{Binding SplitCommand}"
+                              Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Ctx.Combine}"
+                              Command="{Binding CombineCommand}"
+                              Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Ctx.ArchiveCreate}" Command="{Binding PackCommand}" Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Ctx.ArchiveExtract}" Command="{Binding ExtractCommand}" Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Ctx.Compare}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding CompareFilesCommand}"/>
+                    <MenuItem Header="{DynamicResource Ctx.Checksum}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding ShowChecksumCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Main.Properties}" InputGestureText="Alt+Enter"
+                               Command="{Binding ShowPropertiesCommand}"
+                               Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Main.Wipe}"
+                                Command="{Binding WipeCommand}"
+                                Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Attr.HardlinkMenu}"
+                               Command="{Binding CreateHardlinkCommand}"
+                               Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <MenuItem Header="{DynamicResource Attr.SymlinkMenu}"
+                               Command="{Binding CreateSymlinkCommand}"
+                               Style="{DynamicResource ContextMenuItemStyle}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Ctx.OpenInExplorer}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding OpenInExplorerCommand}"/>
+                    <MenuItem Header="{DynamicResource Ctx.OpenInTerminal}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding OpenInTerminalCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="{DynamicResource Ctx.SelectGroup}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding SelectByPatternCommand}"/>
+                    <MenuItem Header="{DynamicResource Ctx.DeselectGroup}" Style="{DynamicResource ContextMenuItemStyle}"
+                              Command="{Binding DeselectByPatternCommand}"/>
+                    <MenuItem Header="{DynamicResource Ctx.Refresh}"
+                              Command="{Binding RefreshAllCommand}"
+                              Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.FlatView}"
+                      Command="{Binding PlacementTarget.DataContext.ToggleFlatViewCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource Ctx.AddBookmark}"
+                      Command="{Binding AddBookmarkCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+                 </ContextMenu>
+            </ListBox.ContextMenu>
+
+<!-- ItemTemplate генерируется динамически FilePanel.xaml.cs (RebuildColumns) -->
+    <!-- ListBox.ItemTemplate будет установлен из code-behind -->
+
+        <ListBox.ItemContainerStyle>
+            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                <!--
+                    Двусторонний биндинг IsSelected <-> FileSystemItem.IsSelected.
+                    WPF НЕ сбрасывает ListBoxItem.IsSelected при потере фокуса другим
+                    ListBox (фокус уходит, но IsSelected сохраняется). Сброс происходит
+                    только при Items.Clear()+Add — но PanelViewModel.RefreshAsync теперь
+                    восстанавливает выделение по сохранённым FullPath.
+                -->
+                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                <Setter Property="MinHeight" Value="27"/>
+                <Setter Property="Padding" Value="4,0"/>
+                <Setter Property="Margin" Value="0,0"/>
+                <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                <Style.Triggers>
+                    <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                         <Setter Property="Background" Value="{DynamicResource RowAltBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+    </ListBox.ItemContainerStyle>
+    </ListBox>
+    </Grid>
+        <!-- ══════ Row 4: Status Line ══════ -->
+        <Border Grid.Row="4"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Height="24">
+            <Grid Margin="10,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Items count badge -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="5"
+                        Padding="8,3"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Items, Converter={StaticResource ItemsCount}}"
+                               FontSize="11" Foreground="{DynamicResource FgDimBrush}"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Selected path (right side) -->
+                <TextBlock Grid.Column="2"
+                           Text="{Binding CurrentPath}"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="350"
+                           Margin="12,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- ══════ Row 5: Active Panel Indicator ══════ -->
+        <Border Grid.Row="5"
+                Height="3"
+                CornerRadius="1.5">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentBrush}}" Offset="0"/>
+                    <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentSecondaryBrush}}" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0"/>
+                    <Style.Triggers>
+                        <DataTrigger Value="True">
+                            <DataTrigger.Binding>
+                                <Binding Path="IsActive"/>
+                            </DataTrigger.Binding>
+                            <Setter Property="Opacity" Value="1"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.5"
+                                  Color="{Binding Color, Source={x:Static services:ThemeColors.AccentBrush}}" Direction="90"/>
+            </Border.Effect>
+        </Border>
+    </Grid>
+</UserControl>

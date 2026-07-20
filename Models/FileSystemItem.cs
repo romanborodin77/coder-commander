@@ -1,0 +1,101 @@
+﻿using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CoderCommander.Services;
+
+namespace CoderCommander.Models;
+
+/// <summary>
+/// Модель элемента файловой системы (файл или каталог) с поддержкой отслеживания изменений.
+/// File system item model (file or directory) with change tracking support.
+/// </summary>
+public partial class FileSystemItem : ObservableObject
+{
+    /// <summary>
+    /// Полный путь к файлу или каталогу.
+    /// Full path to the file or directory.
+    /// </summary>
+    public string FullPath { get; }
+
+    /// <summary>
+    /// Имя файла или каталога (без пути). Если задан DisplayName — возвращает его (для Flat View).
+    /// File or directory name (without path). Returns DisplayName if set (for Flat View).
+    /// </summary>
+    public string Name => DisplayName ?? (Path.GetFileName(FullPath) ?? FullPath);
+
+    /// <summary>
+    /// Пользовательское отображаемое имя (для Flat View — относительный путь).
+    /// Custom display name (for Flat View — relative path).
+    /// </summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// Является ли элемент каталогом.
+    /// Whether the item is a directory.
+    /// </summary>
+    public bool IsDirectory { get; }
+
+    /// <summary>
+    /// Является ли элемент ссылкой на родительский каталог ("..").
+    /// Whether the item is a parent directory reference ("..").
+    /// </summary>
+    public bool IsParent { get; }
+
+    [ObservableProperty] private bool _isSelected;
+
+    /// <summary>
+    /// Размер файла в байтах (для каталогов значение 0).
+    /// File size in bytes (0 for directories).
+    /// </summary>
+    public long Size { get; }
+
+    /// <summary>
+    /// Дата и время последнего изменения.
+    /// Last modified date and time.
+    /// </summary>
+    public DateTime Modified { get; }
+
+    /// <summary>
+    /// Расширение файла в нижнем регистре (для каталогов — пустая строка).
+    /// File extension in lowercase (empty string for directories).
+    /// </summary>
+    public string Extension { get; }
+
+    [ObservableProperty] private GitState _gitState = GitState.Unchanged;
+
+    /// <summary>
+    /// Инициализирует новый экземпляр FileSystemItem.
+    /// Initializes a new instance of FileSystemItem.
+    /// </summary>
+    /// <param name="fullPath">Полный путь к файлу или каталогу / Full path to the file or directory.</param>
+    /// <param name="isDirectory">Является ли элемент каталогом / Whether the item is a directory.</param>
+    /// <param name="size">Размер файла в байтах (по умолчанию 0) / File size in bytes (default 0).</param>
+    /// <param name="modified">Дата последнего изменения / Last modified date.</param>
+    /// <param name="isParent">Является ли элемент ссылкой ".." / Whether the item is ".." parent reference.</param>
+    /// <param name="gitState">Состояние Git для элемента / Git state for the item.</param>
+    public FileSystemItem(string fullPath, bool isDirectory, long size = 0, DateTime? modified = null, bool isParent = false, GitState gitState = GitState.Unchanged, string? displayName = null)
+    {
+        FullPath = fullPath; IsDirectory = isDirectory; IsParent = isParent; Size = size; _gitState = gitState;
+        Modified = modified ?? DateTime.Now;
+        Extension = isDirectory ? "" : Path.GetExtension(fullPath).ToLowerInvariant();
+        DisplayName = displayName;
+    }
+
+    /// <summary>
+    /// Отображаемый размер: "&lt;DIR&gt;" для каталогов или человекочитаемый формат для файлов.
+    /// Display size: "&lt;DIR&gt;" for directories or human-readable format for files.
+    /// </summary>
+    public string SizeDisplay => IsDirectory ? "<DIR>" : FormatSize(Size);
+
+    /// <summary>
+    /// Отображаемая дата изменения в формате "yyyy-MM-dd HH:mm".
+    /// Display modified date in "yyyy-MM-dd HH:mm" format.
+    /// </summary>
+    public string ModifiedDisplay => Modified.ToString("yyyy-MM-dd HH:mm");
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 0) return "--";
+        string[] u = ["B","KB","MB","GB","TB"]; double s = bytes; int i = 0;
+        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
+        return $"{s:0.##} {u[i]}";
+    }
+}

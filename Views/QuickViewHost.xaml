@@ -1,0 +1,107 @@
+<UserControl x:Class="CoderCommander.Views.QuickViewHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+             Background="{DynamicResource BgDarkBrush}"
+             BorderBrush="{DynamicResource BorderBrush}"
+             BorderThickness="1,0,0,0">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- 0: Header -->
+            <RowDefinition Height="*"/>     <!-- 1: Content -->
+            <RowDefinition Height="Auto"/>  <!-- 2: Status -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Header ═══ -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource BgHeaderBrush}"
+                Padding="10,6"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <TextBlock x:Name="HeaderText"
+                       Text="{DynamicResource QuickView.Title}"
+                       FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource FgLightBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="280"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- ═══ Content: Text (AvalonEdit) ═══ -->
+        <Border Grid.Row="1"
+                x:Name="TextBorder"
+                Visibility="Collapsed"
+                Padding="0">
+            <avalonEdit:TextEditor x:Name="TextPreview"
+                                    IsReadOnly="True"
+                                    ShowLineNumbers="False"
+                                    WordWrap="False"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    FontFamily="Cascadia Code"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource FgLightBrush}"
+                                    VerticalScrollBarVisibility="Auto"
+                                    HorizontalScrollBarVisibility="Auto"/>
+        </Border>
+
+        <!-- ═══ Content: Image ═══ -->
+        <Border Grid.Row="1"
+                x:Name="ImageBorder"
+                Visibility="Collapsed"
+                Background="{DynamicResource BgDarkBrush}"
+                Padding="8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <Image x:Name="ImagePreview"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Top"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══ Content: Hex (binary) ═══ -->
+        <Border Grid.Row="1"
+                x:Name="HexBorder"
+                Visibility="Collapsed"
+                Background="{DynamicResource BgDarkBrush}"
+                Padding="8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="HexPreview"
+                           FontFamily="Cascadia Code"
+                           FontSize="11"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           TextWrapping="NoWrap"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Left"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══ No Preview ═══ -->
+        <TextBlock Grid.Row="1"
+                   x:Name="NoPreviewText"
+                   Text="{DynamicResource QuickView.NoPreview}"
+                   Foreground="{DynamicResource FgMutedBrush}"
+                   FontSize="11"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Visibility="Collapsed"/>
+
+        <!-- ═══ Status ═══ -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource BgHeaderBrush}"
+                Padding="10,4"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText"
+                       Text=""
+                       FontSize="10"
+                       Foreground="{DynamicResource FgMutedBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="280"
+                       VerticalAlignment="Center"/>
+        </Border>
+    </Grid>
+</UserControl>

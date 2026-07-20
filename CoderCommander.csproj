@@ -1,0 +1,66 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- WPF XAML-compiler (wpftmp.csproj) double-includes generated assembly attributes
+         under `dotnet build` with the .NET 10 SDK, causing CS0579. Disable the auto-generated
+         assembly info and provide a single explicit AssemblyInfo.cs (used by both the main
+         and the temporary XAML-compile project), eliminating the duplicate attributes. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <!-- CA1416: platform compatibility — WPF-only Windows app, no cross-platform analysis needed -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.0" />
+    <PackageReference Include="SSH.NET" Version="2024.2.0" />
+    <!-- CRC32 (ph1.2). Входит в общую библиотеку .NET 8, но явная ссылка гарантирует доступность при сборке. -->
+    <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
+    <!-- DiffPlex (ph3.1): Myers O(ND) diff для сравнения текстовых файлов (рядом + встроку). -->
+    <PackageReference Include="DiffPlex" Version="1.7.2" />
+    <!-- SharpCompress (ph4.1): чтение ZIP/7Z/RAR/TAR/GZ/BZ2/XZ/LZ архивов через streaming. -->
+    <!-- CodePages (ph2.1): legacy-кодировки (Windows-1251, KOI8-R, …) для поиска по содержимому. -->
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+    <!-- AWSSDK.S3 (ph8.4): Amazon S3 и S3-совместимые хранилища. -->
+    <PackageReference Include="AWSSDK.S3" Version="3.7.305.3" />
+    <!-- Azure.Storage.Blobs (ph8.4): Azure Blob Storage. -->
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.21.0" />
+    <!-- Google.Apis.Drive.v3 (ph8.4): Google Drive (заглушка, OAuth позже). -->
+    <PackageReference Include="Google.Apis.Drive.v3" Version="1.68.0.3533" />
+  </ItemGroup>
+
+  <!-- Исключаем тестовый проект из основной сборки (WPF wpftmp globs **/*.cs) -->
+  <ItemGroup>
+    <Compile Remove="CoderCommander.Tests\**" />
+    <Page Remove="CoderCommander.Tests\**" />
+    <ApplicationDefinition Remove="CoderCommander.Tests\**" />
+  </ItemGroup>
+
+  <!-- Копируем файлы языков в выходную директорию -->
+  <ItemGroup>
+    <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Иконка приложения -->
+  <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <!-- Удаляем временные *_wpftmp.csproj после сборки (WPF XAML compiler) -->
+  <Target Name="CleanupWpfTmp" AfterTargets="CoreCompile">
+    <ItemGroup>
+      <WpfTmpFiles Include="$(MSBuildProjectDirectory)/*_wpftmp.csproj" />
+      <WpfTmpFiles Include="$(MSBuildProjectDirectory)/*_wpftmp.dll" />
+    </ItemGroup>
+    <Delete Files="@(WpfTmpFiles)" ContinueOnError="true" />
+  </Target>
+
+</Project>

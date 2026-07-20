@@ -1,0 +1,1193 @@
+﻿<Window x:Class="CoderCommander.Views.MainWindow"
+         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         xmlns:views="clr-namespace:CoderCommander.Views"
+         xmlns:vm="clr-namespace:CoderCommander.ViewModels"
+         xmlns:services="clr-namespace:CoderCommander.Services"
+         xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+          Title="{DynamicResource AppTitle}"
+          Icon="/app.ico"
+          Width="1500" Height="850"
+         WindowStartupLocation="CenterScreen"
+         WindowStyle="None"
+         AllowsTransparency="False"
+         ResizeMode="CanResizeWithGrip"
+         UseLayoutRounding="True"
+         Background="{DynamicResource BorderBrush}">
+
+    <Window.DataContext>
+        <vm:MainViewModel/>
+    </Window.DataContext>
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+    <Window.InputBindings>
+        <!-- Основные горячие клавиши (панельные F2-F8 + Alt — динамические через ApplyHotkeys) -->
+        <KeyBinding Key="Tab" Command="{Binding SwitchPanelCommand}"/>
+        <KeyBinding Key="Tab" Modifiers="Ctrl" Command="{Binding NextActiveTabCommand}"/>
+        <KeyBinding Key="F1" Command="{Binding OpenCommandPaletteCommand}"/>
+        <KeyBinding Key="F9" Command="{Binding ShowGitTabCommand}"/>
+        <KeyBinding Key="F10" Modifiers="Shift" Command="{Binding ToggleTerminalPanelCommand}"/>
+        
+        <!-- Навигация и управление -->
+        <KeyBinding Key="Enter" Command="{Binding OpenItemCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding EscapeKeyCommand}"/>
+        
+        <!-- Управление с Ctrl -->
+        <KeyBinding Key="R" Modifiers="Ctrl" Command="{Binding RefreshAllCommand}"/>
+        <KeyBinding Key="H" Modifiers="Ctrl" Command="{Binding ToggleHiddenCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveEditorCommand}"/>
+        <KeyBinding Key="OemComma" Modifiers="Ctrl" Command="{Binding OpenSettingsCommand}"/>
+        <KeyBinding Key="Enter" Modifiers="Alt" Command="{Binding ShowPropertiesCommand}"/>
+        <KeyBinding Key="U" Modifiers="Ctrl" Command="{Binding SwapPanelsCommand}"/>
+        <KeyBinding Key="M" Modifiers="Ctrl" Command="{Binding MultiRenameCommand}"/>
+        <KeyBinding Key="Q" Modifiers="Ctrl+Shift" Command="{Binding OpenOperationQueueCommand}"/>
+        <KeyBinding Key="B" Modifiers="Ctrl" Command="{Binding ToggleBookmarkCommand}"/>
+
+    <!-- Выделение -->
+    <KeyBinding Key="F11" Command="{Binding ActivePanel.ToggleQuickViewCommand}"/>
+    <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding OpenWithCommand}"/>
+
+    <!-- Выделение -->
+        <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding SelectAllCommand}"/>
+        <KeyBinding Key="D" Modifiers="Ctrl" Command="{Binding DeselectAllCommand}"/>
+        <KeyBinding Key="A" Modifiers="Ctrl+Shift" Command="{Binding InvertSelectionCommand}"/>
+        <KeyBinding Key="Add" Command="{Binding SelectByPatternCommand}"/>
+        <KeyBinding Key="OemPlus" Command="{Binding SelectByPatternCommand}"/>
+        <KeyBinding Key="Subtract" Command="{Binding DeselectByPatternCommand}"/>
+        <KeyBinding Key="OemMinus" Command="{Binding DeselectByPatternCommand}"/>
+        
+        <!-- Команды с Ctrl+Shift -->
+        <KeyBinding Key="C" Modifiers="Ctrl+Shift" Command="{Binding CompareDirectoriesCommand}"/>
+        <KeyBinding Key="F" Modifiers="Ctrl+Shift" Command="{Binding CompareFilesCommand}"/>
+        <KeyBinding Key="D" Modifiers="Ctrl+Shift" Command="{Binding ShowDiskInfoCommand}"/>
+        <KeyBinding Key="V" Modifiers="Ctrl+Shift" Command="{Binding ActivePanel.ToggleFlatViewCommand}"/>
+    </Window.InputBindings>
+    <Window.Resources>
+        <!-- ═══ Shared Panel Tab Item Style ═══ -->
+        <Style x:Key="PanelTabItemStyle" TargetType="TabItem">
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0,0,0,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceBrush}}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Menu Separator Style -->
+        <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Margin="0,4">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                     <GradientStop Color="Transparent" Offset="0"/>
+                                      <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.1"/>
+                                      <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.9"/>
+                                     <GradientStop Color="Transparent" Offset="1"/>
+                                 </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ MenuItem Style ═══ -->
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Icon"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="IGT"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Arrow"/>
+                                        <ColumnDefinition Width="14"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter x:Name="Icon" Grid.Column="0"
+                                                      ContentSource="Icon"
+                                                      Width="16" Margin="0,0,8,0"
+                                                      VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                      Opacity="0.75"/>
+                                    <ContentPresenter x:Name="Header" Grid.Column="1"
+                                                      ContentSource="Header"
+                                                      VerticalAlignment="Center"
+                                                      RecognizesAccessKey="True"/>
+                                    <TextBlock x:Name="IGT" Grid.Column="2"
+                                               Text="{TemplateBinding InputGestureText}"
+                                               VerticalAlignment="Center" Margin="18,0,4,0"
+                                               Foreground="{DynamicResource FgMutedBrush}"
+                                               FontSize="11"/>
+                                    <TextBlock x:Name="Arrow" Grid.Column="3"
+                                               Text="&#x25B8;" FontSize="10"
+                                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource FgDimBrush}"
+                                               Margin="4,0,0,0"/>
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="SubMenuPopup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   Placement="Right"
+                                   HorizontalOffset="-4"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="4"
+                                        SnapsToDevicePixels="True">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.5" Color="#000000" Direction="270"/>
+                                    </Border.Effect>
+                                    <StackPanel IsItemsHost="True"
+                                                Grid.IsSharedSizeScope="True"
+                                                KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Role" Value="TopLevelHeader">
+                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Padding" Value="1,5"/>
+                                <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
+                                <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
+                                <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
+                            </Trigger>
+                            <Trigger Property="Role" Value="TopLevelItem">
+                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Padding" Value="1,5"/>
+                                <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
+                                <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
+                                <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
+                            </Trigger>
+                            <Trigger Property="Role" Value="SubmenuItem">
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══ Menu Style ═══ -->
+        <Style TargetType="Menu">
+            <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="2,2"/>
+        </Style>
+
+        <!-- ═══ Panel Splitters ═══ -->
+        <!-- ph: ControlTemplate убран — GradientStop.Color="{DynamicResource}" внутри ControlTemplate -->
+        <!-- вызывал DUCE-крэш при смене темы (WPF замораживает Freezable). Вместо этого: простой -->
+        <!-- Background на Style + Style.Triggers для hover. DynamicResource в Style.Triggers — безопасен. -->
+        <!-- ph: ControlTemplate removed — GradientStop.Color="{DynamicResource}" inside ControlTemplate -->
+        <!-- caused DUCE crash on theme switch (WPF freezes Freezable). Instead: plain Background on -->
+        <!-- Style + Style.Triggers for hover. DynamicResource in Style.Triggers is safe. -->
+        <Style x:Key="PanelSplitterV" TargetType="GridSplitter">
+            <Setter Property="Width" Value="3"/>
+            <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="SizeWE"/>
+            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PanelSplitterH" TargetType="GridSplitter">
+            <Setter Property="Height" Value="3"/>
+            <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="SizeNS"/>
+            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+<Grid Margin="1,0,1,1">
+            <!-- ═══ CUSTOM TITLE BAR ═══ -->
+            <Border x:Name="TitleBar" 
+                    Panel.ZIndex="3000"
+                    VerticalAlignment="Top" 
+                    Height="38"
+                    Background="{DynamicResource TitleBarBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Left: App Icon Title -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" 
+                                Margin="12,0,0,0" VerticalAlignment="Center">
+                        <Border Width="22" Height="22" 
+                                Background="{DynamicResource AccentDimBrush}"
+                                CornerRadius="6"
+                                Margin="0,0,10,0">
+                            <TextBlock Text="&#xE943;" 
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="13"
+                                        Foreground="{DynamicResource AccentBrush}"
+                                        HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="{DynamicResource AppTitle}" 
+                                   FontSize="12" 
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource FgLightBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Border Style="{StaticResource TitleBarSeparatorStyle}"/>
+                         <TextBlock Text="{DynamicResource AppSubtitle}" 
+                                    FontSize="10"
+                                    Foreground="{DynamicResource FgMutedBrush}"
+                                    VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <!-- Center: Draggable Area -->
+                    <Grid Grid.Column="1" Background="Transparent" 
+                          MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"/>
+                    <!-- Right: Window Controls -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Style="{StaticResource TitleBarButtonStyle}" 
+                                Click="MinimizeWindow"
+                                 ToolTip="{DynamicResource Editor.Tip.Minimize}">
+                             <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                         </Button>
+                        <Button x:Name="MaximizeButton"
+                                Style="{StaticResource TitleBarButtonStyle}" 
+                                Click="MaximizeRestoreWindow"
+                                 ToolTip="{DynamicResource Editor.Tip.Maximize}">
+                              <TextBlock x:Name="MaximizeIcon" 
+                                          Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                         </Button>
+                        <Button Style="{StaticResource TitleBarCloseButtonStyle}" 
+                                Click="CloseWindow"
+                                 ToolTip="{DynamicResource Editor.Tip.Close}">
+                             <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                         </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <!-- Main content wrapper -->
+            <Grid Margin="0,38,0,0">
+                <!-- COMMAND PALETTE OVERLAY -->
+                <Border Background="{DynamicResource OverlayBrush}"
+                Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVis}}"
+                MouseDown="CommandPaletteOverlay_MouseDown"
+                Panel.ZIndex="1000">
+            <Border.Effect>
+                <BlurEffect Radius="4"/>
+            </Border.Effect>
+        </Border>
+
+        <Border Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVis}}"
+                Panel.ZIndex="1001"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,80,0,0">
+            <Border MaxWidth="640"
+                    MinWidth="480"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="14">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="50" ShadowDepth="16" Opacity="0.8" Color="#000000"/>
+                </Border.Effect>
+                <StackPanel>
+                    <!-- Search Input Row -->
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="16,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- Search icon -->
+                            <Border Grid.Column="0" Width="34" Height="34" CornerRadius="8"
+                                    Background="{DynamicResource AccentDimBrush}" Margin="0,0,12,0"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="&#xE721;"
+                                           FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBox Grid.Column="1"
+                                     x:Name="PaletteInput"
+                                     Text="{Binding CommandQuery, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="Transparent" BorderThickness="0"
+                                     FontSize="16" VerticalContentAlignment="Center"
+                                     Foreground="{DynamicResource FgLightBrush}"
+                                     CaretBrush="{DynamicResource AccentBrush}"
+                                     FontWeight="Light"/>
+                            <!-- Keyboard hint -->
+                            <Border Grid.Column="2" Background="{DynamicResource BgHeaderBrush}"
+                                    CornerRadius="5" Padding="8,4" Margin="12,0,0,0"
+                                    VerticalAlignment="Center" Opacity="0.6">
+                                <TextBlock Text="ESC" FontSize="10" FontFamily="Consolas"
+                                           Foreground="{DynamicResource FgMutedBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <!-- Results -->
+                    <ListBox x:Name="CmdPaletteList"
+                             ItemsSource="{Binding CommandResults}"
+                             MaxHeight="400"
+                             Background="Transparent" BorderThickness="0"
+                             MouseDoubleClick="Cmd_Dbl"
+                             Padding="8,6"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Margin" Value="2,2"/>
+                                <Setter Property="Padding" Value="12,10"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Arrow icon badge -->
+                                    <Border Grid.Column="0"
+                                            Background="{DynamicResource BgHeaderBrush}"
+                                            CornerRadius="6" Padding="8,5"
+                                            Margin="0,0,14,0" VerticalAlignment="Center">
+                                        <TextBlock Text="&#x21B5;"
+                                                   FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                                   Foreground="{DynamicResource FgMutedBrush}"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="14"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource FgLightBrush}"/>
+                                        <TextBlock Text="{Binding Description}" FontSize="11"
+                                                   Foreground="{DynamicResource FgDimBrush}" Margin="0,3,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <!-- Footer hint -->
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#x21B5;" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Palette.Select}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="&#x2191;&#x2193;" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Palette.Navigate}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ══ MAIN LAYOUT ══ -->
+        <DockPanel>
+        <!-- ─── MENU ─── -->
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top"
+              Background="{DynamicResource BgHeaderBrush}">
+            <!-- Левая панель -->
+            <MenuItem Header="{DynamicResource Menu.Left}">
+                <MenuItem Header="{DynamicResource Menu.Left.Refresh}"
+                          Command="{Binding LeftPanel.RefreshCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Left.ChangeDrive}"
+                          Command="{Binding LeftPanel.GoToDriveCommand}"/>
+            </MenuItem>
+            
+            <!-- Файл -->
+            <MenuItem Header="{DynamicResource Menu.File}">
+                <MenuItem Header="{DynamicResource Menu.File.View}" InputGestureText="F3"
+                          Command="{Binding ViewFileCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.File.Edit}" InputGestureText="F4"
+                          Command="{Binding EditFileCommand}"/>
+                <MenuItem Header="{DynamicResource OpenWith.Menu}" InputGestureText="Shift+Enter"
+                          Command="{Binding OpenWithCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.File.Copy}" InputGestureText="F5"
+                          Command="{Binding CopyCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.File.Move}" InputGestureText="F6"
+                          Command="{Binding MoveCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.File.Rename}" InputGestureText="F2"
+                          Command="{Binding RenameCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.File.CreateFolder}" InputGestureText="F7"
+                          Command="{Binding CreateFolderCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.File.Delete}" InputGestureText="F8"
+                           Command="{Binding DeleteCommand}"/>
+                <MenuItem Header="{DynamicResource Main.Wipe}"
+                          Command="{Binding WipeCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Main.Properties}" InputGestureText="Alt+Enter"
+                           Command="{Binding ShowPropertiesCommand}"/>
+                <MenuItem Header="{DynamicResource Attr.HardlinkMenu}"
+                          Command="{Binding CreateHardlinkCommand}"/>
+                <MenuItem Header="{DynamicResource Attr.SymlinkMenu}"
+                          Command="{Binding CreateSymlinkCommand}"/>
+                <Separator/>
+                 <MenuItem Header="{DynamicResource Menu.File.Exit}" InputGestureText="Ctrl+Q"
+                          Command="{Binding ExitAppCommand}"/>
+            </MenuItem>
+            
+            <!-- Выделение -->
+            <MenuItem Header="{DynamicResource Menu.Selection}">
+                <MenuItem Header="{DynamicResource Menu.Selection.All}" InputGestureText="Ctrl+A"
+                          Command="{Binding SelectAllCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Selection.None}" InputGestureText="Ctrl+D"
+                          Command="{Binding DeselectAllCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Selection.Invert}" InputGestureText="Ctrl+Shift+A"
+                          Command="{Binding InvertSelectionCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Selection.Group}" InputGestureText="+"
+                          Command="{Binding SelectByPatternCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Selection.DeselectGroup}" InputGestureText="-"
+                          Command="{Binding DeselectByPatternCommand}"/>
+            </MenuItem>
+            
+            <!-- Команды -->
+            <MenuItem Header="{DynamicResource Menu.Commands}">
+                <MenuItem Header="{DynamicResource Menu.Commands.Search}" InputGestureText="Alt+F7"
+                          Command="{Binding SearchFilesCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Search.Dialog}"
+                           Command="{Binding SearchCommand}"/>
+                <MenuItem Header="{DynamicResource Search.LastResults}"
+                           Command="{Binding ShowLastSearchResultsCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Commands.Compare}" InputGestureText="Ctrl+Shift+C"
+                          Command="{Binding CompareDirectoriesCommand}"/>
+                 <MenuItem Header="{DynamicResource Main.CompareFiles}" InputGestureText="Ctrl+Shift+F"
+                           Command="{Binding CompareFilesCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.DiskInfo}" InputGestureText="Ctrl+Shift+D"
+                          Command="{Binding ShowDiskInfoCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Commands.SyncPanels}"
+                          Command="{Binding SyncPanelsCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.SyncDirs}" InputGestureText="Ctrl+Shift+S"
+                          Command="{Binding SyncDirsCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.SwapPanels}" InputGestureText="Ctrl+U"
+                          Command="{Binding SwapPanelsCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.SwitchPanel}" InputGestureText="Tab"
+                          Command="{Binding SwitchPanelCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Commands.Terminal}" InputGestureText="Shift+F10"
+                          Command="{Binding ToggleTerminalPanelCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.Palette}" InputGestureText="F1"
+                          Command="{Binding OpenCommandPaletteCommand}"/>
+            </MenuItem>
+            
+            <!-- Инструменты -->
+            <MenuItem Header="{DynamicResource Menu.Tools}">
+                <MenuItem Header="{DynamicResource Menu.Tools.Git}" InputGestureText="F9"
+                          Command="{Binding ShowGitTabCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Docker}"
+                          Command="{Binding ShowDockerTabCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Ssh}"
+                          Command="{Binding ShowSshTabCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Sftp}"
+                          Command="{Binding ShowSftpTabCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.CloudStorage}"
+                          Command="{Binding ShowCloudStorageTabCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Split}"
+                           Command="{Binding SplitCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Combine}"
+                           Command="{Binding CombineCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Duplicates}"
+                           Command="{Binding FindDuplicatesCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Tools.ArchiveCreate}" Command="{Binding PackCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.ArchiveExtract}" Command="{Binding ExtractCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Tools.MultiRename}" InputGestureText="Ctrl+M"
+                          Command="{Binding MultiRenameCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Macros}"
+                          Command="{Binding OpenMacroManagerCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Tools.Plugins}"
+                          Command="{Binding OpenPluginManagerCommand}"/>
+            </MenuItem>
+            
+            <!-- Вид -->
+            <MenuItem Header="{DynamicResource Menu.View}">
+                <MenuItem Header="{DynamicResource Menu.View.Refresh}" InputGestureText="Ctrl+R"
+                          Command="{Binding RefreshAllCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.View.Hidden}" InputGestureText="Ctrl+H"
+                          Command="{Binding ToggleHiddenCommand}"/>
+                <MenuItem Header="{DynamicResource QuickView.Toggle}" InputGestureText="F11"
+                          Command="{Binding ActivePanel.ToggleQuickViewCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.View.FlatViewLeft}"
+                          Command="{Binding LeftPanel.ToggleFlatViewCommand}"
+                          InputGestureText="Ctrl+Shift+V"/>
+                <MenuItem Header="{DynamicResource Menu.View.FlatViewRight}"
+                          Command="{Binding RightPanel.ToggleFlatViewCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Columns.Configure}"
+                          Click="Columns_Click"/>
+            </MenuItem>
+            
+        <!-- Настройки -->
+        <MenuItem Header="{DynamicResource Menu.Settings}">
+            <MenuItem Header="{DynamicResource Menu.Settings.Dialog}" InputGestureText="Ctrl+,"
+                      Click="Settings_Click"/>
+            <Separator/>
+            <MenuItem Header="{DynamicResource Menu.Settings.Theme}">
+                <MenuItem Header="{DynamicResource Menu.Settings.Theme.Dark}"
+                          Command="{Binding SetThemeCommand}" CommandParameter="Dark">
+                    <MenuItem.IsChecked>
+                        <Binding Path="Theme"
+                                 Converter="{StaticResource StrEqConverter}"
+                                 ConverterParameter="Dark"/>
+                    </MenuItem.IsChecked>
+                </MenuItem>
+                <MenuItem Header="{DynamicResource Menu.Settings.Theme.Light}"
+                          Command="{Binding SetThemeCommand}" CommandParameter="Light">
+                    <MenuItem.IsChecked>
+                        <Binding Path="Theme"
+                                 Converter="{StaticResource StrEqConverter}"
+                                 ConverterParameter="Light"/>
+                    </MenuItem.IsChecked>
+                </MenuItem>
+                <MenuItem Header="{DynamicResource Menu.Settings.Theme.System}"
+                          Command="{Binding SetThemeCommand}" CommandParameter="System">
+                    <MenuItem.IsChecked>
+                        <Binding Path="Theme"
+                                 Converter="{StaticResource StrEqConverter}"
+                                 ConverterParameter="System"/>
+                    </MenuItem.IsChecked>
+                </MenuItem>
+            </MenuItem>
+        </MenuItem>
+        <!-- Избранное -->
+        <MenuItem Header="{DynamicResource Menu.Bookmarks}"
+                  SubmenuOpened="BookmarksMenu_SubmenuOpened">
+            <MenuItem Header="{DynamicResource Bookmark.Add}"
+                      Command="{Binding AddBookmarkCommand}"
+                      InputGestureText="Ctrl+B"/>
+            <MenuItem Header="{DynamicResource Bookmark.Manage}"
+                      Command="{Binding ManageBookmarksCommand}"/>
+            <Separator/>
+        </MenuItem>
+            
+            <!-- Правая панель -->
+            <MenuItem Header="{DynamicResource Menu.Right}">
+                <MenuItem Header="{DynamicResource Menu.Right.Refresh}"
+                          Command="{Binding RightPanel.RefreshCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Right.ChangeDrive}"
+                          Command="{Binding RightPanel.GoToDriveCommand}"/>
+            </MenuItem>
+            
+            <!-- Справка -->
+            <MenuItem Header="{DynamicResource Menu.Help}">
+                <MenuItem Header="{DynamicResource Menu.Help.About}"
+                          Command="{Binding AboutCommand}"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- ─── TOP TOOLBAR ─── -->
+        <Border DockPanel.Dock="Top"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+                <Grid Margin="6,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ── Nav + Ops Group ── -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Refresh -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding RefreshAllCommand}"
+                                ToolTip="{DynamicResource Tip.Refresh}"
+                                Width="36" Height="34">
+                            <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
+                        </Button>
+                        <Border Style="{StaticResource ToolbarSepStyle}"/>
+
+                        <!-- Back / Forward / Up -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding LeftPanel.GoBackCommand}"
+                                ToolTip="{DynamicResource Tip.Back}" Width="34" Height="34">
+                                <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding LeftPanel.GoForwardCommand}"
+                                ToolTip="{DynamicResource Tip.Forward}" Width="34" Height="34">
+                                <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding LeftPanel.GoUpCommand}"
+                                ToolTip="{DynamicResource Tip.Up}" Width="34" Height="34">
+                                <TextBlock Text="&#xE74A;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
+                        </Button>
+                        <Border Style="{StaticResource ToolbarSepStyle}"/>
+
+                        <!-- File operations -->
+                        <Button Style="{StaticResource ToolbarAccentStyle}"
+                                Command="{Binding CreateFolderCommand}"
+                                ToolTip="{DynamicResource Tip.NewFolder}" Width="34" Height="34">
+                                <TextBlock Text="&#xE8F4;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarAccentStyle}"
+                                Command="{Binding CopyCommand}"
+                                ToolTip="{DynamicResource Tip.Copy}" Width="34" Height="34">
+                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="15"/>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarAccentStyle}"
+                                Command="{Binding MoveCommand}"
+                                ToolTip="{DynamicResource Tip.Move}" Width="34" Height="34">
+                                <TextBlock Text="&#xE8DE;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding DeleteCommand}"
+                                ToolTip="{DynamicResource Tip.Delete}" Width="34" Height="34">
+                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource ErrBrush}"/>
+                        </Button>
+                        <Border Style="{StaticResource ToolbarSepStyle}"/>
+
+                        <!-- Rename -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding RenameCommand}"
+                                ToolTip="{DynamicResource Tip.Rename}" Width="34" Height="34">
+                                <TextBlock Text="&#xE8AC;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- ── Tools Group ── -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Bookmarks -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Click="Bookmarks_Click"
+                                ToolTip="{DynamicResource Tip.Bookmarks}" Width="34" Height="34">
+                                <TextBlock Text="&#xE734;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+
+                        <!-- Git -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowGitTabCommand}"
+                                ToolTip="{DynamicResource Tip.Git}" Width="34" Height="34">
+                                <TextBlock Text="&#xE950;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <!-- Docker -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowDockerTabCommand}"
+                                ToolTip="{DynamicResource Tip.Docker}" Width="34" Height="34">
+                                <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <!-- SSH -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowSshTabCommand}"
+                                ToolTip="{DynamicResource Tip.Ssh}" Width="34" Height="34">
+                                <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <!-- SFTP -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowSftpTabCommand}"
+                                ToolTip="{DynamicResource Tip.Sftp}" Width="34" Height="34">
+                                <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <!-- Cloud Storage (ph8.4) -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding ShowCloudStorageTabCommand}"
+                                 ToolTip="{DynamicResource Cloud.Title}" Width="34" Height="34">
+                                <TextBlock Text="&#xE753;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
+                        <Border Style="{StaticResource ToolbarSepStyle}"/>
+                        <!-- Command palette -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding OpenCommandPaletteCommand}"
+                                 ToolTip="{DynamicResource Main.Tip.Commands}" Width="34" Height="34">
+                            <Border Width="26" Height="26" CornerRadius="5"
+                                    Background="{DynamicResource AccentDimBrush}">
+                                            <TextBlock Text="&#xE773;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+        <!-- ─── STATUS BAR ─── -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="12,0">
+                <Grid Height="26">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: status text -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Status indicator dot -->
+                        <Ellipse x:Name="StatusDot" Width="5" Height="5"
+                                 Fill="{DynamicResource OkBrush}" Margin="0,0,8,0"
+                                 VerticalAlignment="Center" Opacity="0.6"/>
+                        <TextBlock Text="{Binding StatusText}"
+                                   FontSize="11" Foreground="{DynamicResource FgDimBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Center: progress -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,24,0"
+                                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ProgressText}" FontSize="11"
+                                   Foreground="{DynamicResource FgDimBrush}" VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+                        <ProgressBar Value="{Binding ProgressValue, Mode=OneWay}" Width="100" Height="3"
+                                     VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Right: hotkey hints -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="6,2" Margin="2,0"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <TextBlock Text="F1" FontFamily="Consolas" FontSize="10"
+                                       Foreground="{DynamicResource FgMutedBrush}"/>
+                        </Border>
+                         <TextBlock Text="{DynamicResource Main.Commands}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}"
+                                   VerticalAlignment="Center" Margin="4,0,12,0"/>
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="6,2" Margin="2,0"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <TextBlock Text="Tab" FontFamily="Consolas" FontSize="10"
+                                       Foreground="{DynamicResource FgMutedBrush}"/>
+                        </Border>
+                         <TextBlock Text="{DynamicResource Main.Panel}" FontSize="10" Foreground="{DynamicResource FgMutedBrush}"
+                                   VerticalAlignment="Center" Margin="4,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ─── MAIN GRID ─── -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="90"/>
+                    <RowDefinition Height="5"/>
+                    <RowDefinition x:Name="BottomRow" Height="0"/>
+                </Grid.RowDefinitions>
+
+                <!-- ── Dual file panels with tabs (ph5.9) ── -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="200"/>
+                        <ColumnDefinition Width="5"/>
+                        <ColumnDefinition Width="*" MinWidth="200"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left Panel with tabs -->
+                    <Border Grid.Column="0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
+                        <DockPanel>
+                            <!-- Tab strip -->
+                            <Border DockPanel.Dock="Top" Height="28"
+                                    Background="{DynamicResource BgHeaderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right"
+                                            Width="24" Height="24"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{DynamicResource FgDimBrush}"
+                                            Command="{Binding AddLeftTabCommand}"
+                                            ToolTip="{DynamicResource Tab.New}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,2,0">
+                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <TabControl x:Name="LeftPanelTabControl"
+                                                ItemsSource="{Binding LeftTabs}"
+                                                SelectedItem="{Binding ActiveLeftTab, Mode=TwoWay}"
+                                                Background="Transparent" BorderThickness="0"
+                                                MouseDown="TabControl_MouseDown"
+                                                Height="26" VerticalAlignment="Top">
+                                        <!-- Template: headers only, no content area -->
+                                        <TabControl.Template>
+                                            <ControlTemplate TargetType="TabControl">
+                                                <TabPanel x:Name="HeaderPanel"
+                                                          IsItemsHost="True"
+                                                          Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </TabControl.Template>
+                                        <TabControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel>
+                                                    <TextBlock Text="{Binding TabTitle}"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               Margin="4,0,2,0"/>
+                                                    <Button Content="✕"
+                                                            Width="16" Height="16"
+                                                            FontSize="8" Padding="0"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Foreground="{DynamicResource FgDimBrush}"
+                                                            Cursor="Hand"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.CloseLeftTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"/>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </TabControl.ItemTemplate>
+                                        <TabControl.ItemContainerStyle>
+                                            <Style TargetType="TabItem" BasedOn="{StaticResource PanelTabItemStyle}">
+                                                <!-- Ссылка на MainViewModel для биндингов контекстного меню -->
+                                                <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                <!-- Контекстное меню вкладки / Tab context menu -->
+                                                <Setter Property="ContextMenu">
+                                                    <Setter.Value>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="{DynamicResource Tab.Close}"
+                                                                      Command="{Binding PlacementTarget.Tag.CloseLeftTabCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      Style="{DynamicResource ContextMenuItemStyle}"/>
+                                                            <MenuItem Header="{DynamicResource Tab.CloseOthers}"
+                                                                      Command="{Binding PlacementTarget.Tag.CloseOtherLeftTabsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      Style="{DynamicResource ContextMenuItemStyle}"/>
+                                                        </ContextMenu>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </TabControl.ItemContainerStyle>
+                                    </TabControl>
+                                </DockPanel>
+                            </Border>
+                            <!-- File panel content (binds to active tab's panel via LeftPanel computed property) -->
+                            <views:FilePanel DataContext="{Binding LeftPanel}"/>
+                        </DockPanel>
+                    </Border>
+
+            <!-- Vertical Splitter -->
+            <GridSplitter Grid.Column="1" Style="{StaticResource PanelSplitterV}"/>
+
+                    <!-- Right Panel with tabs -->
+                    <Border Grid.Column="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+                        <DockPanel>
+                            <!-- Tab strip -->
+                            <Border DockPanel.Dock="Top" Height="28"
+                                    Background="{DynamicResource BgHeaderBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right"
+                                            Width="24" Height="24"
+                                            Background="Transparent" BorderThickness="0"
+                                            Foreground="{DynamicResource FgDimBrush}"
+                                            Command="{Binding AddRightTabCommand}"
+                                            ToolTip="{DynamicResource Tab.New}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,2,0">
+                                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                                    </Button>
+                                    <TabControl x:Name="RightPanelTabControl"
+                                                ItemsSource="{Binding RightTabs}"
+                                                SelectedItem="{Binding ActiveRightTab, Mode=TwoWay}"
+                                                Background="Transparent" BorderThickness="0"
+                                                MouseDown="TabControl_MouseDown"
+                                                Height="26" VerticalAlignment="Top">
+                                        <TabControl.Template>
+                                            <ControlTemplate TargetType="TabControl">
+                                                <TabPanel x:Name="HeaderPanel"
+                                                          IsItemsHost="True"
+                                                          Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </TabControl.Template>
+                                        <TabControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel>
+                                                    <TextBlock Text="{Binding TabTitle}"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               Margin="4,0,2,0"/>
+                                                    <Button Content="✕"
+                                                            Width="16" Height="16"
+                                                            FontSize="8" Padding="0"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Foreground="{DynamicResource FgDimBrush}"
+                                                            Cursor="Hand"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.CloseRightTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"/>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </TabControl.ItemTemplate>
+                                        <TabControl.ItemContainerStyle>
+                                            <Style TargetType="TabItem" BasedOn="{StaticResource PanelTabItemStyle}">
+                                                <Setter Property="Tag" Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                <Setter Property="ContextMenu">
+                                                    <Setter.Value>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="{DynamicResource Tab.Close}"
+                                                                      Command="{Binding PlacementTarget.Tag.CloseRightTabCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      Style="{DynamicResource ContextMenuItemStyle}"/>
+                                                            <MenuItem Header="{DynamicResource Tab.CloseOthers}"
+                                                                      Command="{Binding PlacementTarget.Tag.CloseOtherRightTabsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                      Style="{DynamicResource ContextMenuItemStyle}"/>
+                                                        </ContextMenu>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </TabControl.ItemContainerStyle>
+                                    </TabControl>
+                                </DockPanel>
+                            </Border>
+                            <views:FilePanel DataContext="{Binding RightPanel}"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ── Horizontal splitter ── -->
+                <GridSplitter Grid.Row="1" Style="{StaticResource PanelSplitterH}"/>
+
+                <!-- ── Bottom panel: editor / terminal / git / docker / ssh / sftp ── -->
+                <Border Grid.Row="2"
+                        Visibility="{Binding IsBottomPanelVisible, Converter={StaticResource BoolToVis}}"
+                        Background="{DynamicResource BgPanelBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Заголовок панели с общей кнопкой закрыть -->
+                        <Border Grid.Row="0" Height="36"
+                                Background="{DynamicResource BgHeaderBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                 <TextBlock Grid.Column="0" Text="{DynamicResource Main.Tools}"
+                                           Foreground="{DynamicResource FgLightBrush}"
+                                           VerticalAlignment="Center" Margin="12,0,16,0"
+                                           FontSize="13" FontWeight="SemiBold"/>
+                                <Button Grid.Column="2" Content="✕"
+                                        Width="40" Height="36"
+                                        Background="Transparent" BorderThickness="0"
+                                        Foreground="{DynamicResource FgDimBrush}"
+                                        FontSize="13"
+                                        Command="{Binding CloseBottomPanelCommand}"
+                                         ToolTip="{DynamicResource Main.Tip.Minimize}"/>
+                            </Grid>
+                        </Border>
+
+                        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
+                                    SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+
+                        <!-- ── Git ── -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x2387;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Tab.Git}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                               FontWeight="Medium"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <views:GitPanel DataContext="{Binding Git}"/>
+                        </TabItem>
+
+                        <!-- ── Docker ── -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Tab.Docker}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                               FontWeight="Medium"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <views:DockerPanel DataContext="{Binding Docker}"/>
+                        </TabItem>
+
+                        <!-- ── SSH ── -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Tab.Ssh}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                               FontWeight="Medium"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <views:SshPanel DataContext="{Binding Ssh}"/>
+                        </TabItem>
+
+                        <!-- ── SFTP ── -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x21C4;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Tab.Sftp}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                               FontWeight="Medium"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <views:SftpPanel DataContext="{Binding Sftp}"/>
+                        </TabItem>
+
+                        <!-- ── Cloud Storage (ph8.4) ── -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x2601;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Menu.Tools.CloudTab}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                               FontWeight="Medium"/>
+                                </StackPanel>
+                            </TabItem.Header>
+                            <views:CloudStoragePanel DataContext="{Binding CloudStorage}"/>
+                        </TabItem>
+                    </TabControl>
+                    </Grid>
+                </Border>
+            </Grid>
+        </DockPanel>
+
+        <!-- ══ TERMINAL OVERLAY PANEL (SHIFT+F10) — выпадающая панель снизу ══ -->
+        <Border Panel.ZIndex="2000"
+                VerticalAlignment="Bottom"
+                Height="{Binding TerminalPanelHeight}"
+                Visibility="{Binding IsTerminalPanelVisible, Converter={StaticResource BoolToVis}}"
+                Background="{DynamicResource BgPanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <DockPanel>
+                <!-- Заголовок панели с кнопками управления -->
+                <Border DockPanel.Dock="Top" Height="36" Background="{DynamicResource BgHeaderBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- Левая часть: заголовок -->
+                         <TextBlock Grid.Column="0" Text="{DynamicResource Main.Terminal}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            VerticalAlignment="Center" Margin="12,0,16,0"
+                            FontSize="13" FontWeight="SemiBold"/>
+                        
+                        <!-- Центр: кнопки создания терминалов -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                             <Button Content="{DynamicResource Terminal.NewCmd}" ToolTip="{DynamicResource Main.Tip.TerminalCmd}"
+                                Click="NewCmdTerminal_Click"
+                                Padding="10,4" FontSize="11" Margin="0,0,6,0"
+                                Background="{DynamicResource SurfaceBrush}"
+                                Foreground="{DynamicResource FgLightBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                             <Button Content="{DynamicResource Terminal.NewPs}" ToolTip="{DynamicResource Main.Tip.TerminalPs}"
+                                Click="NewPowerShellTerminal_Click"
+                                Padding="10,4" FontSize="11" Margin="0,0,6,0"
+                                Background="{DynamicResource SurfaceBrush}"
+                                Foreground="{DynamicResource AccentBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                             <Button Content="{DynamicResource Terminal.NewPwsh}" ToolTip="{DynamicResource Main.Tip.TerminalPwsh}"
+                                Click="NewPwshTerminal_Click"
+                                Padding="10,4" FontSize="11"
+                                Background="{DynamicResource SurfaceBrush}"
+                                Foreground="{DynamicResource OkBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                        </StackPanel>
+                        
+                        <!-- Правая часть: кнопка закрытия -->
+                        <Button Grid.Column="2" Content="✕"
+                            Width="40" Height="36"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="{DynamicResource FgDimBrush}"
+                            FontSize="13"
+                            Click="CloseTerminalPanel"
+                             ToolTip="{DynamicResource Main.Tip.TerminalClose}"/>
+                    </Grid>
+                </Border>
+                <!-- Сплиттер для изменения высоты -->
+                <GridSplitter DockPanel.Dock="Top" Style="{StaticResource PanelSplitterH}"/>
+                <!-- Терминал TabControl -->
+                <TabControl x:Name="InnerTerminalTabs" Background="Transparent" BorderThickness="0"
+                            MouseDown="TerminalTabControl_MouseDown"/>
+            </DockPanel>
+        </Border>
+        </Grid>
+            </Grid>
+        </Window>

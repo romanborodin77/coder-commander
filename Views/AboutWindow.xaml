@@ -1,0 +1,223 @@
+<Window x:Class="CoderCommander.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         Title="{DynamicResource About.Title}"
+        Width="480" Height="580"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        AllowsTransparency="True">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="0" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <Style x:Key="TechBadge" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="TechLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="{DynamicResource BgDark}" Offset="0"/>
+                <GradientStop Color="{DynamicResource Surface}" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="40" ShadowDepth="8" Opacity="0.6" Color="#000000"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- TitleBar -->
+            <Border Grid.Row="0" Height="36"
+                    Background="Transparent"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{DynamicResource About.Title}" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgDimBrush}"
+                               VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    <Button Width="36" Height="36" HorizontalAlignment="Right"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="Close_Click">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                   Foreground="{DynamicResource FgDimBrush}"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Margin="40,0">
+
+                <!-- SVG Logo "{ }" with glow animation -->
+                <Grid Width="120" Height="120" Margin="0,0,0,20"
+                      MouseEnter="Logo_MouseEnter" MouseLeave="Logo_MouseLeave">
+                    <Grid.RenderTransform>
+                        <ScaleTransform x:Name="LogoScale" CenterX="60" CenterY="60" ScaleX="1" ScaleY="1"/>
+                    </Grid.RenderTransform>
+
+                    <!-- Glow backdrop -->
+                    <Ellipse Width="100" Height="100" HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Opacity="0.15">
+                        <Ellipse.Fill>
+                            <RadialGradientBrush>
+                                <GradientStop Color="{DynamicResource Accent}" Offset="0"/>
+                                <GradientStop Color="Transparent" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                        <Ellipse.Effect>
+                            <BlurEffect Radius="20"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+
+                    <!-- Pulsing glow ring -->
+                    <Ellipse x:Name="GlowRing" Width="90" Height="90"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                             Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5"
+                             Fill="Transparent" Opacity="0.2">
+                        <Ellipse.Effect>
+                            <BlurEffect x:Name="GlowBlur" Radius="8"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+
+                    <!-- Left brace "{" -->
+                    <Viewbox Width="48" Height="80" HorizontalAlignment="Left" Margin="8,0,0,0">
+                        <Canvas Width="30" Height="60">
+                            <Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="{x:Null}"
+                                  Data="M 22 2 C 22 2 12 2 12 8 L 12 22 C 12 26 8 28 4 30 C 8 32 12 34 12 38 L 12 52 C 12 58 22 58 22 58"/>
+                        </Canvas>
+                    </Viewbox>
+
+                    <!-- Right brace "}" -->
+                    <Viewbox Width="48" Height="80" HorizontalAlignment="Right" Margin="0,0,8,0">
+                        <Canvas Width="30" Height="60">
+                            <Path Stroke="{DynamicResource AccentSecondaryBrush}" StrokeThickness="2.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="{x:Null}"
+                                  Data="M 8 2 C 8 2 18 2 18 8 L 18 22 C 18 26 22 28 26 30 C 22 32 18 34 18 38 L 18 52 C 18 58 8 58 8 58"/>
+                        </Canvas>
+                    </Viewbox>
+
+                    <!-- Center slash "/" -->
+                    <Viewbox Width="20" Height="80" HorizontalAlignment="Center">
+                        <Canvas Width="16" Height="60">
+                            <Path Stroke="{DynamicResource FgDimBrush}" StrokeThickness="1.5"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="{x:Null}"
+                                  Opacity="0.5"
+                                  Data="M 12 6 L 4 54"/>
+                        </Canvas>
+                    </Viewbox>
+                </Grid>
+
+                <!-- Title -->
+                <TextBlock Text="Coder Commander" FontSize="26" FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource FgLightBrush}"/>
+
+                <!-- Version -->
+                <TextBlock Text="v1.0" FontSize="13"
+                           HorizontalAlignment="Center" Margin="0,2,0,0"
+                           Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/>
+
+                <!-- Description -->
+                <TextBlock Text="{DynamicResource About.Subtitle}"
+                           FontSize="13" HorizontalAlignment="Center" Margin="0,12,0,0"
+                           Foreground="{DynamicResource FgDimBrush}" TextWrapping="Wrap"
+                           TextAlignment="Center"/>
+
+                <!-- Tech badges -->
+                <WrapPanel HorizontalAlignment="Center" Margin="0,20,0,0"
+                           MaxWidth="380">
+                    <Border Style="{DynamicResource TechBadge}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text=".NET 8" Style="{DynamicResource TechLabel}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="WPF" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="AvalonEdit" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="Git" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="Docker" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="SSH / SFTP" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="MVVM" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                    <Border Style="{DynamicResource TechBadge}">
+                        <TextBlock Text="SharpCompress" Style="{DynamicResource TechLabel}"/>
+                    </Border>
+                </WrapPanel>
+            </StackPanel>
+
+            <!-- Footer -->
+            <Border Grid.Row="2" Height="56"
+                    Background="{DynamicResource BgHeaderBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12">
+                <Button Content="{DynamicResource About.Close}" Width="120" Height="34"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Click="Close_Click"/>
+            </Border>
+        </Grid>
+
+        <!-- Entry animation -->
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="SlideTransform" Y="0"/>
+        </Border.RenderTransform>
+        <Border.Triggers>
+            <EventTrigger RoutedEvent="Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                        <DoubleAnimation Storyboard.TargetName="GlowRing"
+                                         Storyboard.TargetProperty="Opacity"
+                                         From="0.1" To="0.35" Duration="0:0:1.5"
+                                         AutoReverse="True" RepeatBehavior="Forever"/>
+                        <DoubleAnimation Storyboard.TargetName="GlowBlur"
+                                         Storyboard.TargetProperty="Radius"
+                                         From="6" To="16" Duration="0:0:1.5"
+                                         AutoReverse="True" RepeatBehavior="Forever"/>
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Border.Triggers>
+    </Border>
+</Window>

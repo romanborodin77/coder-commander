@@ -1,0 +1,96 @@
+﻿# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+
+# WPF temporary files
+*_wpftmp.csproj
+*.g.cs
+*.g.i.cs
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Temporary files
+*.tmp
+*.tmp_proj
+*.log
+*.tlog
+*.cache
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Files built by Visual Studio
+*.obj
+*.pdb
+*.dll
+*.exe
+*.ilk
+*.lib
+*.exp
+
+# Node/Bun
+node_modules/
+bun.lock
+package-lock.json
+
+# Temporary scripts
+build_check.bat
+tmp_build.bat
+*.bat
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# AI/Agent files (not for remote)
+AGENTS.md
+exp.yml
+problems.yaml
+ui.yaml
+*.backup
+.kilo/
+
+# Local tests (not for remote)
+CoderCommander.Tests/
+
+# OS
+Thumbs.db
+.DS_Store

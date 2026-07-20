@@ -1,0 +1,180 @@
+<Window x:Class="CoderCommander.Views.ColumnSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Columns.Configure}"
+        Width="620" Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource BgDarkBrush}"
+        WindowStyle="None"
+        AllowsTransparency="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="0" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" Height="36" Background="{DynamicResource TitleBarBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{DynamicResource Columns.Configure}" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgLightBrush}"
+                               VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    <Button Width="36" Height="36"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="Close_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Content: Two lists + buttons -->
+            <Grid Grid.Row="1" Margin="16,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Available columns -->
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Columns.Available}"
+                               Foreground="{DynamicResource FgDimBrush}" FontSize="12"
+                               FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="6" Background="{DynamicResource SurfaceBrush}">
+                        <ListBox ItemsSource="{Binding AvailableColumns}"
+                                 SelectedItem="{Binding SelectedAvailable}"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{DynamicResource FgLightBrush}"
+                                 FontSize="12" Padding="4">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Header}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </DockPanel>
+
+                <!-- Move buttons -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,20,8,0">
+                    <Button Content="&#x27A1;" Width="36" Height="30" Margin="0,0,0,4"
+                            Command="{Binding AddCommand}"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            FontSize="14" ToolTip="{DynamicResource Columns.Add}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                    <Button Content="&#x2B05;" Width="36" Height="30" Margin="0,0,0,4"
+                            Command="{Binding RemoveCommand}"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            FontSize="14" ToolTip="{DynamicResource Columns.Remove}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="4,6"/>
+                    <Button Content="&#x2191;" Width="36" Height="30" Margin="0,4,0,4"
+                            Command="{Binding MoveUpCommand}"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            FontSize="14" ToolTip="{DynamicResource Columns.MoveUp}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                    <Button Content="&#x2193;" Width="36" Height="30" Margin="0,0,0,0"
+                            Command="{Binding MoveDownCommand}"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            FontSize="14" ToolTip="{DynamicResource Columns.MoveDown}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"/>
+                </StackPanel>
+
+                <!-- Active columns -->
+                <DockPanel Grid.Column="2">
+                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Columns.Active}"
+                               Foreground="{DynamicResource FgDimBrush}" FontSize="12"
+                               FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="6" Background="{DynamicResource SurfaceBrush}">
+                        <ListBox ItemsSource="{Binding ActiveColumns}"
+                                 SelectedItem="{Binding SelectedActive}"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{DynamicResource FgLightBrush}"
+                                 FontSize="12" Padding="4">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox IsChecked="{Binding IsVisible}"
+                                                  IsEnabled="{Binding IsRequired, Converter={StaticResource BoolToVisInv}}"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Header}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Key}"
+                                                   Foreground="{DynamicResource FgMutedBrush}"
+                                                   FontSize="10" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <!-- Width editor for selected column -->
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                                Margin="0,8,0,0" Visibility="{Binding SelectedActive, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource Columns.Width}"
+                                   Foreground="{DynamicResource FgDimBrush}" FontSize="12"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox Width="60"
+                                 Text="{Binding SelectedActive.Width, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{DynamicResource SurfaceBrush}"
+                                 Foreground="{DynamicResource FgLightBrush}"
+                                 BorderBrush="{DynamicResource BorderBrush}"
+                                 BorderThickness="1" Padding="4,2"
+                                 FontSize="12" VerticalContentAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource Columns.Px}" Foreground="{DynamicResource FgMutedBrush}" FontSize="11"
+                                   VerticalAlignment="Center" Margin="4,0,0,0"/>
+                    </StackPanel>
+                </DockPanel>
+            </Grid>
+
+            <!-- Bottom buttons -->
+            <Border Grid.Row="2" Height="50"
+                    Background="{DynamicResource BgHeaderBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Button Content="{DynamicResource Columns.Reset}"
+                            Command="{Binding ResetCommand}"
+                            Padding="16,6" Margin="0,0,8,0"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            FontSize="12"/>
+                    <Button Content="{DynamicResource Columns.Apply}"
+                            Command="{Binding ApplyCommand}"
+                            Padding="16,6" Margin="0,0,8,0"
+                            Background="{DynamicResource AccentBrush}"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="12" FontWeight="SemiBold"/>
+                    <Button Content="{DynamicResource Dialog.Cancel}"
+                            Click="Close_Click"
+                            Padding="16,6"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Foreground="{DynamicResource FgLightBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            FontSize="12"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

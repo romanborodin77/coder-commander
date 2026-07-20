@@ -1,0 +1,136 @@
+<UserControl x:Class="CoderCommander.Views.HexViewer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:CoderCommander.Views"
+             mc:Ignorable="d"
+             d:DesignHeight="400" d:DesignWidth="900">
+
+    <UserControl.Resources>
+        <!-- Стиль ячейки: подсветка отличающегося байта цветом из темы (DiffModBg). -->
+        <!-- Cell style: highlights a differing byte with a theme brush (DiffModBg). -->
+        <Style x:Key="HexCellStyle" TargetType="TextBlock">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource VsEditorFg}"/>
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Code, Courier New"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDiff}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DiffModBgBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DiffModBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPadding}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Горизонтальный контейнер для 16 ячеек строки. -->
+        <!-- Horizontal container for the 16 cells of a row. -->
+        <ItemsPanelTemplate x:Key="HexCellsPanel">
+            <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+
+        <!-- Шаблон одной ячейки (hex-представление). / Single cell template (hex). -->
+        <DataTemplate x:Key="HexCellTemplate" DataType="local:HexCell">
+            <TextBlock Text="{Binding Hex}" Width="22" Style="{StaticResource HexCellStyle}" />
+        </DataTemplate>
+
+        <!-- Шаблон одной ячейки (ASCII-представление). / Single cell template (ASCII). -->
+        <DataTemplate x:Key="AsciiCellTemplate" DataType="local:HexCell">
+            <TextBlock Text="{Binding Ascii}" Width="12" Style="{StaticResource HexCellStyle}" />
+        </DataTemplate>
+
+        <!-- Шаблон строки hex-дампа. / Hex dump row template. -->
+        <DataTemplate x:Key="HexRowTemplate" DataType="local:HexRow">
+            <Grid Background="Transparent">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="22" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding OffsetText}"
+                           FontFamily="Consolas, Cascadia Code, Courier New" FontSize="13"
+                           Foreground="{DynamicResource VsLineNumber}" VerticalAlignment="Center" />
+
+                <!-- Левый файл: hex -->
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding LeftCells}"
+                              ItemsPanel="{StaticResource HexCellsPanel}"
+                              ItemTemplate="{StaticResource HexCellTemplate}" />
+                <!-- Левый файл: ASCII -->
+                <ItemsControl Grid.Column="3" ItemsSource="{Binding LeftCells}"
+                              ItemsPanel="{StaticResource HexCellsPanel}"
+                              ItemTemplate="{StaticResource AsciiCellTemplate}" />
+
+                <TextBlock Grid.Column="4" Text="│" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" />
+
+                <!-- Правый файл: hex -->
+                <ItemsControl Grid.Column="5" ItemsSource="{Binding RightCells}"
+                              ItemsPanel="{StaticResource HexCellsPanel}"
+                              ItemTemplate="{StaticResource HexCellTemplate}" />
+                <!-- Правый файл: ASCII -->
+                <ItemsControl Grid.Column="7" ItemsSource="{Binding RightCells}"
+                              ItemsPanel="{StaticResource HexCellsPanel}"
+                              ItemTemplate="{StaticResource AsciiCellTemplate}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel Background="{DynamicResource VsEditorBg}">
+        <!-- Панель навигации по отличиям + сводка. -->
+        <!-- Navigation across differences + summary. -->
+        <Border DockPanel.Dock="Top" Height="30"
+                Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button x:Name="PrevDiffButton" Content="{DynamicResource Hex.PrevDiff}" Width="70" Height="22"
+                            ToolTip="{DynamicResource Hex.Prev}" Click="PrevDiffButton_Click"
+                            Background="{DynamicResource SurfaceDeepBrush}" Foreground="{DynamicResource FgLightBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Cursor="Hand" />
+                    <Button x:Name="NextDiffButton" Content="{DynamicResource Hex.NextDiff}" Width="70" Height="22" Margin="6,0,0,0"
+                            ToolTip="{DynamicResource Hex.Next}" Click="NextDiffButton_Click"
+                            Background="{DynamicResource SurfaceDeepBrush}" Foreground="{DynamicResource FgLightBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Cursor="Hand" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" x:Name="SummaryText" Text=""
+                           Foreground="{DynamicResource FgDimBrush}" FontSize="11"
+                           VerticalAlignment="Center" Margin="12,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- Виртуализированный список строк hex-дампа. -->
+        <!-- Virtualized list of hex dump rows. ScrollViewer с item-based прокруткой
+             обязателен для работы VirtualizingStackPanel (иначе генерируются все строки). -->
+        <ScrollViewer x:Name="RowScroll"
+                      CanContentScroll="True"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"
+                      Background="{DynamicResource VsEditorBg}">
+            <ItemsControl x:Name="Rows"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          VirtualizingStackPanel.VirtualizationMode="Standard"
+                          Background="{DynamicResource VsEditorBg}"
+                          ItemTemplate="{StaticResource HexRowTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

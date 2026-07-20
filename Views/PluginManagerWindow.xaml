@@ -1,0 +1,190 @@
+<Window x:Class="CoderCommander.Views.PluginManagerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Plugin.Title}"
+        Width="750" Height="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource BgDarkBrush}"
+        WindowStyle="None"
+        AllowsTransparency="True">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="0" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshPluginsCommand}"/>
+        <KeyBinding Key="Delete" Command="{Binding DisablePluginCommand}"/>
+    </Window.InputBindings>
+
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" Height="36" Background="{DynamicResource TitleBarBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{DynamicResource Plugin.Title}" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgLightBrush}"
+                               VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    <Button Width="36" Height="36"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="Close_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Main content -->
+            <Grid Grid.Row="1" Margin="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="250"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Plugin list -->
+                <DataGrid Grid.Column="0"
+                          ItemsSource="{Binding Plugins}"
+                          SelectedItem="{Binding SelectedPlugin}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          RowBackground="Transparent"
+                          AlternatingRowBackground="Transparent"
+                          Foreground="{DynamicResource FgLightBrush}"
+                          FontSize="13">
+                    <DataGrid.Resources>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                            <Setter Property="Padding" Value="8,6"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                        </Style>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="Padding" Value="8,4"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridCell">
+                                        <Border Padding="{TemplateBinding Padding}"
+                                                Background="{TemplateBinding Background}">
+                                            <ContentPresenter VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.Resources>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{DynamicResource Plugin.Name}" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="{DynamicResource Plugin.Version}" Binding="{Binding Version}" Width="80"/>
+                        <DataGridTextColumn Header="{DynamicResource Plugin.Author}" Binding="{Binding Author}" Width="120"/>
+                        <DataGridTemplateColumn Header="{DynamicResource Plugin.Enabled}" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock HorizontalAlignment="Center" FontSize="12">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="✗"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                        <Setter Property="Text" Value="✓"/>
+                                                        <Setter Property="Foreground" Value="#66BB6A"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Plugin details -->
+                <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="6" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Plugin.Description}"
+                                   FontSize="12" Foreground="{DynamicResource FgMutedBrush}"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="{Binding SelectedPlugin.Description, FallbackValue=—}"
+                                   FontSize="13" Foreground="{DynamicResource FgLightBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                        <TextBlock FontSize="12" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,0,4">
+                            <Run Text="{DynamicResource Plugin.Name}"/><Run Text=": "/>
+                            <Run Text="{Binding SelectedPlugin.Name, FallbackValue=—}"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,0,4">
+                            <Run Text="{DynamicResource Plugin.Version}"/><Run Text=": "/>
+                            <Run Text="{Binding SelectedPlugin.Version, FallbackValue=—}"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,0,4">
+                            <Run Text="{DynamicResource Plugin.Author}"/><Run Text=": "/>
+                            <Run Text="{Binding SelectedPlugin.Author, FallbackValue=—}"/>
+                        </TextBlock>
+
+                        <StackPanel Margin="0,16,0,0">
+                            <Button Content="{DynamicResource Plugin.Enable}"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding EnablePluginCommand}"
+                                    Margin="0,0,0,6"/>
+                            <Button Content="{DynamicResource Plugin.Disable}"
+                                    Style="{StaticResource DefaultButtonStyle}"
+                                    Command="{Binding DisablePluginCommand}"
+                                    Margin="0,0,0,6"/>
+                            <Button Content="{DynamicResource Plugin.Reload}"
+                                    Style="{StaticResource DefaultButtonStyle}"
+                                    Command="{Binding ReloadPluginCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Bottom panel -->
+            <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                    Padding="12,8">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{DynamicResource Plugin.Refresh}"
+                            Style="{StaticResource DefaultButtonStyle}"
+                            Command="{Binding RefreshPluginsCommand}"
+                            Margin="0,0,8,0"/>
+                    <Button Content="{DynamicResource Plugin.OpenFolder}"
+                            Style="{StaticResource DefaultButtonStyle}"
+                            Command="{Binding OpenPluginFolderCommand}"
+                            Margin="0,0,8,0"/>
+                    <Button Content="{DynamicResource Dialog.Cancel}"
+                            Style="{StaticResource DefaultButtonStyle}"
+                            Click="Close_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,643 @@
+﻿<Window x:Class="CoderCommander.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Settings.Title}"
+        Width="560" Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource BgDarkBrush}"
+        WindowStyle="None"
+        AllowsTransparency="True">
+
+    <!-- Явный WindowChrome с CaptionHeight=0.
+         При AllowsTransparency=True унаследованный глобальный шаблон (CaptionHeight=32)
+         помечал ВСЁ окно как неклиентскую область (caption), и клики не доходили до
+         контролов. Нулевая высота caption делает всё окно клиентской областью → все
+         элементы кликабельны. Перетаскивание реализовано через DragMove() в code-behind.
+         Explicit WindowChrome with CaptionHeight=0.
+         With AllowsTransparency=True the inherited global chrome (CaptionHeight=32) marked
+         the WHOLE window as non-client (caption), so clicks never reached the controls.
+         A zero caption height makes the entire window a clickable client area. Dragging is
+         re-enabled via DragMove() in the code-behind. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="0"
+                      ResizeBorderThickness="0" CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <Style x:Key="SettingsTabItem" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        
+        <Style x:Key="SettingRow" TargetType="Grid">
+            <Setter Property="Margin" Value="0,8"/>
+        </Style>
+        
+        <Style x:Key="SettingLabel" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+        </Style>
+        
+        <Style x:Key="SettingDescription" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+    </Window.Resources>
+    
+    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- Title Bar -->
+            <Border Grid.Row="0" Height="36" Background="{DynamicResource TitleBarBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{DynamicResource Settings.Title}" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgLightBrush}"
+                               VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    <Button Width="36" Height="36"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource CloseButtonStyle}"
+                            Click="Close_Click"/>
+                </Grid>
+            </Border>
+            
+            <!-- Tabs -->
+            <TabControl Grid.Row="1" BorderThickness="0" Margin="8,8,8,0">
+                <!-- Внешний вид -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🎨" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Appearance}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <StackPanel>
+                            <!-- Язык -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.Language}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.LanguageDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160" SelectedIndex="{Binding LanguageIndex}">
+                                    <ComboBoxItem Content="English"/>
+                                    <ComboBoxItem Content="Русский"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+                            
+                            <!-- Тема -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.Theme}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.ThemeDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160" SelectedIndex="{Binding ThemeIndex}">
+                                    <ComboBoxItem Content="{DynamicResource Settings.Theme.Dark}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Theme.Light}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Theme.System}"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+                            
+                            <!-- Показывать скрытые файлы -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.ShowHidden}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.ShowHiddenDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding ShowHidden}"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                
+                <!-- Редактор -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✏️" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Editor}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <StackPanel>
+                            <!-- Шрифт -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.EditorFont}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.EditorFontDesc}"/>
+                                </StackPanel>
+                                <!-- Выпадающий список (не IsEditable): глобальный шаблон ComboBox
+                                     не содержит PART_EditableTextBox, поэтому редактируемый Text
+                                     не отображается. Используем SelectedValue по Content.
+                                     Dropdown (non-editable): the global ComboBox template lacks
+                                     PART_EditableTextBox, so an editable Text box cannot render.
+                                     Bind SelectedValue to the item's Content instead. -->
+                                <ComboBox Grid.Column="1" Width="160"
+                                          SelectedValue="{Binding EditorFontFamily}"
+                                          SelectedValuePath="Content">
+                                    <ComboBoxItem Content="Cascadia Code"/>
+                                    <ComboBoxItem Content="Consolas"/>
+                                    <ComboBoxItem Content="JetBrains Mono"/>
+                                    <ComboBoxItem Content="Fira Code"/>
+                                    <ComboBoxItem Content="Source Code Pro"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <!-- Размер шрифта -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.EditorFontSize}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.EditorFontSizeDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="80" SelectedIndex="{Binding EditorFontSizeIndex}">
+                                    <ComboBoxItem Content="10"/>
+                                    <ComboBoxItem Content="11"/>
+                                    <ComboBoxItem Content="12"/>
+                                    <ComboBoxItem Content="13"/>
+                                    <ComboBoxItem Content="14"/>
+                                    <ComboBoxItem Content="15"/>
+                                    <ComboBoxItem Content="16"/>
+                                    <ComboBoxItem Content="18"/>
+                                    <ComboBoxItem Content="20"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+                            
+                            <!-- Нумерация строк -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.LineNumbers}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.LineNumbersDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding EditorShowLineNumbers}"/>
+                            </Grid>
+                            
+                            <!-- Перенос строк -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.WordWrap}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.WordWrapDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding EditorWordWrap}"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                
+                <!-- Терминал -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⌨️" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Terminal}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <StackPanel>
+                            <!-- Оболочка по умолчанию -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.DefaultShell}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.DefaultShellDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160" SelectedIndex="{Binding TerminalShellIndex}">
+                                    <ComboBoxItem Content="cmd"/>
+                                    <ComboBoxItem Content="PowerShell"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <!-- Шрифт -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.TerminalFont}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.TerminalFontDesc}"/>
+                                </StackPanel>
+                                <!-- Выпадающий список (не IsEditable) по той же причине, что и шрифт редактора.
+                                     Dropdown (non-editable) for the same reason as the editor font. -->
+                                <ComboBox Grid.Column="1" Width="160"
+                                          SelectedValue="{Binding TerminalFontFamily}"
+                                          SelectedValuePath="Content">
+                                    <ComboBoxItem Content="Consolas"/>
+                                    <ComboBoxItem Content="Cascadia Code"/>
+                                    <ComboBoxItem Content="Lucida Console"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                                <!-- Размер шрифта -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.TerminalFontSize}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="80" SelectedIndex="{Binding TerminalFontSizeIndex}">
+                                    <ComboBoxItem Content="10"/>
+                                    <ComboBoxItem Content="11"/>
+                                    <ComboBoxItem Content="12"/>
+                                    <ComboBoxItem Content="14"/>
+                                    <ComboBoxItem Content="16"/>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+                
+                <!-- Поведение -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Behavior}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <StackPanel>
+                            <!-- Подтверждение удаления -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.ConfirmDelete}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.ConfirmDeleteDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding ConfirmDelete}"/>
+                            </Grid>
+                            
+                            <!-- Подтверждение перезаписи -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.ConfirmOverwrite}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.ConfirmOverwriteDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding ConfirmOverwrite}"/>
+                            </Grid>
+                            
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+                            
+                            <!-- Автообновление -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.AutoRefresh}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.AutoRefreshDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding AutoRefresh}"/>
+                            </Grid>
+                            
+                            <!-- Интервал обновления -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.RefreshInterval}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.RefreshIntervalDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="100" SelectedIndex="{Binding AutoRefreshIntervalIndex}">
+                                    <ComboBoxItem Content="1000"/>
+                                    <ComboBoxItem Content="2000"/>
+                                    <ComboBoxItem Content="3000"/>
+                                    <ComboBoxItem Content="5000"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+
+                            <!-- Шрифт панели -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.PanelFont}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.PanelFontDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160"
+                                          SelectedValue="{Binding PanelFontFamily}"
+                                          SelectedValuePath="Content">
+                                    <ComboBoxItem Content="Segoe UI Variable, Segoe UI"/>
+                                    <ComboBoxItem Content="Consolas"/>
+                                    <ComboBoxItem Content="Cascadia Code"/>
+                                    <ComboBoxItem Content="JetBrains Mono"/>
+                                    <ComboBoxItem Content="Fira Code"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <!-- Размер шрифта панели -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.PanelFontSize}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.PanelFontSizeDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="80" SelectedIndex="{Binding PanelFontSizeIndex}">
+                                    <ComboBoxItem Content="11"/>
+                                    <ComboBoxItem Content="12"/>
+                                    <ComboBoxItem Content="13"/>
+                                    <ComboBoxItem Content="14"/>
+                                    <ComboBoxItem Content="15"/>
+                                    <ComboBoxItem Content="16"/>
+                                    <ComboBoxItem Content="17"/>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Файловые операции (ph9.5) -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.FileOps}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
+                        <StackPanel>
+                            <!-- Политика перезаписи по умолчанию -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.DefaultOverwrite}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.DefaultOverwriteDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="160" SelectedIndex="{Binding DefaultOverwritePolicyIndex}">
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteAsk}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteAlways}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteNever}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteOlder}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteSmaller}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.OverwriteAutoRename}"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <!-- Размер буфера -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.BufferSize}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.BufferSizeDesc}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" Width="100" SelectedIndex="{Binding BufferSizeIndex}">
+                                    <ComboBoxItem Content="256"/>
+                                    <ComboBoxItem Content="512"/>
+                                    <ComboBoxItem Content="1024"/>
+                                    <ComboBoxItem Content="2048"/>
+                                    <ComboBoxItem Content="4096"/>
+                                </ComboBox>
+                            </Grid>
+                            
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12"/>
+                            
+                            <!-- Копировать атрибуты -->
+                            <Grid Style="{StaticResource SettingRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.CopyAttributesCheck}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.CopyAttributesDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding CopyAttributes}"/>
+                            </Grid>
+                            
+                            <!-- Копировать временные метки -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.CopyTimestampsCheck}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.CopyTimestampsDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding CopyTimestamps}"/>
+                            </Grid>
+                            
+                            <!-- Резервировать место -->
+                            <Grid Style="{StaticResource SettingRow}" Margin="0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SettingLabel}" Text="{DynamicResource Settings.ReserveSpace}"/>
+                                    <TextBlock Style="{StaticResource SettingDescription}" Text="{DynamicResource Settings.ReserveSpaceDesc}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding ReserveDiskSpace}"/>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Горячие клавиши (ph6.1) -->
+                <TabItem Style="{StaticResource SettingsTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⌨" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Hotkeys}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <DataGrid Grid.Row="0"
+                                  ItemsSource="{Binding HotkeysVM.Hotkeys}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  SelectionMode="Single"
+                                  GridLinesVisibility="None"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  HeadersVisibility="Column"
+                                  CanUserSortColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{DynamicResource Hotkey.Action}" Binding="{Binding Action}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                                            <Setter Property="FontSize" Value="13"/>
+                                            <Setter Property="Margin" Value="4,0"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="{DynamicResource Hotkey.Key}" Binding="{Binding DisplayGesture}" Width="120">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                            <Setter Property="FontFamily" Value="Consolas"/>
+                                            <Setter Property="FontSize" Value="13"/>
+                                            <Setter Property="Margin" Value="4,0"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="{DynamicResource Hotkey.Description}" Binding="{Binding Description}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                                            <Setter Property="FontSize" Value="12"/>
+                                            <Setter Property="Margin" Value="4,0"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Header="" Width="80">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="{DynamicResource Hotkey.Change}"
+                                                    Padding="8,3" FontSize="11"
+                                                    Background="{DynamicResource BgHeaderBrush}"
+                                                    Foreground="{DynamicResource FgLightBrush}"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    Tag="{Binding}"
+                                                    Click="HotkeyChange_Click"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                            <DataGrid.CellStyle>
+                                <Style TargetType="DataGridCell">
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="DataGridCell">
+                                                <Border Padding="{TemplateBinding Padding}"
+                                                        Background="{TemplateBinding Background}">
+                                                    <ContentPresenter VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.CellStyle>
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+                        </DataGrid>
+                        <Border Grid.Row="1" Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                <Button Content="{DynamicResource Hotkey.Reset}" Padding="12,6" FontSize="12"
+                                        Background="{DynamicResource BgHeaderBrush}"
+                                        Foreground="{DynamicResource FgLightBrush}"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        Click="HotkeyReset_Click"/>
+                                <TextBlock x:Name="HotkeyStatusText"
+                                           Text="" FontSize="11"
+                                           Foreground="{DynamicResource AccentBrush}"
+                                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+            
+            <!-- Bottom Buttons -->
+            <Border Grid.Row="2" Background="{DynamicResource BgHeaderBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{DynamicResource Settings.Reset}" Padding="16,8" Margin="0,0,8,0"
+                            Click="Reset_Click" ToolTip="{DynamicResource Settings.ResetConfirm}" Style="{DynamicResource DefaultButtonStyle}"/>
+                    <Button Content="{DynamicResource Settings.Save}" Padding="16,8" FontWeight="SemiBold"
+                            Click="Save_Click" Style="{StaticResource AccentButtonStyle}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

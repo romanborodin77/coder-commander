@@ -1,0 +1,225 @@
+<Window x:Class="CoderCommander.Views.SyncDirsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vmLocal="clr-namespace:CoderCommander.Views"
+        xmlns:ops="clr-namespace:CoderCommander.Operations"
+        Title="{DynamicResource Sync.Title}"
+        WindowStyle="None"
+        WindowStartupLocation="CenterOwner"
+        Width="1100" Height="720"
+        MinWidth="780" MinHeight="520"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource BgDarkBrush}">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Заголовок / Title bar -->
+        <Border Grid.Row="0" Height="36"
+                Background="{DynamicResource TitleBarBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,4,0">
+                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Sync.Title}" Foreground="{DynamicResource FgLightBrush}"
+                               FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="&#xE921;" ToolTip="{DynamicResource Editor.Tip.Minimize}" Click="MinimizeButton_Click"
+                            Style="{StaticResource TitleBarButtonStyle}"/>
+                    <Button x:Name="MaximizeButton" Content="&#xE922;" ToolTip="{DynamicResource Editor.Tip.Maximize}"
+                            Click="MaximizeButton_Click" Style="{StaticResource TitleBarButtonStyle}"/>
+                    <Button Content="&#xE8BB;" ToolTip="{DynamicResource Editor.Tip.Close}" Click="CloseButton_Click"
+                            Style="{StaticResource CloseButtonStyle}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Row 1: Параметры сравнения / Compare options -->
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Левая / правая папки / Folders -->
+                <Grid Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{DynamicResource Sync.Left}"
+                               Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding LeftFolder, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4" VerticalContentAlignment="Center"/>
+                    <TextBlock Grid.Column="3" Text="{DynamicResource Sync.Right}"
+                               Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="4" Text="{Binding RightFolder, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4" VerticalContentAlignment="Center"/>
+                </Grid>
+
+                <!-- Маска / подпапки / выделенное / Mask & options -->
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="{DynamicResource Sync.Mask}" Foreground="{DynamicResource FgMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox Width="220" Text="{Binding Mask, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="6,4" VerticalContentAlignment="Center"/>
+                    <CheckBox Content="{DynamicResource Sync.IncludeSubfolders}" IsChecked="{Binding IncludeSubfolders}"
+                              Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    <CheckBox Content="{DynamicResource Sync.OnlySelected}" IsChecked="{Binding OnlySelected}"
+                              Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    <CheckBox Content="{DynamicResource Sync.Asymmetric}" IsChecked="{Binding Asymmetric}"
+                              ToolTip="{DynamicResource Sync.AsymmetricDesc}"
+                              Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                </StackPanel>
+
+                <!-- Режим / направление / Mode & direction -->
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal">
+                    <TextBlock Text="{DynamicResource Sync.Mode}" Foreground="{DynamicResource FgMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox Width="200" ItemsSource="{Binding CompareMode, Converter={StaticResource EnumLocalized}, ConverterParameter=Sync.Mode}"
+                              SelectedValue="{Binding CompareMode}" SelectedValuePath="Value" DisplayMemberPath="Display"
+                              Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                              BorderBrush="{DynamicResource BorderBrush}"/>
+                    <TextBlock Text="{DynamicResource Sync.Direction}" Foreground="{DynamicResource FgMutedBrush}"
+                               VerticalAlignment="Center" Margin="14,0,8,0"/>
+                    <ComboBox Width="200" ItemsSource="{Binding Direction, Converter={StaticResource EnumLocalized}, ConverterParameter=Sync.Direction}"
+                              SelectedValue="{Binding Direction}" SelectedValuePath="Value" DisplayMemberPath="Display"
+                              Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                              BorderBrush="{DynamicResource BorderBrush}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Row 2: Список пар / Pair list -->
+        <DataGrid Grid.Row="2" ItemsSource="{Binding Pairs}"
+                  Background="{DynamicResource BgDarkBrush}" Foreground="{DynamicResource FgLightBrush}"
+                  BorderThickness="0" AutoGenerateColumns="False" CanUserAddRows="False"
+                  CanUserDeleteRows="False" GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column" RowHeaderWidth="0" Margin="6"
+                  MouseDoubleClick="DataGrid_MouseDoubleClick">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                    <Setter Property="Padding" Value="8,6"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Header="{DynamicResource Sync.Col.Apply}" Binding="{Binding Apply}" Width="Auto"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.Path}" Binding="{Binding RelativePath}" Width="2.4*"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftSize}" Binding="{Binding SizeLeft, Converter={StaticResource FileSize}}" Width="*"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftTime}" Binding="{Binding LastWriteLeft, StringFormat='yyyy-MM-dd HH:mm'}" Width="*"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightSize}" Binding="{Binding SizeRight, Converter={StaticResource FileSize}}" Width="*"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightTime}" Binding="{Binding LastWriteRight, StringFormat='yyyy-MM-dd HH:mm'}" Width="*"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.Diff}" Binding="{Binding Difference}" Width="Auto"/>
+                <DataGridTemplateColumn Header="{DynamicResource Sync.Col.Action}" Width="Auto">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox ItemsSource="{Binding DataContext.Actions, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumLocalized}, ConverterParameter=Sync.Action}"
+                                      SelectedValue="{Binding Action, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedValuePath="Value" DisplayMemberPath="Display"
+                                      Foreground="{DynamicResource FgLightBrush}"
+                                      Background="{DynamicResource BgDarkBrush}" MinWidth="120"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Row 3: Тулбар действий / Action toolbar -->
+        <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="{DynamicResource Sync.All}" Command="{Binding SelectAllCommand}"
+                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                <Button Content="{DynamicResource Sync.None}" Command="{Binding SelectNoneCommand}"
+                        Padding="10,5" Margin="0,0,12,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                <TextBlock Text="{DynamicResource Sync.Set}" Foreground="{DynamicResource FgMutedBrush}"
+                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <Button Content="{DynamicResource Sync.CopyLeft}" Command="{Binding SetCopyLeftCommand}"
+                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                <Button Content="{DynamicResource Sync.CopyRight}" Command="{Binding SetCopyRightCommand}"
+                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                <Button Content="{DynamicResource Sync.DeleteBoth}" Command="{Binding SetDeleteBothCommand}"
+                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                <Button Content="{DynamicResource Sync.ClearAction}" Command="{Binding SetNoneCommand}"
+                        Padding="10,5" Style="{DynamicResource DefaultButtonStyle}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Row 4: Статус + кнопки / Status + buttons -->
+        <Border Grid.Row="4" Background="{DynamicResource BgHeaderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Status}" Foreground="{DynamicResource FgDimBrush}" FontSize="12" VerticalAlignment="Center"/>
+                    <ProgressBar Value="{Binding ProgressPercent}" Width="180" Height="6" Margin="12,0,0,0"
+                                 Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource BgDarkBrush}"/>
+                    <TextBlock Foreground="{DynamicResource FgMutedBrush}" FontSize="11" Margin="10,0,0,0">
+                        <Run Text="{Binding PairCount}"/>
+                        <Run Text=" • "/>
+                        <Run Text="{Binding ActionCount}"/>
+                        <Run Text=" "/>
+                        <Run Text="{DynamicResource Sync.ToApply}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="{DynamicResource Sync.Compare}"
+                            Command="{Binding CompareCommand}"
+                            Padding="16,6" Margin="0,0,8,0" Style="{DynamicResource AccentButtonStyle}"/>
+                    <Button Content="{DynamicResource Sync.Apply}"
+                            Command="{Binding ApplyCommand}"
+                            Padding="16,6" Margin="0,0,8,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                    <Button Content="{DynamicResource Sync.Cancel}"
+                            Command="{Binding CancelCommand}"
+                            Padding="16,6" Style="{DynamicResource DefaultButtonStyle}"
+                            Visibility="{Binding IsComparing, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

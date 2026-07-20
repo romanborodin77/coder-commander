@@ -1,0 +1,256 @@
+<Window x:Class="CoderCommander.Views.OperationQueueWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:CoderCommander.ViewModels"
+        xmlns:conv="clr-namespace:CoderCommander.Converters"
+        Title="{Binding WindowTitle}"
+        Width="580" Height="340"
+        MinWidth="500" MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource BgDarkBrush}"
+        Closing="OperationQueueWindow_Closing"
+        StateChanged="Window_StateChanged">
+
+    <Window.Resources>
+        <conv:QueueStatusToColorConverter x:Key="StatusToColorConverter"/>
+        <conv:QueueStatusToTextConverter x:Key="StatusToTextConverter"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
+    </Window.Resources>
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <!-- ═══ TITLE BAR ═══ -->
+        <Border x:Name="TitleBar" Panel.ZIndex="100"
+                VerticalAlignment="Top" Height="36"
+                Background="{DynamicResource TitleBarBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid Margin="10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets"
+                               FontSize="14" Foreground="{DynamicResource AccentBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="{Binding WindowTitle}"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource FgLightBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Width="28" Height="28" Padding="0"
+                            Command="{Binding TogglePauseCommand}"
+                            ToolTip="{Binding PauseButtonText}">
+                        <TextBlock Text="{Binding PauseIcon}" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12" Foreground="{DynamicResource FgLightBrush}"/>
+                    </Button>
+                    <Button Style="{StaticResource TitleBarCloseButtonStyle}"
+                            Click="CloseWindow_Click"
+                            ToolTip="{DynamicResource OpQueue.Tip.Close}">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══ MAIN CONTENT ═══ -->
+        <Grid Margin="0,36,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ─── STATS BAR ─── -->
+            <Border Grid.Row="0" Background="{DynamicResource BgHeaderBrush}"
+                    Padding="10,6" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Border CornerRadius="3" Padding="6,2" Margin="0,0,10,0"
+                                Background="{Binding RunningBadgeColor}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding ActiveCount}"
+                                           FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BgDarkBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding RunningLabel}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource BgDarkBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{DynamicResource SurfaceBrush}"
+                                CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
+                            <TextBlock VerticalAlignment="Center">
+                                <Run Text="{Binding PendingCount}" FontSize="11" Foreground="{DynamicResource FgLightBrush}"/>
+                                <Run Text="{Binding QueuedLabel}" FontSize="10" Foreground="{DynamicResource FgDimBrush}"/>
+                            </TextBlock>
+                        </Border>
+
+                        <Border Background="{DynamicResource SurfaceBrush}"
+                                CornerRadius="3" Padding="6,2">
+                            <TextBlock VerticalAlignment="Center">
+                                <Run Text="{Binding CompletedCount}" FontSize="11" Foreground="{DynamicResource OkBrush}"/>
+                                <Run Text="{Binding CompletedLabel}" FontSize="10" Foreground="{DynamicResource FgDimBrush}"/>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <TextBlock Text="{Binding SpeedText}"
+                                   FontSize="11" Foreground="{DynamicResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0"
+                                   Visibility="{Binding HasSpeed, Converter={StaticResource BoolToVisConverter}}"/>
+                        <TextBlock Text="{Binding EtaText}"
+                                   FontSize="11" Foreground="{DynamicResource FgDimBrush}"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding HasEta, Converter={StaticResource BoolToVisConverter}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ─── OPERATIONS TABLE ─── -->
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding AllOperations}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     Padding="8,4">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,2" Background="Transparent">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="4"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Type badge -->
+                            <Border Grid.Column="0" Grid.RowSpan="2"
+                                    Background="{Binding TypeBrush}"
+                                    CornerRadius="3" Padding="4,2"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding TypeText}"
+                                           FontSize="10" FontWeight="Bold"
+                                           Foreground="{DynamicResource BgDarkBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </Border>
+
+                            <!-- Source → Dest -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                <TextBlock Text="{Binding SourceShort}"
+                                           FontSize="11" Foreground="{DynamicResource FgLightBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="160"
+                                           ToolTip="{Binding SourcePath}"/>
+                                <TextBlock Text="  →  " FontSize="11"
+                                           Foreground="{DynamicResource AccentBrush}"/>
+                                <TextBlock Text="{Binding DestShort}"
+                                           FontSize="11" Foreground="{DynamicResource FgLightBrush}"
+                                           TextTrimming="CharacterEllipsis" MaxWidth="160"
+                                           ToolTip="{Binding DestPath}"/>
+                            </StackPanel>
+
+                            <!-- Status + Progress -->
+                            <Grid Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="45"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding StatusText}"
+                                           FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{Binding StatusColor}"
+                                           VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1"
+                                             Minimum="0" Maximum="100"
+                                              Value="{Binding ProgressValue, Mode=OneWay}"
+                                             Height="6"
+                                             VerticalAlignment="Center"
+                                             Foreground="{Binding StatusColor}"/>
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="4"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="0,0,0,0"
+                                            CornerRadius="3"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+
+            <!-- ─── FOOTER ─── -->
+            <Border Grid.Row="2" Background="{DynamicResource BgHeaderBrush}"
+                    Padding="10,8" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding FooterHint}"
+                               FontSize="10" Foreground="{DynamicResource FgMutedBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="{Binding ClearLabel}"
+                                Command="{Binding ClearCompletedCommand}"
+                                Padding="10,4" FontSize="10"
+                                Style="{DynamicResource DefaultButtonStyle}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="{Binding CancelAllLabel}"
+                                Command="{Binding CancelAllCommand}"
+                                Padding="10,4" FontSize="10"
+                                Style="{DynamicResource DefaultButtonStyle}"
+                                Foreground="{DynamicResource ErrBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
