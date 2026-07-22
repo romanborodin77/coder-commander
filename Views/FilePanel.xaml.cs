@@ -456,8 +456,8 @@ public partial class FilePanel : UserControl
 
         // Col 0: иконка
         sb.AppendLine("<TextBlock Grid.Column=\"0\"");
-        sb.AppendLine("  Text=\"{Binding IsDirectory, Converter={StaticResource BoolToIcon}}\"");
-        sb.AppendLine("  Foreground=\"{Binding IsDirectory, Converter={StaticResource DirColor}}\"");
+        sb.AppendLine("  Text=\"{Binding Converter={StaticResource FileIcon}}\"");
+        sb.AppendLine("  Foreground=\"{Binding Converter={StaticResource FileIconColor}}\"");
         sb.AppendLine("  FontFamily=\"Segoe MDL2 Assets\" FontSize=\"13\"");
         sb.AppendLine("  HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>");
 

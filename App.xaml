@@ -28,6 +28,8 @@
 <conv:LengthToVisibilityConverter x:Key="LengthToVis"/>
 <conv:LengthToVisibilityInverseConverter x:Key="LengthToVisInv"/>
 <conv:InverseBoolConverter x:Key="InverseBool"/>
+<conv:FileIconConverter x:Key="FileIcon"/>
+<conv:FileIconColorConverter x:Key="FileIconColor"/>
 
             <!-- ═══════════════════════════════════════════════
                STORYBOARDS

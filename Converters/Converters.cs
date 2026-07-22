@@ -430,6 +430,301 @@ public class QueueStatusToColorConverter : IValueConverter
 }
 
 /// <summary>
+/// Конвертирует FileSystemItem (или строку) в уникальный глиф-иконку из Segoe MDL2 Assets.
+/// Converts a FileSystemItem (or string) to a unique glyph icon from Segoe MDL2 Assets.
+/// </summary>
+public class FileIconConverter : IValueConverter
+{
+    public object Convert(object v, Type t, object p, CultureInfo c)
+    {
+        if (v is FileSystemItem fsi)
+        {
+            if (fsi.IsDirectory) return "\uE8B7";
+            if (fsi.IsParent) return "\uE8B7";
+            return ResolveIcon(fsi.Extension);
+        }
+        if (v is string name)
+        {
+            var ext = Path.GetExtension(name)?.ToLowerInvariant() ?? "";
+            return ResolveIcon(ext);
+        }
+        return "\uE8A5";
+    }
+
+    private static string ResolveIcon(string ext)
+    {
+        if (string.IsNullOrEmpty(ext)) return "\uE8A5";
+
+        return ext switch
+        {
+            // ══ Исполняемые файлы / Executables ══
+            ".exe" or ".msi" or ".com"                         => "\uECAA",
+            ".bat" or ".cmd"                                   => "\uE756",
+            ".ps1" or ".psm1" or ".psd1"                       => "\uE756",
+            ".sh" or ".bash"                                   => "\uE756",
+            ".appx" or ".appxbundle"                           => "\uECAA",
+
+            // ══ Библиотеки / Libraries ══
+            ".dll" or ".so" or ".dylib"                        => "\uE943",
+            ".lib" or ".a" or ".o"                             => "\uE943",
+
+            // ══ Исходный код / Source code ══
+            ".cs"                                              => "\uE943",
+            ".vb" or ".fs"                                     => "\uE943",
+            ".py"                                              => "\uE943",
+            ".js" or ".mjs" or ".cjs"                          => "\uE943",
+            ".ts" or ".mts" or ".cts"                          => "\uE943",
+            ".jsx" or ".tsx"                                   => "\uE943",
+            ".java" or ".kt" or ".scala"                       => "\uE943",
+            ".cpp" or ".cxx" or ".cc" or ".c" or ".h" or ".hpp" => "\uE943",
+            ".rs" or ".go" or ".swift" or ".rb"                => "\uE943",
+            ".lua" or ".pl" or ".php"                          => "\uE943",
+            ".r" or ".m" or ".mm"                              => "\uE943",
+            ".sql"                                            => "\uE943",
+
+            // ══ Веб / Web ══
+            ".html" or ".htm" or ".xhtml"                     => "\uE774",
+            ".css" or ".scss" or ".sass" or ".less"            => "\uE710",
+            ".xml" or ".xaml"                                  => "\uE710",
+            ".json" or ".jsonc" or ".json5"                    => "\uE70F",
+            ".yaml" or ".yml" or ".toml"                       => "\uE70F",
+            ".svg"                                             => "\uE710",
+
+            // ══ Документы / Documents ══
+            ".txt" or ".md" or ".rst" or ".log"                => "\uE8A5",
+            ".rtf"                                             => "\uE8A5",
+            ".pdf"                                             => "\uEA90",
+            ".doc" or ".docx"                                  => "\uE8A5",
+            ".xls" or ".xlsx"                                  => "\uE80A",
+            ".ppt" or ".pptx"                                  => "\uE80B",
+            ".odt" or ".ods" or ".odp"                         => "\uE8A5",
+            ".csv"                                             => "\uE80A",
+
+            // ══ Изображения / Images ══
+            ".jpg" or ".jpeg" or ".jpe" or ".jif"              => "\uE91B",
+            ".png"                                             => "\uE91B",
+            ".gif"                                             => "\uE91B",
+            ".bmp" or ".dib"                                   => "\uE91B",
+            ".ico" or ".icon"                                  => "\uE91B",
+            ".webp" or ".avif"                                 => "\uE91B",
+            ".tiff" or ".tif"                                  => "\uE91B",
+            ".psd" or ".ai" or ".eps"                          => "\uE91B",
+            ".raw" or ".cr2" or ".nef" or ".arw"               => "\uE91B",
+
+            // ══ Аудио / Audio ══
+            ".mp3"                                             => "\uE8D6",
+            ".wav" or ".wave"                                  => "\uE8D6",
+            ".flac"                                            => "\uE8D6",
+            ".ogg" or ".oga"                                   => "\uE8D6",
+            ".aac" or ".m4a" or ".wma"                         => "\uE8D6",
+            ".opus" or ".aiff"                                 => "\uE8D6",
+
+            // ══ Видео / Video ══
+            ".mp4" or ".m4v"                                   => "\uE8D7",
+            ".avi"                                             => "\uE8D7",
+            ".mkv" or ".webm"                                  => "\uE8D7",
+            ".mov" or ".qt"                                    => "\uE8D7",
+            ".wmv" or ".flv" or ".swf"                         => "\uE8D7",
+            ".mpg" or ".mpeg" or ".3gp"                        => "\uE8D7",
+
+            // ══ Архивы / Archives ══
+            ".zip"                                             => "\uF012",
+            ".7z"                                              => "\uF012",
+            ".rar"                                             => "\uF012",
+            ".tar"                                             => "\uF012",
+            ".gz" or ".gzip"                                   => "\uF012",
+            ".bz2"                                             => "\uF012",
+            ".xz" or ".lz" or ".lzma"                          => "\uF012",
+            ".zst" or ".zstd"                                  => "\uF012",
+            ".cab" or ".iso" or ".dmg"                         => "\uF012",
+
+            // ══ Данные / Data ══
+            ".db" or ".sqlite" or ".sqlite3"                   => "\uE82D",
+            ".mdb" or ".accdb"                                 => "\uE82D",
+            ".bak" or ".backup"                                => "\uE82D",
+            ".dat" or ".bin"                                   => "\uE82D",
+
+            // ══ Шрифты / Fonts ══
+            ".ttf" or ".otf" or ".woff" or ".woff2"            => "\uE8D2",
+
+            // ══ Конфигурация / Config ══
+            ".ini" or ".cfg" or ".conf" or ".config"           => "\uE713",
+            ".env"                                             => "\uE713",
+            ".gitignore" or ".gitattributes"                   => "\uE713",
+            ".editorconfig"                                    => "\uE713",
+            ".props" or ".targets"                             => "\uE713",
+            ".sln" or ".csproj" or ".vbproj" or ".fsproj"      => "\uE713",
+            ".vcxproj" or ".vcproj"                            => "\uE713",
+
+            // ══ Ключи и сертификаты / Keys & Certs ══
+            ".pem" or ".key" or ".ppk" or ".p12" or ".pfx"    => "\uE72E",
+            ".cer" or ".crt" or ".der"                         => "\uE72E",
+            ".jks" or ".keystore"                              => "\uE72E",
+
+            // ══ Контейнеры и оркестрация / Containers ══
+            ".dockerfile" or ".containerfile"                  => "\uE7B4",
+            ".tf" or ".tfvars"                                 => "\uE70F",
+            ".hcl"                                             => "\uE70F",
+
+            // ══ Прочее / Other ══
+            ".md5" or ".sha1" or ".sha256" or ".sha512" or ".sfv" or ".hash" => "\uE82D",
+            ".patch" or ".diff"                                => "\uE8DD",
+            ".tmp" or ".temp" or ".swp"                        => "\uE7BA",
+            ".lock"                                            => "\uE72E",
+
+            _                                                  => "\uE8A5",
+        };
+    }
+
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Конвертирует FileSystemItem (или bool/строку) в цвет кисти для иконки.
+/// Converts a FileSystemItem (or bool/string) to a brush color for the file icon.
+/// Папки — акцентный цвет; файлы — по категориям.
+/// Directories use accent color; files are colored by category.
+/// </summary>
+public class FileIconColorConverter : IValueConverter
+{
+    public object Convert(object v, Type t, object p, CultureInfo c)
+    {
+        bool isDir = false;
+        string ext = "";
+
+        if (v is FileSystemItem fsi)
+        {
+            isDir = fsi.IsDirectory;
+            ext = fsi.Extension;
+        }
+        else if (v is bool b)
+        {
+            isDir = b;
+        }
+        else if (v is string name)
+        {
+            ext = Path.GetExtension(name)?.ToLowerInvariant() ?? "";
+        }
+
+        if (isDir)
+            return (SolidColorBrush)(Application.Current.Resources["AccentBrush"]
+                ?? new SolidColorBrush(Color.FromRgb(122, 139, 250)));
+
+        if (string.IsNullOrEmpty(ext))
+            return (SolidColorBrush)(Application.Current.Resources["FgLightBrush"]
+                ?? new SolidColorBrush(Colors.White));
+
+        return ext switch
+        {
+            // ══ Исполняемые / Executables — зелёный ══
+            ".exe" or ".msi" or ".com"
+                or ".bat" or ".cmd" or ".ps1" or ".psm1" or ".psd1"
+                or ".sh" or ".bash" or ".appx" or ".appxbundle"
+                => new SolidColorBrush(Color.FromRgb(78, 154, 6)),
+
+            // ══ Библиотеки / Libraries — синий ══
+            ".dll" or ".so" or ".dylib" or ".lib" or ".a" or ".o"
+                => new SolidColorBrush(Color.FromRgb(100, 149, 237)),
+
+            // ══ Исходный код / Source — фиолетовый ══
+            ".cs" or ".vb" or ".fs" or ".py" or ".js" or ".mjs" or ".cjs"
+                or ".ts" or ".mts" or ".cts" or ".jsx" or ".tsx"
+                or ".java" or ".kt" or ".scala" or ".cpp" or ".cxx" or ".cc"
+                or ".c" or ".h" or ".hpp" or ".rs" or ".go" or ".swift"
+                or ".rb" or ".lua" or ".pl" or ".php" or ".r" or ".m" or ".mm"
+                or ".sql"
+                => new SolidColorBrush(Color.FromRgb(178, 102, 255)),
+
+            // ══ Веб / Web — разные оттенки ══
+            ".html" or ".htm" or ".xhtml"
+                => new SolidColorBrush(Color.FromRgb(227, 76, 38)),
+            ".css" or ".scss" or ".sass" or ".less"
+                => new SolidColorBrush(Color.FromRgb(38, 77, 228)),
+            ".xml" or ".xaml"
+                => new SolidColorBrush(Color.FromRgb(255, 152, 0)),
+
+            // ══ Конфигурация / Config — оранжевый ══
+            ".json" or ".jsonc" or ".json5" or ".yaml" or ".yml"
+                or ".toml" or ".ini" or ".cfg" or ".conf" or ".config"
+                or ".env" or ".gitignore" or ".gitattributes" or ".editorconfig"
+                or ".props" or ".targets"
+                or ".sln" or ".csproj" or ".vbproj" or ".fsproj"
+                or ".vcxproj" or ".vcproj"
+                => new SolidColorBrush(Color.FromRgb(255, 183, 77)),
+
+            // ══ Документы / Documents — по типам ══
+            ".txt" or ".md" or ".rst" or ".log" or ".rtf"
+                => new SolidColorBrush(Color.FromRgb(220, 220, 220)),
+            ".pdf"
+                => new SolidColorBrush(Color.FromRgb(220, 50, 47)),
+            ".doc" or ".docx" or ".odt"
+                => new SolidColorBrush(Color.FromRgb(41, 98, 204)),
+            ".xls" or ".xlsx" or ".ods" or ".csv"
+                => new SolidColorBrush(Color.FromRgb(33, 115, 70)),
+            ".ppt" or ".pptx" or ".odp"
+                => new SolidColorBrush(Color.FromRgb(204, 85, 0)),
+
+            // ══ Изображения / Images — розовый ══
+            ".jpg" or ".jpeg" or ".jpe" or ".jif" or ".png" or ".gif"
+                or ".bmp" or ".dib" or ".ico" or ".icon" or ".webp" or ".avif"
+                or ".tiff" or ".tif" or ".psd" or ".ai" or ".eps"
+                or ".raw" or ".cr2" or ".nef" or ".arw"
+                => new SolidColorBrush(Color.FromRgb(255, 105, 180)),
+
+            // ══ Аудио / Audio — оранжевый ══
+            ".mp3" or ".wav" or ".wave" or ".flac" or ".ogg" or ".oga"
+                or ".aac" or ".m4a" or ".wma" or ".opus" or ".aiff"
+                => new SolidColorBrush(Color.FromRgb(255, 140, 0)),
+
+            // ══ Видео / Video — красный ══
+            ".mp4" or ".m4v" or ".avi" or ".mkv" or ".webm"
+                or ".mov" or ".qt" or ".wmv" or ".flv" or ".swf"
+                or ".mpg" or ".mpeg" or ".3gp"
+                => new SolidColorBrush(Color.FromRgb(220, 50, 47)),
+
+            // ══ Архивы / Archives — бирюзовый ══
+            ".zip" or ".7z" or ".rar" or ".tar" or ".gz" or ".gzip"
+                or ".bz2" or ".xz" or ".lz" or ".lzma" or ".zst" or ".zstd"
+                or ".cab" or ".iso" or ".dmg"
+                => new SolidColorBrush(Color.FromRgb(0, 188, 212)),
+
+            // ══ Данные / Data — серый ══
+            ".db" or ".sqlite" or ".sqlite3" or ".mdb" or ".accdb"
+                or ".bak" or ".backup" or ".dat" or ".bin"
+                => new SolidColorBrush(Color.FromRgb(158, 158, 158)),
+
+            // ══ Шрифты / Fonts — фиолетовый ══
+            ".ttf" or ".otf" or ".woff" or ".woff2"
+                => new SolidColorBrush(Color.FromRgb(171, 71, 188)),
+
+            // ══ Ключи / Keys — жёлтый ══
+            ".pem" or ".key" or ".ppk" or ".p12" or ".pfx"
+                or ".cer" or ".crt" or ".der" or ".jks" or ".keystore"
+                => new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+
+            // ══ Контейнеры / Containers — синий ══
+            ".dockerfile" or ".containerfile" or ".tf" or ".tfvars" or ".hcl"
+                => new SolidColorBrush(Color.FromRgb(33, 150, 243)),
+
+            // ══ Прочее / Other ══
+            ".patch" or ".diff"
+                => new SolidColorBrush(Color.FromRgb(255, 193, 7)),
+            ".md5" or ".sha1" or ".sha256" or ".sha512" or ".sfv" or ".hash"
+                => new SolidColorBrush(Color.FromRgb(158, 158, 158)),
+            ".tmp" or ".temp" or ".swp"
+                => new SolidColorBrush(Color.FromRgb(120, 120, 120)),
+            ".lock"
+                => new SolidColorBrush(Color.FromRgb(244, 67, 54)),
+
+            _ => (SolidColorBrush)(Application.Current.Resources["FgLightBrush"]
+                ?? new SolidColorBrush(Colors.White)),
+        };
+    }
+
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>
 /// Конвертирует статус операции в очереди в локализованную строку.
 /// Converts queued operation status to a localized string.
 /// </summary>
