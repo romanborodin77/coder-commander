@@ -166,6 +166,10 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     public async Task RefreshAsync()
     {
         if (_disposed) return;
+        // Пропускаем, если обновление произошло менее 1 с назад (защита от мерцания).
+        // Skip if refresh happened less than 1 s ago (anti-flicker guard).
+        var now = DateTime.UtcNow;
+        if ((now - _lastRefreshTime).TotalMilliseconds < 1000) return;
         // Защита от повторного входа: Watcher debounce / навигация / фильтр могут гоняться.
         // Reentrancy guard: Watcher debounce / navigation / filter can race.
         // Ждём освобождения lock до 5 секунд вместо немедленного возврата.
@@ -179,6 +183,7 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         {
             return; // Таймаут ожидания lock / Lock wait timeout
         }
+        _isRefreshing = true;
         try
         {
             // Виртуальный режим «результаты поиска» (ph2.2): перечисляем через ISearchResultSource.
@@ -232,9 +237,11 @@ public partial class PanelViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
+        _lastRefreshTime = DateTime.UtcNow;
     }
     finally
     {
+        _isRefreshing = false;
         _refreshLock.Release();
     }
 }

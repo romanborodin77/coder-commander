@@ -13,32 +13,32 @@ using CoderCommander.ViewModels;
 namespace CoderCommander.Views;
 
 /// <summary>
-/// ??????? ???? ??????????: ????, ??????, ?????? ??????, ????????/????????, ????????, git/docker/ssh/sftp ???????.
+/// Главное окно приложения: меню, тулбар, файловые панели, редактор/просмотрщик, терминал, git/docker/ssh/sftp вкладки.
 /// Application main window: menu, toolbar, file panels, editor/viewer, terminal, git/docker/ssh/sftp tabs.
 /// </summary>
 public partial class MainWindow : Window
 {
-    /// <summary>?????? ?? MainViewModel (DataContext ????). / Reference to the MainViewModel (window DataContext).</summary>
+    /// <summary>Ссылка на MainViewModel (DataContext окна). / Reference to the MainViewModel (window DataContext).</summary>
     private MainViewModel? _vm;
 
     /// <summary>
-    /// ���������� HwndHost-����������� ���������: tabId > TerminalHost.
+    /// Словарь HwndHost-контейнеров терминалов: tabId > TerminalHost.
     /// Dictionary of terminal HwndHost containers: tabId > TerminalHost.
     /// </summary>
     private readonly Dictionary<int, TerminalHost> _terminalHosts = new();
 
     /// <summary>
-    /// ���������� ������������ ������� ��� ���������� ������� ��� �������� �������.
+    /// Словарь обработчиков событий для корректной отписки при удалении вкладки.
     /// Dictionary of event handlers for proper unsubscription when a tab is removed.
     /// </summary>
     private readonly Dictionary<int, (EventHandler<IntPtr>? hostReady, SizeChangedEventHandler? sizeChanged)> _terminalHandlers = new();
 
     /// <summary>
-    /// ��������� ��������� ���� � ����������� � ��������������� ������ �������� ������.
+    /// Открывает модальный диалог с сохранением и восстановлением фокуса активной панели.
     /// Opens a modal dialog with saving and restoring focus of the active panel.
     /// </summary>
-    /// <param name="dialog">���������� ����. / Dialog window.</param>
-    /// <returns>��������� �������. / Dialog result.</returns>
+    /// <param name="dialog">Диалоговое окно. / Dialog window.</param>
+    /// <returns>Результат диалога. / Dialog result.</returns>
     private bool? ShowDialogWithFocus(Window dialog)
     {
         if (_vm?.ActivePanel is PanelViewModel panel)
@@ -60,7 +60,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// ??????????? ???????? ????: ?????????????? XAML-?????????? ? ????????????? ?? Loaded/Closed.
+    /// Конструктор главного окна: инициализация XAML-компонентов и подписка на события Loaded/Closed.
     /// Main window constructor: initializes XAML components and subscribes to Loaded/Closed events.
     /// </summary>
     public MainWindow()
@@ -71,13 +71,13 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// ?????????? ??????? Loaded: ????????? ViewModel, ????????????? ?? ???????, ????????????? ????????
-    /// ??? ?????????/????????? ? ?????????? ????????? ??????? ?????????.
+    /// Обработчик события Loaded: сохраняет ViewModel, подписывается на события, устанавливает делегаты
+    /// для редактора/просмотрщика и запускает авто-старт первого терминала.
     /// Handles the Loaded event: stores the ViewModel, subscribes to events, sets editor/viewer delegates,
     /// and initiates auto-start of the first terminal.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm) return;
@@ -86,40 +86,40 @@ public partial class MainWindow : Window
         vm.TerminalTabs.CollectionChanged += OnTerminalTabsChanged;
         vm.PropertyChanged += OnActiveTerminalTabChanged;
 
-        // ?????????? ????????? ???? ?????????/?????????
+        // Устанавливаем делегаты для открытия редактора/просмотрщика
         vm.OpenEditorRequest = (path, content) => OpenEditor(path, content);
         vm.OpenViewerRequest = (path, content) => OpenViewer(path, content);
-        vm.CloseEditorRequest = () => { }; // ????????? ???? ??????????? ????
+        vm.CloseEditorRequest = () => { }; // Заглушка для совместимости / Stub for compatibility
 
-        // ?????????? ???? ?????? ?????????? (ph2.4)
+        // Устанавливаем делегат открытия окна дубликатов (ph2.4)
         vm.OpenDuplicatesRequest = (path) => OpenDuplicates(path);
 
-        // ?????????? ???? ????????????? ????? (ph3.3)
+        // Устанавливаем делегат открытия синхронизации папок (ph3.3)
         vm.OpenSyncDirsRequest = (left, right, selected) => OpenSyncDirs(left, right, selected);
 
-        // //?????????? ???? ?????????? ?????????? (ph5.3)
-vm.OpenBookmarksRequest = () => OpenBookmarks();
-//????????? ??????? ?????????
+        // Устанавливаем делегат открытия менеджера закладок (ph5.3)
+        vm.OpenBookmarksRequest = () => OpenBookmarks();
+        //Подписка завершена
 
-            //���������� ���� ���������� �������� (ph5.1)
+            //Устанавливаем делегат открытия архивов (ph5.1)
             vm.OpenArchiveRequest = (mode, files, archivePath) => OpenArchive(mode, files, archivePath);
 
-        // ���������� ���� ������ ��������� (ph5.6)
+        // Устанавливаем делегат открытия дерева каталогов (ph5.6)
         vm.OpenDirectoryTreeRequest = (path, panel) => OpenDirectoryTree(path, panel);
 
-        // ��������� ������� ���������
+        // Запускаем отложенный старт терминалов
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, EnsureTerminalShellsStarted);
 
-        // ��������� ������������ ������� ������� (ph6.1)
+        // Применяем динамические горячие клавиши (ph6.1)
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, ApplyHotkeys);
     }
 
     /// <summary>
-    /// ?????????? ??????? Closed: ???????????? ?? ???????, ??????????? ??????? VM ? ???? TerminalHost.
+    /// Обработчик события Closed: отписывается от событий, освобождает ресурсы VM и всех TerminalHost.
     /// Handles the Closed event: unsubscribes from events, disposes VM and all TerminalHost resources.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ???????. / Event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные события. / Event data.</param>
     private void OnClosed(object? sender, EventArgs e)
     {
         if (_vm is null) return;
@@ -131,35 +131,35 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
         _terminalHosts.Clear();
     }
 
-    //========== ?????????? ????????? ????????? ==========
+    //========== Обработка изменений свойств ==========
 
     /// <summary>
-    /// ?????????? ????????? ??????? MainViewModel: ??????????? ????????? ?????? ?????????,
-    /// ???????????? ?????? ??????? ? ??????????????/???????????? ?????? ??????.
+    /// Обработчик изменения свойств MainViewModel: отслеживает видимость панели терминала,
+    /// переключение вкладок нижней панели и сворачивание/разворачивание нижней панели.
     /// Handles MainViewModel property changes: tracks terminal panel visibility,
     /// bottom tab switching, and bottom panel expand/collapse.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ????????? ????????. / Property changed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные события изменения свойства. / Property changed event data.</param>
         private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            // ?????? ?? ????????????? ????????? ?????? ?????? (ViewModel ??? ?? ????????????????).
+            // Защита от разыменования возможно-null ViewModel (ещё не инициализирована).
             // Guard against dereferencing a possibly-null view model (not initialized yet).
             if (_vm is null) return;
 
-            // ????? ?????? ????????? ?????????? ???????, ?????? TabItems ? ????????? shell'?
+            // Если видимость панели терминала изменилась — синхронизируем TabItems и запускаем shell'ы
         if (e.PropertyName == nameof(MainViewModel.IsTerminalPanelVisible) && _vm?.IsTerminalPanelVisible == true)
         {
             SyncTerminalTabs();
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, EnsureTerminalShellsStarted);
         }
-        // ???????????? ??????? ?????? ?????? (editor/git/docker/ssh/sftp)
+        // Переключение вкладок нижней панели (editor/git/docker/ssh/sftp)
         else if (e.PropertyName == nameof(MainViewModel.SelectedTabIndex))
         {
             SyncTerminalTabs();
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, EnsureTerminalShellsStarted);
         }
-        // ??????????????/???????????? ?????? ?????? ??????? (?? ???????? ??????? / ? ????)
+        // Сворачивание/разворачивание нижней панели терминала (из настроек / по вызову)
         else if (e.PropertyName == nameof(MainViewModel.IsBottomPanelVisible) && BottomRow is not null)
         {
                 BottomRow.Height = _vm?.IsBottomPanelVisible ?? false
@@ -169,36 +169,36 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????????? ????? ???????? ??????? ?????????: ?????????????? ???????, ???????? ????????
-    /// ? ????????? shell ??? ????? ??????? ????? layout pass.
+    /// Обработчик смены активной вкладки терминала: синхронизирует вкладки, выбирает активную
+    /// и запускает shell для новой вкладки после прохождения layout pass.
     /// Handles active terminal tab change: synchronizes tabs, selects the active one,
     /// and starts the shell for the new tab after the layout pass.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ????????? ????????. / Property changed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные события изменения свойства. / Property changed event data.</param>
     private void OnActiveTerminalTabChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(MainViewModel.ActiveTerminalTab)) return;
         SyncTerminalTabs();
         SelectActiveTerminalTab();
-        // ????????? shell ??? ????? ??????? ????? layout pass
+        // Запускаем shell для новой вкладки после прохождения layout pass
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, EnsureTerminalShellsStarted);
     }
 
     /// <summary>
-    /// ?????????? ????????? ????????? TerminalTabs (??????????/????????): ?????????????? ??????? TabControl.
+    /// Обработчик изменения коллекции TerminalTabs (добавление/удаление): синхронизирует вкладки TabControl.
     /// Handles TerminalTabs collection changes (add/remove): synchronizes TabControl tabs.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ????????? ?????????. / Notify collection changed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные события изменения коллекции. / Notify collection changed event data.</param>
     private void OnTerminalTabsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
         SyncTerminalTabs();
     }
 
     /// <summary>
-    /// ?????????????? TabControl ? ?????????? TerminalTabs: ?????? ????? ???????, ??????? ?????????????,
-    /// ??????????? HostReady ? SizeChanged ???????????.
+    /// Синхронизирует TabControl с коллекцией TerminalTabs: создаёт новые вкладки, удаляет отсутствующие,
+    /// устанавливает обработчики HostReady и SizeChanged.
     /// Synchronizes the TabControl with the TerminalTabs collection: creates new tabs, removes missing ones,
     /// sets up HostReady and SizeChanged handlers.
     /// </summary>
@@ -208,12 +208,12 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
 
         var currentIds = new HashSet<int>(_vm.TerminalTabs.Select(t => t.Id));
 
-        // ??????? ???????, ??????? ?????? ???
+        // Удаляем вкладки, которых больше нет
         var toRemove = _terminalHosts.Keys.Where(id => !currentIds.Contains(id)).ToList();
         foreach (var id in toRemove)
             RemoveTerminalTab(id);
 
-        // ?????? ????? ???????
+        // Создаём новые вкладки
         foreach (var tab in _vm.TerminalTabs)
         {
             if (_terminalHosts.ContainsKey(tab.Id)) continue;
@@ -224,7 +224,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
             var ti = new TabItem { Content = border, Header = CreateTabHeader(tab) };
             ti.SetResourceReference(StyleProperty, typeof(TabItem));
 
-            // Fallback: ???? BuildWindowCore ??? ?????????? ?? ????????
+            // Fallback: если BuildWindowCore уже вызван до подписки на событие
             host.HostReady += hwnd =>
             {
                 if (hwnd != IntPtr.Zero && _vm != null && !tab.IsShellStarting && 
@@ -235,7 +235,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
                 }
             };
 
-            // ?????? ??????? ??? ????????? ???????? ??????????
+            // Подписка на изменение размера для корректного ресайза
             border.SizeChanged += (_, e) =>
             {
                 if (e.NewSize.Width > 0 && e.NewSize.Height > 0)
@@ -245,7 +245,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
             InnerTerminalTabs.Items.Add(ti);
             _terminalHosts[tab.Id] = host;
 
-            // Fallback: ???? ???? ??? ????????, ????????? ?????
+            // Fallback: если хост уже создан, но сервис ещё не запущен
             if (host.HostHandle != IntPtr.Zero && _vm != null && !tab.IsShellStarting && 
                 !_vm.TerminalServices.ContainsKey(tab.Id))
             {
@@ -258,8 +258,8 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ????????? shell ??? ???? ??????? ?????????, ? ??????? ??? ??? ???????.
-    /// ?????????? ????? ?????????? layout-pass, ????? HwndHost ?????????????? ????????.
+    /// Запускает shell для всех вкладок терминала, у которых ещё нет сервиса.
+    /// Вызывается после прохождения layout-pass, когда HwndHost гарантированно построен.
     /// Starts a shell for all terminal tabs that do not yet have a service.
     /// Called after the layout pass completes, when HwndHost is guaranteed to be built.
     /// </summary>
@@ -283,11 +283,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????? ????????? ??????? ????????? ? ????????? ? ??????? ????????.
+    /// Создаёт заголовок вкладки терминала с названием и кнопкой закрытия.
     /// Creates a terminal tab header with a title and a close button.
     /// </summary>
-    /// <param name="tab">ViewModel ??????? ?????????. / Terminal tab ViewModel.</param>
-    /// <returns>UI-??????? ????????? (DockPanel ? ??????? ? ???????). / Header UI element (DockPanel with button and text).</returns>
+    /// <param name="tab">ViewModel вкладки терминала. / Terminal tab ViewModel.</param>
+    /// <returns>UI-элемент заголовка (DockPanel с кнопкой и текстом). / Header UI element (DockPanel with button and text).</returns>
     private static UIElement CreateTabHeader(TerminalTabViewModel tab)
     {
         var dp = new DockPanel();
@@ -300,9 +300,9 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
-            ToolTip = "??????? ???????"
+            ToolTip = "Закрыть вкладку"
         };
-        // ???????? ????? ??????? VM
+        // Ссылка на VM через WeakReference
         var vmRef = new WeakReference<MainViewModel>((MainViewModel)Application.Current.MainWindow!.DataContext);
         closeBtn.Click += (_, _) =>
         {
@@ -322,10 +322,10 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ??????? ??????? ????????? ?? ID: ??????? TabItem, ??????????? TerminalHost ? ??????? ?? ???????.
+    /// Удаляет вкладку терминала по ID: удаляет TabItem, освобождает TerminalHost и удаляет из словаря.
     /// Removes a terminal tab by ID: removes the TabItem, disposes TerminalHost, and deletes from dictionary.
     /// </summary>
-    /// <param name="tabId">????????????? ???????. / Tab identifier.</param>
+    /// <param name="tabId">Идентификатор вкладки. / Tab identifier.</param>
     private void RemoveTerminalTab(int tabId)
     {
         if (!_terminalHosts.TryGetValue(tabId, out var host)) return;
@@ -337,11 +337,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????????? ????????? shell ? ?????????? ????????? ? ??????? ????? ???????.
+    /// Асинхронно запускает shell в контейнере терминала и передаёт фокус консоли.
     /// Asynchronously starts a shell in the terminal container and passes focus to the console.
     /// </summary>
-    /// <param name="tab">ViewModel ??????? ?????????. / Terminal tab ViewModel.</param>
-    /// <param name="hostHwnd">?????????? ????-?????????? (HwndHost). / Container window handle (HwndHost).</param>
+    /// <param name="tab">ViewModel вкладки терминала. / Terminal tab ViewModel.</param>
+    /// <param name="hostHwnd">Дескриптор HWND-контейнера (HwndHost). / Container window handle (HwndHost).</param>
     private async Task StartShellForTabAsync(TerminalTabViewModel tab, IntPtr hostHwnd)
     {
         if (_vm is null) return;
@@ -350,14 +350,14 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
         {
             await _vm.StartTerminalForTabAsync(tab, hostHwnd);
             LogService.Debug($"StartShellForTabAsync: success for tab={tab.Id}", "Terminal");
-            // ????? ??????? ??????? ????? ???????
+            // Передаём фокус в консоль после запуска
             if (_vm.TerminalServices.TryGetValue(tab.Id, out var svc))
                 svc.Focus();
         }
         catch (Exception ex)
         {
-            LogService.Error($"?????? ??????? ?????????", "Terminal", ex);
-            _vm.StatusText = $"?????? ?????????: {ex.Message}";
+            LogService.Error($"Ошибка запуска терминала", "Terminal", ex);
+            _vm.StatusText = $"Терминал не запущен: {ex.Message}";
         }
         finally
         {
@@ -366,7 +366,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ???????? ???????? ??????? ? TabControl ????????? ?? ActiveTerminalTab ?? ViewModel.
+    /// Выбирает активную вкладку в TabControl на основе ActiveTerminalTab из ViewModel.
     /// Selects the active terminal tab in the TabControl based on ActiveTerminalTab from ViewModel.
     /// </summary>
     private void SelectActiveTerminalTab()
@@ -380,11 +380,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ???? TabItem, ?????????? ????????? TerminalHost, ??????? ?? ???? ????????? InnerTerminalTabs.
+    /// Ищет TabItem, содержащий указанный TerminalHost, перебирая элементы InnerTerminalTabs.
     /// Finds the TabItem containing the specified TerminalHost by iterating over InnerTerminalTabs items.
     /// </summary>
-    /// <param name="host">??????? TerminalHost. / The TerminalHost to find.</param>
-    /// <returns>TabItem, ?????????? host, ??? null, ???? ?? ??????. / TabItem containing host, or null if not found.</returns>
+    /// <param name="host">Экземпляр TerminalHost. / The TerminalHost to find.</param>
+    /// <returns>TabItem, содержащий host, или null, если не найден. / TabItem containing host, or null if not found.</returns>
     private TabItem? FindTabItem(TerminalHost host)
     {
         foreach (var item in InnerTerminalTabs.Items)
@@ -395,25 +395,25 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
         return null;
     }
 
-    //========== Toolbar-??????????? ======================
+    //========== Toolbar-обработчики ======================
 
     /// <summary>
-    /// ?????????? ????? ?? ??????? ??????? ??????: ????????? ???????.
+    /// Обработчик клика по палитре команд: закрывает палитру.
     /// Handles click on the command palette overlay: closes the palette.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ????. / Mouse event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные события мыши. / Mouse event data.</param>
     private void CommandPaletteOverlay_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         _vm?.CloseCommandPaletteCommand.Execute(null);
     }
 
     /// <summary>
-    /// ?????????? ?????? ?????????: ?????????? ??????????? ???? ?? ??????? ????????.
+    /// Обработчик кнопки «Закладки»: показывает контекстное меню со списком закладок.
     /// Handles the "Bookmarks" button: shows a context menu with the list of bookmarks.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void Bookmarks_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         if (_vm == null) return;
@@ -429,30 +429,30 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ????????? ?????????? ?????? ?????????.
+    /// Закрывает выпадающую панель терминала.
     /// Closes the terminal drop-down panel.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void CloseTerminalPanel(object sender, RoutedEventArgs e)
     {
         if (_vm is not null) _vm.IsTerminalPanelVisible = false;
     }
 
     /// <summary>
-    /// ������� ������ ���� �� ������� ���������: ��������� ��� ������� (ph6.4).
+    /// Кнопка мыши средней кнопкой на вкладке терминала: закрывает эту вкладку (ph6.4).
     /// Middle mouse button on terminal tab: closes that tab (ph6.4).
     /// </summary>
     private void TerminalTabControl_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.MiddleButton != MouseButtonState.Pressed || _vm is null) return;
 
-        // ���������� TabItem ��� �������� ����� ���������� ������
+        // Определяем TabItem для нажатой кнопкой мыши
         var hit = e.OriginalSource as DependencyObject;
         var tabItem = FindVisualParent<System.Windows.Controls.TabItem>(hit);
         if (tabItem is null) return;
 
-        // ������� TerminalTabViewModel �� TerminalHost ������ TabItem
+        // Получаем TerminalTabViewModel из TerminalHost внутри TabItem
         var host = FindVisualChild<TerminalHost>(tabItem);
         if (host is null) return;
 
@@ -466,7 +466,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
         e.Handled = true;
     }
 
-    /// <summary>����� �������� ���������� ���� ���������� ������ (����������).</summary>
+    /// <summary>Хелпер поиска предка определённого типа в визуальном дереве (рекурсия).</summary>
     private static T? FindVisualParent<T>(DependencyObject? current) where T : DependencyObject
     {
         while (current is not null)
@@ -477,7 +477,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
         return null;
     }
 
-    /// <summary>����� ��������� �������� ���������� ���� ���������� ������ (����������).</summary>
+    /// <summary>Хелпер поиска дочернего элемента определённого типа в визуальном дереве (рекурсия).</summary>
     private static T? FindVisualChild<T>(DependencyObject? current) where T : DependencyObject
     {
         if (current is null) return null;
@@ -492,11 +492,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????? ????? ??????? CMD ?????????.
+    /// Создаёт новую вкладку терминала CMD.
     /// Creates a new CMD terminal tab.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void NewCmdTerminal_Click(object sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
@@ -505,11 +505,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????? ????? ??????? PowerShell ?????????.
+    /// Создаёт новую вкладку терминала PowerShell.
     /// Creates a new PowerShell terminal tab.
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void NewPowerShellTerminal_Click(object sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
@@ -518,7 +518,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ������ ����� ������� ��������� PowerShell Core (pwsh).
+    /// Создаёт новую вкладку терминала PowerShell Core (pwsh).
     /// Creates a new PowerShell Core (pwsh) terminal tab.
     /// </summary>
     private void NewPwshTerminal_Click(object sender, RoutedEventArgs e)
@@ -529,11 +529,11 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????????? ???????? ????? ?? ??????? ? ?????? QuickCommand: ????????? ???????.
+    /// Обработчик двойного клика по команде в палитре: выполняет команду.
     /// Handles double-click on a quick command in the list: runs the command.
     /// </summary>
-    /// <param name="sender">???????? ??????? (ListBox). / Event source (ListBox).</param>
-    /// <param name="e">?????? ??????? ????. / Mouse event data.</param>
+    /// <param name="sender">Источник события (ListBox). / Event source (ListBox).</param>
+    /// <param name="e">Данные события мыши. / Mouse event data.</param>
     private void Cmd_Dbl(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListBox lb && lb.SelectedItem is QuickCommand cmd && _vm is not null)
@@ -541,38 +541,38 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ?????????? ?????? ???? ??????: ????????? ??????? ???? (??????? ??????? F10 ??? Alt+F4).
+    /// Обработчик пункта «Выход»: закрывает главное окно (горячая клавиша F10 или Alt+F4).
     /// Handles the "Exit" menu item: closes the main window (hotkey F10 or Alt+F4).
     /// </summary>
-    /// <param name="s">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="s">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
     private void Exit_Click(object s, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// ?????????? ?????? ???? ??????????: ????????? ???? ???????? (??????? ??????? Ctrl+,).
+    /// Обработчик пункта «Настройки»: открывает окно настроек (горячая клавиша Ctrl+,).
     /// Handles the "Settings" menu item: opens the settings window (hotkey Ctrl+,).
     /// </summary>
-    /// <param name="sender">???????? ???????. / Event source.</param>
-    /// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+    /// <param name="sender">Источник события. / Event source.</param>
+    /// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
         /// <summary>
-    /// ?????????? ???????? ???? ??????????: ??????????? ????????? ???????? ?? BookmarkService.
-    /// Handles "Bookmarks" menu open: dynamically populates bookmarks from BookmarkService.
-    /// </summary>
+        /// Обработчик открытия меню «Закладки»: динамически заполняет закладки из BookmarkService.
+        /// Handles "Bookmarks" menu open: dynamically populates bookmarks from BookmarkService.
+        /// </summary>
     private void BookmarksMenu_SubmenuOpened(object sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
 
-        // ??????? MenuItem ?????????? ?? ?????????.
+        // Ищем MenuItem «Закладки» по заголовку.
         // Find "Bookmarks" MenuItem by header.
         var bookmarksMenuItem = FindBookmarksMenuItem();
         if (bookmarksMenuItem is null) return;
 
-        // ??????? ??? ???????? ????? ???? ?????? (????????, ?????????? + ???????????).
+        // Удаляем все элементы после первых двух (Добавить, Управление + разделитель).
         // Remove all items after the first two (Add, Manage + separator).
         while (bookmarksMenuItem.Items.Count > 3)
             bookmarksMenuItem.Items.RemoveAt(bookmarksMenuItem.Items.Count - 1);
 
-        // ????????? ???????? (?? 20).
+        // Добавляем закладки (не более 20).
         var bms = CoderCommander.Services.BookmarkService.Current.Bookmarks;
         for (int i = 0; i < Math.Min(bms.Count, 20); i++)
         {
@@ -590,7 +590,7 @@ vm.OpenBookmarksRequest = () => OpenBookmarks();
     }
 
     /// <summary>
-    /// ??????? MenuItem ?????????? ? ??????? ????.
+    /// Ищет MenuItem «Закладки» в главном меню.
     /// Finds "Bookmarks" MenuItem in the main menu.
     /// </summary>
     private System.Windows.Controls.MenuItem? FindBookmarksMenuItem()
@@ -609,10 +609,10 @@ private void Settings_Click(object sender, RoutedEventArgs e)
         _vm?.OpenSettingsCommand.Execute(null);
     }
 
-//========== ????????? ???? ?????????/????????? (F3/F4) ==========
+//========== Обработка окна редактора/просмотрщика (F3/F4) ==========
 
 /// <summary>
-/// ?????????? ?????? ???? ?????????? ?????????: ????????? ?????? ????????? ??????? ??????.
+/// Обработчик пункта «Настроить колонки»: открывает диалог настроек колонок.
 /// Handles "Configure columns?" menu item: opens column settings dialog.
 /// </summary>
 private void Columns_Click(object sender, RoutedEventArgs e)
@@ -624,18 +624,18 @@ private void Columns_Click(object sender, RoutedEventArgs e)
     }
     catch (Exception ex)
     {
-        LogService.Error($"?????? ???????? ???????? ???????: {ex.Message}", "Columns", ex);
+        LogService.Error($"Ошибка открытия настроек колонок: {ex.Message}", "Columns", ex);
     }
 }
 
-//========== ????????? ???? ?????????/????????? (F3/F4) ==========
+//========== Обработка окна редактора/просмотрщика (F3/F4) ==========
 
     /// <summary>
-    /// ????????? ????????? ???? ????????? (F4) ??? ?????????????? ?????.
+    /// Открывает модальное окно редактора (F4) для редактирования файла.
     /// Opens a modal editor window (F4) for editing a file.
     /// </summary>
-    /// <param name="path">???? ? ?????. / Path to the file.</param>
-    /// <param name="content">?????????? ?????. / File content.</param>
+    /// <param name="path">Путь к файлу. / Path to the file.</param>
+    /// <param name="content">Содержимое файла. / File content.</param>
     private void OpenEditor(string path, string content)
     {
         try
@@ -655,11 +655,11 @@ private void Columns_Click(object sender, RoutedEventArgs e)
     }
 
     /// <summary>
-    /// ????????? ????????? ???? ????????? (F3) ??? ?????? ????? (?????? ??????).
+    /// Открывает модальное окно просмотрщика (F3) для чтения файла (только чтение).
     /// Opens a modal viewer window (F3) for reading a file (read-only).
     /// </summary>
-    /// <param name="path">???? ? ?????. / Path to the file.</param>
-    /// <param name="content">?????????? ?????. / File content.</param>
+    /// <param name="path">Путь к файлу. / Path to the file.</param>
+    /// <param name="content">Содержимое файла. / File content.</param>
     private void OpenViewer(string path, string content)
     {
         try
@@ -679,10 +679,10 @@ private void Columns_Click(object sender, RoutedEventArgs e)
 }
 
     /// <summary>
-    /// ????????? ????????? ???? ?????? ?????????? (ph2.4) ??? ???????? ?????.
+    /// Открывает модальное окно поиска дубликатов (ph2.4) для указанной папки.
     /// Opens a modal duplicate search window (ph2.4) for the given folder.
     /// </summary>
-    /// <param name="path">????????? ????? ??????. / Start folder for the search.</param>
+    /// <param name="path">Стартовая директория поиска. / Start folder for the search.</param>
     private void OpenDuplicates(string path)
     {
         try
@@ -698,12 +698,12 @@ private void Columns_Click(object sender, RoutedEventArgs e)
         }
     }
 
-/// ��������� ��������� ���� ������������� ����� (ph3.3) ��� ���� ����� �� ���������� �����.
+/// Открывает модальное окно синхронизации папок (ph3.3) для двух папок из выделенных путей.
 /// Opens modal folder synchronization window (ph3.3) for two folders from selected paths.
 /// </summary>
-/// <param name="left">����� ����� (�� ����� ������). / Left folder (from the left panel).</param>
-/// <param name="right">������ ����� (�� ������ ������). / Right folder (from the right panel).</param>
-/// <param name="selected">���������� ���� ��� ������� ������� ���������� (��� null). / Selected paths for "only selected" filter (or null).</param>
+/// <param name="left">Левая папка (из левой панели). / Left folder (from the left panel).</param>
+/// <param name="right">Правая папка (из правой панели). / Right folder (from the right panel).</param>
+/// <param name="selected">Выделенные пути для фильтра «только выделенные» (или null). / Selected paths for "only selected" filter (or null).</param>
 private void OpenSyncDirs(string left, string right, System.Collections.Generic.IReadOnlyList<string>? selected)
 {
     try
@@ -723,7 +723,7 @@ private void OpenSyncDirs(string left, string right, System.Collections.Generic.
 }
 
 /// <summary>
-/// ��������� ��������� ���� ������� �������� (ph5.2).
+/// Открывает модальное окно очереди операций (ph5.2).
 /// Opens modal operation queue window (ph5.2).
 /// </summary>
 private void OpenOperationQueue()
@@ -745,7 +745,7 @@ private void OpenOperationQueue()
 }
 
 /// <summary>
-/// ��������� ��������� ���� ���������� ���������� (ph5.3).
+/// Открывает модальное окно управления закладками (ph5.3).
 /// Opens modal bookmarks management window (ph5.3).
 /// </summary>
 private void OpenBookmarks()
@@ -767,12 +767,12 @@ private void OpenBookmarks()
 }
 
 /// <summary>
-/// ��������� ��������� ���� ���������� �������� (ph5.1).
+/// Открывает модальное окно управления архивами (ph5.1).
 /// Opens modal archive management window (ph5.1).
 /// </summary>
-/// <param name="mode">�����: "create" ��� "extract".</param>
-/// <param name="files">����� ��� ��������� (����� create).</param>
-/// <param name="archivePath">���� ������ (����� extract).</param>
+/// <param name="mode">Режим: "create" или "extract".</param>
+/// <param name="files">Список файлов для архивации (режим create).</param>
+/// <param name="archivePath">Путь к архиву (режим extract).</param>
 private void OpenArchive(string mode, System.Collections.Generic.IReadOnlyList<string>? files, string? archivePath)
 {
     try
@@ -791,14 +791,14 @@ private void OpenArchive(string mode, System.Collections.Generic.IReadOnlyList<s
     }
 }
 
-    //========== ����������� ���������� ��������� ���� ==========
+    //========== Вспомогательные методы открытия окон ==========
 
 /// <summary>
-/// ��������� ��������� ���� ������ ��������� (ph5.6) ��� ��������� ������.
+/// Открывает модальное окно дерева каталогов (ph5.6) для указанной панели.
 /// Opens the modal directory tree window (ph5.6) for the specified panel.
 /// </summary>
-/// <param name="initialPath">��������� ���� (������� ����� ������). / Initial path (panel's current folder).</param>
-/// <param name="targetPanel">������� ������ ��� ���������. / Target panel for navigation.</param>
+/// <param name="initialPath">Начальный путь (текущая папка панели). / Initial path (panel's current folder).</param>
+/// <param name="targetPanel">Целевая панель для навигации. / Target panel for navigation.</param>
 private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
 {
     try
@@ -818,17 +818,17 @@ private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
 }
 
     /// <summary>
-    /// ������������ ������� ������ ���� �� TabControl ������� �������: ��������� �������.
+    /// Обработчик средней кнопки мыши на TabControl панели: закрывает нажатую вкладку.
     /// Handles middle mouse button on panel TabControl: closes the clicked tab.
     /// </summary>
-    /// <param name="sender">TabControl (LeftPanelTabControl ��� RightPanelTabControl).</param>
-    /// <param name="e">������ ������� ����. / Mouse event data.</param>
+    /// <param name="sender">TabControl (LeftPanelTabControl или RightPanelTabControl).</param>
+    /// <param name="e">Данные события мыши. / Mouse event data.</param>
     private void TabControl_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Middle || e.MiddleButton != MouseButtonState.Pressed)
             return;
 
-        // ������� TabItem ��� ��������
+        // Ищем TabItem под курсором
         // Find the TabItem under the cursor
         var tabControl = sender as TabControl;
         if (tabControl is null || _vm is null) return;
@@ -840,7 +840,7 @@ private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
         var tabVM = tabItem.DataContext as TabViewModel;
         if (tabVM is null) return;
 
-        // ����������, ����� ��� TabControl (����� ��� ������) � ��������� �������
+        // Определяем, какой это TabControl (левый или правый) и закрываем вкладку
         // Determine which TabControl (left or right) and close the tab
         e.Handled = true;
         if (tabControl == LeftPanelTabControl)
@@ -850,17 +850,17 @@ private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
     }
 
     /// <summary>
-    /// ���� TabItem � �������� ������� TabControl.
+    /// Ищет TabItem по указанной позиции в TabControl.
     /// Finds the TabItem at the given position within the TabControl.
     /// </summary>
     private static TabItem? FindTabItemAt(TabControl tabControl, System.Windows.Point position)
     {
-        // ���������� VisualTreeHelper ��� ������ TabItem �� �������
+        // Используем VisualTreeHelper для поиска TabItem по позиции
         // Use VisualTreeHelper to find the TabItem at the position
         var hit = System.Windows.Media.VisualTreeHelper.HitTest(tabControl, position);
         if (hit?.VisualHit is null) return null;
 
-        // ����������� �� ����������� ������ �� ������� TabItem
+        // Поднимаемся по визуальному дереву в поисках первого TabItem
         // Walk up the visual tree to find the first TabItem
         var depObj = hit.VisualHit;
         while (depObj is not null && depObj is not TabItem)
@@ -870,11 +870,11 @@ private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
     }
 
     /// <summary>
-    /// ?????????? ??????? ????? ?????? ???? ?? ????????? ????: ?????????????? ??? ?????????????? ?? ???????? ?????.
+    /// Обработчик нажатия левой кнопки мыши на заголовке окна: перетаскивание или двойной клик для максимизации/восстановления.
     /// Handles left mouse button press on the window title bar: drag-move or double-click to maximize/restore.
     /// </summary>
-/// <param name="sender">???????? ???????. / Event source.</param>
-/// <param name="e">?????? ??????? ????. / Mouse event data.</param>
+/// <param name="sender">Источник события. / Event source.</param>
+/// <param name="e">Данные события мыши. / Mouse event data.</param>
 private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
 {
     if (e.ClickCount == 2)
@@ -888,22 +888,22 @@ private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
 }
 
 /// <summary>
-/// ??????????? ??????? ???? ? ?????? ?????.
+/// Сворачивает главное окно в панель задач.
 /// Minimizes the main window to the taskbar.
 /// </summary>
-/// <param name="sender">???????? ???????. / Event source.</param>
-/// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+/// <param name="sender">Источник события. / Event source.</param>
+/// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
 private void MinimizeWindow(object sender, RoutedEventArgs e)
 {
     WindowState = WindowState.Minimized;
 }
 
 /// <summary>
-/// ??????????? ??????? ???? ????? ?????????? ? ?????????? ??????????. ????????? ?????? ?????? ????????????.
+/// Переключает главное окно между развёрнутым и нормальным состоянием. Обновляет иконку кнопки максимизации.
 /// Toggles the main window between maximized and normal state. Updates the maximize button icon.
 /// </summary>
-/// <param name="sender">???????? ???????. / Event source.</param>
-/// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+/// <param name="sender">Источник события. / Event source.</param>
+/// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
 private void MaximizeRestoreWindow(object sender, RoutedEventArgs e)
 {
     if (WindowState == WindowState.Maximized)
@@ -921,22 +921,22 @@ private void MaximizeRestoreWindow(object sender, RoutedEventArgs e)
 }
 
 /// <summary>
-/// ????????? ??????? ???? ??????????.
+/// Закрывает главное окно приложения.
 /// Closes the main application window.
 /// </summary>
-/// <param name="sender">???????? ???????. / Event source.</param>
-/// <param name="e">?????? ??????? ?????????????. / Routed event data.</param>
+/// <param name="sender">Источник события. / Event source.</param>
+/// <param name="e">Данные маршрутизованного события. / Routed event data.</param>
 private void CloseWindow(object sender, RoutedEventArgs e)
 {
     Close();
 }
 
 // ===========================================
-// ������������ ������� ������� (ph6.1) / DYNAMIC HOTKEYS (ph6.1)
+// Динамические горячие клавиши (ph6.1) / DYNAMIC HOTKEYS (ph6.1)
 // ===========================================
 
 /// <summary>
-/// ��������� action ID ��������� ������� ������ (��� �������� ������ InputBindings).
+/// Множество action ID панельных горячих клавиш (для удаления старых InputBindings).
 /// Set of panel hotkey action IDs (for removing old InputBindings).
 /// </summary>
 private static readonly HashSet<string> _panelActions = new()
@@ -947,22 +947,22 @@ private static readonly HashSet<string> _panelActions = new()
 };
 
 /// <summary>
-/// �������� InputBindings ��� ������� �������� (��� �������� ��� ������������).
+/// Активные InputBindings для горячих клавиш макросов (для очистки при пересоздании).
 /// Active InputBindings for macro hotkeys (for cleanup on re-creation).
 /// </summary>
 private readonly List<InputBinding> _macroBindings = new();
 
 /// <summary>
-/// ������� ������ ��������� InputBindings � ������ ����� �� ��������.
+/// Пересоздаёт InputBindings из текущих настроек горячих клавиш.
 /// Removes old panel InputBindings and creates new ones from settings.
-/// ����� ����������� ������� ������� �������� (ph8.2).
+/// Также привязывает горячие клавиши макросов (ph8.2).
 /// Also binds macro hotkeys (ph8.2).
 /// </summary>
 public void ApplyHotkeys()
 {
     if (_vm is null) return;
 
-    // ������� ������ ��������� InputBindings (��������� app-level: F10, Ctrl+S, Shift+F10, Ctrl+, � �.�.)
+    // Удаляем старые панельные InputBindings (оставляем app-level: F10, Ctrl+S, Shift+F10, Ctrl+, и т.д.)
     // Remove ONLY panel InputBindings (keep app-level: F10, Ctrl+S, Shift+F10, Ctrl+, etc.)
     var toRemove = InputBindings.Cast<InputBinding>()
         .Where(b => b is KeyBinding kb && kb.Command is not null && IsPanelCommand(kb.Command))
@@ -980,14 +980,14 @@ public void ApplyHotkeys()
             InputBindings.Add(new KeyBinding(cmd, key, mods));
     }
 
-    // ������� ������ �������� �������� / Remove old macro bindings
+    // Удаляем старые привязки макросов / Remove old macro bindings
     foreach (var mb in _macroBindings) InputBindings.Remove(mb);
     _macroBindings.Clear();
 
-    // ����������� ������ �������� (ph8.2) / Bind macro hotkeys (ph8.2)
+    // Привязываем горячие клавиши макросов (ph8.2) / Bind macro hotkeys (ph8.2)
     var macroService = MacroService.Current;
     var engine = new CommandEngine();
-    // ������������ �������� ������� ��� ���������� ��������
+    // Регистрируем основные команды для исполнения макросов
     // Register main commands for macro execution
     engine.Register(new QuickCommand("app.copy", "Copy", ct => System.Threading.Tasks.Task.FromResult("copy")));
     engine.Register(new QuickCommand("app.move", "Move", ct => System.Threading.Tasks.Task.FromResult("move")));
@@ -1017,7 +1017,7 @@ public void ApplyHotkeys()
 }
 
 /// <summary>
-/// ���������, �������� �� ������� ��������� (��������� � action ID �� _panelActions).
+/// Проверяет, является ли команд панельной (привязан к action ID из _panelActions).
 /// Checks if the command is a panel command (bound to an action ID from _panelActions).
 /// </summary>
 private static bool IsPanelCommand(ICommand command)
@@ -1031,7 +1031,7 @@ private static bool IsPanelCommand(ICommand command)
 }
 
 /// <summary>
-/// ������ ������ ������������� ("Ctrl+Alt") � ModifierKeys.
+/// Парсит строку модификаторов ("Ctrl+Alt") в ModifierKeys.
 /// Parses a modifier string ("Ctrl+Alt") to ModifierKeys.
 /// </summary>
 private static ModifierKeys ParseModifiers(string mods)
@@ -1052,7 +1052,7 @@ private static ModifierKeys ParseModifiers(string mods)
 }
 
 /// <summary>
-/// �������� action ID � ICommand �� MainViewModel.
+/// Резолвит action ID в ICommand из MainViewModel.
 /// Resolves an action ID to an ICommand from MainViewModel.
 /// </summary>
 private static System.Windows.Input.ICommand? ResolveCommand(string action)
@@ -1075,7 +1075,7 @@ private static System.Windows.Input.ICommand? ResolveCommand(string action)
 }
 
 /// <summary>
-/// ��������� ������� ������� ������ (���������� �� SettingsWindow ����� ����������).
+/// Пере-применяет горячие клавиши (вызывается из SettingsWindow после сохранения).
 /// Reapplies hotkeys (called from SettingsWindow after saving).
 /// </summary>
 internal void ReapplyHotkeys()

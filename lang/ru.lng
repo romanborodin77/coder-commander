@@ -307,6 +307,8 @@ Editor.UnsavedTitle=Несохранённые изменения
 Editor.Tip.Minimize=Свернуть
 Editor.Tip.Maximize=Развернуть
 Editor.Tip.Close=Закрыть (Esc)
+Editor.GoToLine=Перейти к строке
+Editor.GoToLine.Title=Номер строки:
 Editor.Tab.Close=Закрыть вкладку
 Editor.Tab.CloseOthers=Закрыть остальные
 Editor.Tab.CloseAll=Закрыть все
@@ -339,6 +341,23 @@ Settings.LineNumbers=Нумерация строк
 Settings.LineNumbersDesc=Показывать номера строк слева
 Settings.WordWrap=Перенос строк
 Settings.WordWrapDesc=Переносить длинные строки
+Settings.TabWidth=Ширина табуляции
+Settings.TabWidthDesc=Количество пробелов на отступ
+Settings.UseSpaces=Пробелы вместо табов
+Settings.UseSpacesDesc=Использовать пробелы вместо символа табуляции
+Settings.ColumnRuler=Вертикальная линейка
+Settings.ColumnRulerDesc=Показывать вертикальную линию на позиции столбца
+Settings.RulerPosition=Позиция линейки
+Settings.RulerPositionDesc=Номер столбца для линии линейки
+Settings.ShowSpaces=Показывать пробелы
+Settings.ShowSpacesDesc=Отображать пробелы точками
+Settings.ShowTabs=Показывать табы
+Settings.ShowTabsDesc=Отображать символы табуляции стрелками
+Settings.ShowEndOfLine=Показывать концы строк
+Settings.ShowEndOfLineDesc=Отображать маркеры концов строк (CR/LF)
+Editor.SaveAs=Сохранить как
+Editor.ToggleReadOnly=Переключить «только чтение»
+Editor.Words=слов
 Settings.DefaultShell=Оболочка по умолчанию
 Settings.DefaultShellDesc=Командная оболочка для новых вкладок
 Settings.TerminalFont=Шрифт терминала
@@ -1084,6 +1103,10 @@ Sftp.Renaming=Переименование {0}
 # ═══════════════════════════════════════════
 Ssh.NameHostRequired=Имя и хост обязательны
 Ssh.ProfileSaved=Профиль сохранён
+Ssh.NoProfileSelected=Выберите профиль для проверки
+Ssh.Checking=Проверка подключения...
+Ssh.Reachable=Успешное подключение к {0}
+Ssh.Unreachable=Не удалось подключиться к {0}
 
 # ═══════════════════════════════════════════
 # GIT (расширенное)
@@ -1342,3 +1365,285 @@ Settings.CopyTimestampsCheck=Копировать метки времени
 Settings.CopyTimestampsDesc=Сохранять метки времени файлов при копировании
 Settings.ReserveSpace=Резервировать место на диске
 Settings.ReserveSpaceDesc=Предварительно выделять место на диске перед копированием
+
+# ═══════════════════════════════════════════
+# НЕДОСТАЮЩИЕ ПЕРЕВОДЫ (синхронизация с EN)
+# ═══════════════════════════════════════════
+
+# Меню
+Menu.File.Info=Информация
+Menu.File.Properties=Свойства…
+Menu.Tools.CloudStorage=Облачные хранилища…
+Menu.Tools.Macros=Макросы…
+Menu.Tools.Plugins=Плагины…
+
+# Сравнение файлов
+Diff.SideBySide=Рядом (Side-by-Side)
+Diff.Inline=Встроку (Inline)
+Diff.Legend.Added=добавлено
+Diff.Legend.Removed=удалено
+Diff.Legend.Modified=изменено
+Diff.PrevDiff=Предыдущее отличие
+Diff.NextDiff=Следующее отличие
+Diff.BinaryCompareError=Ошибка сравнения: {0}
+
+# Hex-вьювер
+Hex.PrevDiff=◀ Пред.
+Hex.NextDiff=След. ▶
+
+# Редактор
+Editor.SaveErrTitle=Ошибка
+
+# Редактор — изображения
+Editor.Image.ZoomIn=Увеличить
+Editor.Image.ZoomOut=Уменьшить
+Editor.Image.ZoomReset=Размер 1:1
+Editor.Image.ZoomFit=Вписать в окно
+Editor.Image.RotateLeft=Повернуть влево 90°
+Editor.Image.RotateRight=Повернуть вправо 90°
+Editor.Image.Slideshow=Слайд-шоу
+Editor.Image.SlideshowStop=Остановить слайд-шоу
+Editor.Image.Size={0} × {1} пкс
+
+# Архив — подсказки кнопок
+Archive.Tip.Minimize=Свернуть
+Archive.Tip.Maximize=Развернуть
+Archive.Tip.Close=Закрыть
+
+# Атрибуты
+Attr.HardlinkMenu=Создать жёсткую ссылку…
+Attr.SymlinkMenu=Создать символическую ссылку…
+Attr.AccessDenied=доступ запрещён
+
+# Закладки — подсказки
+Bookmark.Tip.Up=Вверх
+Bookmark.Tip.Down=Вниз
+
+# Диалог
+Dialog.Message=Сообщение
+
+# Дерево каталогов
+DirTree.Tip.Close=Закрыть (Esc)
+
+# Дубликаты
+Dup.FileCount={0} файл(ов)
+Dup.Ready=Готово
+Dup.Cancelled=Поиск отменён
+Dup.Criterion.Size=По размеру
+Dup.Criterion.SizeName=По размеру и имени
+Dup.Criterion.Hash=По хешу (SHA-256)
+Dup.Criterion.Content=По содержимому (побайтово)
+
+# Ошибки
+Error.Title=Ошибка
+Error.OpenSync=Ошибка открытия синхронизации папок: {0}
+Error.OpenQueue=Ошибка открытия очереди операций: {0}
+Error.OpenBookmarks=Ошибка открытия закладок: {0}
+Error.OpenArchive=Ошибка открытия окна архивов: {0}
+Error.OpenTree=Ошибка открытия дерева каталогов: {0}
+Error.OpenColumnSettings=Ошибка открытия настроек колонок: {0}
+Error.OpenFile=Не удалось открыть файл: {0}
+Error.SearchFile=Не удалось открыть файл: {0}
+
+# Информация о файле
+FileInfo.Name=Имя: {0}
+FileInfo.Path=Путь: {0}
+FileInfo.Type=Тип: {0}
+FileInfo.TypeDir=Каталог
+FileInfo.TypeFile=Файл
+FileInfo.Size=Размер: {0}
+FileInfo.Modified=Изменён: {0}
+FileInfo.Created=Создан: {0}
+FileInfo.Attributes=Атрибуты: {0}
+
+# Панель файлов
+FilePanel.Tip.AutoRefresh=Авто-обновление папки
+FilePanel.SortBy=Сортировать по: {0}
+
+# Git — подсказки
+Git.Tip.Ahead=Опережает удалённую ветку
+Git.Tip.Behind=Отстаёт от удалённой ветки
+
+# Главное окно
+Main.Commands=команды
+Main.Panel=панель
+Main.Tools=Инструменты
+Main.Terminal=Терминал
+Main.Tip.Commands=Команды (F1)
+Main.Tip.Minimize=Свернуть (Esc)
+Main.Tip.TerminalCmd=Создать терминал Windows Command
+Main.Tip.TerminalPs=Создать терминал PowerShell
+Main.Tip.TerminalPwsh=Создать терминал PowerShell Core (pwsh)
+Main.Tip.TerminalClose=Закрыть (Shift+F10)
+
+# Синхронизация
+Sync.Ready=Готово
+
+# SSH
+Ssh.Tip.KeyFile=Выбрать файл приватного ключа
+
+# Быстрые команды
+Quick.CloudStorage=Облако: Панель
+Quick.CloudStorageDesc=Показать браузер облачного хранилища
+Quick.CloudStorageResult=Облако открыто
+
+# Настройки — панель
+Settings.PanelFont=Шрифт панели
+Settings.PanelFontDesc=Семейство шрифтов для списка файлов
+Settings.PanelFontSize=Размер шрифта панели
+Settings.PanelFontSizeDesc=Размер шрифта в пунктах для списка файлов
+Settings.CopyNtfsPermissionsCheck=Копировать NTFS-права
+Settings.CopyNtfsPermissionsDesc=Копировать NTFS ACL (требуются права администратора)
+
+# Очередь операций
+OpQueue.Status.Running=Выполняется
+OpQueue.Status.Completed=Завершено
+OpQueue.Status.Failed=Ошибка
+OpQueue.Status.Cancelled=Отменено
+OpQueue.Status.Queued=В очереди
+OpQueue.Status.Paused=Приостановлено
+OpQueue.Title.Active=Очередь ({0} активных, {1} ожидающих)
+OpQueue.Title.Completed=Очередь завершена
+OpQueue.Title.Operations=Операции ({0})
+OpQueue.Pause=Приостановить
+OpQueue.Resume=Возобновить
+OpQueue.NoActive=Ожидание операций…
+OpQueue.NoOperations=Нет операций в очереди
+OpQueue.CloseConfirm=Закрыть окно? Операции продолжатся в фоне.\n\nОтменить все операции?
+OpQueue.CloseTitle=Закрыть очередь
+OpQueue.Col.Type=Тип
+OpQueue.Col.Source=Источник
+OpQueue.Col.Destination=Назначение
+OpQueue.Operation.Copy=Копирование
+OpQueue.Operation.Move=Перемещение
+
+# Диалог операций
+OpDlg.CurrentFile=Файл:
+OpDlg.Total=Итого:
+OpDlg.Skip=Пропустить
+OpDlg.Pause=Приостановить
+OpDlg.Resume=Возобновить
+OpDlg.Overwrite.OverwriteAll=Перезаписать всё
+OpDlg.Overwrite.SkipAll=Пропустить всё
+OpDlg.Overwrite.SizeInfo=Размер: {0}
+OpDlg.Overwrite.DateInfo=Изменён: {0}
+
+# Окно создания ссылок
+Link.Title.Symlink=Создать символическую ссылку
+Link.Title.Hardlink=Создать жёсткую ссылку
+Link.Target=Цель:
+Link.Name=Имя ссылки:
+Link.Path=Путь ссылки:
+Link.Type=Тип:
+Link.Type.Symlink=Символическая ссылка
+Link.Type.Hardlink=Жёсткая ссылка
+Link.Create=Создать
+Link.Cancel=Отмена
+Link.Success=Ссылка создана: {0}
+Link.Error=Ошибка создания ссылки: {0}
+Link.AdminRequired=Для символических ссылок требуются права администратора
+Link.NameEmpty=Имя ссылки не может быть пустым
+Link.AlreadyExists=Ссылка уже существует: {0}
+Link.InvalidChars=Имя ссылки содержит недопустимые символы
+Link.MultipleTitle=Создание ссылок
+Link.MultipleFiles=Файлы:
+Link.Done=Ссылки созданы: {0}, ошибок: {1}
+
+# Менеджер макросов
+Macro.Title=Менеджер макросов
+Macro.Name=Имя:
+Macro.Description=Описание:
+Macro.Hotkey=Горячая клавиша:
+Macro.Enabled=Включён
+Macro.Steps=Шаги:
+Macro.AddStep=Добавить шаг
+Macro.RemoveStep=Удалить шаг
+Macro.MoveUp=Вверх
+Macro.MoveDown=Вниз
+Macro.Execute=Выполнить
+Macro.Save=Сохранить
+Macro.Cancel=Отмена
+Macro.Add=Добавить макрос
+Macro.Delete=Удалить макрос
+Macro.DeleteConfirm=Удалить макрос «{0}»?
+Macro.ExecuteDone=Макрос выполнен: {0} шагов
+Macro.ExecuteError=Ошибка макроса: {0}
+Macro.NoCommand=Команда не найдена: {0}
+Macro.NoSteps=Макрос не имеет шагов
+Macro.NameEmpty=Имя макроса не может быть пустым
+Macro.ColCommand=Команда
+Macro.ColParams=Параметры
+Macro.ColOrder=#
+Macro.StepCommandPrompt=Имя команды (например app.copy):
+Macro.StepParamsPrompt=Параметры (ключ=значение;ключ2=значение2):
+Macro.Saved=Макросы сохранены
+
+# Менеджер плагинов
+Plugin.Title=Менеджер плагинов
+Plugin.Name=Имя
+Plugin.Version=Версия
+Plugin.Author=Автор
+Plugin.Description=Описание
+Plugin.Enabled=Включён
+Plugin.Disabled=Отключён
+Plugin.Enable=Включить
+Plugin.Disable=Отключить
+Plugin.Reload=Перезагрузить
+Plugin.Refresh=Обновить
+Plugin.OpenFolder=Открыть папку плагинов
+Plugin.NoPlugins=Плагинов не найдено. Поместите DLL-файлы в папку плагинов.
+Plugin.LoadError=Ошибка загрузки плагина: {0}
+Plugin.Initialized=Плагин инициализирован: {0}
+
+# Свойства — кнопки
+Props.EditAttributes=Изменить атрибуты
+Props.EditTimestamps=Изменить метки времени
+
+# ═══════════════════════════════════════════
+# НАСТРОЙКИ — НОВЫЕ КЛЮЧИ (ph9.6)
+# ═══════════════════════════════════════════
+Settings.Panels=Панели
+Settings.Files=Файлы
+Settings.SortFoldersFirst=Папки сверху
+Settings.ShowFileSizeLabel=Размер
+Settings.ShowDateLabel=Дата
+Settings.ShowAttributesLabel=Атрибуты
+Settings.ShowPathInTitle=Путь в заголовке
+Settings.WindowOpacity=Прозрачность окна
+Settings.SectionFont=Шрифт
+Settings.SectionDisplay=Отображение
+Settings.SectionIndent=Табуляция
+Settings.SectionShell=Оболочка
+Settings.SectionBehavior=Поведение
+Settings.EditorHighlightCurrentLine=Текущая строка
+Settings.EditorHighlightBrackets=Скобки
+Settings.EditorAutoCloseBrackets=Авто-скобки
+Settings.EditorAutoCloseQuotes=Авто-кавычки
+Settings.EditorMinHighlightLength=Мин. длина слова
+Settings.Width=Ширина
+Settings.ScrollbackLines=Прокрутка (строки)
+Settings.Cursor=Курсор
+Settings.CursorBlock=Блок
+Settings.CursorUnderline=Подчёркивание
+Settings.CursorBar=Вертикальная черта
+Settings.TerminalHeight=Высота панели
+Settings.DirectoryTree=Дерево каталогов
+Settings.DoubleClick=Двойной клик
+Settings.HiddenFolders=Скрытые папки
+Settings.FullPaths=Полные пути
+Settings.RememberPaths=Запоминать пути
+Settings.Ms=мс
+Settings.AutoRefreshCheck=Авто-обновление
+Settings.DoubleClickFile=Двойной клик → файл
+Settings.Overwrite=Перезапись
+Settings.Copying=Копирование
+Settings.CopyAttributesLabel=Атрибуты
+Settings.CopyTimestampsLabel=Метки времени
+Settings.ReserveSpaceLabel=Резерв места
+Settings.VerifyAfterCopy=Проверка
+Settings.AbortOnError=Стоп при ошибке
+Settings.AutoShowQueue=Показать очередь
+Settings.Confirmation=Подтверждение
+Settings.ConfirmDeleteLabel=Удаление
+Settings.ConfirmOverwriteLabel=Перезапись
+Settings.MaxRecursion=Макс. глубина рекурсии

@@ -201,9 +201,10 @@
 
             <!-- Button premium flat -->
             <Style TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="{DynamicResource BgButtonBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgButtonBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="Padding" Value="8,5"/>
                 <Setter Property="FontSize" Value="13"/>
@@ -211,20 +212,24 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                    CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="5" Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.BgButtonHoverBrush}}"/>
                                     <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                     <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.3"/>
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -234,9 +239,9 @@
 
             <!-- TextBox glowing focus -->
             <Style TargetType="TextBox">
-                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource BgInputBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
                 <Setter Property="Padding" Value="10,6"/>
@@ -383,12 +388,12 @@
     <Setter Property="Template">
         <Setter.Value>
             <ControlTemplate TargetType="Button">
-                <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                        <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.BgButtonHoverBrush}}"/>
                         <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
                     </Trigger>
                     <Trigger Property="IsPressed" Value="True">
@@ -439,9 +444,9 @@
 
             <!-- ComboBox -->
             <Style TargetType="ComboBox">
-                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource BgButtonBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
@@ -713,8 +718,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="Box" Width="18" Height="18"
-                                        Background="{Binding Source={x:Static services:ThemeColors.SurfaceBrush}}"
-                                        BorderBrush="{Binding Source={x:Static services:ThemeColors.BorderBrush}}"
+                                        Background="{Binding Source={x:Static services:ThemeColors.BgButtonBrush}}"
+                                        BorderBrush="{Binding Source={x:Static services:ThemeColors.BgButtonBorderBrush}}"
                                         BorderThickness="1.5" CornerRadius="5" VerticalAlignment="Center">
                                     <Path x:Name="Check" Data="M3,7 L6.5,10.5 L12,4"
                                           Stroke="{Binding Source={x:Static services:ThemeColors.AccentBrush}}" StrokeThickness="2"
@@ -726,6 +731,8 @@
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="Box" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Box" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
@@ -757,24 +764,24 @@
 
     <!-- Default Button для диалогов (Cancel / secondary) -->
     <Style x:Key="DefaultButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-        <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource BgButtonBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource FgButtonBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="FontWeight" Value="Normal"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource BgButtonHoverBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- PasswordBox -->
-    <Style TargetType="PasswordBox">
-        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <!-- PasswordBox -->
+            <Style TargetType="PasswordBox">
+                <Setter Property="Background" Value="{DynamicResource BgInputBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="FontSize" Value="13"/>
@@ -807,9 +814,9 @@
 
             <!-- DatePicker -->
             <Style TargetType="DatePicker">
-                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource BgInputBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="8,4"/>
                 <Setter Property="FontSize" Value="12"/>
@@ -935,8 +942,8 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Border x:Name="Radio" Width="18" Height="18"
-                                        Background="{Binding Source={x:Static services:ThemeColors.SurfaceBrush}}"
-                                        BorderBrush="{Binding Source={x:Static services:ThemeColors.BorderBrush}}"
+                                        Background="{Binding Source={x:Static services:ThemeColors.BgButtonBrush}}"
+                                        BorderBrush="{Binding Source={x:Static services:ThemeColors.BgButtonBorderBrush}}"
                                         BorderThickness="1.5" CornerRadius="9" VerticalAlignment="Center">
                                     <Ellipse x:Name="Dot" Width="8" Height="8"
                                              Fill="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"
@@ -948,6 +955,8 @@
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="Radio" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    <Setter TargetName="Radio" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Radio" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>

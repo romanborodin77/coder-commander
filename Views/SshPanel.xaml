@@ -27,7 +27,7 @@
                     <Separator Style="{DynamicResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="6,2"/>
 
                     <!-- Группа: Действия -->
-                    <Button ToolTip="{DynamicResource Ssh.Tip.Check}" Margin="4,0,0,0">
+                    <Button Command="{Binding CheckConnectionCommand}" ToolTip="{DynamicResource Ssh.Tip.Check}" Margin="4,0,0,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="&#xE8CD;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Ssh.CheckConnection}" VerticalAlignment="Center"/>
@@ -171,6 +171,7 @@
                                  Foreground="{DynamicResource FgDimBrush}"/>
                         <Button Grid.Column="1" Content="⋯" Width="28"
                                 Margin="4,0,0,0"
+                                Command="{Binding BrowseIdentityFileCommand}"
                                 ToolTip="{DynamicResource Ssh.Tip.KeyFile}"/>
                     </Grid>
 

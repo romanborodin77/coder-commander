@@ -101,7 +101,10 @@
     <SolidColorBrush x:Key="TitleBarBgBrush" Color="{DynamicResource TitleBarBg}"/>
     <SolidColorBrush x:Key="TitleBarFgBrush" Color="{DynamicResource FgLight}"/>
     <SolidColorBrush x:Key="BgInputBrush" Color="#1A1E2A"/>
-    <SolidColorBrush x:Key="BgButtonBrush" Color="#252A38"/>
+    <SolidColorBrush x:Key="BgButtonBrush" Color="#333745"/>
+    <SolidColorBrush x:Key="BgButtonHoverBrush" Color="#3D4150"/>
+    <SolidColorBrush x:Key="BgButtonBorderBrush" Color="#4A4E5C"/>
+    <SolidColorBrush x:Key="FgButtonBrush" Color="#D4D4D4"/>
     <SolidColorBrush x:Key="AppTitleBrush" Color="{StaticResource AppTitleColor}"/>
     <SolidColorBrush x:Key="AppSubtitleBrush" Color="{StaticResource AppSubtitleColor}"/>
 

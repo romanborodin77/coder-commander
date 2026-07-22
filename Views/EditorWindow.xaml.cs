@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -7,7 +9,11 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
+using ICSharpCode.AvalonEdit.CodeCompletion;
+using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Folding;
 using ICSharpCode.AvalonEdit.Rendering;
+using ICSharpCode.AvalonEdit.Search;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -34,6 +40,12 @@ public partial class EditorWindow : Window
 
     /// <summary>Подсветчики текущей строки для каждого редактора. / Current line highlighters for each editor.</summary>
     private readonly Dictionary<TextEditor, CurrentLineHighlighter> _highlighters = new();
+
+    /// <summary>Подсветчики текущего слова для каждого редактора. / Current word highlighters for each editor.</summary>
+    private readonly Dictionary<TextEditor, CurrentWordHighlighter> _wordHighlighters = new();
+
+    /// <summary>Менеджеры фолдинга для каждого редактора. / Folding managers for each editor.</summary>
+    private readonly Dictionary<TextEditor, FoldingManager> _foldingManagers = new();
 
     /// <summary>Флаг: режим просмотра изображений (нет вкладок). / Flag: image viewer mode (no tabs).</summary>
     private bool _isImageMode;
@@ -139,11 +151,14 @@ public partial class EditorWindow : Window
     /// </summary>
     private void AddEditorTab(EditorTabViewModel tab)
     {
+        var settings = SettingsService.Load();
+
         var editor = new TextEditor
         {
-            FontFamily = new FontFamily("Cascadia Code, Consolas, Courier New"),
-            FontSize = 14,
-            ShowLineNumbers = true,
+            FontFamily = new FontFamily(settings.EditorFontFamily),
+            FontSize = settings.EditorFontSize,
+            ShowLineNumbers = settings.EditorShowLineNumbers,
+            WordWrap = settings.EditorWordWrap,
             Tag = tab
         };
 
@@ -153,6 +168,17 @@ public partial class EditorWindow : Window
         editor.BorderThickness = new Thickness(0);
         editor.Padding = new Thickness(8, 4, 0, 0);
 
+        editor.Options.IndentationSize = settings.EditorTabWidth;
+        editor.Options.ConvertTabsToSpaces = settings.EditorUseSpaces;
+        editor.Options.EnableHyperlinks = false;
+        editor.Options.EnableEmailHyperlinks = false;
+        editor.Options.ShowColumnRuler = settings.EditorShowColumnRuler;
+        editor.Options.ColumnRulerPosition = settings.EditorColumnRulerPosition;
+        editor.Options.ShowSpaces = settings.EditorShowSpaces;
+        editor.Options.ShowTabs = settings.EditorShowTabs;
+        editor.Options.ShowEndOfLine = settings.EditorShowEndOfLine;
+        editor.Options.CutCopyWholeLine = true;
+
         editor.Text = tab.Content;
         editor.IsReadOnly = tab.IsReadOnly;
 
@@ -161,10 +187,39 @@ public partial class EditorWindow : Window
 
         var capturedTab = tab;
         var capturedEditor = editor;
+
+        SearchPanel.Install(editor);
+
+        var foldingManager = FoldingManager.Install(editor.TextArea);
+        _foldingManagers[editor] = foldingManager;
+        var foldingStrategy = new XmlFoldingStrategy();
+        foldingStrategy.UpdateFoldings(foldingManager, editor.Document);
+
         editor.TextChanged += (s, e) =>
         {
             capturedTab.UpdateContent(capturedEditor.Text);
+            if (_foldingManagers.TryGetValue(capturedEditor, out var fm))
+                foldingStrategy.UpdateFoldings(fm, capturedEditor.Document);
         };
+
+        var wordHighlighter = new CurrentWordHighlighter(editor);
+        _wordHighlighters[editor] = wordHighlighter;
+        editor.TextArea.TextView.BackgroundRenderers.Add(wordHighlighter);
+
+        editor.TextArea.TextView.BackgroundRenderers.Add(new BracketHighlightRenderer(editor));
+
+        editor.TextArea.MouseWheel += (s, e) =>
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                var delta = e.Delta > 0 ? 1 : -1;
+                var newSize = Math.Max(6, Math.Min(72, editor.FontSize + delta));
+                editor.FontSize = newSize;
+                e.Handled = true;
+            }
+        };
+
+        editor.TextArea.Caret.PositionChanged += (s, e) => UpdateCursorPosition(editor);
 
         _editors[tab] = editor;
         EditorContainer.Children.Add(editor);
@@ -181,6 +236,7 @@ public partial class EditorWindow : Window
         _vm.ActiveTab = tab;
 
         ShowEditor(tab);
+        UpdateCursorPosition(editor);
     }
 
     /// <summary>
@@ -270,6 +326,15 @@ public partial class EditorWindow : Window
         {
             EditorContainer.Children.Remove(editor);
             _highlighters.Remove(editor);
+            if (_wordHighlighters.TryGetValue(editor, out var wh))
+            {
+                editor.TextArea.TextView.BackgroundRenderers.Remove(wh);
+                _wordHighlighters.Remove(editor);
+            }
+            if (_foldingManagers.TryGetValue(editor, out var fm))
+            {
+                _foldingManagers.Remove(editor);
+            }
             _editors.Remove(tab);
         }
 
@@ -377,6 +442,15 @@ public partial class EditorWindow : Window
         {
             EditorContainer.Children.Remove(editor);
             _highlighters.Remove(editor);
+            if (_wordHighlighters.TryGetValue(editor, out var wh))
+            {
+                editor.TextArea.TextView.BackgroundRenderers.Remove(wh);
+                _wordHighlighters.Remove(editor);
+            }
+            if (_foldingManagers.TryGetValue(editor, out var fm))
+            {
+                _foldingManagers.Remove(editor);
+            }
             _editors.Remove(tab);
         }
 
@@ -402,6 +476,13 @@ public partial class EditorWindow : Window
         editor.FontSize = settings.EditorFontSize;
         editor.ShowLineNumbers = settings.EditorShowLineNumbers;
         editor.WordWrap = settings.EditorWordWrap;
+        editor.Options.IndentationSize = settings.EditorTabWidth;
+        editor.Options.ConvertTabsToSpaces = settings.EditorUseSpaces;
+        editor.Options.ShowColumnRuler = settings.EditorShowColumnRuler;
+        editor.Options.ColumnRulerPosition = settings.EditorColumnRulerPosition;
+        editor.Options.ShowSpaces = settings.EditorShowSpaces;
+        editor.Options.ShowTabs = settings.EditorShowTabs;
+        editor.Options.ShowEndOfLine = settings.EditorShowEndOfLine;
     }
 
     // ═══════════════════════════════════════════
@@ -471,6 +552,197 @@ public partial class EditorWindow : Window
             depObj = VisualTreeHelper.GetParent(depObj);
         }
         return null;
+    }
+
+    // ═══════════════════════════════════════════
+    // CURSOR POSITION / ПОЗИЦИЯ КУРСОРА
+    // ═══════════════════════════════════════════
+
+    private void UpdateCursorPosition(TextEditor editor)
+    {
+        if (editor.Document == null) return;
+        var offset = editor.CaretOffset;
+        var line = editor.Document.GetLineByOffset(offset);
+        var lineNum = line.LineNumber;
+        var col = offset - line.Offset + 1;
+        CursorPositionText.Text = $"Ln {lineNum}, Col {col}";
+
+        var text = editor.Document.Text;
+        var wordCount = string.IsNullOrWhiteSpace(text) ? 0 : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        WordCountText.Text = $"{wordCount} {LocalizationService.Current.GetString("Editor.Words")}";
+    }
+
+    // ═══════════════════════════════════════════
+    // GO TO LINE / ПЕРЕХОД К СТРОКЕ
+    // ═══════════════════════════════════════════
+
+    internal void GoToLine()
+    {
+        if (_vm.ActiveTab == null || !_editors.TryGetValue(_vm.ActiveTab, out var editor)) return;
+
+        var inputDialog = new InputDialog(
+            LocalizationService.Current.GetString("Editor.GoToLine"),
+            LocalizationService.Current.GetString("Editor.GoToLine.Title"),
+            "1");
+        if (inputDialog.ShowDialog() != true) return;
+
+        if (int.TryParse(inputDialog.InputValue, out var lineNumber) && lineNumber >= 1)
+        {
+            var maxLine = editor.Document.LineCount;
+            lineNumber = Math.Min(lineNumber, maxLine);
+            var line = editor.Document.GetLineByNumber(lineNumber);
+            editor.CaretOffset = line.Offset;
+            editor.ScrollToLine(lineNumber);
+            editor.Focus();
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // SAVE AS / СОХРАНИТЬ КАК
+    // ═══════════════════════════════════════════
+
+    internal void SaveAsActiveTab()
+    {
+        if (_vm.ActiveTab == null) return;
+        var tab = _vm.ActiveTab;
+        if (!_editors.TryGetValue(tab, out var editor)) return;
+
+        var dlg = new SaveFileDialog
+        {
+            Title = LocalizationService.Current.GetString("Editor.SaveAs"),
+            FileName = tab.FileName,
+            Filter = "All files (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var text = editor.Text;
+            File.WriteAllText(dlg.FileName, text, System.Text.Encoding.UTF8);
+            tab.FilePath = dlg.FileName;
+            tab.FileName = Path.GetFileName(dlg.FileName);
+            tab.Content = text;
+            tab.OriginalContent = text;
+            tab.IsModified = false;
+            SyncTabControl();
+            Title = tab.FileName;
+            CursorPositionText.Text = LocalizationService.Current.GetString("Editor.Saved");
+        }
+        catch (Exception ex)
+        {
+            StyledMessageBoxWindow.Show(
+                string.Format(LocalizationService.Current.GetString("Editor.SaveError"), ex.Message),
+                LocalizationService.Current.GetString("Error.Title"),
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // TOGGLE READ-ONLY / ПЕРЕКЛЮЧЕНИЕ РЕЖИМА ТОЛЬКО ЧТЕНИЕ
+    // ═══════════════════════════════════════════
+
+    internal void ToggleReadOnly()
+    {
+        if (_vm.ActiveTab == null || !_editors.TryGetValue(_vm.ActiveTab, out var editor)) return;
+        editor.IsReadOnly = !editor.IsReadOnly;
+        _vm.ActiveTab.IsReadOnly = editor.IsReadOnly;
+        _vm.ModeIcon = editor.IsReadOnly ? "\uE714" : "\uE104";
+    }
+
+    // ═══════════════════════════════════════════
+    // COMMENT TOGGLE / ПЕРЕКЛЮЧЕНИЕ КОММЕНТАРИЯ
+    // ═══════════════════════════════════════════
+
+    internal void ToggleComment()
+    {
+        if (_vm.ActiveTab == null || !_editors.TryGetValue(_vm.ActiveTab, out var editor)) return;
+        if (editor.IsReadOnly) return;
+
+        var (commentPrefix, commentSuffix) = GetCommentDelimiters(_vm.ActiveTab.FilePath);
+        if (string.IsNullOrEmpty(commentPrefix)) return;
+
+        var doc = editor.Document;
+        var selectionStart = editor.SelectionStart;
+        var selectionLength = editor.SelectionLength;
+
+        int startLine, endLine;
+        if (selectionLength > 0)
+        {
+            startLine = doc.GetLineByOffset(selectionStart).LineNumber;
+            endLine = doc.GetLineByOffset(selectionStart + selectionLength).LineNumber;
+        }
+        else
+        {
+            var caretLine = doc.GetLineByOffset(editor.CaretOffset);
+            startLine = endLine = caretLine.LineNumber;
+        }
+
+        bool allCommented = true;
+        for (int i = startLine; i <= endLine; i++)
+        {
+            var line = doc.GetLineByNumber(i);
+            var text = doc.GetText(line.Offset, line.Length).TrimStart();
+            if (!text.StartsWith(commentPrefix, StringComparison.Ordinal))
+            {
+                allCommented = false;
+                break;
+            }
+        }
+
+        using (doc.RunUpdate())
+        {
+            for (int i = startLine; i <= endLine; i++)
+            {
+                var line = doc.GetLineByNumber(i);
+                var lineText = doc.GetText(line.Offset, line.Length);
+
+                if (allCommented)
+                {
+                    var trimmed = lineText.TrimStart();
+                    if (trimmed.StartsWith(commentPrefix, StringComparison.Ordinal))
+                    {
+                        var indent = lineText.Length - lineText.TrimStart().Length;
+                        var afterPrefix = trimmed[commentPrefix.Length..];
+                        if (!string.IsNullOrEmpty(commentSuffix) && afterPrefix.EndsWith(commentSuffix, StringComparison.Ordinal))
+                            afterPrefix = afterPrefix[..^commentSuffix.Length];
+                        if (afterPrefix.Length > 0 && afterPrefix[0] == ' ')
+                            afterPrefix = afterPrefix[1..];
+                        var newText = lineText[..indent] + afterPrefix;
+                        doc.Replace(line.Offset, line.Length, newText);
+                    }
+                }
+                else
+                {
+                    var indent = lineText.Length - lineText.TrimStart().Length;
+                    var newText = lineText[..indent] + commentPrefix + lineText[indent..] + commentSuffix;
+                    doc.Replace(line.Offset, line.Length, newText);
+                }
+            }
+        }
+    }
+
+    private static (string prefix, string suffix) GetCommentDelimiters(string filePath)
+    {
+        var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
+        return ext switch
+        {
+            ".html" or ".htm" or ".xml" or ".xaml" => ("<!-- ", " -->"),
+            _ => (GetCommentPrefix(filePath), "")
+        };
+    }
+
+    private static string GetCommentPrefix(string filePath)
+    {
+        var ext = Path.GetExtension(filePath)?.ToLowerInvariant();
+        return ext switch
+        {
+            ".cs" or ".js" or ".ts" or ".java" or ".cpp" or ".cc" or ".cxx" or ".h" or ".hpp"
+                or ".css" or ".go" or ".rs" or ".php" => "//",
+            ".py" or ".sh" or ".bash" or ".ps1" or ".yaml" or ".yml" => "#",
+            ".html" or ".htm" or ".xml" or ".xaml" => "<!--",
+            ".sql" => "--",
+            _ => "//"
+        };
     }
 
     // ═══════════════════════════════════════════
@@ -771,6 +1043,295 @@ public partial class EditorWindow : Window
             }
         }
     }
+
+    // ═══════════════════════════════════════════
+    // BRACKET HIGHLIGHTER / ПОДСВЕТКА СКОБОК
+    // ═══════════════════════════════════════════
+
+    private class BracketHighlightRenderer : IBackgroundRenderer
+    {
+        private readonly TextEditor _editor;
+        private static readonly Dictionary<char, char> _pairs = new()
+        {
+            ['('] = ')', [')'] = '(',
+            ['{'] = '}', ['}'] = '{',
+            ['['] = ']', [']'] = '[',
+            ['<'] = '>', ['>'] = '<'
+        };
+
+        public BracketHighlightRenderer(TextEditor editor)
+        {
+            _editor = editor;
+        }
+
+        public KnownLayer Layer => KnownLayer.Selection;
+
+        public void Draw(TextView textView, DrawingContext drawingContext)
+        {
+            if (_editor.Document == null) return;
+            var offset = _editor.CaretOffset;
+            if (offset >= _editor.Document.TextLength) return;
+
+            var c = _editor.Document.GetCharAt(offset);
+            int? matchOffset = null;
+
+            if (_pairs.ContainsKey(c))
+            {
+                matchOffset = FindMatch(offset, c);
+            }
+            else if (offset > 0)
+            {
+                var prev = _editor.Document.GetCharAt(offset - 1);
+                if (_pairs.ContainsKey(prev))
+                {
+                    matchOffset = FindMatch(offset - 1, prev);
+                }
+            }
+
+            if (matchOffset == null) return;
+
+            var brush = new SolidColorBrush(Color.FromArgb(100, 100, 200, 255));
+            brush.Freeze();
+
+            foreach (var rect in BackgroundGeometryBuilder.GetRectsForSegment(textView, new SimpleSegment(offset, 1)))
+            {
+                drawingContext.DrawRectangle(null, new Pen(brush, 1.5), rect);
+            }
+            foreach (var rect in BackgroundGeometryBuilder.GetRectsForSegment(textView, new SimpleSegment(matchOffset.Value, 1)))
+            {
+                drawingContext.DrawRectangle(null, new Pen(brush, 1.5), rect);
+            }
+        }
+
+        private int FindMatch(int offset, char open)
+        {
+            var close = _pairs[open];
+            var isForward = open is '(' or '{' or '[' or '<';
+            var doc = _editor.Document;
+            var depth = 0;
+
+            if (isForward)
+            {
+                for (int i = offset; i < doc.TextLength; i++)
+                {
+                    var ch = doc.GetCharAt(i);
+                    if (ch == open) depth++;
+                    else if (ch == close) depth--;
+                    if (depth == 0) return i;
+                }
+            }
+            else
+            {
+                for (int i = offset; i >= 0; i--)
+                {
+                    var ch = doc.GetCharAt(i);
+                    if (ch == open) depth++;
+                    else if (ch == close) depth--;
+                    if (depth == 0) return i;
+                }
+            }
+            return -1;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // CURRENT WORD HIGHLIGHTER / ПОДСВЕТКА ТЕКУЩЕГО СЛОВА
+    // ═══════════════════════════════════════════
+
+    private class CurrentWordHighlighter : IBackgroundRenderer
+    {
+        private readonly TextEditor _editor;
+        private readonly SolidColorBrush _highlightBrush;
+        private SimpleSegment? _currentWord;
+        private List<ISegment> _segments = new();
+        private string _lastWord = "";
+        private Regex? _cachedRegex;
+
+        public CurrentWordHighlighter(TextEditor editor)
+        {
+            _editor = editor;
+            _highlightBrush = new SolidColorBrush(Color.FromArgb(60, 255, 255, 100));
+            _highlightBrush.Freeze();
+            _editor.TextArea.Caret.PositionChanged += OnCaretChanged;
+        }
+
+        public KnownLayer Layer => KnownLayer.Selection;
+
+        private void OnCaretChanged(object? sender, EventArgs e)
+        {
+            UpdateHighlight();
+            _editor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+        }
+
+        private void UpdateHighlight()
+        {
+            if (_editor.Document == null) { _currentWord = null; _segments = new(); return; }
+
+            var offset = _editor.CaretOffset;
+            if (offset >= _editor.Document.TextLength) { _currentWord = null; _segments = new(); return; }
+
+            var c = _editor.Document.GetCharAt(offset);
+            if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']' || c == ';' || c == ',')
+            { _currentWord = null; _segments = new(); return; }
+
+            var wordStart = offset;
+            var wordEnd = offset;
+
+            while (wordStart > 0)
+            {
+                var prev = _editor.Document.GetCharAt(wordStart - 1);
+                if (char.IsWhiteSpace(prev) || char.IsPunctuation(prev) || prev == '(' || prev == ')' || prev == '{' || prev == '}' || prev == '[' || prev == ']' || prev == ';' || prev == ',')
+                    break;
+                wordStart--;
+            }
+
+            while (wordEnd < _editor.Document.TextLength)
+            {
+                var next = _editor.Document.GetCharAt(wordEnd);
+                if (char.IsWhiteSpace(next) || char.IsPunctuation(next) || next == '(' || next == ')' || next == '{' || next == '}' || next == '[' || next == ']' || next == ';' || next == ',')
+                    break;
+                wordEnd++;
+            }
+
+            var wordLength = wordEnd - wordStart;
+            if (wordLength < 1) { _currentWord = null; _segments = new(); return; }
+
+            var word = _editor.Document.GetText(wordStart, wordLength);
+            if (word == _lastWord) return;
+            _lastWord = word;
+
+            _currentWord = new SimpleSegment(wordStart, wordLength);
+
+            if (_cachedRegex == null || _cachedRegex.ToString() != $@"\b{Regex.Escape(word)}\b")
+                _cachedRegex = new Regex($@"\b{Regex.Escape(word)}\b", RegexOptions.Compiled);
+
+            var found = new List<ISegment>();
+            var text = _editor.Document.Text;
+            foreach (Match m in _cachedRegex.Matches(text))
+            {
+                found.Add(new SimpleSegment(m.Index, m.Length));
+            }
+            _segments = found;
+        }
+
+        public void Draw(TextView textView, DrawingContext drawingContext)
+        {
+            if (_currentWord == null) return;
+            foreach (var seg in _segments)
+            {
+                if (seg.Offset == _currentWord.Offset && seg.Length == _currentWord.Length) continue;
+                foreach (var rect in BackgroundGeometryBuilder.GetRectsForSegment(textView, seg))
+                {
+                    drawingContext.DrawRectangle(_highlightBrush, null, rect);
+                }
+            }
+        }
+    }
+
+    private class SimpleSegment : ISegment
+    {
+        public int Offset { get; }
+        public int Length { get; }
+        public int EndOffset => Offset + Length;
+
+        public SimpleSegment(int offset, int length)
+        {
+            Offset = offset;
+            Length = length;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // INPUT DIALOG / ДИАЛОГ ВВОДА
+    // ═══════════════════════════════════════════
+
+    private class InputDialog : Window
+    {
+        public string InputValue { get; private set; } = "";
+
+        public InputDialog(string prompt, string title, string defaultValue = "")
+        {
+            Title = title;
+            Width = 350;
+            Height = 150;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            WindowStyle = WindowStyle.ToolWindow;
+            Background = (SolidColorBrush)Application.Current.TryFindResource("BgDarkBrush") ?? Brushes.Black;
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var contentPanel = new StackPanel { Margin = new Thickness(16, 12, 16, 0) };
+            var promptText = new TextBlock
+            {
+                Text = prompt,
+                Foreground = (SolidColorBrush)Application.Current.TryFindResource("FgLightBrush") ?? Brushes.White,
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            contentPanel.Children.Add(promptText);
+
+            var inputBox = new TextBox
+            {
+                Text = defaultValue,
+                FontSize = 14,
+                Padding = new Thickness(6, 4, 6, 4),
+                Background = (SolidColorBrush)Application.Current.TryFindResource("VsEditorBg") ?? Brushes.Black,
+                Foreground = (SolidColorBrush)Application.Current.TryFindResource("VsEditorFg") ?? Brushes.White,
+                BorderBrush = (SolidColorBrush)Application.Current.TryFindResource("AccentBrush") ?? Brushes.CornflowerBlue,
+                BorderThickness = new Thickness(1)
+            };
+            inputBox.KeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Enter) { InputValue = inputBox.Text; DialogResult = true; }
+                else if (e.Key == Key.Escape) { DialogResult = false; }
+            };
+            contentPanel.Children.Add(inputBox);
+            Grid.SetRow(contentPanel, 0);
+            grid.Children.Add(contentPanel);
+
+            var buttonsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(16, 8, 16, 12)
+            };
+            var okBtn = new Button
+            {
+                Content = "OK",
+                Padding = new Thickness(16, 6, 16, 6),
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 8, 0),
+                Background = (SolidColorBrush)Application.Current.TryFindResource("AccentBrush") ?? Brushes.CornflowerBlue,
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0),
+                IsDefault = true
+            };
+            okBtn.Click += (s, e) => { InputValue = inputBox.Text; DialogResult = true; };
+            buttonsPanel.Children.Add(okBtn);
+
+            var cancelBtn = new Button
+            {
+                Content = LocalizationService.Current.GetString("Dialog.Cancel"),
+                Padding = new Thickness(16, 6, 16, 6),
+                FontSize = 12,
+                Background = (SolidColorBrush)Application.Current.TryFindResource("BgHeaderBrush") ?? Brushes.DarkGray,
+                Foreground = (SolidColorBrush)Application.Current.TryFindResource("FgLightBrush") ?? Brushes.White,
+                BorderBrush = (SolidColorBrush)Application.Current.TryFindResource("BorderBrush") ?? Brushes.Gray,
+                BorderThickness = new Thickness(1),
+                IsCancel = true
+            };
+            cancelBtn.Click += (s, e) => { DialogResult = false; };
+            buttonsPanel.Children.Add(cancelBtn);
+            Grid.SetRow(buttonsPanel, 1);
+            grid.Children.Add(buttonsPanel);
+
+            Content = grid;
+
+            Loaded += (s, e) => { inputBox.Focus(); inputBox.SelectAll(); };
+        }
+    }
 }
 
 // ═══════════════════════════════════════════
@@ -865,6 +1426,30 @@ public partial class EditorWindowViewModel : ObservableObject
     [RelayCommand]
     private void CloseAllTabs() => _window.CloseAllTabs();
 
+    /// <summary>Перейти к строке (Ctrl+G). / Go to line (Ctrl+G).</summary>
+    [RelayCommand]
+    private void GoToLine() => _window.GoToLine();
+
+    /// <summary>Переключить комментарий (Ctrl+.). / Toggle comment (Ctrl+.).</summary>
+    [RelayCommand]
+    private void CommentLine() => _window.ToggleComment();
+
+    /// <summary>Сохранить как (Ctrl+Shift+S). / Save As (Ctrl+Shift+S).</summary>
+    [RelayCommand]
+    private void SaveAs()
+    {
+        if (ActiveTab == null) return;
+        _window.SaveAsActiveTab();
+    }
+
+    /// <summary>Переключить режим «только чтение». / Toggle read-only mode.</summary>
+    [RelayCommand]
+    private void ToggleReadOnly()
+    {
+        if (ActiveTab == null) return;
+        _window.ToggleReadOnly();
+    }
+
     /// <summary>
     /// Проверяет все вкладки на несохранённые изменения перед закрытием окна.
     /// Checks all tabs for unsaved changes before closing the window.
@@ -873,7 +1458,6 @@ public partial class EditorWindowViewModel : ObservableObject
     {
         foreach (var tab in Tabs.ToList())
         {
-            _window.GetEditorText(tab);
             tab.Content = _window.GetEditorText(tab);
             if (tab.HasUnsavedChanges())
             {

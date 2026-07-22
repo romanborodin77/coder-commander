@@ -446,6 +446,8 @@ public sealed class LocalizationService
         _strings["Editor.Tab.New"] = "New tab";
         _strings["Editor.Tabs.UnsavedPrompt"] = "Save changes to {0}?";
         _strings["Editor.Tabs.UnsavedTitle"] = "Unsaved changes";
+        _strings["Editor.GoToLine"] = "Go to line";
+        _strings["Editor.GoToLine.Title"] = "Line number:";
 
         // ═══════════════════════════════════════════
         // IMAGE VIEWER
@@ -485,6 +487,23 @@ public sealed class LocalizationService
         _strings["Settings.LineNumbersDesc"] = "Show line numbers on the left";
         _strings["Settings.WordWrap"] = "Word wrap";
         _strings["Settings.WordWrapDesc"] = "Wrap long lines";
+        _strings["Settings.TabWidth"] = "Tab width";
+        _strings["Settings.TabWidthDesc"] = "Number of spaces per indent";
+        _strings["Settings.UseSpaces"] = "Spaces instead of tabs";
+        _strings["Settings.UseSpacesDesc"] = "Use spaces instead of tab character";
+        _strings["Settings.ColumnRuler"] = "Column ruler";
+        _strings["Settings.ColumnRulerDesc"] = "Show vertical line at column position";
+        _strings["Settings.RulerPosition"] = "Ruler position";
+        _strings["Settings.RulerPositionDesc"] = "Column number for the ruler line";
+        _strings["Settings.ShowSpaces"] = "Show spaces";
+        _strings["Settings.ShowSpacesDesc"] = "Display space characters as dots";
+        _strings["Settings.ShowTabs"] = "Show tabs";
+        _strings["Settings.ShowTabsDesc"] = "Display tab characters as arrows";
+        _strings["Settings.ShowEndOfLine"] = "Show line endings";
+        _strings["Settings.ShowEndOfLineDesc"] = "Display end-of-line markers (CR/LF)";
+        _strings["Editor.SaveAs"] = "Save As";
+        _strings["Editor.ToggleReadOnly"] = "Toggle Read-Only";
+        _strings["Editor.Words"] = "words";
         _strings["Settings.DefaultShell"] = "Default shell";
         _strings["Settings.DefaultShellDesc"] = "Shell for new tabs";
         _strings["Settings.TerminalFont"] = "Terminal font";
@@ -1206,6 +1225,10 @@ public sealed class LocalizationService
         // ═══════════════════════════════════════════
         _strings["Ssh.NameHostRequired"] = "Name and host are required";
         _strings["Ssh.ProfileSaved"] = "Profile saved";
+        _strings["Ssh.NoProfileSelected"] = "Select a profile to check";
+        _strings["Ssh.Checking"] = "Checking connection...";
+        _strings["Ssh.Reachable"] = "Connected to {0} successfully";
+        _strings["Ssh.Unreachable"] = "Cannot connect to {0}";
 
         // ═══════════════════════════════════════════
         // GIT EXTENDED STATUS
@@ -1548,6 +1571,288 @@ public sealed class LocalizationService
         _strings["Main.Properties"] = "Properties…";
         _strings["Main.Wipe"] = "Wipe…";
         _strings["Main.CompareFiles"] = "Compare files…";
+
+        // ═══════════════════════════════════════════
+        // MISSING ENGLISH FALLBACKS (sync with ru.lng)
+        // ═══════════════════════════════════════════
+
+        // Menu
+        _strings["Menu.File.Info"] = "Info";
+        _strings["Menu.File.Properties"] = "Properties…";
+        _strings["Menu.Tools.CloudStorage"] = "Cloud Storage…";
+        _strings["Menu.Tools.Macros"] = "Macros…";
+        _strings["Menu.Tools.Plugins"] = "Plugins…";
+
+        // Diff
+        _strings["Diff.SideBySide"] = "Side by Side";
+        _strings["Diff.Inline"] = "Inline";
+        _strings["Diff.Legend.Added"] = "added";
+        _strings["Diff.Legend.Removed"] = "removed";
+        _strings["Diff.Legend.Modified"] = "modified";
+        _strings["Diff.PrevDiff"] = "Previous diff";
+        _strings["Diff.NextDiff"] = "Next diff";
+        _strings["Diff.BinaryCompareError"] = "Compare error: {0}";
+
+        // Hex
+        _strings["Hex.PrevDiff"] = "◀ Prev";
+        _strings["Hex.NextDiff"] = "Next ▶";
+
+        // Editor
+        _strings["Editor.SaveErrTitle"] = "Error";
+
+        // Editor Image
+        _strings["Editor.Image.ZoomIn"] = "Zoom In";
+        _strings["Editor.Image.ZoomOut"] = "Zoom Out";
+        _strings["Editor.Image.ZoomReset"] = "Actual Size (1:1)";
+        _strings["Editor.Image.ZoomFit"] = "Fit to Window";
+        _strings["Editor.Image.RotateLeft"] = "Rotate Left 90°";
+        _strings["Editor.Image.RotateRight"] = "Rotate Right 90°";
+        _strings["Editor.Image.Slideshow"] = "Slideshow";
+        _strings["Editor.Image.SlideshowStop"] = "Stop Slideshow";
+        _strings["Editor.Image.Size"] = "{0} × {1} px";
+
+        // Archive tips
+        _strings["Archive.Tip.Minimize"] = "Minimize";
+        _strings["Archive.Tip.Maximize"] = "Maximize";
+        _strings["Archive.Tip.Close"] = "Close";
+
+        // Attributes
+        _strings["Attr.HardlinkMenu"] = "Create hardlink…";
+        _strings["Attr.SymlinkMenu"] = "Create symlink…";
+        _strings["Attr.AccessDenied"] = "access denied";
+
+        // Bookmarks
+        _strings["Bookmark.Tip.Up"] = "Up";
+        _strings["Bookmark.Tip.Down"] = "Down";
+
+        // Dialog
+        _strings["Dialog.Message"] = "Message";
+
+        // Directory tree
+        _strings["DirTree.Tip.Close"] = "Close (Esc)";
+
+        // Duplicates
+        _strings["Dup.FileCount"] = "{0} file(s)";
+        _strings["Dup.Ready"] = "Ready";
+        _strings["Dup.Cancelled"] = "Search cancelled";
+        _strings["Dup.Criterion.Size"] = "By size";
+        _strings["Dup.Criterion.SizeName"] = "By size and name";
+        _strings["Dup.Criterion.Hash"] = "By hash (SHA-256)";
+        _strings["Dup.Criterion.Content"] = "By content (byte-by-byte)";
+
+        // Error messages
+        _strings["Error.Title"] = "Error";
+        _strings["Error.OpenSync"] = "Error opening sync: {0}";
+        _strings["Error.OpenQueue"] = "Error opening queue: {0}";
+        _strings["Error.OpenBookmarks"] = "Error opening bookmarks: {0}";
+        _strings["Error.OpenArchive"] = "Error opening archive: {0}";
+        _strings["Error.OpenTree"] = "Error opening directory tree: {0}";
+        _strings["Error.OpenColumnSettings"] = "Error opening column settings: {0}";
+        _strings["Error.OpenFile"] = "Failed to open file: {0}";
+        _strings["Error.SearchFile"] = "Failed to open file: {0}";
+
+        // FileInfo
+        _strings["FileInfo.Name"] = "Name: {0}";
+        _strings["FileInfo.Path"] = "Path: {0}";
+        _strings["FileInfo.Type"] = "Type: {0}";
+        _strings["FileInfo.TypeDir"] = "Directory";
+        _strings["FileInfo.TypeFile"] = "File";
+        _strings["FileInfo.Size"] = "Size: {0}";
+        _strings["FileInfo.Modified"] = "Modified: {0}";
+        _strings["FileInfo.Created"] = "Created: {0}";
+        _strings["FileInfo.Attributes"] = "Attributes: {0}";
+
+        // FilePanel
+        _strings["FilePanel.Tip.AutoRefresh"] = "Auto-refresh folder";
+        _strings["FilePanel.SortBy"] = "Sort by: {0}";
+
+        // Git tips
+        _strings["Git.Tip.Ahead"] = "Ahead of remote branch";
+        _strings["Git.Tip.Behind"] = "Behind remote branch";
+
+        // Main window
+        _strings["Main.Commands"] = "commands";
+        _strings["Main.Panel"] = "panel";
+        _strings["Main.Tools"] = "Tools";
+        _strings["Main.Terminal"] = "Terminal";
+        _strings["Main.Tip.Commands"] = "Commands (F1)";
+        _strings["Main.Tip.Minimize"] = "Minimize (Esc)";
+        _strings["Main.Tip.TerminalCmd"] = "Open Windows Command terminal";
+        _strings["Main.Tip.TerminalPs"] = "Open PowerShell terminal";
+        _strings["Main.Tip.TerminalPwsh"] = "Open PowerShell Core (pwsh) terminal";
+        _strings["Main.Tip.TerminalClose"] = "Close (Shift+F10)";
+
+        // Sync
+        _strings["Sync.Ready"] = "Ready";
+
+        // SSH
+        _strings["Ssh.Tip.KeyFile"] = "Select private key file";
+
+        // Quick Commands
+        _strings["Quick.CloudStorage"] = "Cloud Storage: Panel";
+        _strings["Quick.CloudStorageDesc"] = "Show cloud storage browser";
+        _strings["Quick.CloudStorageResult"] = "Cloud Storage opened";
+
+        // Settings
+        _strings["Settings.PanelFont"] = "Panel font";
+        _strings["Settings.PanelFontDesc"] = "Font family for file list panels";
+        _strings["Settings.PanelFontSize"] = "Panel font size";
+        _strings["Settings.PanelFontSizeDesc"] = "Font size in points for file list";
+        _strings["Settings.CopyNtfsPermissionsCheck"] = "Copy NTFS permissions";
+        _strings["Settings.CopyNtfsPermissionsDesc"] = "Copy NTFS ACL (requires administrator rights)";
+
+        // Operation Queue
+        _strings["OpQueue.Status.Running"] = "Running";
+        _strings["OpQueue.Status.Completed"] = "Done";
+        _strings["OpQueue.Status.Failed"] = "Failed";
+        _strings["OpQueue.Status.Cancelled"] = "Cancelled";
+        _strings["OpQueue.Status.Queued"] = "Queued";
+        _strings["OpQueue.Status.Paused"] = "Paused";
+        _strings["OpQueue.Title.Active"] = "Queue ({0} active, {1} pending)";
+        _strings["OpQueue.Title.Completed"] = "Queue completed";
+        _strings["OpQueue.Title.Operations"] = "Operations ({0})";
+        _strings["OpQueue.Pause"] = "Pause";
+        _strings["OpQueue.Resume"] = "Resume";
+        _strings["OpQueue.NoActive"] = "Waiting for operations…";
+        _strings["OpQueue.NoOperations"] = "No operations in queue";
+        _strings["OpQueue.CloseConfirm"] = "Close window? Operations will continue in background.\n\nCancel all operations?";
+        _strings["OpQueue.CloseTitle"] = "Close Queue";
+        _strings["OpQueue.Col.Type"] = "Type";
+        _strings["OpQueue.Col.Source"] = "Source";
+        _strings["OpQueue.Col.Destination"] = "Destination";
+        _strings["OpQueue.Operation.Copy"] = "Copy";
+        _strings["OpQueue.Operation.Move"] = "Move";
+
+        // Operation Dialog
+        _strings["OpDlg.CurrentFile"] = "File:";
+        _strings["OpDlg.Total"] = "Total:";
+        _strings["OpDlg.Skip"] = "Skip";
+        _strings["OpDlg.Pause"] = "Pause";
+        _strings["OpDlg.Resume"] = "Resume";
+        _strings["OpDlg.Overwrite.OverwriteAll"] = "Overwrite All";
+        _strings["OpDlg.Overwrite.SkipAll"] = "Skip All";
+        _strings["OpDlg.Overwrite.SizeInfo"] = "Size: {0}";
+        _strings["OpDlg.Overwrite.DateInfo"] = "Modified: {0}";
+
+        // Link window
+        _strings["Link.Title.Symlink"] = "Create Symbolic Link";
+        _strings["Link.Title.Hardlink"] = "Create Hard Link";
+        _strings["Link.Target"] = "Target:";
+        _strings["Link.Name"] = "Link name:";
+        _strings["Link.Path"] = "Link path:";
+        _strings["Link.Type"] = "Type:";
+        _strings["Link.Type.Symlink"] = "Symbolic Link";
+        _strings["Link.Type.Hardlink"] = "Hard Link";
+        _strings["Link.Create"] = "Create";
+        _strings["Link.Cancel"] = "Cancel";
+        _strings["Link.Success"] = "Link created: {0}";
+        _strings["Link.Error"] = "Error creating link: {0}";
+        _strings["Link.AdminRequired"] = "Administrator rights required for symbolic links";
+        _strings["Link.NameEmpty"] = "Link name cannot be empty";
+        _strings["Link.AlreadyExists"] = "Link already exists: {0}";
+        _strings["Link.InvalidChars"] = "Link name contains invalid characters";
+        _strings["Link.MultipleTitle"] = "Create Links";
+        _strings["Link.MultipleFiles"] = "Files:";
+        _strings["Link.Done"] = "Links created: {0}, errors: {1}";
+
+        // Macro manager
+        _strings["Macro.Title"] = "Macro Manager";
+        _strings["Macro.Name"] = "Name:";
+        _strings["Macro.Description"] = "Description:";
+        _strings["Macro.Hotkey"] = "Hotkey:";
+        _strings["Macro.Enabled"] = "Enabled";
+        _strings["Macro.Steps"] = "Steps:";
+        _strings["Macro.AddStep"] = "Add step";
+        _strings["Macro.RemoveStep"] = "Remove step";
+        _strings["Macro.MoveUp"] = "Move up";
+        _strings["Macro.MoveDown"] = "Move down";
+        _strings["Macro.Execute"] = "Execute";
+        _strings["Macro.Save"] = "Save";
+        _strings["Macro.Cancel"] = "Cancel";
+        _strings["Macro.Add"] = "Add macro";
+        _strings["Macro.Delete"] = "Delete macro";
+        _strings["Macro.DeleteConfirm"] = "Delete macro '{0}'?";
+        _strings["Macro.ExecuteDone"] = "Macro executed: {0} steps";
+        _strings["Macro.ExecuteError"] = "Macro error: {0}";
+        _strings["Macro.NoCommand"] = "Command not found: {0}";
+        _strings["Macro.NoSteps"] = "Macro has no steps";
+        _strings["Macro.NameEmpty"] = "Macro name cannot be empty";
+        _strings["Macro.ColCommand"] = "Command";
+        _strings["Macro.ColParams"] = "Parameters";
+        _strings["Macro.ColOrder"] = "#";
+        _strings["Macro.StepCommandPrompt"] = "Command name (e.g. app.copy):";
+        _strings["Macro.StepParamsPrompt"] = "Parameters (key=value;key2=value2):";
+        _strings["Macro.Saved"] = "Macros saved";
+
+        // Plugin manager
+        _strings["Plugin.Title"] = "Plugin Manager";
+        _strings["Plugin.Name"] = "Name";
+        _strings["Plugin.Version"] = "Version";
+        _strings["Plugin.Author"] = "Author";
+        _strings["Plugin.Description"] = "Description";
+        _strings["Plugin.Enabled"] = "Enabled";
+        _strings["Plugin.Disabled"] = "Disabled";
+        _strings["Plugin.Enable"] = "Enable";
+        _strings["Plugin.Disable"] = "Disable";
+        _strings["Plugin.Reload"] = "Reload";
+        _strings["Plugin.Refresh"] = "Refresh";
+        _strings["Plugin.OpenFolder"] = "Open plugins folder";
+        _strings["Plugin.NoPlugins"] = "No plugins found. Place DLL files in the plugins folder.";
+        _strings["Plugin.LoadError"] = "Failed to load plugin: {0}";
+        _strings["Plugin.Initialized"] = "Plugin initialized: {0}";
+
+        // Properties
+        _strings["Props.EditAttributes"] = "Edit attributes";
+        _strings["Props.EditTimestamps"] = "Edit timestamps";
+
+        // ═══════════════════════════════════════════
+        // SETTINGS — NEW KEYS (ph9.6)
+        // ═══════════════════════════════════════════
+        _strings["Settings.Panels"] = "Panels";
+        _strings["Settings.Files"] = "Files";
+        _strings["Settings.SortFoldersFirst"] = "Folders first";
+        _strings["Settings.ShowFileSizeLabel"] = "Size";
+        _strings["Settings.ShowDateLabel"] = "Date";
+        _strings["Settings.ShowAttributesLabel"] = "Attributes";
+        _strings["Settings.ShowPathInTitle"] = "Path in title";
+        _strings["Settings.WindowOpacity"] = "Window opacity";
+        _strings["Settings.SectionFont"] = "Font";
+        _strings["Settings.SectionDisplay"] = "Display";
+        _strings["Settings.SectionIndent"] = "Indentation";
+        _strings["Settings.SectionShell"] = "Shell";
+        _strings["Settings.SectionBehavior"] = "Behavior";
+        _strings["Settings.EditorHighlightCurrentLine"] = "Current line";
+        _strings["Settings.EditorHighlightBrackets"] = "Brackets";
+        _strings["Settings.EditorAutoCloseBrackets"] = "Auto-brackets";
+        _strings["Settings.EditorAutoCloseQuotes"] = "Auto-quotes";
+        _strings["Settings.EditorMinHighlightLength"] = "Min word length";
+        _strings["Settings.Width"] = "Width";
+        _strings["Settings.ScrollbackLines"] = "Scrollback lines";
+        _strings["Settings.Cursor"] = "Cursor";
+        _strings["Settings.CursorBlock"] = "Block";
+        _strings["Settings.CursorUnderline"] = "Underline";
+        _strings["Settings.CursorBar"] = "Vertical bar";
+        _strings["Settings.TerminalHeight"] = "Panel height";
+        _strings["Settings.DirectoryTree"] = "Directory tree";
+        _strings["Settings.DoubleClick"] = "Double-click";
+        _strings["Settings.HiddenFolders"] = "Hidden folders";
+        _strings["Settings.FullPaths"] = "Full paths";
+        _strings["Settings.RememberPaths"] = "Remember paths";
+        _strings["Settings.Ms"] = "ms";
+        _strings["Settings.AutoRefreshCheck"] = "Auto-refresh";
+        _strings["Settings.DoubleClickFile"] = "Double-click → file";
+        _strings["Settings.Overwrite"] = "Overwrite";
+        _strings["Settings.Copying"] = "Copying";
+        _strings["Settings.CopyAttributesLabel"] = "Attributes";
+        _strings["Settings.CopyTimestampsLabel"] = "Timestamps";
+        _strings["Settings.ReserveSpaceLabel"] = "Reserve space";
+        _strings["Settings.VerifyAfterCopy"] = "Verify";
+        _strings["Settings.AbortOnError"] = "Abort on error";
+        _strings["Settings.AutoShowQueue"] = "Show queue";
+        _strings["Settings.Confirmation"] = "Confirmation";
+        _strings["Settings.ConfirmDeleteLabel"] = "Delete";
+        _strings["Settings.ConfirmOverwriteLabel"] = "Overwrite";
+        _strings["Settings.MaxRecursion"] = "Max recursion depth";
     }
 
     /// <summary>

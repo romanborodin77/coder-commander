@@ -27,6 +27,10 @@ public static class ThemeColors
     public static SolidColorBrush SurfaceBrush { get; } = new(Color.FromRgb(0x25, 0x25, 0x26));
     public static SolidColorBrush SelectionBrush { get; } = new(Color.FromArgb(0x33, 0x78, 0xD4, 0x55));
     public static SolidColorBrush SelectionActiveBrush { get; } = new(Color.FromArgb(0x55, 0x78, 0xD4, 0x88));
+    public static SolidColorBrush BgButtonBrush { get; } = new(Color.FromRgb(0x33, 0x37, 0x45));
+    public static SolidColorBrush BgButtonHoverBrush { get; } = new(Color.FromRgb(0x3D, 0x41, 0x50));
+    public static SolidColorBrush BgButtonBorderBrush { get; } = new(Color.FromRgb(0x4A, 0x4E, 0x5C));
+    public static SolidColorBrush FgButtonBrush { get; } = new(Color.FromRgb(0xD4, 0xD4, 0xD4));
 
     public static void Update(ThemeMode theme)
     {
@@ -44,6 +48,10 @@ public static class ThemeColors
             SurfaceBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
             SelectionBrush.Color = Color.FromArgb(0x33, 0x66, 0xBF, 0x44);
             SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x66, 0xBF, 0x77);
+            BgButtonBrush.Color = Color.FromRgb(0xDC, 0xE0, 0xE8);
+            BgButtonHoverBrush.Color = Color.FromRgb(0xCD, 0xD1, 0xDA);
+            BgButtonBorderBrush.Color = Color.FromRgb(0xBC, 0xC1, 0xCC);
+            FgButtonBrush.Color = Color.FromRgb(0x1F, 0x1F, 0x1F);
         }
         else
         {

@@ -64,6 +64,13 @@ public class SettingsViewModel : INotifyPropertyChanged
         EditorFontSizeIndex = GetFontSizeIndex(s.EditorFontSize);
         EditorShowLineNumbers = s.EditorShowLineNumbers;
         EditorWordWrap = s.EditorWordWrap;
+        EditorTabWidthIndex = GetTabWidthIndex(s.EditorTabWidth);
+        EditorUseSpaces = s.EditorUseSpaces;
+        EditorShowColumnRuler = s.EditorShowColumnRuler;
+        EditorColumnRulerPosition = s.EditorColumnRulerPosition;
+        EditorShowSpaces = s.EditorShowSpaces;
+        EditorShowTabs = s.EditorShowTabs;
+        EditorShowEndOfLine = s.EditorShowEndOfLine;
         TerminalShellIndex = s.TerminalShell == "cmd" ? 0 : 1;
         TerminalFontFamily = s.TerminalFontFamily;
         TerminalFontSizeIndex = GetTerminalFontSizeIndex(s.TerminalFontSize);
@@ -79,6 +86,35 @@ public class SettingsViewModel : INotifyPropertyChanged
         CopyAttributes = s.CopyAttributes;
         CopyTimestamps = s.CopyTimestamps;
         ReserveDiskSpace = s.ReserveDiskSpace;
+        // ph9.6
+        WindowOpacity = s.WindowOpacity;
+        ShowFullPathInTitle = s.ShowFullPathInTitle;
+        ShowFileSize = s.ShowFileSize;
+        ShowModificationDate = s.ShowModificationDate;
+        ShowFileAttributes = s.ShowFileAttributes;
+        SortFoldersFirst = s.SortFoldersFirst;
+        ShowDirectoryTree = s.ShowDirectoryTree;
+        DoubleClickOpenFolder = s.DoubleClickOpenFolder;
+        ShowHiddenFolders = s.ShowHiddenFolders;
+        DefaultTerminalHeight = s.DefaultTerminalHeight;
+        TerminalScrollbackLines = s.TerminalScrollbackLines;
+        TerminalCursorStyleIndex = s.TerminalCursorStyle switch { "block" => 0, "underscore" => 1, "bar" => 2, _ => 0 };
+        EditorHighlightCurrentLine = s.EditorHighlightCurrentLine;
+        EditorHighlightBrackets = s.EditorHighlightBrackets;
+        EditorAutoCloseBrackets = s.EditorAutoCloseBrackets;
+        EditorAutoCloseQuotes = s.EditorAutoCloseQuotes;
+        EditorMinHighlightLength = s.EditorMinHighlightLength;
+        ShowToolbar = s.ShowToolbar;
+        ShowStatusBar = s.ShowStatusBar;
+        ShowPathInPanelTitle = s.ShowPathInPanelTitle;
+        RememberLastPaths = s.RememberLastPaths;
+        RecentPathsCount = s.RecentPathsCount;
+        DoubleClickOpenFile = s.DoubleClickOpenFile;
+        ShowFullPathsInPanels = s.ShowFullPathsInPanels;
+        VerifyAfterCopy = s.VerifyAfterCopy;
+        AbortOnError = s.AbortOnError;
+        MaxRecursionDepth = s.MaxRecursionDepth;
+        AutoShowQueue = s.AutoShowQueue;
         HotkeysVM.LoadFrom(s);
     }
 
@@ -102,6 +138,13 @@ public class SettingsViewModel : INotifyPropertyChanged
         s.EditorFontSize = GetFontSizeFromIndex(EditorFontSizeIndex);
         s.EditorShowLineNumbers = EditorShowLineNumbers;
         s.EditorWordWrap = EditorWordWrap;
+        s.EditorTabWidth = GetTabWidthFromIndex(EditorTabWidthIndex);
+        s.EditorUseSpaces = EditorUseSpaces;
+        s.EditorShowColumnRuler = EditorShowColumnRuler;
+        s.EditorColumnRulerPosition = EditorColumnRulerPosition;
+        s.EditorShowSpaces = EditorShowSpaces;
+        s.EditorShowTabs = EditorShowTabs;
+        s.EditorShowEndOfLine = EditorShowEndOfLine;
         s.TerminalShell = TerminalShellIndex == 0 ? "cmd" : "powershell";
         s.TerminalFontFamily = TerminalFontFamily;
         s.TerminalFontSize = GetTerminalFontSizeFromIndex(TerminalFontSizeIndex);
@@ -117,6 +160,35 @@ public class SettingsViewModel : INotifyPropertyChanged
         s.CopyAttributes = CopyAttributes;
         s.CopyTimestamps = CopyTimestamps;
         s.ReserveDiskSpace = ReserveDiskSpace;
+        // ph9.6
+        s.WindowOpacity = WindowOpacity;
+        s.ShowFullPathInTitle = ShowFullPathInTitle;
+        s.ShowFileSize = ShowFileSize;
+        s.ShowModificationDate = ShowModificationDate;
+        s.ShowFileAttributes = ShowFileAttributes;
+        s.SortFoldersFirst = SortFoldersFirst;
+        s.ShowDirectoryTree = ShowDirectoryTree;
+        s.DoubleClickOpenFolder = DoubleClickOpenFolder;
+        s.ShowHiddenFolders = ShowHiddenFolders;
+        s.DefaultTerminalHeight = DefaultTerminalHeight;
+        s.TerminalScrollbackLines = TerminalScrollbackLines;
+        s.TerminalCursorStyle = TerminalCursorStyleIndex switch { 0 => "block", 1 => "underscore", 2 => "bar", _ => "block" };
+        s.EditorHighlightCurrentLine = EditorHighlightCurrentLine;
+        s.EditorHighlightBrackets = EditorHighlightBrackets;
+        s.EditorAutoCloseBrackets = EditorAutoCloseBrackets;
+        s.EditorAutoCloseQuotes = EditorAutoCloseQuotes;
+        s.EditorMinHighlightLength = EditorMinHighlightLength;
+        s.ShowToolbar = ShowToolbar;
+        s.ShowStatusBar = ShowStatusBar;
+        s.ShowPathInPanelTitle = ShowPathInPanelTitle;
+        s.RememberLastPaths = RememberLastPaths;
+        s.RecentPathsCount = RecentPathsCount;
+        s.DoubleClickOpenFile = DoubleClickOpenFile;
+        s.ShowFullPathsInPanels = ShowFullPathsInPanels;
+        s.VerifyAfterCopy = VerifyAfterCopy;
+        s.AbortOnError = AbortOnError;
+        s.MaxRecursionDepth = MaxRecursionDepth;
+        s.AutoShowQueue = AutoShowQueue;
         HotkeysVM.SaveTo(s);
     }
 
@@ -196,6 +268,14 @@ public class SettingsViewModel : INotifyPropertyChanged
     {
         0 => 256, 1 => 512, 2 => 1024, 3 => 2048, 4 => 4096, _ => 1024
     };
+    private static int GetTabWidthIndex(int width) => width switch
+    {
+        2 => 0, 4 => 1, 6 => 2, 8 => 3, _ => 1
+    };
+    private static int GetTabWidthFromIndex(int idx) => idx switch
+    {
+        0 => 2, 1 => 4, 2 => 6, 3 => 8, _ => 4
+    };
 
     // ========== Binding-свойства ==========
 
@@ -226,6 +306,34 @@ public class SettingsViewModel : INotifyPropertyChanged
     /// <summary>Перенос строк в редакторе.</summary>
     private bool _editorWordWrap;
     public bool EditorWordWrap { get => _editorWordWrap; set { _editorWordWrap = value; OnPropertyChanged(); } }
+
+    /// <summary>Индекс ширины табуляции (0=2, 1=4, 2=6, 3=8).</summary>
+    private int _editorTabWidthIndex = 1;
+    public int EditorTabWidthIndex { get => _editorTabWidthIndex; set { _editorTabWidthIndex = value; OnPropertyChanged(); } }
+
+    /// <summary>Использовать пробелы вместо табуляции.</summary>
+    private bool _editorUseSpaces = true;
+    public bool EditorUseSpaces { get => _editorUseSpaces; set { _editorUseSpaces = value; OnPropertyChanged(); } }
+
+    /// <summary>Показывать вертикальную линейку.</summary>
+    private bool _editorShowColumnRuler;
+    public bool EditorShowColumnRuler { get => _editorShowColumnRuler; set { _editorShowColumnRuler = value; OnPropertyChanged(); } }
+
+    /// <summary>Позиция линейки (столбец).</summary>
+    private int _editorColumnRulerPosition = 80;
+    public int EditorColumnRulerPosition { get => _editorColumnRulerPosition; set { _editorColumnRulerPosition = value; OnPropertyChanged(); } }
+
+    /// <summary>Показывать пробелы.</summary>
+    private bool _editorShowSpaces;
+    public bool EditorShowSpaces { get => _editorShowSpaces; set { _editorShowSpaces = value; OnPropertyChanged(); } }
+
+    /// <summary>Показывать табуляцию.</summary>
+    private bool _editorShowTabs;
+    public bool EditorShowTabs { get => _editorShowTabs; set { _editorShowTabs = value; OnPropertyChanged(); } }
+
+    /// <summary>Показывать концы строк.</summary>
+    private bool _editorShowEndOfLine;
+    public bool EditorShowEndOfLine { get => _editorShowEndOfLine; set { _editorShowEndOfLine = value; OnPropertyChanged(); } }
 
     /// <summary>Индекс оболочки терминала (0=cmd, 1=powershell).</summary>
     private int _terminalShellIndex;
@@ -290,6 +398,98 @@ public class SettingsViewModel : INotifyPropertyChanged
     /// <summary>Резервировать место на диске. / Reserve disk space.</summary>
     private bool _reserveDiskSpace;
     public bool ReserveDiskSpace { get => _reserveDiskSpace; set { _reserveDiskSpace = value; OnPropertyChanged(); } }
+
+    // ═══════════════ Дополнительные настройки (ph9.6) ═══════════════
+
+    // Внешний вид
+    private double _windowOpacity = 1.0;
+    public double WindowOpacity { get => _windowOpacity; set { _windowOpacity = value; OnPropertyChanged(); } }
+
+    private bool _showFullPathInTitle = true;
+    public bool ShowFullPathInTitle { get => _showFullPathInTitle; set { _showFullPathInTitle = value; OnPropertyChanged(); } }
+
+    private bool _showFileSize = true;
+    public bool ShowFileSize { get => _showFileSize; set { _showFileSize = value; OnPropertyChanged(); } }
+
+    private bool _showModificationDate = true;
+    public bool ShowModificationDate { get => _showModificationDate; set { _showModificationDate = value; OnPropertyChanged(); } }
+
+    private bool _showFileAttributes = true;
+    public bool ShowFileAttributes { get => _showFileAttributes; set { _showFileAttributes = value; OnPropertyChanged(); } }
+
+    private bool _sortFoldersFirst = true;
+    public bool SortFoldersFirst { get => _sortFoldersFirst; set { _sortFoldersFirst = value; OnPropertyChanged(); } }
+
+    // Панели
+    private bool _showDirectoryTree;
+    public bool ShowDirectoryTree { get => _showDirectoryTree; set { _showDirectoryTree = value; OnPropertyChanged(); } }
+
+    private bool _doubleClickOpenFolder = true;
+    public bool DoubleClickOpenFolder { get => _doubleClickOpenFolder; set { _doubleClickOpenFolder = value; OnPropertyChanged(); } }
+
+    private bool _showHiddenFolders = true;
+    public bool ShowHiddenFolders { get => _showHiddenFolders; set { _showHiddenFolders = value; OnPropertyChanged(); } }
+
+    // Терминал
+    private double _defaultTerminalHeight = 300;
+    public double DefaultTerminalHeight { get => _defaultTerminalHeight; set { _defaultTerminalHeight = value; OnPropertyChanged(); } }
+
+    private int _terminalScrollbackLines = 9999;
+    public int TerminalScrollbackLines { get => _terminalScrollbackLines; set { _terminalScrollbackLines = value; OnPropertyChanged(); } }
+
+    private int _terminalCursorStyleIndex;
+    public int TerminalCursorStyleIndex { get => _terminalCursorStyleIndex; set { _terminalCursorStyleIndex = value; OnPropertyChanged(); } }
+
+    // Редактор
+    private bool _editorHighlightCurrentLine = true;
+    public bool EditorHighlightCurrentLine { get => _editorHighlightCurrentLine; set { _editorHighlightCurrentLine = value; OnPropertyChanged(); } }
+
+    private bool _editorHighlightBrackets = true;
+    public bool EditorHighlightBrackets { get => _editorHighlightBrackets; set { _editorHighlightBrackets = value; OnPropertyChanged(); } }
+
+    private bool _editorAutoCloseBrackets = true;
+    public bool EditorAutoCloseBrackets { get => _editorAutoCloseBrackets; set { _editorAutoCloseBrackets = value; OnPropertyChanged(); } }
+
+    private bool _editorAutoCloseQuotes;
+    public bool EditorAutoCloseQuotes { get => _editorAutoCloseQuotes; set { _editorAutoCloseQuotes = value; OnPropertyChanged(); } }
+
+    private int _editorMinHighlightLength = 2;
+    public int EditorMinHighlightLength { get => _editorMinHighlightLength; set { _editorMinHighlightLength = value; OnPropertyChanged(); } }
+
+    // Поведение
+    private bool _showToolbar = true;
+    public bool ShowToolbar { get => _showToolbar; set { _showToolbar = value; OnPropertyChanged(); } }
+
+    private bool _showStatusBar = true;
+    public bool ShowStatusBar { get => _showStatusBar; set { _showStatusBar = value; OnPropertyChanged(); } }
+
+    private bool _showPathInPanelTitle = true;
+    public bool ShowPathInPanelTitle { get => _showPathInPanelTitle; set { _showPathInPanelTitle = value; OnPropertyChanged(); } }
+
+    private bool _rememberLastPaths = true;
+    public bool RememberLastPaths { get => _rememberLastPaths; set { _rememberLastPaths = value; OnPropertyChanged(); } }
+
+    private int _recentPathsCount = 10;
+    public int RecentPathsCount { get => _recentPathsCount; set { _recentPathsCount = value; OnPropertyChanged(); } }
+
+    private bool _doubleClickOpenFile = true;
+    public bool DoubleClickOpenFile { get => _doubleClickOpenFile; set { _doubleClickOpenFile = value; OnPropertyChanged(); } }
+
+    private bool _showFullPathsInPanels;
+    public bool ShowFullPathsInPanels { get => _showFullPathsInPanels; set { _showFullPathsInPanels = value; OnPropertyChanged(); } }
+
+    // Файловые операции
+    private bool _verifyAfterCopy;
+    public bool VerifyAfterCopy { get => _verifyAfterCopy; set { _verifyAfterCopy = value; OnPropertyChanged(); } }
+
+    private bool _abortOnError = true;
+    public bool AbortOnError { get => _abortOnError; set { _abortOnError = value; OnPropertyChanged(); } }
+
+    private int _maxRecursionDepth = 50;
+    public int MaxRecursionDepth { get => _maxRecursionDepth; set { _maxRecursionDepth = value; OnPropertyChanged(); } }
+
+    private bool _autoShowQueue = true;
+    public bool AutoShowQueue { get => _autoShowQueue; set { _autoShowQueue = value; OnPropertyChanged(); } }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {

@@ -24,7 +24,9 @@ public partial class PanelViewModel
     private CancellationTokenSource? _watcherDebounceCts;
     private readonly object _watcherLock = new();
     private SynchronizationContext? _uiSync;
-    private const int WatcherDebounceMs = 200;
+    private const int WatcherDebounceMs = 500;
+    private DateTime _lastRefreshTime = DateTime.MinValue;
+    private volatile bool _isRefreshing;
 
     /// <summary>Включено ли авто-обновление панели при внешних изменениях папки.</summary>
     [ObservableProperty] private bool _autoRefresh = true;
@@ -138,8 +140,14 @@ public partial class PanelViewModel
         _watcher = null;
     }
 
-    private void OnWatched(object sender, FileSystemEventArgs e) => ScheduleRefresh();
-    private void OnWatchedRenamed(object sender, RenamedEventArgs e) => ScheduleRefresh();
+    private void OnWatched(object sender, FileSystemEventArgs e)
+    {
+        if (!_isRefreshing) ScheduleRefresh();
+    }
+    private void OnWatchedRenamed(object sender, RenamedEventArgs e)
+    {
+        if (!_isRefreshing) ScheduleRefresh();
+    }
 
     /// <summary>
     /// Обработчик ошибок watcher (например, переполнение буфера): переподписываемся.
@@ -152,14 +160,14 @@ public partial class PanelViewModel
     }
 
     /// <summary>
-    /// Планирует перезагрузку списка с debounce ~200 мс, чтобы серия событий
+    /// Планирует перезагрузку списка с debounce ~500 мс, чтобы серия событий
     /// (копирование/массовая запись) слилась в ОДНО обновление панели.
-    /// Schedules a list reload with ~200 ms debounce so a burst of events
+    /// Schedules a list reload with ~500 ms debounce so a burst of events
     /// (copy/mass write) coalesces into a SINGLE panel refresh.
     /// </summary>
     private void ScheduleRefresh()
     {
-        if (!AutoRefresh || _disposed) return;
+        if (!AutoRefresh || _disposed || _isRefreshing) return;
         lock (_watcherLock)
         {
             _watcherDebounceCts?.Cancel();

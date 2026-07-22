@@ -7,125 +7,160 @@ using CoderCommander.Models;
 namespace CoderCommander.Services;
 
 /// <summary>
-/// ????? ???? ??????????: ??????, ??????? ??? ?????????.
+/// Режим темы: тёмная, светлая или системная.
 /// Theme mode: dark, light, or system.
 /// </summary>
 public enum ThemeMode
 {
-    /// <summary>?????? ????. / Dark theme.</summary>
+    /// <summary>Тёмная тема. / Dark theme.</summary>
     Dark,
-    /// <summary>??????? ????. / Light theme.</summary>
+    /// <summary>Светлая тема. / Light theme.</summary>
     Light,
-    /// <summary>????????? ???? (???????????? ?? ??????? Windows). / System theme (detected from Windows registry).</summary>
+    /// <summary>Системная тема (определяется из реестра Windows). / System theme (detected from Windows registry).</summary>
     System
 }
 
 /// <summary>
-/// ?????? ???????? ??????????, ??????????? ? JSON.
+/// Модель настроек приложения, хранимых в JSON.
 /// Application settings model, persisted in JSON.
 /// </summary>
 public class AppSettings
 {
-    //???? ? ??????? ??? / Theme appearance
+    //Внешний вид / Theme appearance
 
     /// <summary>
-    /// ????? ???? ??????????. / Theme mode.
+    /// Режим темы. / Theme mode.
     /// </summary>
     public ThemeMode Theme { get; set; } = ThemeMode.Dark;
 
     /// <summary>
-    /// ??? ????? ?????????? (????????, "en", "ru"). / Interface language code (e.g., "en", "ru").
+    /// Код языка интерфейса (например, "en", "ru"). / Interface language code (e.g., "en", "ru").
     /// </summary>
     public string Language { get; set; } = "en";
 
     /// <summary>
-    /// ?????? ???????? ????. / Main window width.
+    /// Ширина главного окна. / Main window width.
     /// </summary>
     public double WindowWidth { get; set; } = 1500;
 
     /// <summary>
-    /// ?????? ???????? ????. / Main window height.
+    /// Высота главного окна. / Main window height.
     /// </summary>
     public double WindowHeight { get; set; } = 850;
 
     /// <summary>
-    /// ???? ?????? ????? ?????? (0..1). / Left panel width fraction (0..1).
+    /// Доля ширины левой панели (0..1). / Left panel width fraction (0..1).
     /// </summary>
     public double LeftPanelWidth { get; set; } = 0.5;
 
     /// <summary>
-    /// ?????????? ??????? ?????. / Show hidden files.
+    /// Показывать скрытые файлы. / Show hidden files.
     /// </summary>
     public bool ShowHidden { get; set; }
 
     /// <summary>
-    /// ????????? ???????? ????. / Last opened path.
+    /// Последний открытый путь. / Last opened path.
     /// </summary>
     public string LastPath { get; set; } = "";
 
-    //???????? / Editor
+    //Редактор / Editor
 
     /// <summary>
-    /// ????? ?????????. / Editor font family.
+    /// Шрифт редактора. / Editor font family.
     /// </summary>
     public string EditorFontFamily { get; set; } = "Cascadia Code";
 
     /// <summary>
-    /// ?????? ?????? ?????????. / Editor font size.
+    /// Размер шрифта редактора. / Editor font size.
     /// </summary>
     public double EditorFontSize { get; set; } = 14;
 
     /// <summary>
-    /// ?????????? ?????? ?????. / Show line numbers.
+    /// Показывать номера строк. / Show line numbers.
     /// </summary>
     public bool EditorShowLineNumbers { get; set; } = true;
 
     /// <summary>
-    /// ??????? ????? ? ?????????. / Editor word wrap.
+    /// Перенос слов в редакторе. / Editor word wrap.
     /// </summary>
     public bool EditorWordWrap { get; set; }
 
-    //???????? / Terminal
+    /// <summary>
+    /// Ширина табуляции (количество пробелов). / Tab width (number of spaces).
+    /// </summary>
+    public int EditorTabWidth { get; set; } = 4;
 
     /// <summary>
-    /// ???????? ????????? (cmd, powershell). / Terminal shell (cmd, powershell).
+    /// Использовать пробелы вместо табуляции. / Use spaces instead of tabs.
+    /// </summary>
+    public bool EditorUseSpaces { get; set; } = true;
+
+    /// <summary>
+    /// Показывать вертикальную линию-линейку (правая граница). / Show column ruler line.
+    /// </summary>
+    public bool EditorShowColumnRuler { get; set; }
+
+    /// <summary>
+    /// Позиция линейки (столбец). / Column ruler position.
+    /// </summary>
+    public int EditorColumnRulerPosition { get; set; } = 80;
+
+    /// <summary>
+    /// Показывать пробелы. / Show whitespace characters.
+    /// </summary>
+    public bool EditorShowSpaces { get; set; }
+
+    /// <summary>
+    /// Показывать табуляцию. / Show tab characters.
+    /// </summary>
+    public bool EditorShowTabs { get; set; }
+
+    /// <summary>
+    /// Показывать концы строк. / Show end-of-line characters.
+    /// </summary>
+    public bool EditorShowEndOfLine { get; set; }
+
+    //Терминал / Terminal
+
+    /// <summary>
+    /// Тип оболочки (cmd, powershell). / Terminal shell (cmd, powershell).
     /// </summary>
     public string TerminalShell { get; set; } = "cmd";
 
     /// <summary>
-    /// ?????? ?????? ????????? ? ????????. / Terminal panel height in pixels.
+    /// Высота панели терминала в пикселях. / Terminal panel height in pixels.
     /// </summary>
     public double TerminalPanelHeight { get; set; } = 300;
 
     /// <summary>
-    /// ????? ?????????. / Terminal font family.
+    /// Шрифт терминала. / Terminal font family.
     /// </summary>
     public string TerminalFontFamily { get; set; } = "Consolas";
 
     /// <summary>
-    /// ?????? ?????? ?????????. / Terminal font size.
+    /// Размер шрифта терминала. / Terminal font size.
     /// </summary>
     public double TerminalFontSize { get; set; } = 12;
 
-    //????????? / Behavior
+    //Поведение / Behavior
 
     /// <summary>
-    /// ??????????? ????????????? ??? ????????. / Confirm delete.
+    /// Подтверждение удаления. / Confirm delete.
     /// </summary>
     public bool ConfirmDelete { get; set; } = true;
 
     /// <summary>
-    /// ??????????? ????????????? ??? ??????????. / Confirm overwrite.
+    /// Подтверждение перезаписи. / Confirm overwrite.
     /// </summary>
     public bool ConfirmOverwrite { get; set; } = true;
 
     /// <summary>
-    /// ??????????? ?????????????? ? ?????????????. / Auto-refresh panel contents.
+    /// Автообновление содержимого панелей. / Auto-refresh panel contents.
     /// </summary>
     public bool AutoRefresh { get; set; } = true;
 
     /// <summary>
-    /// ???????? ?????????????? ? ?????????????. / Auto-refresh interval in milliseconds.
+    /// Интервал автообновления в миллисекундах. / Auto-refresh interval in milliseconds.
     /// </summary>
     public int AutoRefreshInterval { get; set; } = 2000;
 
@@ -141,14 +176,14 @@ public class AppSettings
     /// </summary>
     public double PanelFontSize { get; set; } = 13;
 
-    //???????? / Bookmarks
+    //Закладки / Bookmarks
 
     /// <summary>
-    /// ?????? ???????? (????????? ?????). / List of bookmarks (favorite directories).
+    /// Список закладок (любимые директории). / List of bookmarks (favorite directories).
     /// </summary>
     public List<BookmarkItem> Bookmarks { get; set; } = new();
 
-    //???????? / Panel Tabs (ph5.9)
+    //Вкладки панелей / Panel Tabs (ph5.9)
 
     /// <summary>
     /// Пути левых вкладок для восстановления при старте. / Left tab paths to restore on startup.
@@ -220,10 +255,114 @@ public class AppSettings
     /// Копировать NTFS ACL (права доступа). / Copy NTFS permissions.
     /// </summary>
     public bool CopyNtfsPermissions { get; set; }
+
+    // ═══════════════ Дополнительные настройки (ph9.6) ═══════════════
+
+    // Внешний вид
+
+    /// <summary>Прозрачность главного окна (0.5..1.0). / Main window opacity.</summary>
+    public double WindowOpacity { get; set; } = 1.0;
+
+    /// <summary>Показывать полный путь в заголовке. / Show full path in title bar.</summary>
+    public bool ShowFullPathInTitle { get; set; } = true;
+
+    /// <summary>Показывать размер файлов в панелях. / Show file sizes in panels.</summary>
+    public bool ShowFileSize { get; set; } = true;
+
+    /// <summary>Показывать дату модификации. / Show modification date.</summary>
+    public bool ShowModificationDate { get; set; } = true;
+
+    /// <summary>Показывать атрибуты файлов. / Show file attributes.</summary>
+    public bool ShowFileAttributes { get; set; } = true;
+
+    /// <summary>Сортировка папок сверху. / Folders first sorting.</summary>
+    public bool SortFoldersFirst { get; set; } = true;
+
+    // Панели
+
+    /// <summary>Разделитель путей — последний открытый. / Last active panel (0=left, 1=right).</summary>
+    public int ActivePanel { get; set; }
+
+    /// <summary>Показывать дерево каталогов. / Show directory tree.</summary>
+    public bool ShowDirectoryTree { get; set; }
+
+    /// <summary>Открывать папки двойным кликом. / Open folders with double-click.</summary>
+    public bool DoubleClickOpenFolder { get; set; } = true;
+
+    /// <summary>Показывать скрытые папки. / Show hidden folders.</summary>
+    public bool ShowHiddenFolders { get; set; } = true;
+
+    // Терминал
+
+    /// <summary>Высота панели терминала по умолчанию. / Default terminal panel height.</summary>
+    public double DefaultTerminalHeight { get; set; } = 300;
+
+    /// <summary>Количество строк прокрутки терминала. / Terminal scrollback lines.</summary>
+    public int TerminalScrollbackLines { get; set; } = 9999;
+
+    /// <summary>Курсор терминала (block/underscore/vertical-bar). / Terminal cursor style.</summary>
+    public string TerminalCursorStyle { get; set; } = "block";
+
+    // Редактор
+
+    /// <summary>Подсвечивать текущую строку. / Highlight current line.</summary>
+    public bool EditorHighlightCurrentLine { get; set; } = true;
+
+    /// <summary>Подсвечивать парные скобки. / Highlight matching brackets.</summary>
+    public bool EditorHighlightBrackets { get; set; } = true;
+
+    /// <summary>Автодополнение скобок. / Auto-close brackets.</summary>
+    public bool EditorAutoCloseBrackets { get; set; } = true;
+
+    /// <summary>Автодополнение кавычек. / Auto-close quotes.</summary>
+    public bool EditorAutoCloseQuotes { get; set; }
+
+    /// <summary>Минимальная длина слова для подсветки. / Min word length for highlight.</summary>
+    public int EditorMinHighlightLength { get; set; } = 2;
+
+    /// <summary>Размер отступа в пикселях (left margin). / Editor indent size in pixels.</summary>
+    public int EditorIndentSize { get; set; } = 4;
+
+    // Поведение
+
+    /// <summary>Показывать панель инструментов. / Show toolbar.</summary>
+    public bool ShowToolbar { get; set; } = true;
+
+    /// <summary>Показывать строку состояния. / Show status bar.</summary>
+    public bool ShowStatusBar { get; set; } = true;
+
+    /// <summary>Показывать путь в заголовке панели. / Show path in panel title.</summary>
+    public bool ShowPathInPanelTitle { get; set; } = true;
+
+    /// <summary>Запоминать последние пути. / Remember last paths.</summary>
+    public bool RememberLastPaths { get; set; } = true;
+
+    /// <summary>Количество последних путей. / Number of recent paths.</summary>
+    public int RecentPathsCount { get; set; } = 10;
+
+    /// <summary>Двойной клик — открыть файл. / Double-click opens file.</summary>
+    public bool DoubleClickOpenFile { get; set; } = true;
+
+    /// <summary>Показывать полные пути в панелях. / Show full paths in panels.</summary>
+    public bool ShowFullPathsInPanels { get; set; }
+
+    // Файловые операции
+
+    /// <summary>Проверять целостность после копирования. / Verify after copy.</summary>
+    public bool VerifyAfterCopy { get; set; }
+
+    /// <summary>Прерывать при ошибке. / Abort on error.</summary>
+    public bool AbortOnError { get; set; } = true;
+
+    /// <summary>Максимальная глубина рекурсии. / Max recursion depth.</summary>
+    public int MaxRecursionDepth { get; set; } = 50;
+
+    /// <summary>Показывать очередь операций автоматически. / Auto-show operation queue.</summary>
+    public bool AutoShowQueue { get; set; } = true;
 }
 
 /// <summary>
-/// ?????? ???????? ? ?????????? ???????? ?????????? ? JSON-????.
+/// Сервис загрузки и сохранения настроек приложения в JSON-файл.
 /// Service for loading and saving application settings to JSON file.
 /// </summary>
 public static class SettingsService
@@ -235,10 +374,10 @@ public static class SettingsService
     private static volatile AppSettings? _current;
 
     /// <summary>
-    /// ????????? ????????? ?? ????? (? ????????????) ??? ?????????? ????????? ?? ?????????.
+    /// Загружает настройки из файла (с кэшированием) или возвращает настройки по умолчанию.
     /// Loads settings from file (with caching) or returns default settings.
     /// </summary>
-    /// <returns>??????????? ??? ????????? ?? ?????????. / Loaded or default settings.</returns>
+    /// <returns>Загруженные или настройки по умолчанию. / Loaded or default settings.</returns>
     public static AppSettings Load()
     {
         var snapshot = _current;
@@ -255,8 +394,8 @@ public static class SettingsService
         }
         catch
         {
-            // ??? ?????? ?????? ? ????????? ?? ?????????.
-            // On read error ? use default settings.
+            // При ошибке чтения — используем настройки по умолчанию.
+            // On read error — use default settings.
         }
 
         snapshot = new AppSettings();
@@ -265,10 +404,10 @@ public static class SettingsService
     }
 
     /// <summary>
-    /// ????????? ????????? ? JSON-????.
+    /// Сохраняет настройки в JSON-файл.
     /// Saves settings to JSON file.
     /// </summary>
-    /// <param name="settings">?????? ? ???????????. / Settings object.</param>
+    /// <param name="settings">Объект настроек. / Settings object.</param>
     public static void Save(AppSettings settings)
     {
         _current = settings;
@@ -282,16 +421,16 @@ public static class SettingsService
         }
         catch
         {
-            // ??? ?????? ?????? ? ????? ??????????.
-            // On write error ? silently ignore.
+            // При ошибке записи — молча игнорируем.
+            // On write error — silently ignore.
         }
     }
 
     /// <summary>
-    /// ?????????? ?????????? ????: ???? ??????? System, ?????????? ???? ?? ??????? Windows.
+    /// Возвращает действующую тему: если выбрана System, определяет тему из реестра Windows.
     /// Returns effective theme: if System is selected, detects theme from Windows registry.
     /// </summary>
-    /// <returns>?????? ??? ??????? ????. / Dark or light theme.</returns>
+    /// <returns>Тёмная или светлая тема. / Dark or light theme.</returns>
     public static ThemeMode GetEffectiveTheme()
     {
         var s = Load().Theme;
@@ -305,7 +444,7 @@ public static class SettingsService
         }
         catch
         {
-            // Fallback ??? ?????? ???????.
+            // Fallback при ошибке реестра.
             // Fallback on registry error.
         }
         return ThemeMode.Dark;

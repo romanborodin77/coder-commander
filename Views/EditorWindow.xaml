@@ -21,10 +21,14 @@
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding CloseCommand}"/>
         <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveActiveTabCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl+Shift" Command="{Binding SaveAsCommand}"/>
         <KeyBinding Key="W" Modifiers="Ctrl" Command="{Binding CloseActiveTabCommand}"/>
         <KeyBinding Key="W" Modifiers="Ctrl+Shift" Command="{Binding CloseAllTabsCommand}"/>
         <KeyBinding Key="Tab" Modifiers="Ctrl" Command="{Binding NextTabCommand}"/>
         <KeyBinding Key="Tab" Modifiers="Ctrl+Shift" Command="{Binding PreviousTabCommand}"/>
+        <KeyBinding Key="G" Modifiers="Ctrl" Command="{Binding GoToLineCommand}"/>
+        <KeyBinding Key="OemPeriod" Modifiers="Ctrl+Shift" Command="{Binding CommentLineCommand}"/>
+        <KeyBinding Key="R" Modifiers="Ctrl+Shift" Command="{Binding ToggleReadOnlyCommand}"/>
     </Window.InputBindings>
 
     <Window.Resources>
@@ -298,9 +302,18 @@
                                ToolTip="{Binding ActiveTab.FilePath}"/>
                     <TextBlock Text="|" Foreground="{DynamicResource BorderBrush}"
                                Margin="8,0" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="CursorPositionText"
+                               Text="Ln 1, Col 1"
+                               Style="{StaticResource StatusBarItemStyle}"/>
+                    <TextBlock Text="|" Foreground="{DynamicResource BorderBrush}"
+                               Margin="8,0" FontSize="11" VerticalAlignment="Center"/>
                     <TextBlock Style="{StaticResource StatusBarItemStyle}">
                         <Run Text="{Binding ActiveTab.LineCount, Mode=OneWay}"/><Run Text=" "/><Run Text="{DynamicResource Editor.Lines}"/>
                     </TextBlock>
+                    <TextBlock Text="|" Foreground="{DynamicResource BorderBrush}"
+                               Margin="8,0" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="WordCountText"
+                               Style="{StaticResource StatusBarItemStyle}"/>
                     <TextBlock Text="|" Foreground="{DynamicResource BorderBrush}"
                                Margin="8,0" FontSize="11" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding ActiveTab.Encoding}" Style="{StaticResource StatusBarItemStyle}"/>

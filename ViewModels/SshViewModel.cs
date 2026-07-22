@@ -1,8 +1,10 @@
 ﻿using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CoderCommander.Services;
+using Microsoft.Win32;
 
 namespace CoderCommander.ViewModels;
 
@@ -79,7 +81,7 @@ public partial class SshViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(Name) || string.IsNullOrWhiteSpace(Host))
         { Status = LocalizationService.Current.GetString("Ssh.NameHostRequired"); return; }
         var list = _ssh.LoadProfiles();
-        var prof = new SshProfile(Name, Host, User, Port, RemotePath);
+        var prof = new SshProfile(Name, Host, User, Port, RemotePath, SelectedProfile?.IdentityFile);
         var idx = list.FindIndex(x => x.Name == Name);
         if (idx >= 0) list[idx] = prof; else list.Add(prof);
         _ssh.SaveProfiles(list);
@@ -96,6 +98,46 @@ public partial class SshViewModel : ObservableObject
         list.RemoveAll(x => x.Name == p.Name);
         _ssh.SaveProfiles(list);
         Profiles = new ObservableCollection<SshProfile>(list);
+    }
+
+    /// <summary>
+    /// Проверяет доступность выбранного SSH-профиля, выполняя пробное подключение.
+    /// Checks availability of the selected SSH profile by performing a test connection.
+    /// </summary>
+    [RelayCommand]
+    public async Task CheckConnectionAsync()
+    {
+        var p = SelectedProfile;
+        if (p is null) { Status = LocalizationService.Current.GetString("Ssh.NoProfileSelected"); return; }
+        Status = LocalizationService.Current.GetString("Ssh.Checking");
+        var ok = await _ssh.IsReachableAsync(p);
+        Status = ok
+            ? string.Format(LocalizationService.Current.GetString("Ssh.Reachable"), p.Name)
+            : string.Format(LocalizationService.Current.GetString("Ssh.Unreachable"), p.Name);
+    }
+
+    /// <summary>
+    /// Открывает диалог выбора файла приватного ключа для SSH-подключения.
+    /// Opens a file dialog to select a private key file for SSH connection.
+    /// </summary>
+    [RelayCommand]
+    public void BrowseIdentityFile()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = LocalizationService.Current.GetString("Ssh.Tip.KeyFile"),
+            Filter = "Key files (*.pem;*.ppk;*.key)|*.pem;*.ppk;*.key|All files (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() == true && File.Exists(dlg.FileName))
+        {
+            if (SelectedProfile is not null)
+            {
+                var idx = Profiles.IndexOf(SelectedProfile);
+                var updated = SelectedProfile with { IdentityFile = dlg.FileName };
+                Profiles[idx] = updated;
+                SelectedProfile = updated;
+            }
+        }
     }
 
     /// <summary>

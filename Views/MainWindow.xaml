@@ -456,14 +456,6 @@
         <!-- ─── MENU ─── -->
         <Menu x:Name="MainMenu" DockPanel.Dock="Top"
               Background="{DynamicResource BgHeaderBrush}">
-            <!-- Левая панель -->
-            <MenuItem Header="{DynamicResource Menu.Left}">
-                <MenuItem Header="{DynamicResource Menu.Left.Refresh}"
-                          Command="{Binding LeftPanel.RefreshCommand}"/>
-                <MenuItem Header="{DynamicResource Menu.Left.ChangeDrive}"
-                          Command="{Binding LeftPanel.GoToDriveCommand}"/>
-            </MenuItem>
-            
             <!-- Файл -->
             <MenuItem Header="{DynamicResource Menu.File}">
                 <MenuItem Header="{DynamicResource Menu.File.View}" InputGestureText="F3"
@@ -638,14 +630,6 @@
                       Command="{Binding ManageBookmarksCommand}"/>
             <Separator/>
         </MenuItem>
-            
-            <!-- Правая панель -->
-            <MenuItem Header="{DynamicResource Menu.Right}">
-                <MenuItem Header="{DynamicResource Menu.Right.Refresh}"
-                          Command="{Binding RightPanel.RefreshCommand}"/>
-                <MenuItem Header="{DynamicResource Menu.Right.ChangeDrive}"
-                          Command="{Binding RightPanel.GoToDriveCommand}"/>
-            </MenuItem>
             
             <!-- Справка -->
             <MenuItem Header="{DynamicResource Menu.Help}">
