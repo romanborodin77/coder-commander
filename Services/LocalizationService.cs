@@ -904,6 +904,7 @@ public sealed class LocalizationService
         _strings["Archive.CreateDone"] = "Archive created: {0}";
         _strings["Archive.ExtractDone"] = "Extracted to: {0}";
         _strings["Archive.Cancelled"] = "Operation cancelled";
+        _strings["Archive.SomeFilesMissing"] = "{0} files not found, skipping them";
         _strings["Archive.Loading"] = "Loading archive contents…";
         _strings["Archive.EntriesLoaded"] = "Archive entries: {0}";
         _strings["Menu.Tools.Archive"] = "Archives";
@@ -1615,6 +1616,12 @@ public sealed class LocalizationService
         _strings["Archive.Tip.Minimize"] = "Minimize";
         _strings["Archive.Tip.Maximize"] = "Maximize";
         _strings["Archive.Tip.Close"] = "Close";
+        _strings["Archive.BrowseOutput"] = "Browse output path";
+        _strings["Archive.BrowseExtractTo"] = "Browse destination folder";
+        _strings["Archive.SelectOutputPath"] = "Select output archive path";
+        _strings["Archive.SelectExtractPath"] = "Select extraction destination";
+        _strings["Archive.ArchiveFiles"] = "Archive files";
+        _strings["Archive.AllFiles"] = "All files";
 
         // Attributes
         _strings["Attr.HardlinkMenu"] = "Create hardlink…";

@@ -67,6 +67,9 @@ public partial class ArchiveWindowViewModel : ObservableObject
     /// <summary>Файлы для архивации. / Files to archive.</summary>
     public ObservableCollection<string> CreateFiles { get; } = new();
 
+    /// <summary>Пароль для шифрования создаваемого архива. / Password for encrypting the archive being created.</summary>
+    [ObservableProperty] private string _password = "";
+
     /// <summary>Число файлов для архивации. / Number of files to archive.</summary>
     public int CreateFileCount => CreateFiles.Count;
 
@@ -86,6 +89,9 @@ public partial class ArchiveWindowViewModel : ObservableObject
 
     /// <summary>Каталог назначения для извлечения. / Extraction destination directory.</summary>
     [ObservableProperty] private string _extractOutputPath = "";
+
+    /// <summary>Пароль для расшифровки архива. / Password for decrypting the archive.</summary>
+    [ObservableProperty] private string _extractPassword = "";
 
 
     /// <summary>Записи архива для отображения. / Archive entries for display.</summary>
@@ -160,6 +166,45 @@ public partial class ArchiveWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CreateFileCountDisplay));
     }
 
+    /// <summary>Выбирает путь назначения для создаваемого архива. / Browses for output archive path.</summary>
+    [RelayCommand]
+    private void BrowseOutputPath()
+    {
+        var ext = SelectedFormatIndex switch
+        {
+            0 => "*.zip",
+            1 => "*.7z",
+            2 => "*.tar",
+            3 => "*.tar.gz",
+            4 => "*.tar.bz2",
+            5 => "*.gz",
+            6 => "*.bz2",
+            _ => "*.zip"
+        };
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = L10n("Archive.SelectOutputPath"),
+            Filter = $"{L10n("Archive.ArchiveFiles")} ({ext})|{ext}|{L10n("Archive.AllFiles")}|*.*",
+            FileName = Path.GetFileName(OutputPath),
+            InitialDirectory = Path.GetDirectoryName(OutputPath) ?? ""
+        };
+        if (dlg.ShowDialog() == true)
+            OutputPath = dlg.FileName;
+    }
+
+    /// <summary>Выбирает путь для извлечения архива. / Browses for extraction output directory.</summary>
+    [RelayCommand]
+    private void BrowseExtractOutput()
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = L10n("Archive.SelectExtractPath"),
+            InitialDirectory = ExtractOutputPath
+        };
+        if (dlg.ShowDialog() == true)
+            ExtractOutputPath = dlg.FolderName;
+    }
+
     /// <summary>Отмечает все записи для извлечения. / Selects all entries for extraction.</summary>
     [RelayCommand]
     private void SelectAllEntries()
@@ -206,6 +251,18 @@ public partial class ArchiveWindowViewModel : ObservableObject
             _ => ArchiveCreateOperation.ArchiveFormat.Zip
         };
 
+        // Фильтруем несуществующие файлы. / Filter out non-existent files.
+        var existingFiles = CreateFiles.Where(File.Exists).ToList();
+        if (existingFiles.Count == 0)
+        {
+            StatusText = L10n("Archive.NoFiles");
+            return;
+        }
+        if (existingFiles.Count < CreateFiles.Count)
+        {
+            StatusText = string.Format(L10n("Archive.SomeFilesMissing"), CreateFiles.Count - existingFiles.Count);
+        }
+
         var compressionLevel = SelectedCompressionIndex switch
         {
             0 => ArchiveCreateOperation.CompressionLevel.None,
@@ -215,7 +272,7 @@ public partial class ArchiveWindowViewModel : ObservableObject
             _ => ArchiveCreateOperation.CompressionLevel.Optimal
         };
 
-        var baseDir = DetermineBaseDirectory(CreateFiles);
+        var baseDir = DetermineBaseDirectory(existingFiles);
 
         IsRunning = true;
         ProgressValue = 0;
@@ -225,11 +282,12 @@ public partial class ArchiveWindowViewModel : ObservableObject
         try
         {
             var op = new ArchiveCreateOperation(
-                CreateFiles.ToList(),
+                existingFiles,
                 OutputPath,
                 baseDir,
                 format,
                 compressionLevel,
+                string.IsNullOrWhiteSpace(Password) ? null : Password,
                 
                 new Progress<OperationProgress>(p =>
                 {
@@ -298,6 +356,7 @@ public partial class ArchiveWindowViewModel : ObservableObject
                 ExtractOutputPath,
                 extractAll ? null : selectedEntries,
                 overwrite: true,
+                string.IsNullOrWhiteSpace(ExtractPassword) ? null : ExtractPassword,
                 
                 new Progress<OperationProgress>(p =>
                 {
@@ -363,7 +422,7 @@ public partial class ArchiveWindowViewModel : ObservableObject
 
         try
         {
-            await foreach (var entry in ArchiveHelper.EnumerateEntriesAsync(ExtractArchivePath).ConfigureAwait(false))
+            await foreach (var entry in ArchiveHelper.EnumerateEntriesAsync(ExtractArchivePath, password: string.IsNullOrWhiteSpace(ExtractPassword) ? null : ExtractPassword).ConfigureAwait(false))
             {
                 ExtractEntries.Add(new ArchiveEntryItem
                 {

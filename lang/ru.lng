@@ -818,11 +818,18 @@ Archive.Extracting=Извлечение архива…
 Archive.CreateDone=Архив создан: {0}
 Archive.ExtractDone=Извлечено в: {0}
 Archive.Cancelled=Операция отменена
+Archive.SomeFilesMissing={0} файл(ов) не найдено, они будут пропущены
 Archive.Loading=Загрузка содержимого архива…
 Archive.EntriesLoaded=Записей в архиве: {0}
 Archive.Tip.Minimize=Свернуть
 Archive.Tip.Maximize=Развернуть
 Archive.Tip.Close=Закрыть
+Archive.BrowseOutput=Выбрать путь для архива
+Archive.BrowseExtractTo=Выбрать папку назначения
+Archive.SelectOutputPath=Выберите путь для создаваемого архива
+Archive.SelectExtractPath=Выберите папку для извлечения
+Archive.ArchiveFiles=Архивы
+Archive.AllFiles=Все файлы
 
 # ═══════════════════════════════════════════
 # ВКЛАДКИ

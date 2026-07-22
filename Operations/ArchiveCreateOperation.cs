@@ -32,6 +32,7 @@ public sealed class ArchiveCreateOperation : FileOperation
     private readonly string _baseDirectory;
     private readonly CompressionLevel _compressionLevel;
     private readonly ArchiveFormat _format;
+    private readonly string? _password;
 
     /// <summary>
     /// Формат архива. / Archive format.
@@ -86,6 +87,7 @@ public sealed class ArchiveCreateOperation : FileOperation
     /// <param name="baseDirectory">Базовый каталог для вычисления относительных путей. / Base directory for relative paths.</param>
     /// <param name="format">Формат архива. / Archive format.</param>
     /// <param name="compressionLevel">Уровень сжатия. / Compression level.</param>
+    /// <param name="password">Пароль для шифрования архива (опционально). / Password for archive encryption (optional).</param>
     /// <param name="progress">Приёмник прогресса. / Progress sink.</param>
     public ArchiveCreateOperation(
         IReadOnlyList<string> sourceFiles,
@@ -93,6 +95,7 @@ public sealed class ArchiveCreateOperation : FileOperation
         string baseDirectory,
         ArchiveFormat format = ArchiveFormat.Zip,
         CompressionLevel compressionLevel = CompressionLevel.Optimal,
+        string? password = null,
         IProgress<OperationProgress>? progress = null)
         : base(progress)
     {
@@ -101,6 +104,7 @@ public sealed class ArchiveCreateOperation : FileOperation
         _baseDirectory = baseDirectory ?? throw new ArgumentNullException(nameof(baseDirectory));
         _format = format;
         _compressionLevel = compressionLevel;
+        _password = password;
     }
 
     /// <summary>

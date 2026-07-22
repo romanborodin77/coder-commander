@@ -85,6 +85,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{DynamicResource Archive.OutputPath}"
                                    Foreground="{DynamicResource FgLightBrush}"
@@ -95,6 +96,10 @@
                                  Foreground="{DynamicResource FgLightBrush}"
                                  BorderBrush="{DynamicResource BorderBrush}"
                                  BorderThickness="1" Padding="4,2"/>
+                        <Button Grid.Column="2" Content="⋯" Width="28"
+                                Margin="4,0,0,0"
+                                Command="{Binding BrowseOutputPathCommand}"
+                                ToolTip="{DynamicResource Archive.BrowseOutput}"/>
                     </Grid>
 
                     <!-- Формат + Сжатие + Пароль / Format + Compression + Password -->
@@ -209,6 +214,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -222,10 +228,14 @@
                                  Foreground="{DynamicResource FgLightBrush}"
                                  BorderBrush="{DynamicResource BorderBrush}"
                                  BorderThickness="1" Padding="4,2"/>
-                        <TextBlock Grid.Column="3" Text="{DynamicResource Archive.Password}"
+                        <Button Grid.Column="2" Content="⋯" Width="28"
+                                Margin="4,0,0,0"
+                                Command="{Binding BrowseExtractOutputCommand}"
+                                ToolTip="{DynamicResource Archive.BrowseExtractTo}"/>
+                        <TextBlock Grid.Column="4" Text="{DynamicResource Archive.Password}"
                                    Foreground="{DynamicResource FgLightBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="4"
+                        <TextBox Grid.Column="5"
                                  Text="{Binding ExtractPassword, UpdateSourceTrigger=PropertyChanged}"
                                  Background="{DynamicResource BgInputBrush}"
                                  Foreground="{DynamicResource FgLightBrush}"

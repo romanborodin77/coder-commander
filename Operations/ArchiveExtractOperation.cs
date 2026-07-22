@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Readers;
 using CoderCommander.Services;
 
 namespace CoderCommander.Operations;
@@ -25,6 +26,7 @@ public sealed class ArchiveExtractOperation : FileOperation
     private readonly string _outputDirectory;
     private readonly IReadOnlyList<string>? _selectedEntries;
     private readonly bool _overwrite;
+    private readonly string? _password;
 
     /// <summary>
     /// Конструктор операции извлечения. / Creates archive extraction operation.
@@ -33,12 +35,14 @@ public sealed class ArchiveExtractOperation : FileOperation
     /// <param name="outputDirectory">Каталог назначения. / Destination directory.</param>
     /// <param name="selectedEntries">Список относительных путей записей для извлечения (null = все). / Selected entry relative paths (null = all).</param>
     /// <param name="overwrite">Перезаписывать существующие файлы. / Overwrite existing files.</param>
+    /// <param name="password">Пароль для расшифровки архива (опционально). / Password for archive decryption (optional).</param>
     /// <param name="progress">Приёмник прогресса. / Progress sink.</param>
     public ArchiveExtractOperation(
         string archivePath,
         string outputDirectory,
         IReadOnlyList<string>? selectedEntries = null,
         bool overwrite = true,
+        string? password = null,
         IProgress<OperationProgress>? progress = null)
         : base(progress)
     {
@@ -46,6 +50,7 @@ public sealed class ArchiveExtractOperation : FileOperation
         _outputDirectory = outputDirectory ?? throw new ArgumentNullException(nameof(outputDirectory));
         _selectedEntries = selectedEntries;
         _overwrite = overwrite;
+        _password = password;
     }
 
     /// <summary>
@@ -80,7 +85,10 @@ public sealed class ArchiveExtractOperation : FileOperation
 
         // SharpCompress 0.50: ArchiveFactory.OpenArchive(filePath).
         // SharpCompress 0.50: ArchiveFactory.OpenArchive(filePath).
-        using var archive = ArchiveFactory.OpenArchive(_archivePath);
+        var readerOptions = new ReaderOptions();
+        if (!string.IsNullOrEmpty(_password))
+            readerOptions.Password = _password;
+        using var archive = ArchiveFactory.OpenArchive(_archivePath, readerOptions);
 
         // Собираем записи для извлечения. / Collect entries for extraction.
         var entries = archive.Entries

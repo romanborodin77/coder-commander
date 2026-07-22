@@ -1,8 +1,11 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.Input;
 using CoderCommander.FileSystem;
 using CoderCommander.Operations;
+using CoderCommander.Services;
 using CoderCommander.Views;
 
 namespace CoderCommander.ViewModels;
@@ -37,18 +40,44 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Создаёт архив из выделенных файлов активной панели.
-    /// Creates archive from selected files in the active panel.
+    /// Создаёт архив из выделенных файлов и папок активной панели.
+    /// Creates archive from selected files and folders in the active panel.
     /// Открывает окно <see cref="ArchiveWindow"/> в режиме создания.
     /// Opens ArchiveWindow in create mode.
     /// </summary>
     [RelayCommand]
     private void Pack()
     {
-        var files = ActivePanel.Items
-            .Where(i => i.IsSelected && !i.IsParent && !i.IsDirectory)
-            .Select(i => i.FullPath)
+        var items = ActivePanel.Items
+            .Where(i => i.IsSelected && !i.IsParent)
             .ToList();
+
+        if (items.Count == 0)
+        {
+            StatusText = L10n("Archive.NoFiles");
+            return;
+        }
+
+        var files = new List<string>();
+        foreach (var item in items)
+        {
+            if (item.IsDirectory)
+            {
+                try
+                {
+                    files.AddRange(Directory.EnumerateFiles(item.FullPath, "*", SearchOption.AllDirectories));
+                }
+                catch (Exception ex)
+                {
+                    LogService.Warn($"Failed to enumerate directory: {item.FullPath}: {ex.Message}",
+                        nameof(MainViewModel));
+                }
+            }
+            else
+            {
+                files.Add(item.FullPath);
+            }
+        }
 
         if (files.Count == 0)
         {
