@@ -33,13 +33,11 @@ public sealed class LocalFileSystem : IFileSystem
             AttributesToSkip = includeHidden ? 0 : FileAttributes.Hidden | FileAttributes.System
         };
 
-        IEnumerable<string> dirs, files;
+        IEnumerable<string> dirPaths, filePaths;
         try
         {
-            dirs = Directory.EnumerateDirectories(path, "*", opt)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
-            files = Directory.EnumerateFiles(path, "*", opt)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
+            dirPaths = Directory.EnumerateDirectories(path, "*", opt);
+            filePaths = Directory.EnumerateFiles(path, "*", opt);
         }
         catch (UnauthorizedAccessException)
         {
@@ -52,16 +50,75 @@ public sealed class LocalFileSystem : IFileSystem
             return result;
         }
 
-        foreach (var d in dirs)
+        // Материализуем списки один раз, чтобы не повторять энумерацию.
+        // Materialize lists once to avoid re-enumeration.
+        var dirList = new List<string>();
+        var fileList = new List<string>();
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            result.Add(await Task.Run(() => FromDirectoryInfo(new DirectoryInfo(d)), ct));
+            foreach (var d in dirPaths) dirList.Add(d);
+            foreach (var f in filePaths) fileList.Add(f);
         }
-        foreach (var f in files)
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+
+        int total = dirList.Count + fileList.Count;
+        if (total == 0) return result;
+
+        var entries = new FileEntry[total];
+        int idx = 0;
+
+        // Параллельно читаем метаданные директорий.
+        // Read directory metadata in parallel.
+        if (dirList.Count > 0)
         {
-            ct.ThrowIfCancellationRequested();
-            result.Add(await Task.Run(() => FromFileInfo(new FileInfo(f)), ct));
+            int dirIdx = 0;
+            await Parallel.ForEachAsync(dirList,
+                new ParallelOptions { MaxDegreeOfParallelism = Math.Min(dirList.Count, Environment.ProcessorCount), CancellationToken = ct },
+                async (d, _) =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var i = new DirectoryInfo(d);
+                        var fe = FromDirectoryInfo(i);
+                        var pos = Interlocked.Increment(ref dirIdx) - 1;
+                        entries[pos] = fe;
+                    }
+                    catch { /* пропускаем недоступные */ }
+                    await ValueTask.CompletedTask;
+                });
+            idx = dirList.Count;
         }
+
+        // Параллельно читаем метаданные файлов.
+        // Read file metadata in parallel.
+        if (fileList.Count > 0)
+        {
+            int fileIdx = 0;
+            await Parallel.ForEachAsync(fileList,
+                new ParallelOptions { MaxDegreeOfParallelism = Math.Min(fileList.Count, Environment.ProcessorCount), CancellationToken = ct },
+                async (f, _) =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var i = new FileInfo(f);
+                        var fe = FromFileInfo(i);
+                        var pos = idx + Interlocked.Increment(ref fileIdx) - 1;
+                        entries[pos] = fe;
+                    }
+                    catch { /* пропускаем недоступные */ }
+                    await ValueTask.CompletedTask;
+                });
+        }
+
+        // Фильтруем null (недоступные) и возвращаем.
+        // Filter out nulls (inaccessible) and return.
+        result.Capacity = total;
+        foreach (var e in entries)
+            if (e.FullPath is not null) result.Add(e);
+
         return result;
     }
 

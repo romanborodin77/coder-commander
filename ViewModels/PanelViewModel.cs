@@ -167,13 +167,9 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
         // Пропускаем, если обновление произошло менее 1 с назад (защита от мерцания).
-        // Skip if refresh happened less than 1 s ago (anti-flicker guard).
         var now = DateTime.UtcNow;
         if ((now - _lastRefreshTime).TotalMilliseconds < 1000) return;
-        // Защита от повторного входа: Watcher debounce / навигация / фильтр могут гоняться.
-        // Reentrancy guard: Watcher debounce / navigation / filter can race.
-        // Ждём освобождения lock до 5 секунд вместо немедленного возврата.
-        // Wait for lock release up to 5 seconds instead of immediate return.
+        // Защита от повторного входа.
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
@@ -181,34 +177,31 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException)
         {
-            return; // Таймаут ожидания lock / Lock wait timeout
+            return;
         }
         _isRefreshing = true;
         try
         {
-            // Виртуальный режим «результаты поиска» (ph2.2): перечисляем через ISearchResultSource.
-            // Virtual "search results" mode (ph2.2): enumerate via ISearchResultSource.
             if (VirtualFileSystem is not null) { await RefreshVirtualAsync(); return; }
 
             var path = CurrentPath;
 
             // Сохраняем выделение перед пересозданием коллекции Items.
-            // Save selection before recreating the Items collection.
             var selPath = SelectedItem?.FullPath;
-            var selPaths = Items.Where(i => i.IsSelected && !i.IsParent)
-                                .Select(i => i.FullPath).ToHashSet();
+            HashSet<string>? selPaths = null;
+            if (Items.Count > 0)
+            {
+                selPaths = new HashSet<string>(
+                    Items.Where(i => i.IsSelected && !i.IsParent).Select(i => i.FullPath),
+                    StringComparer.OrdinalIgnoreCase);
+            }
 
-            Items.Clear();
-            // Сбрасываем кэш ICollectionView, чтобы GetDefaultView вернул актуальное представление.
-            // Reset cached ICollectionView so GetDefaultView returns a fresh view.
-            _itemsView = null;
+            if (!Directory.Exists(path)) { Items.Clear(); _itemsView = null; SelectedItem = null; return; }
 
-            if (!Directory.Exists(path)) { SelectedItem = null; return; }
-
-            // ═══ Flat View mode: recursive enumeration (ph7.1) ═══
+            // ═══ Flat View mode ═══
             if (IsFlatView)
             {
-                await RefreshFlatViewAsync(path, selPath, selPaths);
+                await RefreshFlatViewAsync(path, selPath, selPaths ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 return;
             }
 
@@ -216,6 +209,9 @@ public partial class PanelViewModel : ObservableObject, IDisposable
                 ? (await _git.GetStatusAsync(path, _cts.Token))?.Files.ToDictionary(f => f.Path, f => f.State)
                 : null;
 
+            // Собираем элементы во временный список, затем делаем один Replace.
+            // Collect items into a temp list, then do a single Replace.
+            var newItems = new List<FileSystemItem>();
             foreach (var i in await FileService.EnumerateDirectoryAsync(path, ShowHidden, _cts.Token))
             {
                 if (path != CurrentPath) return;
@@ -226,25 +222,38 @@ public partial class PanelViewModel : ObservableObject, IDisposable
                     rel = rel.Replace('\\', '/');
                     if (gitStates.TryGetValue(rel, out var st)) i.GitState = st;
                 }
+                if (selPaths is not null && selPaths.Contains(i.FullPath)) i.IsSelected = true;
+                newItems.Add(i);
+            }
 
-                Items.Add(i);
-            // Восстанавливаем выделение по сохранённым путям
-            if (selPaths.Contains(i.FullPath)) i.IsSelected = true;
+            // Один Replace вместо Clear + N×Add — WPF получает один Reset-событие.
+            // Single Replace instead of Clear + N×Add — WPF gets one Reset event.
+            ReplaceItems(newItems);
+
+            RestoreFocus(selPath);
+
+            OnPropertyChanged(nameof(CanGoBack));
+            OnPropertyChanged(nameof(CanGoForward));
+            _lastRefreshTime = DateTime.UtcNow;
         }
-
-        // Восстанавливаем SelectedItem с улучшенной логикой
-        RestoreFocus(selPath);
-
-        OnPropertyChanged(nameof(CanGoBack));
-        OnPropertyChanged(nameof(CanGoForward));
-        _lastRefreshTime = DateTime.UtcNow;
+        finally
+        {
+            _isRefreshing = false;
+            _refreshLock.Release();
+        }
     }
-    finally
+
+    /// <summary>
+    /// Заменяет содержимое Items одним вызовом (Reset-событие вместо N Add).
+    /// Replaces Items content in one call (single Reset event instead of N Add).
+    /// </summary>
+    private void ReplaceItems(List<FileSystemItem> newItems)
     {
-        _isRefreshing = false;
-        _refreshLock.Release();
+        Items.Clear();
+        _itemsView = null;
+        foreach (var item in newItems)
+            Items.Add(item);
     }
-}
 
 /// <summary>
 /// Восстанавливает SelectedItem с учётом возможных изменений (удаление элемента и т.д.).

@@ -78,19 +78,22 @@ public partial class FileSystemItem : ObservableObject
         Modified = modified ?? DateTime.Now;
         Extension = isDirectory ? "" : Path.GetExtension(fullPath).ToLowerInvariant();
         DisplayName = displayName;
+        SizeDisplay = isDirectory ? "<DIR>" : FormatSize(size);
+        ModifiedDisplay = Modified.ToString("yyyy-MM-dd HH:mm");
     }
 
     /// <summary>
     /// Отображаемый размер: "&lt;DIR&gt;" для каталогов или человекочитаемый формат для файлов.
     /// Display size: "&lt;DIR&gt;" for directories or human-readable format for files.
     /// </summary>
-    public string SizeDisplay => IsDirectory ? "<DIR>" : FormatSize(Size);
+    public string SizeDisplay { get; }
 
     /// <summary>
     /// Отображаемая дата изменения в формате "yyyy-MM-dd HH:mm".
     /// Display modified date in "yyyy-MM-dd HH:mm" format.
     /// </summary>
-    public string ModifiedDisplay => Modified.ToString("yyyy-MM-dd HH:mm");
+    public string ModifiedDisplay { get; }
+
     private static string FormatSize(long bytes)
     {
         if (bytes < 0) return "--";

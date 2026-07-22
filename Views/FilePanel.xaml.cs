@@ -469,13 +469,14 @@ public partial class FilePanel : UserControl
                 case "Name":
                     sb.AppendLine($"<Grid Grid.Column=\"{ci}\" VerticalAlignment=\"Center\" Margin=\"6,0,6,0\">");
                     sb.AppendLine("  <Grid.ColumnDefinitions>");
-                    sb.AppendLine("    <ColumnDefinition Width=\"*\"/>");
+                    sb.AppendLine("    <ColumnDefinition Width=\"*\" MinWidth=\"80\"/>");
                     sb.AppendLine("    <ColumnDefinition Width=\"Auto\"/>");
                     sb.AppendLine("  </Grid.ColumnDefinitions>");
                     sb.AppendLine("  <TextBlock Grid.Column=\"0\" Text=\"{Binding Name}\"");
                     sb.AppendLine("    VerticalAlignment=\"Center\" TextWrapping=\"NoWrap\" FontSize=\"13\"");
                     sb.AppendLine("    Foreground=\"{Binding GitState, Converter={StaticResource GitStateBrush}}\"");
                     sb.AppendLine("    TextTrimming=\"CharacterEllipsis\" HorizontalAlignment=\"Stretch\"");
+                    sb.AppendLine("    MaxWidth=\"{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListBox}}\"");
                     sb.AppendLine("    ToolTip=\"{Binding Name}\"/>");
                     sb.AppendLine("  <Border x:Name=\"GitIndicator\" Grid.Column=\"1\"");
                     sb.AppendLine("    Width=\"6\" Height=\"6\" CornerRadius=\"3\"");
