@@ -328,12 +328,22 @@ public partial class ArchiveWindowViewModel : ObservableObject
         }
     }
 
-    /// <summary>Отменяет текущую операцию. / Cancels running operation.</summary>
+    /// <summary>Отменяет текущую операцию или закрывает окно, если операции нет. / Cancels running operation or closes the window if none.</summary>
     [RelayCommand]
     private void Cancel()
     {
-        _cts?.Cancel();
+        if (IsRunning)
+        {
+            _cts?.Cancel();
+        }
+        else
+        {
+            OnCloseRequested?.Invoke();
+        }
     }
+
+    /// <summary>Событие закрытия окна из ViewModel. / Window close request event from ViewModel.</summary>
+    public event Action? OnCloseRequested;
 
     // ═══════════════════════════════════════
     // Вспомогательные методы / Helpers
@@ -512,6 +522,7 @@ public partial class ArchiveWindow : Window
     {
         InitializeComponent();
         _vm = new ArchiveWindowViewModel(mode, files, archivePath);
+        _vm.OnCloseRequested += () => Close();
         DataContext = _vm;
     }
 
