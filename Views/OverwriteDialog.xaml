@@ -4,9 +4,10 @@
         Title="{DynamicResource OpDlg.Overwrite.Title}"
         WindowStyle="None"
         WindowStartupLocation="CenterOwner"
-        Width="650" Height="320"
+        Width="650" Height="Auto"
         MinWidth="550" MinHeight="280"
         ResizeMode="NoResize"
+        SizeToContent="Height"
         ShowInTaskbar="False"
         Background="{DynamicResource BgDarkBrush}">
 
@@ -125,51 +126,43 @@
         <!-- Row 2: Buttons + Apply to all -->
         <Border Grid.Row="2" Background="{DynamicResource BgHeaderBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0" Padding="16,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <!-- Apply to all checkbox (left) -->
-                <CheckBox Grid.Column="0" Content="{DynamicResource OpDlg.Overwrite.ApplyAll}"
+                BorderThickness="0,1,0,0" Padding="16,10">
+            <StackPanel>
+                <CheckBox Content="{DynamicResource OpDlg.Overwrite.ApplyAll}"
                           IsChecked="{Binding ApplyToAll, Mode=TwoWay}"
                           Foreground="{DynamicResource FgDimBrush}" FontSize="12"
-                          VerticalAlignment="Center"/>
-                
-                <!-- Buttons (right, all in one row) -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                          Margin="0,0,0,8"/>
+                <WrapPanel Orientation="Horizontal">
                     <Button Content="{DynamicResource OpDlg.Overwrite.Skip}"
-                            Command="{Binding SkipCommand}" Margin="0,0,4,0"
+                            Command="{Binding SkipCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.SkipAll}"
-                            Command="{Binding SkipAllCommand}" Margin="0,0,4,0"
+                            Command="{Binding SkipAllCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.Overwrite}"
-                            Command="{Binding OverwriteCommand}" Margin="0,0,4,0"
+                            Command="{Binding OverwriteCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12" FontWeight="SemiBold"
                             Style="{DynamicResource AccentButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.OverwriteAll}"
-                            Command="{Binding OverwriteAllCommand}" Margin="0,0,4,0"
+                            Command="{Binding OverwriteAllCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.Older}"
-                            Command="{Binding OverwriteOlderCommand}" Margin="0,0,4,0"
+                            Command="{Binding OverwriteOlderCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.Rename}"
-                            Command="{Binding AutoRenameCommand}" Margin="0,0,4,0"
+                            Command="{Binding AutoRenameCommand}" Margin="0,0,6,0"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
                     <Button Content="{DynamicResource OpDlg.Overwrite.Abort}"
                             Command="{Binding AbortCommand}"
                             Padding="10,5" FontSize="12"
                             Style="{DynamicResource DefaultButtonStyle}"/>
-                </StackPanel>
-            </Grid>
+                </WrapPanel>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

@@ -125,7 +125,7 @@ public static class OpenWithService
             // 5. Add standard text editors if the file is text
             if (FileService.IsTextFile(filePath))
             {
-                TryAddCommonEditor("notepad.exe", "Блокнот / Notepad", seen, apps);
+                TryAddCommonEditor("notepad.exe", LocalizationService.Current.GetString("OpenWith.Notepad"), seen, apps);
                 TryAddCommonEditor("notepad++.exe", "Notepad++", seen, apps);
                 TryAddCommonEditor("code.exe", "Visual Studio Code", seen, apps);
             }

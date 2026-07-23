@@ -51,6 +51,10 @@
     <Color x:Key="TitleBarBg">#ECECEC</Color>
     <Color x:Key="AppTitleColor">#1A1C24</Color>
     <Color x:Key="AppSubtitleColor">#6B7280</Color>
+    <Color x:Key="CloseBtnHover">#C42B1C</Color>
+    <Color x:Key="CloseBtnPressed">#A02010</Color>
+    <Color x:Key="CloseBtnFg">#FFFFFF</Color>
+    <Color x:Key="ShadowColor">#000000</Color>
 
     <SolidColorBrush x:Key="BgDarkBrush" Color="{DynamicResource BgDark}"/>
     <SolidColorBrush x:Key="BgPanelBrush" Color="{DynamicResource BgPanel}"/>
@@ -100,13 +104,17 @@
     <SolidColorBrush x:Key="MenuBgBrush" Color="{DynamicResource MenuBg}"/>
     <SolidColorBrush x:Key="TitleBarBgBrush" Color="{DynamicResource TitleBarBg}"/>
     <SolidColorBrush x:Key="TitleBarFgBrush" Color="{DynamicResource FgLight}"/>
-    <SolidColorBrush x:Key="BgInputBrush" Color="#E8EBF0"/>
-    <SolidColorBrush x:Key="BgButtonBrush" Color="#DCE0E8"/>
-    <SolidColorBrush x:Key="BgButtonHoverBrush" Color="#CDD1DA"/>
-    <SolidColorBrush x:Key="BgButtonBorderBrush" Color="#BCC1CC"/>
-    <SolidColorBrush x:Key="FgButtonBrush" Color="#1F1F1F"/>
+    <SolidColorBrush x:Key="BgInputBrush" Color="{DynamicResource Surface}"/>
+    <SolidColorBrush x:Key="BgButtonBrush" Color="{DynamicResource Surface}"/>
+    <SolidColorBrush x:Key="BgButtonHoverBrush" Color="{DynamicResource SurfaceHover}"/>
+    <SolidColorBrush x:Key="BgButtonBorderBrush" Color="{DynamicResource Border}"/>
+    <SolidColorBrush x:Key="FgButtonBrush" Color="{DynamicResource FgLight}"/>
     <SolidColorBrush x:Key="AppTitleBrush" Color="{StaticResource AppTitleColor}"/>
     <SolidColorBrush x:Key="AppSubtitleBrush" Color="{StaticResource AppSubtitleColor}"/>
+    <SolidColorBrush x:Key="CloseBtnHoverBrush" Color="{DynamicResource CloseBtnHover}"/>
+    <SolidColorBrush x:Key="CloseBtnPressedBrush" Color="{DynamicResource CloseBtnPressed}"/>
+    <SolidColorBrush x:Key="CloseBtnFgBrush" Color="{DynamicResource CloseBtnFg}"/>
+    <SolidColorBrush x:Key="ShadowBrush" Color="{DynamicResource ShadowColor}"/>
 
     <!-- VS Code syntax tokens (resolved by AvalonEdit via resource name) -->
     <SolidColorBrush x:Key="VsKeyword"  Color="#0000FF"/>

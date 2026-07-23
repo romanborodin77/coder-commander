@@ -222,23 +222,23 @@
                                     SnapsToDevicePixels="True">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.BgButtonHoverBrush}}"/>
-                                    <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
-                                    <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.35"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.35"/>
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <!-- TextBox glowing focus -->
@@ -251,7 +251,7 @@
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="FontSize" Value="13"/>
                 <Setter Property="SelectionBrush" Value="{DynamicResource VsSelection}"/>
-                <Setter Property="SelectionTextBrush" Value="Transparent"/>
+                <Setter Property="SelectionTextBrush" Value="{DynamicResource FgLightBrush}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="TextBox">
@@ -264,8 +264,14 @@
                                               VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
                                     <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -278,19 +284,112 @@
                 <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Padding" Value="2,2"/>
             </Style>
             <Style TargetType="MenuItem">
-                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                 <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,4"/>
                 <Setter Property="FontSize" Value="13"/>
-                <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                    </Trigger>
-                </Style.Triggers>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Grid>
+                                <Border x:Name="Bd"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="6"
+                                        Padding="{TemplateBinding Padding}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Icon"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="IGT"/>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Arrow"/>
+                                            <ColumnDefinition Width="14"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter x:Name="Icon" Grid.Column="0"
+                                                          ContentSource="Icon"
+                                                          Width="16" Margin="0,0,8,0"
+                                                          VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                          Opacity="0.6"/>
+                                        <ContentPresenter x:Name="Header" Grid.Column="1"
+                                                          ContentSource="Header"
+                                                          VerticalAlignment="Center"
+                                                          RecognizesAccessKey="True"/>
+                                        <TextBlock x:Name="IGT" Grid.Column="2"
+                                                   Text="{TemplateBinding InputGestureText}"
+                                                   VerticalAlignment="Center" Margin="18,0,4,0"
+                                                   Foreground="{DynamicResource FgMutedBrush}"
+                                                   FontSize="11"/>
+                                        <TextBlock x:Name="Arrow" Grid.Column="3"
+                                                   Text="&#x25B8;" FontSize="10"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource FgDimBrush}"
+                                                   Margin="4,0,0,0"/>
+                                    </Grid>
+                                </Border>
+                                <Popup x:Name="SubMenuPopup"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       Placement="Right"
+                                       HorizontalOffset="-4"
+                                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <Border Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="4"
+                                            SnapsToDevicePixels="True">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.6" Color="{DynamicResource ShadowColor}" Direction="270"/>
+                                        </Border.Effect>
+                                        <StackPanel IsItemsHost="True"
+                                                    Grid.IsSharedSizeScope="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="Role" Value="TopLevelHeader">
+                                    <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Padding" Value="1,5"/>
+                                    <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
+                                    <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
+                                    <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
+                                </Trigger>
+                                <Trigger Property="Role" Value="TopLevelItem">
+                                    <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Padding" Value="1,5"/>
+                                    <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
+                                    <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
+                                    <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
+                                </Trigger>
+                                <Trigger Property="Role" Value="SubmenuItem">
+                                    <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
+                                </Trigger>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                                    <Setter TargetName="Icon" Property="Opacity" Value="1"/>
+                                    <Setter TargetName="IGT" Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                                    <Setter TargetName="Arrow" Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsSubmenuOpen" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <!-- TabControl -->
@@ -361,6 +460,9 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
                                 </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -404,6 +506,9 @@
                     <Trigger Property="IsPressed" Value="True">
                         <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
                     </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.35"/>
+                    </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate>
         </Setter.Value>
@@ -414,12 +519,12 @@
 <Style x:Key="TitleBarCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
     <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-            <Setter Property="Background" Value="#C42B1C"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource CloseBtnHoverBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource CloseBtnFgBrush}"/>
         </Trigger>
         <Trigger Property="IsPressed" Value="True">
-            <Setter Property="Background" Value="#A02010"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource CloseBtnPressedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource CloseBtnFgBrush}"/>
         </Trigger>
     </Style.Triggers>
 </Style>
@@ -519,6 +624,9 @@
                                 <Trigger Property="IsDropDownOpen" Value="True">
                                     <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -548,7 +656,7 @@
                                     <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SelectionActiveBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -643,56 +751,12 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="ContextMenuItemStyle" TargetType="MenuItem">
+            <Style x:Key="ContextMenuItemStyle" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                 <Setter Property="Padding" Value="8,4"/>
                 <Setter Property="FontSize" Value="13"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="MenuItem">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="22"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="IGT"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ContentPresenter Grid.Column="0" ContentSource="Icon" Opacity="0.6"
-                                                      VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                    <ContentPresenter Grid.Column="1" ContentSource="Header"
-                                                      VerticalAlignment="Center" Margin="6,0,0,0"
-                                                      RecognizesAccessKey="True"/>
-                                    <TextBlock Grid.Column="2"
-                                               Text="{TemplateBinding InputGestureText}"
-                                               Opacity="0.45"
-                                               VerticalAlignment="Center"
-                                               Margin="20,0,4,0"
-                                               FontSize="11"/>
-                                     <TextBlock x:Name="Arrow" Grid.Column="3"
-                                                Text="&#x25B8;" FontSize="10"
-                                                VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                Foreground="{Binding Source={x:Static services:ThemeColors.FgDimBrush}}"
-                                               Margin="2,0,0,0"/>
-                                </Grid>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="Role" Value="SubmenuItem">
-                                    <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
-                                </Trigger>
-                                <Trigger Property="IsHighlighted" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.35"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
             </Style>
 
             <!-- GroupBox, Label, CheckBox -->
@@ -778,8 +842,7 @@
                                 </Trigger>
                                 <!-- Disabled -->
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-                                    <Setter TargetName="Box" Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -789,37 +852,20 @@
 
     <!-- Accent Button для диалогов -->
     <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentBrush}}" Offset="0"/>
-                    <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentSecondaryBrush}}" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Background" Value="{DynamicResource AccentGradient}"/>
+        <Setter Property="Foreground" Value="{DynamicResource CloseBtnFgBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="BorderThickness" Value="0"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Opacity" Value="0.9"/>
+                <Setter Property="Background" Value="{DynamicResource AccentGradient}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <!-- Default Button для диалогов (Cancel / secondary) -->
-    <Style x:Key="DefaultButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Background" Value="{DynamicResource BgButtonBrush}"/>
-        <Setter Property="Foreground" Value="{DynamicResource FgButtonBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BgButtonBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="FontWeight" Value="Normal"/>
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource BgButtonHoverBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            </Trigger>
-        </Style.Triggers>
-    </Style>
+    <Style x:Key="DefaultButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"/>
 
             <!-- PasswordBox -->
             <Style TargetType="PasswordBox">
@@ -842,8 +888,14 @@
                                               VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                </Trigger>
                                 <Trigger Property="IsFocused" Value="True">
                                     <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -903,7 +955,7 @@
                                     <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0.35"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -1006,6 +1058,12 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Radio" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
                                 </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Radio" Property="Opacity" Value="0.8"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -1031,40 +1089,17 @@
             </Style>
 
             <!-- Toolbar Button (36x34 rounded hover) -->
-            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                 <Setter Property="Width" Value="36"/>
                 <Setter Property="Height" Value="34"/>
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="7">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
-                                    <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentDimBrush}}"/>
-                                    <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.25"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+                <Setter Property="Padding" Value="0"/>
             </Style>
 
             <!-- Toolbar Accent (accent color on hover) -->
             <Style x:Key="ToolbarAccentStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
-                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
                 <Style.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
@@ -1089,6 +1124,450 @@
                 <Setter Property="Margin" Value="6,6"/>
                 <Setter Property="CornerRadius" Value="0.5"/>
                 <Setter Property="Opacity" Value="0.5"/>
+            </Style>
+
+            <!-- DataGrid column header -->
+            <Style TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                <Setter Property="SeparatorVisibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- DataGrid cell -->
+            <Style TargetType="DataGridCell">
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Padding="{TemplateBinding Padding}"
+                                    Background="{TemplateBinding Background}">
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- DataGrid row -->
+            <Style TargetType="DataGridRow">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SelectionActiveBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.35"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- ═══════════════════════════════════════════════
+               SHARED / MIGRATED STYLES (from Window.Resources)
+            ═══════════════════════════════════════════════ -->
+
+            <!-- Field label (form dialogs: SSH/Cloud/MultiRename) -->
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
+
+            <!-- Field input (form dialogs) -->
+            <Style x:Key="FieldInputStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                <Setter Property="Background" Value="{DynamicResource BgPanelBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="FontFamily" Value="Consolas"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,4"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource FgLightBrush}"/>
+            </Style>
+
+            <!-- Field password (SSH profile dialog) -->
+            <Style x:Key="FieldPasswordStyle" TargetType="PasswordBox" BasedOn="{StaticResource {x:Type PasswordBox}}">
+                <Setter Property="Background" Value="{DynamicResource BgPanelBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="FontFamily" Value="Consolas"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,4"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource FgLightBrush}"/>
+            </Style>
+
+            <!-- Panel TabItem (MainWindow + EditorWindow) -->
+            <Style x:Key="PanelTabItemStyle" TargetType="TabItem">
+                <Setter Property="Padding" Value="8,3"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderThickness="0,0,0,2"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceBrush}}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Section header border (Git/Docker panels) -->
+            <Style x:Key="SectionHeaderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
+                <Setter Property="Padding" Value="8,4"/>
+            </Style>
+
+            <!-- Panel toolbar button (Git/Docker) -->
+            <Style x:Key="PanelToolbarBtnStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+
+            <!-- Panel icon button (Git/Docker) -->
+            <Style x:Key="PanelIconBtnStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Padding" Value="4,1"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="MinWidth" Value="22"/>
+                <Setter Property="MinHeight" Value="20"/>
+            </Style>
+
+            <!-- Side panel tool button (SFTP/Cloud) -->
+            <Style x:Key="SidePanelToolBtnStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+                <Setter Property="Height" Value="26"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Padding" Value="8,0"/>
+                <Setter Property="MinWidth" Value="90"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+            </Style>
+
+            <!-- Side panel tool button small (SFTP/Cloud) -->
+            <Style x:Key="SidePanelToolBtnSmallStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+                <Setter Property="Height" Value="26"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Padding" Value="6,0"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+            </Style>
+
+            <!-- Status bar item (Editor/Diff/About) -->
+            <Style x:Key="StatusBarItemStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Accent link button (Search dialog/Create link window) -->
+            <Style x:Key="AccentLinkButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.4"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Tech badge (About window) -->
+            <Style x:Key="TechBadgeStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="Padding" Value="10,5"/>
+                <Setter Property="Margin" Value="3"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Group header (Duplicates window) -->
+            <Style x:Key="GroupHeaderStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource AccentSoftBrush}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Property label (FileProperties window) -->
+            <Style x:Key="PropLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Property value (FileProperties window) -->
+            <Style x:Key="PropValueStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <!-- Attribute badge (FileProperties window) -->
+            <Style x:Key="AttrBadgeStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="3"/>
+                <Setter Property="Padding" Value="5,1"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+            </Style>
+
+            <!-- Attribute badge text (FileProperties window) -->
+            <Style x:Key="AttrBadgeTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Style>
+
+            <!-- Nav button (FilePanel) -->
+            <Style x:Key="NavButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="30"/>
+                <Setter Property="Height" Value="28"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+
+            <!-- Drive button (FilePanel) -->
+            <Style x:Key="DriveButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="36"/>
+                <Setter Property="Height" Value="28"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Margin" Value="2,0"/>
+                <Setter Property="Padding" Value="8,2"/>
+            </Style>
+
+            <!-- Breadcrumb button (FilePanel) -->
+            <Style x:Key="BreadcrumbStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="5,3"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Breadcrumb separator (FilePanel) -->
+            <Style x:Key="BreadcrumbSepStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="2,0"/>
+                <Setter Property="Text" Value="›"/>
+            </Style>
+
+            <!-- Clear filter button (FilePanel) -->
+            <Style x:Key="ClearBtnStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+
+            <!-- Column header (FilePanel) -->
+            <Style x:Key="ColumnHeaderStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextAlignment" Value="Left"/>
+            </Style>
+
+            <!-- Panel splitter vertical (MainWindow) -->
+            <Style x:Key="PanelSplitterV" TargetType="GridSplitter">
+                <Setter Property="Width" Value="3"/>
+                <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
+                <Setter Property="Cursor" Value="SizeWE"/>
+                <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Panel splitter horizontal (MainWindow) -->
+            <Style x:Key="PanelSplitterH" TargetType="GridSplitter">
+                <Setter Property="Height" Value="3"/>
+                <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Cursor" Value="SizeNS"/>
+                <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- Menu separator (MainWindow) -->
+            <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="Margin" Value="8,4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Separator">
+                            <Border Height="1" Margin="0,4">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="Transparent" Offset="0"/>
+                                        <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.1"/>
+                                        <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.9"/>
+                                        <GradientStop Color="Transparent" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Compact settings styles (SettingsWindow) -->
+            <Style x:Key="CompactTabItem" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+                <Setter Property="Padding" Value="12,7"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+            <Style x:Key="CompactRow" TargetType="Grid">
+                <Setter Property="Margin" Value="0,2"/>
+            </Style>
+            <Style x:Key="CompactLabel" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+            <Style x:Key="CompactGroupHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                <Setter Property="Margin" Value="0,6,0,2"/>
+            </Style>
+            <Style x:Key="CompactSeparator" TargetType="Border">
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="Margin" Value="0,3"/>
+            </Style>
+            <Style x:Key="CompactCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                <Setter Property="Width" Value="140"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+            <Style x:Key="CompactSmallCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                <Setter Property="Width" Value="72"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
+            <Style x:Key="CompactCheck" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0,1"/>
+            </Style>
+
+            <!-- Link group styles (CreateLinkWindow) -->
+            <Style x:Key="LinkGroupStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="12,10"/>
+                <Setter Property="Margin" Value="0,0,0,10"/>
+            </Style>
+            <Style x:Key="LinkGroupTitleStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+            <Style x:Key="LinkLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Hex cell (HexViewer) -->
+            <Style x:Key="HexCellStyle" TargetType="TextBlock">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource VsEditorFg}"/>
+                <Setter Property="FontFamily" Value="Consolas, Cascadia Code, Courier New"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsDiff}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource DiffModBgBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource DiffModBrush}"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsPadding}" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

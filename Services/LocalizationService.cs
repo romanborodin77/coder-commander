@@ -290,6 +290,9 @@ public sealed class LocalizationService
         // QUICK FILTER / QUICK SEARCH (ph1.1)
         // ═══════════════════════════════════════════
         _strings["QuickFilter.Placeholder"] = "Quick filter…";
+        _strings["QuickFilter.Files"] = "Files";
+        _strings["QuickFilter.Folders"] = "Folders";
+        _strings["QuickFilter.All"] = "All";
         _strings["Quick.MatchCase"] = "Match case (Aa)";
         _strings["Quick.MatchStart"] = "Match at start of name";
         _strings["Quick.Scope"] = "Filter scope: all / files / folders";
@@ -484,6 +487,8 @@ public sealed class LocalizationService
         _strings["Settings.Behavior"] = "Behavior";
         _strings["Settings.Language"] = "Language";
         _strings["Settings.LanguageDesc"] = "Interface language";
+        _strings["Settings.Language.English"] = "English";
+        _strings["Settings.Language.Russian"] = "Русский";
         _strings["Settings.Theme"] = "Theme";
         _strings["Settings.ThemeDesc"] = "Color scheme";
         _strings["Settings.Theme.Dark"] = "Dark";
@@ -561,6 +566,8 @@ public sealed class LocalizationService
         _strings["Status.Dir"] = "[DIR] {0}";
         _strings["Status.File"] = "{0} {1} {2}";
         _strings["Status.Copied"] = "Copied: ";
+        _strings["Status.CopiedToClipboard"] = "Copied to clipboard: {0}";
+        _strings["Status.CutToClipboard"] = "Cut to clipboard: {0}";
         _strings["Status.Moved"] = "Moved: ";
         _strings["Status.Deleted"] = "Deleted: {0}";
         _strings["Status.DeletedOf"] = "Deleted {0} of {1}. Error: {2}";
@@ -993,6 +1000,8 @@ public sealed class LocalizationService
         _strings["OpenWith.Open"] = "Open";
         _strings["OpenWith.Cancel"] = "Cancel";
         _strings["OpenWith.Opened"] = "Opened {0} in {1}";
+        _strings["OpenWith.ExeFilter"] = "Executable files (*.exe)|*.exe|All files (*.*)|*.*";
+        _strings["OpenWith.Notepad"] = "Notepad";
 
         // ═══════════════════════════════════════════
         // QUICK VIEW (ph5.5)
@@ -1475,6 +1484,7 @@ public sealed class LocalizationService
         // ═══════════════════════════════════════════
         _strings["Search.CriteriaError"] = "Criteria error: {0}";
         _strings["Search.SearchingStatus"] = "Searching…";
+        _strings["Search.ReadyStatus"] = "Ready";
         _strings["Search.FoundScanned"] = "Found: {0} (scanned {1})";
         _strings["Search.NothingFoundStatus"] = "Nothing found";
         _strings["Search.CancelledStatus"] = "Cancelled";
@@ -1956,6 +1966,7 @@ public sealed class LocalizationService
         // SEARCH
         // ═══════════════════════════════════════════
         _strings["Search.NoResults"] = "No search results";
+        _strings["Search.ResultsTitle"] = "Search results";
         _strings["Search.ResultsFormat"] = "Search results: {0}";
         _strings["Search.NoSavedResults"] = "No saved search results";
 

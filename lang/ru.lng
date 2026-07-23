@@ -333,6 +333,8 @@ Settings.Terminal=Терминал
 Settings.Behavior=Поведение
 Settings.Language=Язык
 Settings.LanguageDesc=Язык интерфейса
+Settings.Language.English=English
+Settings.Language.Russian=Русский
 Settings.Theme=Тема оформления
 Settings.ThemeDesc=Цветовая схема интерфейса
 Settings.Theme.Dark=Тёмная
@@ -495,6 +497,9 @@ Columns.SortDirection=Направление:
 # БЫСТРЫЙ ФИЛЬТР
 # ═══════════════════════════════════════════
 QuickFilter.Placeholder=Быстрый фильтр…
+QuickFilter.Files=Файлы
+QuickFilter.Folders=Папки
+QuickFilter.All=Все
 Quick.MatchCase=Учитывать регистр (Aa)
 Quick.MatchStart=Совпадение в начале имени
 Quick.Scope=Область фильтра: все / файлы / папки
@@ -664,6 +669,8 @@ Status.ItemsIn={0} элементов в {1}
 Status.Dir=[DIR] {0}
 Status.File={0} {1} {2}
 Status.Copied=Скопировано: 
+Status.CopiedToClipboard=Скопировано в буфер: {0}
+Status.CutToClipboard=Вырезано в буфер: {0}
 Status.Moved=Перемещено: 
 Status.Deleted=Удалено: {0}
 Status.DeletedOf=Удалено {0} из {1}. Ошибка: {2}
@@ -767,6 +774,8 @@ OpenWith.BrowseTitle=Выберите приложение
 OpenWith.Open=Открыть
 OpenWith.Cancel=Отмена
 OpenWith.Opened=Открыто {0} в {1}
+OpenWith.ExeFilter=Исполняемые файлы (*.exe)|*.exe|Все файлы (*.*)|*.*
+OpenWith.Notepad=Блокнот
 
 # ═══════════════════════════════════════════
 # БЫСТРЫЙ ПРОСМОТР
@@ -1294,6 +1303,7 @@ Ssh.Published=Опубликовано: {0}
 # ═══════════════════════════════════════════
 Search.CriteriaError=Ошибка критериев: {0}
 Search.SearchingStatus=Поиск…
+Search.ReadyStatus=Готово
 Search.FoundScanned=Найдено: {0} (проверено {1})
 Search.NothingFoundStatus=Ничего не найдено
 Search.CancelledStatus=Поиск отменён
@@ -1751,6 +1761,7 @@ Docker.Error=Ошибка:
 # ПОИСК
 # ═══════════════════════════════════════════
 Search.NoResults=Нет результатов поиска
+Search.ResultsTitle=Результаты поиска
 Search.ResultsFormat=Результаты поиска: {0}
 Search.NoSavedResults=Нет сохранённых результатов поиска
 

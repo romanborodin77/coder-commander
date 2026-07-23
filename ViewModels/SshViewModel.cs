@@ -161,6 +161,6 @@ public partial class SshViewModel : ObservableObject
     public async Task RunRemoteAsync(SshProfile profile, string command)
     {
         var r = await _ssh.RunRemoteAsync(profile, command);
-        Status = r.Success ? r.StdOut : "Ошибка: " + r.StdErr;
+        Status = r.Success ? r.StdOut : string.Format(LocalizationService.Current.GetString("Status.Error"), r.StdErr);
     }
 }

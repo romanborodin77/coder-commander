@@ -219,16 +219,12 @@
                     <Button Content="{DynamicResource Columns.Apply}"
                             Command="{Binding ApplyCommand}"
                             Padding="16,6" Margin="0,0,8,0"
-                            Background="{DynamicResource AccentBrush}"
-                            Foreground="White"
-                            BorderThickness="0"
+                            Style="{DynamicResource AccentButtonStyle}"
                             FontSize="12" FontWeight="SemiBold"/>
                     <Button Content="{DynamicResource Dialog.Cancel}"
                             Click="Close_Click"
                             Padding="16,6"
-                            Background="{DynamicResource SurfaceBrush}"
-                            Foreground="{DynamicResource FgLightBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Style="{DynamicResource DefaultButtonStyle}"
                             FontSize="12"/>
                 </StackPanel>
             </Border>

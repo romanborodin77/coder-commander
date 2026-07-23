@@ -19,16 +19,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-
-        <!-- Стиль группы дубликатов в TreeView / Duplicate group style -->
-        <Style x:Key="GroupHeaderStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AccentSoftBrush}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -150,17 +141,17 @@
         <!-- Row 3: Действия над отметками / Mark actions -->
         <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
-            <StackPanel Orientation="Horizontal">
+            <WrapPanel Orientation="Horizontal">
                 <Button Content="{DynamicResource Dup.MarkExceptFirst}"
                         Command="{Binding MarkExceptFirstCommand}"
-                        Padding="12,5" Margin="0,0,8,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="12,5" Margin="0,0,8,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Dup.ClearMarks}"
                         Command="{Binding ClearMarksCommand}"
-                        Padding="12,5" Margin="0,0,8,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="12,5" Margin="0,0,8,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Dup.DeleteMarked}"
                         Command="{Binding DeleteMarkedCommand}"
-                        Padding="12,5" Style="{DynamicResource AccentButtonStyle}"/>
-            </StackPanel>
+                        Padding="12,5" Margin="0,0,0,4" Style="{DynamicResource AccentButtonStyle}"/>
+            </WrapPanel>
         </Border>
 
         <!-- Row 4: Статус + поиск / Status + search -->

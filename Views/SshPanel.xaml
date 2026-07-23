@@ -4,7 +4,7 @@
     <DockPanel>
         <!-- ===== Верхняя панель инструментов ===== -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource BgHeaderBrush}" Padding="8,4">
-            <DockPanel>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal">
                     <!-- Группа: Профили -->
                     <Button Content="{DynamicResource Ssh.New}" Command="{Binding NewProfileCommand}"
@@ -35,7 +35,7 @@
                     </Button>
                     
                 </StackPanel>
-            </DockPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ===== Основная область ===== -->

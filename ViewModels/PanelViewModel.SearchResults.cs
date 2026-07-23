@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CoderCommander.FileSystem;
 using CoderCommander.Models;
+using CoderCommander.Services;
 
 namespace CoderCommander.ViewModels;
 
@@ -43,7 +44,7 @@ public partial class PanelViewModel
         VirtualFileSystem = source;
         // Служебный заголовок вместо реального пути (навигация заблокирована).
         // Sentinel title instead of a real path (navigation is blocked).
-        CurrentPath = "Результаты поиска";
+        CurrentPath = LocalizationService.Current.GetString("Search.ResultsTitle");
         _ = RefreshAsync();
     }
 

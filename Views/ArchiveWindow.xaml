@@ -17,6 +17,23 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <DataTemplate x:Key="ArchiveEntryTemplate">
+            <StackPanel Orientation="Horizontal" Margin="2,1">
+                <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding DisplayName}" FontSize="11"
+                           Foreground="{DynamicResource FgLightBrush}"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                           ToolTip="{Binding Key}" Margin="0,0,12,0" MinWidth="160"/>
+                <TextBlock Text="{Binding SizeDisplay}" FontSize="10"
+                           Foreground="{DynamicResource FgDimBrush}" VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding CompressedDisplay}" FontSize="10"
+                           Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding LastModified, StringFormat='yyyy-MM-dd HH:mm'}" FontSize="10"
+                           Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>

@@ -16,28 +16,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <Style x:Key="TechBadge" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="Margin" Value="3"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="TechLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Border CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <Border.Background>
@@ -47,7 +26,7 @@
             </LinearGradientBrush>
         </Border.Background>
         <Border.Effect>
-            <DropShadowEffect BlurRadius="40" ShadowDepth="8" Opacity="0.6" Color="#000000"/>
+            <DropShadowEffect BlurRadius="40" ShadowDepth="8" Opacity="0.6" Color="{DynamicResource ShadowColor}"/>
         </Border.Effect>
 
         <Grid>
@@ -157,31 +136,31 @@
                 <!-- Tech badges -->
                 <WrapPanel HorizontalAlignment="Center" Margin="0,20,0,0"
                            MaxWidth="380">
-                    <Border Style="{DynamicResource TechBadge}">
+                    <Border Style="{DynamicResource TechBadgeStyle}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text=".NET 8" Style="{DynamicResource TechLabel}"/>
+                            <TextBlock Text=".NET 8" Style="{DynamicResource StatusBarItemStyle}"/>
                         </StackPanel>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="WPF" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="WPF" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="AvalonEdit" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="AvalonEdit" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="Git" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="Git" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="Docker" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="Docker" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="SSH / SFTP" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="SSH / SFTP" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="MVVM" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="MVVM" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
-                    <Border Style="{DynamicResource TechBadge}">
-                        <TextBlock Text="SharpCompress" Style="{DynamicResource TechLabel}"/>
+                    <Border Style="{DynamicResource TechBadgeStyle}">
+                        <TextBlock Text="SharpCompress" Style="{DynamicResource StatusBarItemStyle}"/>
                     </Border>
                 </WrapPanel>
             </StackPanel>

@@ -69,7 +69,7 @@ public sealed class CommandEngine
     public async Task<string> RunAsync(QuickCommand cmd, CancellationToken ct = default)
     {
         try { return await cmd.Execute(ct); }
-        catch (Exception e) { return "Ошибка: " + e.Message; }
+        catch (Exception e) { return string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); }
     }
 
     /// <summary>

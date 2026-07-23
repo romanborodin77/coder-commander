@@ -2,22 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:CoderCommander.Converters">
-    <UserControl.Resources>
-        <Style x:Key="SectionHeader" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-        <Style x:Key="ToolbarBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Padding" Value="4,1"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="MinWidth" Value="22"/>
-            <Setter Property="MinHeight" Value="20"/>
-        </Style>
-    </UserControl.Resources>
+    <UserControl.Resources/>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -30,17 +15,17 @@
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Content="⟳" ToolTip="{DynamicResource Docker.Tip.Refresh}"
-                            Command="{Binding RefreshCommand}" Style="{DynamicResource ToolbarBtn}"/>
+                            Command="{Binding RefreshCommand}" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Separator Margin="4,2"/>
                     <Button Content="▶" ToolTip="{DynamicResource Docker.Tip.Start}"
-                            Command="{Binding StartCommand}" Style="{DynamicResource ToolbarBtn}"/>
+                            Command="{Binding StartCommand}" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Button Content="■" ToolTip="{DynamicResource Docker.Tip.Stop}"
-                            Command="{Binding StopCommand}" Margin="4,0,0,0" Style="{DynamicResource ToolbarBtn}"/>
+                            Command="{Binding StopCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Button Content="&#xE74D;" FontFamily="Segoe MDL2 Assets" ToolTip="{DynamicResource Docker.Tip.Remove}"
-                            Command="{Binding RemoveCommand}" Margin="4,0,0,0" Style="{DynamicResource ToolbarBtn}"/>
+                            Command="{Binding RemoveCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Separator Margin="4,2"/>
                     <Button ToolTip="{DynamicResource Docker.Tip.Logs}"
-                            Command="{Binding ShowLogsCommand}" Style="{DynamicResource ToolbarBtn}">
+                            Command="{Binding ShowLogsCommand}" Style="{DynamicResource PanelToolbarBtnStyle}">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Docker.Logs}" VerticalAlignment="Center"/>
@@ -64,7 +49,7 @@
 
             <!-- ===== ЛЕВАЯ ПАНЕЛЬ: Контейнеры ===== -->
             <DockPanel Grid.Column="0" Background="{DynamicResource BgPanelBrush}">
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <TextBlock Text="{DynamicResource Docker.Containers}" FontWeight="SemiBold" FontSize="13"/>
                 </Border>
 
@@ -176,13 +161,13 @@
             <!-- ===== ПРАВАЯ ПАНЕЛЬ: Exec + Логи + Образы ===== -->
             <DockPanel Grid.Column="2" Background="{DynamicResource BgPanelBrush}">
                 <!-- Exec команда -->
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <DockPanel>
                         <Button DockPanel.Dock="Right"
                                 Content="▶ Exec"
                                 ToolTip="{DynamicResource Docker.Tip.Exec}"
                                 Command="{Binding ExecInContainerCommand}"
-                                Style="{DynamicResource ToolbarBtn}"
+                                Style="{DynamicResource PanelToolbarBtnStyle}"
                                 FontWeight="SemiBold"
                                 Padding="10,4"/>
                 <TextBox Text="{Binding ExecCommand, UpdateSourceTrigger=PropertyChanged}"
@@ -198,7 +183,7 @@
                 </Border>
 
                 <!-- Логи контейнера -->
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <TextBlock Text="{DynamicResource Docker.Logs}" FontWeight="SemiBold" FontSize="12"/>
                 </Border>
 
@@ -213,7 +198,7 @@
                          Padding="6,4"/>
 
                 <!-- Образы -->
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -223,7 +208,7 @@
                         <Button Grid.Column="1" Content="&#xE74D;" FontFamily="Segoe MDL2 Assets"
                                 ToolTip="{DynamicResource Docker.Tip.RemoveImage}"
                                 Command="{Binding RemoveImageCommand}"
-                                Style="{DynamicResource IconBtn}"/>
+                                Style="{DynamicResource PanelIconBtnStyle}"/>
                     </Grid>
                 </Border>
 

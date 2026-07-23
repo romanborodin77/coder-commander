@@ -19,58 +19,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <Style x:Key="LinkGroupStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12,10"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-        </Style>
-
-        <Style x:Key="LinkGroupTitle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-
-        <Style x:Key="LinkLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="LinkButton" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Window.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding CancelCommand}"/>
@@ -119,7 +68,7 @@
                                 <ColumnDefinition Width="90"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Type}" Style="{StaticResource LinkLabel}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Type}" Style="{StaticResource LinkLabelStyle}"/>
                             <TextBlock Grid.Column="1" Text="{Binding TypeName}" Foreground="{DynamicResource FgLightBrush}"
                                        FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </Grid>
@@ -129,7 +78,7 @@
                 <!-- Путь источника / Source path -->
                 <Border Style="{StaticResource LinkGroupStyle}">
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Link.Target}" Style="{StaticResource LinkGroupTitle}"/>
+                        <TextBlock Text="{DynamicResource Link.Target}" Style="{StaticResource LinkGroupTitleStyle}"/>
                         <TextBox Text="{Binding TargetPath, Mode=OneWay}" IsReadOnly="True"
                                  VerticalContentAlignment="Center" Padding="8,6"
                                  Foreground="{DynamicResource FgMutedBrush}" FontSize="11"
@@ -147,7 +96,7 @@
                                 <ColumnDefinition Width="90"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Name}" Style="{StaticResource LinkLabel}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Name}" Style="{StaticResource LinkLabelStyle}"/>
                             <TextBox x:Name="LinkNameBox" Grid.Column="1" Text="{Binding LinkName, UpdateSourceTrigger=PropertyChanged}"
                                      VerticalContentAlignment="Center" Padding="8,4"/>
                         </Grid>
@@ -157,7 +106,7 @@
                                 <ColumnDefinition Width="90"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Path}" Style="{StaticResource LinkLabel}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Link.Path}" Style="{StaticResource LinkLabelStyle}"/>
                             <TextBox Grid.Column="1" Text="{Binding LinkPath, Mode=OneWay}" IsReadOnly="True"
                                      VerticalContentAlignment="Center" Padding="8,4"
                                      Foreground="{DynamicResource FgMutedBrush}" FontSize="11"/>
@@ -168,7 +117,7 @@
                 <!-- Режим нескольких файлов / Multiple files mode -->
                 <Border Style="{StaticResource LinkGroupStyle}" Visibility="{Binding IsMultiMode, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
-                        <TextBlock Text="{DynamicResource Link.MultipleFiles}" Style="{StaticResource LinkGroupTitle}"/>
+                        <TextBlock Text="{DynamicResource Link.MultipleFiles}" Style="{StaticResource LinkGroupTitleStyle}"/>
                         <ItemsControl ItemsSource="{Binding LinkEntries}" MaxHeight="200">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -203,10 +152,10 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="1" Style="{StaticResource LinkButton}" Command="{Binding CreateCommand}" Margin="0,0,8,0">
+                <Button Grid.Column="1" Style="{StaticResource AccentLinkButtonStyle}" Command="{Binding CreateCommand}" Margin="0,0,8,0">
                     <TextBlock Text="{DynamicResource Link.Create}"/>
                 </Button>
-                <Button Grid.Column="2" Style="{StaticResource LinkButton}" Command="{Binding CancelCommand}"
+                <Button Grid.Column="2" Style="{StaticResource AccentLinkButtonStyle}" Command="{Binding CancelCommand}"
                         Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource FgLightBrush}">
                     <TextBlock Text="{DynamicResource Link.Cancel}"/>
                 </Button>

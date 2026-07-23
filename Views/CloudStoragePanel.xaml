@@ -1,23 +1,7 @@
 <UserControl x:Class="CoderCommander.Views.CloudStoragePanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <UserControl.Resources>
-        <Style x:Key="CloudToolBtn" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="8,0"/>
-            <Setter Property="MinWidth" Value="90"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-        <Style x:Key="CloudToolBtnSmall" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="6,0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-    </UserControl.Resources>
+    <UserControl.Resources/>
 
     <DockPanel>
         <!-- ═══ 1. СТРОКА СТАТУСА ═══ -->
@@ -59,10 +43,11 @@
                                Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                <ScrollViewer DockPanel.Dock="Right" HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Command="{Binding AddProfileCommand}"
-                            Style="{StaticResource CloudToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Cloud.AddProfile}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
@@ -70,7 +55,7 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding EditProfileCommand}"
-                            Style="{StaticResource CloudToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Cloud.EditProfile}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
@@ -79,7 +64,7 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding DeleteProfileCommand}"
-                            Style="{StaticResource CloudToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Cloud.DeleteProfile}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
@@ -91,7 +76,7 @@
                     <Separator Style="{DynamicResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
 
                     <Button Command="{Binding ConnectSelectedProfileCommand}"
-                            Style="{StaticResource CloudToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center">
@@ -111,14 +96,15 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding DisconnectSelectedProfileCommand}"
-                            Style="{StaticResource CloudToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             IsEnabled="{Binding IsSelectedProfileConnected}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8D8;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Cloud.DisconnectBtnShort}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </DockPanel>
         </Border>
 
@@ -200,7 +186,7 @@
                              FontFamily="Consolas" FontSize="10" Margin="4,1" VerticalContentAlignment="Center"/>
                     <Button Grid.Row="0" Grid.Column="2" Grid.RowSpan="2"
                             Command="{Binding SaveGDriveCredentialsCommand}"
-                            Style="{StaticResource CloudToolBtnSmall}"
+                            Style="{StaticResource SidePanelToolBtnSmallStyle}"
                             ToolTip="{DynamicResource Cloud.GDrive.SaveCredentialsTip}"
                             VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
@@ -218,7 +204,7 @@
                 </Grid>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                     <Button Command="{Binding AuthorizeGoogleDriveCommand}"
-                            Style="{StaticResource CloudToolBtnSmall}"
+                            Style="{StaticResource SidePanelToolBtnSmallStyle}"
                             IsEnabled="{Binding IsGDriveAuthorizing, Converter={StaticResource InverseBool}}"
                             Padding="10,2">
                         <StackPanel Orientation="Horizontal">
@@ -241,11 +227,11 @@
                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Command="{Binding RefreshCommand}"
-                        Style="{StaticResource CloudToolBtnSmall}">
+                        Style="{StaticResource SidePanelToolBtnSmallStyle}">
                     <TextBlock Text="&#x27F3;" VerticalAlignment="Center"/>
                 </Button>
                 <Button DockPanel.Dock="Right" Command="{Binding GoUpCommand}"
-                        Style="{StaticResource CloudToolBtnSmall}">
+                        Style="{StaticResource SidePanelToolBtnSmallStyle}">
                     <TextBlock Text="&#x2191;" VerticalAlignment="Center"/>
                 </Button>
                 <TextBlock DockPanel.Dock="Left"

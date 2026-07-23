@@ -19,7 +19,7 @@
     <Border CornerRadius="10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
             Background="{DynamicResource BgDarkBrush}" Margin="8">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.5" Color="#000000"/>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.5" Color="{DynamicResource ShadowColor}"/>
         </Border.Effect>
 
         <Grid>
@@ -75,8 +75,8 @@
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,1,0,0"
                     Padding="16,10">
-                <StackPanel x:Name="ButtonPanel" Orientation="Horizontal"
-                            HorizontalAlignment="Right"/>
+                <WrapPanel x:Name="ButtonPanel" Orientation="Horizontal"
+                           HorizontalAlignment="Right"/>
             </Border>
         </Grid>
     </Border>

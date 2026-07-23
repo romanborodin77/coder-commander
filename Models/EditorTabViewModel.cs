@@ -18,11 +18,6 @@ public partial class EditorTabViewModel : ObservableObject
     private string _filePath = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TabTitle))]
-    [NotifyPropertyChangedFor(nameof(FilePathDisplay))]
-    private string _fileName = "";
-
-    [ObservableProperty]
     private string _content = "";
 
     [ObservableProperty]
@@ -48,6 +43,12 @@ public partial class EditorTabViewModel : ObservableObject
     private int _caretOffset;
 
     /// <summary>
+    /// Имя файла, вычисляемое из FilePath.
+    /// File name derived from FilePath.
+    /// </summary>
+    public string FileName => Path.GetFileName(FilePath);
+
+    /// <summary>
     /// Заголовок вкладки: «* filename» если модифицирован, иначе «filename».
     /// Tab title: "* filename" if modified, otherwise "filename".
     /// </summary>
@@ -67,6 +68,17 @@ public partial class EditorTabViewModel : ObservableObject
                 ? $"{parentDir}\\{FileName}"
                 : FileName;
         }
+    }
+
+    /// <summary>
+    /// Уведомляет об изменении FileName/TabTitle/FilePathDisplay при смене FilePath.
+    /// Notifies FileName/TabTitle/FilePathDisplay change when FilePath changes.
+    /// </summary>
+    partial void OnFilePathChanged(string value)
+    {
+        OnPropertyChanged(nameof(FileName));
+        OnPropertyChanged(nameof(TabTitle));
+        OnPropertyChanged(nameof(FilePathDisplay));
     }
 
     /// <summary>

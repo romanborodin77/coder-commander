@@ -14,35 +14,7 @@
                       ResizeBorderThickness="6" CornerRadius="0"
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
-    <Window.Resources>
-        <!-- Локальный акцентный стиль кнопки (ToolbarAccentStyle недоступен вне MainWindow). -->
-        <Style x:Key="SearchAccentButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                CornerRadius="7" Padding="10,4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
     <Window.DataContext>
         <vm:SearchDialogViewModel/>
     </Window.DataContext>
@@ -206,7 +178,7 @@
                        Foreground="{DynamicResource FgMutedBrush}" TextTrimming="CharacterEllipsis"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button Content="{DynamicResource Search.Start}" Command="{Binding SearchCommand}"
-                        Style="{StaticResource SearchAccentButtonStyle}" Width="130" Height="32" Margin="0,0,8,0"/>
+                        Style="{StaticResource AccentLinkButtonStyle}" Width="130" Height="32" Margin="0,0,8,0"/>
                 <Button Content="{DynamicResource Search.ShowInPanel}" Command="{Binding ShowInPanelCommand}"
                         IsEnabled="{Binding CanShowInPanel}" Width="220" Height="32" Margin="0,0,8,0"
                         Style="{DynamicResource DefaultButtonStyle}"

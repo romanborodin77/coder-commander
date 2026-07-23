@@ -54,9 +54,9 @@ public partial class PanelViewModel
     /// <summary>Текстовая метка области действия для UI («Все»/«Файлы»/«Папки»).</summary>
     public string QuickScopeText => QuickScope switch
     {
-        QuickFilterScope.Files => "Файлы",
-        QuickFilterScope.Folders => "Папки",
-        _ => "Все"
+        QuickFilterScope.Files => LocalizationService.Current.GetString("QuickFilter.Files"),
+        QuickFilterScope.Folders => LocalizationService.Current.GetString("QuickFilter.Folders"),
+        _ => LocalizationService.Current.GetString("QuickFilter.All")
     };
 
     // ───────────────────────── Изменения свойств ─────────────────────────

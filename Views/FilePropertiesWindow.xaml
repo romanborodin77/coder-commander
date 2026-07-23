@@ -14,30 +14,7 @@
         <WindowChrome CaptionHeight="36" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <Style x:Key="PropLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="PropValue" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-        </Style>
-        <Style x:Key="AttrBadge" TargetType="Border">
-            <Setter Property="CornerRadius" Value="3"/>
-            <Setter Property="Padding" Value="5,1"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-        <Style x:Key="AttrBadgeText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Grid>
         <!-- ═══ Title Bar ═══ -->
@@ -116,28 +93,28 @@
                             <ColumnDefinition Width="80"/><ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Props.Type}" Style="{StaticResource PropLabel}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Type}" Style="{StaticResource PropValue}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Props.Type}" Style="{StaticResource PropLabelStyle}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Type}" Style="{StaticResource PropValueStyle}"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Props.Size}" Style="{StaticResource PropLabel}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Props.Size}" Style="{StaticResource PropLabelStyle}"/>
                         <StackPanel Grid.Row="1" Grid.Column="1">
-                            <TextBlock Text="{Binding SizeDisplay}" Style="{StaticResource PropValue}"/>
+                            <TextBlock Text="{Binding SizeDisplay}" Style="{StaticResource PropValueStyle}"/>
                             <ProgressBar Value="{Binding SizeProgressPercent}" Maximum="100" Height="2" Margin="0,3,0,0"/>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Props.Files}" Style="{StaticResource PropLabel}"
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Props.Files}" Style="{StaticResource PropLabelStyle}"
                                    Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FileCount}" Style="{StaticResource PropValue}"
-                                   Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Props.Folders}" Style="{StaticResource PropLabel}"
-                                   Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DirectoryCount}" Style="{StaticResource PropValue}"
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FileCount}" Style="{StaticResource PropValueStyle}"
                                    Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Props.Symlinks}" Style="{StaticResource PropLabel}"
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Props.Folders}" Style="{StaticResource PropLabelStyle}"
                                    Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SymlinkCount}" Style="{StaticResource PropValue}"
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DirectoryCount}" Style="{StaticResource PropValueStyle}"
+                                   Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Props.Symlinks}" Style="{StaticResource PropLabelStyle}"
+                                   Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SymlinkCount}" Style="{StaticResource PropValueStyle}"
                                    Visibility="{Binding IsFolder, Converter={StaticResource BoolToVis}}"/>
 
                         <ProgressBar Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
@@ -154,53 +131,53 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="80"/><ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Created}" Style="{StaticResource PropLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Created}" Style="{StaticResource PropValue}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Created}" Style="{StaticResource PropLabelStyle}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Created}" Style="{StaticResource PropValueStyle}"/>
                         </Grid>
                         <Grid Margin="0,0,0,2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="80"/><ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Modified}" Style="{StaticResource PropLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Modified}" Style="{StaticResource PropValue}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Modified}" Style="{StaticResource PropLabelStyle}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Modified}" Style="{StaticResource PropValueStyle}"/>
                         </Grid>
                         <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="80"/><ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Accessed}" Style="{StaticResource PropLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Accessed}" Style="{StaticResource PropValue}"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Accessed}" Style="{StaticResource PropLabelStyle}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Accessed}" Style="{StaticResource PropValueStyle}"/>
                         </Grid>
 
                         <!-- Separator -->
                         <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,6"/>
 
                         <!-- Attributes: badges + checkboxes in one row -->
-                        <TextBlock Text="{DynamicResource Props.Attributes}" Style="{StaticResource PropLabel}" Margin="0,0,0,4"/>
+                        <TextBlock Text="{DynamicResource Props.Attributes}" Style="{StaticResource PropLabelStyle}" Margin="0,0,0,4"/>
                         <WrapPanel>
                             <!-- ReadOnly -->
-                            <Border Style="{StaticResource AttrBadge}" Background="#E74C3C" Margin="0,0,4,2"
-                                    Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}"
-                                    ToolTip="{DynamicResource Props.Attr.ReadOnly.Full}">
-                                <TextBlock Text="{DynamicResource Props.Attr.ReadOnly}" Style="{StaticResource AttrBadgeText}"/>
+                            <Border Style="{StaticResource AttrBadgeStyle}" Background="{DynamicResource ErrBrush}" Margin="0,0,4,2"
+                                     Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}"
+                                     ToolTip="{DynamicResource Props.Attr.ReadOnly.Full}">
+                                <TextBlock Text="{DynamicResource Props.Attr.ReadOnly}" Style="{StaticResource AttrBadgeTextStyle}"/>
                             </Border>
                             <!-- Hidden -->
-                            <Border Style="{StaticResource AttrBadge}" Background="#F1C40F" Margin="0,0,4,2"
-                                    Visibility="{Binding IsHidden, Converter={StaticResource BoolToVis}}"
-                                    ToolTip="{DynamicResource Props.Attr.Hidden.Full}">
-                                <TextBlock Text="{DynamicResource Props.Attr.Hidden}" Style="{StaticResource AttrBadgeText}" Foreground="#1A1C24"/>
+                            <Border Style="{StaticResource AttrBadgeStyle}" Background="{DynamicResource WarnBrush}" Margin="0,0,4,2"
+                                     Visibility="{Binding IsHidden, Converter={StaticResource BoolToVis}}"
+                                     ToolTip="{DynamicResource Props.Attr.Hidden.Full}">
+                                <TextBlock Text="{DynamicResource Props.Attr.Hidden}" Style="{StaticResource AttrBadgeTextStyle}"/>
                             </Border>
                             <!-- System -->
-                            <Border Style="{StaticResource AttrBadge}" Background="#3498DB" Margin="0,0,4,2"
-                                    Visibility="{Binding IsSystem, Converter={StaticResource BoolToVis}}"
-                                    ToolTip="{DynamicResource Props.Attr.System.Full}">
-                                <TextBlock Text="{DynamicResource Props.Attr.System}" Style="{StaticResource AttrBadgeText}"/>
+                            <Border Style="{StaticResource AttrBadgeStyle}" Background="{DynamicResource AccentBrush}" Margin="0,0,4,2"
+                                     Visibility="{Binding IsSystem, Converter={StaticResource BoolToVis}}"
+                                     ToolTip="{DynamicResource Props.Attr.System.Full}">
+                                <TextBlock Text="{DynamicResource Props.Attr.System}" Style="{StaticResource AttrBadgeTextStyle}"/>
                             </Border>
                             <!-- Archive -->
-                            <Border Style="{StaticResource AttrBadge}" Background="#2ECC71" Margin="0,0,4,2"
-                                    Visibility="{Binding IsArchive, Converter={StaticResource BoolToVis}}"
-                                    ToolTip="{DynamicResource Props.Attr.Archive.Full}">
-                                <TextBlock Text="{DynamicResource Props.Attr.Archive}" Style="{StaticResource AttrBadgeText}"/>
+                            <Border Style="{StaticResource AttrBadgeStyle}" Background="{DynamicResource OkBrush}" Margin="0,0,4,2"
+                                     Visibility="{Binding IsArchive, Converter={StaticResource BoolToVis}}"
+                                     ToolTip="{DynamicResource Props.Attr.Archive.Full}">
+                                <TextBlock Text="{DynamicResource Props.Attr.Archive}" Style="{StaticResource AttrBadgeTextStyle}"/>
                             </Border>
                         </WrapPanel>
 
@@ -234,7 +211,7 @@
                                 <ColumnDefinition Width="60"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Created}" Style="{StaticResource PropLabel}" FontSize="10"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Created}" Style="{StaticResource PropLabelStyle}" FontSize="10"/>
                             <DatePicker Grid.Column="1" SelectedDate="{Binding EditCreatedDate}" SelectedDateFormat="Short"
                                         FontSize="10" Margin="0,0,4,0" Height="24"/>
                             <TextBox Grid.Column="2" Text="{Binding EditCreatedTime, UpdateSourceTrigger=PropertyChanged}"
@@ -249,7 +226,7 @@
                                 <ColumnDefinition Width="60"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Modified}" Style="{StaticResource PropLabel}" FontSize="10"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Modified}" Style="{StaticResource PropLabelStyle}" FontSize="10"/>
                             <DatePicker Grid.Column="1" SelectedDate="{Binding EditModifiedDate}" SelectedDateFormat="Short"
                                         FontSize="10" Margin="0,0,4,0" Height="24"/>
                             <TextBox Grid.Column="2" Text="{Binding EditModifiedTime, UpdateSourceTrigger=PropertyChanged}"
@@ -264,7 +241,7 @@
                                 <ColumnDefinition Width="60"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Accessed}" Style="{StaticResource PropLabel}" FontSize="10"/>
+                            <TextBlock Grid.Column="0" Text="{DynamicResource Props.Accessed}" Style="{StaticResource PropLabelStyle}" FontSize="10"/>
                             <DatePicker Grid.Column="1" SelectedDate="{Binding EditAccessedDate}" SelectedDateFormat="Short"
                                         FontSize="10" Margin="0,0,4,0" Height="24"/>
                             <TextBox Grid.Column="2" Text="{Binding EditAccessedTime, UpdateSourceTrigger=PropertyChanged}"

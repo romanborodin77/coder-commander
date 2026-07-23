@@ -14,29 +14,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="Width" Value="120"/>
-        </Style>
-        <Style x:Key="FieldInput" TargetType="TextBox">
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,4"/>
-        </Style>
-        <Style x:Key="FieldPassword" TargetType="PasswordBox">
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,4"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
         <DockPanel>
@@ -80,64 +58,64 @@
                 <!-- Name -->
                 <TextBlock Grid.Row="0" Grid.Column="0"
                            Text="{DynamicResource Ssh.ProfileName}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <TextBox Grid.Row="0" Grid.Column="1" x:Name="ProfileName"
-                         Style="{StaticResource FieldInput}"
+                         Style="{StaticResource FieldInputStyle}"
                          Margin="0,4,0,8"/>
 
                 <!-- Host -->
                 <TextBlock Grid.Row="1" Grid.Column="0"
                            Text="{DynamicResource Ssh.Host}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <TextBox Grid.Row="1" Grid.Column="1" x:Name="Host"
-                         Style="{StaticResource FieldInput}"
+                         Style="{StaticResource FieldInputStyle}"
                          Margin="0,4,0,8"/>
 
                 <!-- User -->
                 <TextBlock Grid.Row="2" Grid.Column="0"
                            Text="{DynamicResource Ssh.User}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <TextBox Grid.Row="2" Grid.Column="1" x:Name="User"
-                         Style="{StaticResource FieldInput}"
+                         Style="{StaticResource FieldInputStyle}"
                          Margin="0,4,0,8"/>
 
                 <!-- Password -->
                 <TextBlock Grid.Row="3" Grid.Column="0"
                            Text="{DynamicResource Ssh.Password}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="Password"
-                             Style="{StaticResource FieldPassword}"
+                             Style="{StaticResource FieldPasswordStyle}"
                              Margin="0,4,0,8"/>
 
                 <!-- Port -->
                 <TextBlock Grid.Row="4" Grid.Column="0"
                            Text="{DynamicResource Ssh.Port}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <TextBox Grid.Row="4" Grid.Column="1" x:Name="Port"
-                         Style="{StaticResource FieldInput}"
+                         Style="{StaticResource FieldInputStyle}"
                          Text="22"
                          Margin="0,4,0,8"/>
 
                 <!-- Remote Path -->
                 <TextBlock Grid.Row="5" Grid.Column="0"
                            Text="{DynamicResource Ssh.RemotePath}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <TextBox Grid.Row="5" Grid.Column="1" x:Name="RemotePath"
-                         Style="{StaticResource FieldInput}"
+                         Style="{StaticResource FieldInputStyle}"
                          Text="/"
                          Margin="0,4,0,8"/>
 
                 <!-- Identity File -->
                 <TextBlock Grid.Row="6" Grid.Column="0"
                            Text="{DynamicResource Ssh.IdentityFile}"
-                           Style="{StaticResource FieldLabel}"/>
+                           Style="{StaticResource FieldLabelStyle}"/>
                 <Grid Grid.Row="6" Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="IdentityFile"
-                             Style="{StaticResource FieldInput}"
+                             Style="{StaticResource FieldInputStyle}"
                              Margin="0,4,4,8"
                              IsReadOnly="True"/>
                     <Button Grid.Column="1"

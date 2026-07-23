@@ -134,7 +134,7 @@
                      MouseDoubleClick="BookmarksList_DblClick"
                      KeyDown="BookmarksList_KeyDown">
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                         <Setter Property="Margin" Value="2,2"/>
                         <Setter Property="Padding" Value="10,8"/>
                     </Style>

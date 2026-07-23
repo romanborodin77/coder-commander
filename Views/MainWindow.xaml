@@ -68,206 +68,7 @@
         <KeyBinding Key="Z" Modifiers="Alt" Command="{Binding TargetEqualSourceCommand}"/>
         <KeyBinding Key="F4" Modifiers="Shift" Command="{Binding EditNewCommand}"/>
     </Window.InputBindings>
-    <Window.Resources>
-        <!-- ═══ Shared Panel Tab Item Style ═══ -->
-        <Style x:Key="PanelTabItemStyle" TargetType="TabItem">
-            <Setter Property="Padding" Value="8,3"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                BorderThickness="0,0,0,2"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceBrush}}"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
-                                <Setter Property="Foreground" Value="{Binding Source={x:Static services:ThemeColors.FgLightBrush}}"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Menu Separator Style -->
-        <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Margin" Value="8,4"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Margin="0,4">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                     <GradientStop Color="Transparent" Offset="0"/>
-                                      <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.1"/>
-                                      <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.BorderBrush}}" Offset="0.9"/>
-                                     <GradientStop Color="Transparent" Offset="1"/>
-                                 </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ═══ MenuItem Style ═══ -->
-        <Style TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Grid>
-                            <Border x:Name="Bd"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Icon"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="IGT"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Arrow"/>
-                                        <ColumnDefinition Width="14"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ContentPresenter x:Name="Icon" Grid.Column="0"
-                                                      ContentSource="Icon"
-                                                      Width="16" Margin="0,0,8,0"
-                                                      VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                      Opacity="0.75"/>
-                                    <ContentPresenter x:Name="Header" Grid.Column="1"
-                                                      ContentSource="Header"
-                                                      VerticalAlignment="Center"
-                                                      RecognizesAccessKey="True"/>
-                                    <TextBlock x:Name="IGT" Grid.Column="2"
-                                               Text="{TemplateBinding InputGestureText}"
-                                               VerticalAlignment="Center" Margin="18,0,4,0"
-                                               Foreground="{DynamicResource FgMutedBrush}"
-                                               FontSize="11"/>
-                                    <TextBlock x:Name="Arrow" Grid.Column="3"
-                                               Text="&#x25B8;" FontSize="10"
-                                               VerticalAlignment="Center" HorizontalAlignment="Center"
-                                               Foreground="{DynamicResource FgDimBrush}"
-                                               Margin="4,0,0,0"/>
-                                </Grid>
-                            </Border>
-                            <Popup x:Name="SubMenuPopup"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   Placement="Right"
-                                   HorizontalOffset="-4"
-                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
-                                <Border Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="10"
-                                        Padding="4"
-                                        SnapsToDevicePixels="True">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.5" Color="#000000" Direction="270"/>
-                                    </Border.Effect>
-                                    <StackPanel IsItemsHost="True"
-                                                Grid.IsSharedSizeScope="True"
-                                                KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Role" Value="TopLevelHeader">
-                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
-                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="Padding" Value="1,5"/>
-                                <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
-                                <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
-                                <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
-                            </Trigger>
-                            <Trigger Property="Role" Value="TopLevelItem">
-                                <Setter TargetName="IGT" Property="Visibility" Value="Collapsed"/>
-                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="Padding" Value="1,5"/>
-                                <Setter TargetName="SubMenuPopup" Property="Placement" Value="Bottom"/>
-                                <Setter TargetName="SubMenuPopup" Property="HorizontalOffset" Value="0"/>
-                                <Setter TargetName="SubMenuPopup" Property="VerticalOffset" Value="4"/>
-                            </Trigger>
-                            <Trigger Property="Role" Value="SubmenuItem">
-                                <Setter TargetName="Arrow" Property="Visibility" Value="Collapsed"/>
-                            </Trigger>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- ═══ Menu Style ═══ -->
-        <Style TargetType="Menu">
-            <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="2,2"/>
-        </Style>
-
-        <!-- ═══ Panel Splitters ═══ -->
-        <!-- ph: ControlTemplate убран — GradientStop.Color="{DynamicResource}" внутри ControlTemplate -->
-        <!-- вызывал DUCE-крэш при смене темы (WPF замораживает Freezable). Вместо этого: простой -->
-        <!-- Background на Style + Style.Triggers для hover. DynamicResource в Style.Triggers — безопасен. -->
-        <!-- ph: ControlTemplate removed — GradientStop.Color="{DynamicResource}" inside ControlTemplate -->
-        <!-- caused DUCE crash on theme switch (WPF freezes Freezable). Instead: plain Background on -->
-        <!-- Style + Style.Triggers for hover. DynamicResource in Style.Triggers is safe. -->
-        <Style x:Key="PanelSplitterV" TargetType="GridSplitter">
-            <Setter Property="Width" Value="3"/>
-            <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Stretch"/>
-            <Setter Property="Cursor" Value="SizeWE"/>
-            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="PanelSplitterH" TargetType="GridSplitter">
-            <Setter Property="Height" Value="3"/>
-            <Setter Property="Background" Value="{DynamicResource FgMutedBrush}"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Cursor" Value="SizeNS"/>
-            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
 <Grid Margin="1,0,1,1">
             <!-- ═══ CUSTOM TITLE BAR ═══ -->
@@ -358,7 +159,7 @@
                     BorderThickness="1"
                     CornerRadius="14">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="50" ShadowDepth="16" Opacity="0.8" Color="#000000"/>
+                    <DropShadowEffect BlurRadius="50" ShadowDepth="16" Opacity="0.8" Color="{DynamicResource ShadowColor}"/>
                 </Border.Effect>
                 <StackPanel>
                     <!-- Search Input Row -->
@@ -405,7 +206,7 @@
                              Padding="8,6"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                                 <Setter Property="Margin" Value="2,2"/>
                                 <Setter Property="Padding" Value="12,10"/>
                             </Style>

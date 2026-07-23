@@ -18,14 +18,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-
-        <!-- Легенда статусбара -->
-        <Style x:Key="LegendItemStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -172,11 +165,11 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                     <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffAddBgBrush}" Stroke="{DynamicResource DiffAddBrush}" Margin="0,0,4,0"/>
-                    <TextBlock Text="{DynamicResource Diff.Legend.Added}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Added}" Style="{StaticResource StatusBarItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
                     <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffDelBgBrush}" Stroke="{DynamicResource DiffDelBrush}" Margin="12,0,4,0"/>
-                    <TextBlock Text="{DynamicResource Diff.Legend.Removed}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Removed}" Style="{StaticResource StatusBarItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
                     <Rectangle Width="10" Height="10" Fill="{DynamicResource DiffModBgBrush}" Stroke="{DynamicResource DiffModBrush}" Margin="12,0,4,0"/>
-                    <TextBlock Text="{DynamicResource Diff.Legend.Modified}" Style="{StaticResource LegendItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
+                    <TextBlock Text="{DynamicResource Diff.Legend.Modified}" Style="{StaticResource StatusBarItemStyle}" Foreground="{DynamicResource FgDimBrush}"/>
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding DiffSummary}"
                            Foreground="{DynamicResource FgMutedBrush}"

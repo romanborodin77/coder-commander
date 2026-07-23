@@ -133,7 +133,6 @@ public partial class EditorWindow : Window
         var tab = new EditorTabViewModel
         {
             FilePath = filePath,
-            FileName = Path.GetFileName(filePath),
             Content = content,
             OriginalContent = content,
             IsReadOnly = isReadOnly,
@@ -618,7 +617,6 @@ public partial class EditorWindow : Window
             var text = editor.Text;
             File.WriteAllText(dlg.FileName, text, System.Text.Encoding.UTF8);
             tab.FilePath = dlg.FileName;
-            tab.FileName = Path.GetFileName(dlg.FileName);
             tab.Content = text;
             tab.OriginalContent = text;
             tab.IsModified = false;

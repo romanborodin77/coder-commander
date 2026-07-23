@@ -8,25 +8,6 @@
              d:DesignHeight="400" d:DesignWidth="900">
 
     <UserControl.Resources>
-        <!-- Стиль ячейки: подсветка отличающегося байта цветом из темы (DiffModBg). -->
-        <!-- Cell style: highlights a differing byte with a theme brush (DiffModBg). -->
-        <Style x:Key="HexCellStyle" TargetType="TextBlock">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource VsEditorFg}"/>
-            <Setter Property="FontFamily" Value="Consolas, Cascadia Code, Courier New"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="TextAlignment" Value="Center"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDiff}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource DiffModBgBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DiffModBrush}"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsPadding}" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
         <!-- Горизонтальный контейнер для 16 ячеек строки. -->
         <!-- Horizontal container for the 16 cells of a row. -->
         <ItemsPanelTemplate x:Key="HexCellsPanel">

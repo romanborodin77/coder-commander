@@ -1406,7 +1406,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         fileList.AddRange(files.ToArray());
         Clipboard.SetFileDropList(fileList);
         _clipboardIsCut = false;
-        StatusText = $"Скопировано в буфер: {files.Count}";
+        StatusText = string.Format(LocalizationService.Current.GetString("Status.CopiedToClipboard"), files.Count);
     }
 
     /// <summary>Вырезать файлы в буфер обмена (Ctrl+X, DC cm_CutToClipboard).</summary>
@@ -1419,7 +1419,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         fileList.AddRange(files.ToArray());
         Clipboard.SetFileDropList(fileList);
         _clipboardIsCut = true;
-        StatusText = $"Вырезано в буфер: {files.Count}";
+        StatusText = string.Format(LocalizationService.Current.GetString("Status.CutToClipboard"), files.Count);
     }
 
     private bool _clipboardIsCut;

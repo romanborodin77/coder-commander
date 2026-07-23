@@ -3,47 +3,32 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:CoderCommander.Converters"
              xmlns:s="clr-namespace:CoderCommander.Services">
-    <UserControl.Resources>
-        <Style x:Key="GitBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style x:Key="IconBtn" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Padding" Value="4,1"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="MinWidth" Value="22"/>
-            <Setter Property="MinHeight" Value="20"/>
-        </Style>
-        <Style x:Key="SectionHeader" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-    </UserControl.Resources>
+    <UserControl.Resources/>
 
     <DockPanel>
         <!-- ============================== ТУЛБАР ============================== -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource BgHeaderBrush}" Padding="8,4">
-            <DockPanel>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal">
                     <Button Content="{DynamicResource Git.Refresh}" ToolTip="{DynamicResource Git.Tip.Refresh}"
-                            Command="{Binding RefreshCommand}" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding RefreshCommand}" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Separator Width="1" Margin="4,2"/>
                     <Button Content="{DynamicResource Git.Fetch}" ToolTip="{DynamicResource Git.Tip.Fetch}"
-                            Command="{Binding FetchCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding FetchCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Button Content="{DynamicResource Git.Pull}" ToolTip="{DynamicResource Git.Tip.Pull}"
-                            Command="{Binding PullCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding PullCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Button Content="{DynamicResource Git.Push}" ToolTip="{DynamicResource Git.Tip.Push}"
-                            Command="{Binding PushCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding PushCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Separator Width="1" Margin="4,2"/>
                     <Button Content="{DynamicResource Git.Stash}" ToolTip="{DynamicResource Git.Tip.Stash}"
-                            Command="{Binding StashCommand}" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding StashCommand}" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Button Content="{DynamicResource Git.PopStash}" ToolTip="{DynamicResource Git.Tip.PopStash}"
-                            Command="{Binding PopStashCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding PopStashCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                     <Separator Width="1" Margin="4,2"/>
                     <Button Content="{DynamicResource Git.NewBranch}" ToolTip="{DynamicResource Git.Tip.NewBranch}"
-                            Command="{Binding NewBranchCommand}" Style="{DynamicResource GitBtn}"/>
+                            Command="{Binding NewBranchCommand}" Style="{DynamicResource PanelToolbarBtnStyle}"/>
                 </StackPanel>
-            </DockPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ============================== ИНДИКАТОР ЗАГРУЗКИ ============================== -->
@@ -112,7 +97,7 @@
                         Content="{DynamicResource Git.Commit}"
                         Command="{Binding CommitCommand}"
                         Margin="6,0,0,0"
-                        Style="{DynamicResource GitBtn}"
+                        Style="{DynamicResource PanelToolbarBtnStyle}"
                         FontWeight="SemiBold"/>
                 <CheckBox DockPanel.Dock="Right"
                           Content="{DynamicResource Git.Amend}"
@@ -164,15 +149,15 @@
 
             <!-- ===== ПАНЕЛЬ ИЗМЕНЕНИЙ (Колонка 0) ===== -->
             <DockPanel Grid.Column="0">
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <DockPanel>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                            <Button Content="{DynamicResource Git.StageAll}" ToolTip="{DynamicResource Git.Tip.StageAll}"
-                                    Command="{Binding StageAllCommand}" Style="{DynamicResource GitBtn}"/>
-                            <Button Content="{DynamicResource Git.UnstageAll}" ToolTip="{DynamicResource Git.Tip.UnstageAll}"
-                                    Command="{Binding UnstageAllCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
-                            <Button Content="{DynamicResource Git.OpenInEditor}" ToolTip="{DynamicResource Git.Tip.OpenDiff}"
-                                    Command="{Binding OpenDiffInEditorCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
+                            <Button Content="+" ToolTip="{DynamicResource Git.Tip.StageAll}"
+                                    Command="{Binding StageAllCommand}" Style="{DynamicResource PanelIconBtnStyle}"/>
+                            <Button Content="−" ToolTip="{DynamicResource Git.Tip.UnstageAll}"
+                                    Command="{Binding UnstageAllCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelIconBtnStyle}"/>
+                            <Button Content="✎" ToolTip="{DynamicResource Git.Tip.OpenDiff}"
+                                    Command="{Binding OpenDiffInEditorCommand}" Margin="4,0,0,0" Style="{DynamicResource PanelIconBtnStyle}"/>
                         </StackPanel>
                         <TextBlock Text="{DynamicResource Git.ChangesTitle}" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="13"/>
                     </DockPanel>
@@ -261,19 +246,19 @@
                                         <Button Content="+" ToolTip="{DynamicResource Git.Tip.Stage}"
                                                 Command="{Binding DataContext.StageCommand,
                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                Style="{DynamicResource IconBtn}"/>
+                                                Style="{DynamicResource PanelIconBtnStyle}"/>
                                         <Button Content="−" ToolTip="{DynamicResource Git.Tip.Unstage}"
                                                 Command="{Binding DataContext.UnstageCommand,
                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                Style="{DynamicResource IconBtn}"/>
+                                                Style="{DynamicResource PanelIconBtnStyle}"/>
                                         <Button Content="✎" ToolTip="{DynamicResource Git.Tip.OpenEditor}"
                                                 Command="{Binding DataContext.OpenInEditorCommand,
                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                Style="{DynamicResource IconBtn}"/>
+                                                Style="{DynamicResource PanelIconBtnStyle}"/>
                                         <Button Content="↺" ToolTip="{DynamicResource Git.Tip.Discard}"
                                                 Command="{Binding DataContext.DiscardCommand,
                                                     RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                Style="{DynamicResource IconBtn}"/>
+                                                Style="{DynamicResource PanelIconBtnStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -288,7 +273,7 @@
 
             <!-- ===== ПАНЕЛЬ DIFF (Колонка 1) ===== -->
             <DockPanel Grid.Column="2">
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -298,7 +283,7 @@
                                    TextTrimming="CharacterEllipsis" FontFamily="Consolas" FontSize="12"/>
                         <Button Grid.Column="1" Content="◉" ToolTip="{DynamicResource Git.Tip.OpenDiff}"
                                 Command="{Binding OpenDiffInEditorCommand}"
-                                Style="{DynamicResource IconBtn}" Margin="6,0,0,0"/>
+                                Style="{DynamicResource PanelIconBtnStyle}" Margin="6,0,0,0"/>
                     </Grid>
                 </Border>
 
@@ -376,7 +361,7 @@
 
             <!-- ===== ПАНЕЛЬ ИСТОРИИ (Колонка 2) ===== -->
             <DockPanel Grid.Column="4">
-                <Border Style="{DynamicResource SectionHeader}">
+                <Border Style="{DynamicResource SectionHeaderStyle}">
                     <TextBlock Text="{DynamicResource Git.CommitHistory}" FontWeight="SemiBold" FontSize="13"/>
                 </Border>
 

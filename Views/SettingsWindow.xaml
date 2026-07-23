@@ -15,53 +15,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <!-- Ультра-компактные стили -->
-        <Style x:Key="CompactTabItem" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
-            <Setter Property="Padding" Value="12,7"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <Style x:Key="CompactRow" TargetType="Grid">
-            <Setter Property="Margin" Value="0,2"/>
-        </Style>
-
-        <Style x:Key="CompactLabel" TargetType="TextBlock">
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-        </Style>
-
-        <Style x:Key="CompactGroupHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-            <Setter Property="Margin" Value="0,6,0,2"/>
-        </Style>
-
-        <Style x:Key="CompactSeparator" TargetType="Border">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="Margin" Value="0,3"/>
-        </Style>
-
-        <Style x:Key="CompactCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-            <Setter Property="Width" Value="140"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <Style x:Key="CompactSmallCombo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-            <Setter Property="Width" Value="72"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <Style x:Key="CompactCheck" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,1"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
         <Grid>
@@ -110,8 +64,8 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.Language}"/>
                                 <ComboBox Grid.Column="1" Style="{StaticResource CompactCombo}" SelectedIndex="{Binding LanguageIndex}">
-                                    <ComboBoxItem Content="English"/>
-                                    <ComboBoxItem Content="Русский"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Language.English}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Language.Russian}"/>
                                 </ComboBox>
                             </Grid>
                             <Grid Style="{StaticResource CompactRow}">
@@ -802,93 +756,54 @@
                                   CanUserSortColumns="False"
                                   FontSize="12">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="{DynamicResource Hotkey.Action}" Binding="{Binding Action}" Width="*">
-                                    <DataGridTextColumn.ElementStyle>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                                            <Setter Property="FontSize" Value="12"/>
-                                            <Setter Property="Margin" Value="4,0"/>
-                                        </Style>
-                                    </DataGridTextColumn.ElementStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn Header="{DynamicResource Hotkey.Key}" Binding="{Binding DisplayGesture}" Width="100">
-                                    <DataGridTextColumn.ElementStyle>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-                                            <Setter Property="FontFamily" Value="Consolas"/>
-                                            <Setter Property="FontSize" Value="12"/>
-                                            <Setter Property="Margin" Value="4,0"/>
-                                        </Style>
-                                    </DataGridTextColumn.ElementStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn Header="{DynamicResource Hotkey.Description}" Binding="{Binding Description}" Width="*">
-                                    <DataGridTextColumn.ElementStyle>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
-                                            <Setter Property="FontSize" Value="11"/>
-                                            <Setter Property="Margin" Value="4,0"/>
-                                        </Style>
-                                    </DataGridTextColumn.ElementStyle>
-                                </DataGridTextColumn>
+                                <DataGridTemplateColumn Header="{DynamicResource Hotkey.Action}" Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Action}"
+                                                       Foreground="{DynamicResource FgLightBrush}"
+                                                       FontSize="12"
+                                                       Margin="4,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="{DynamicResource Hotkey.Key}" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayGesture}"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="12"
+                                                       Margin="4,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="{DynamicResource Hotkey.Description}" Width="*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Description}"
+                                                       Foreground="{DynamicResource FgMutedBrush}"
+                                                       FontSize="11"
+                                                       Margin="4,0"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="" Width="70">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="{DynamicResource Hotkey.Change}"
                                                     Padding="6,2" FontSize="11"
-                                                    Background="{DynamicResource BgHeaderBrush}"
-                                                    Foreground="{DynamicResource FgLightBrush}"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    Style="{StaticResource DefaultButtonStyle}"
                                                     Tag="{Binding}"
                                                     Click="HotkeyChange_Click"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
                             </DataGrid.Columns>
-                            <DataGrid.CellStyle>
-                                <Style TargetType="DataGridCell">
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding" Value="0"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="DataGridCell">
-                                                <Border Padding="{TemplateBinding Padding}"
-                                                        Background="{TemplateBinding Background}">
-                                                    <ContentPresenter VerticalAlignment="Center"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
-                                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </DataGrid.CellStyle>
-                            <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource SelectionActiveBrush}"/>
-                                        </Trigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </DataGrid.RowStyle>
                         </DataGrid>
                         <Border Grid.Row="1" Margin="0,6,0,0">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                 <Button Content="{DynamicResource Hotkey.Reset}" Padding="10,4" FontSize="11"
-                                        Background="{DynamicResource BgHeaderBrush}"
-                                        Foreground="{DynamicResource FgLightBrush}"
-                                        BorderThickness="1"
-                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        Style="{StaticResource DefaultButtonStyle}"
                                         Click="HotkeyReset_Click"/>
                                 <TextBlock x:Name="HotkeyStatusText"
                                            Text="" FontSize="11"

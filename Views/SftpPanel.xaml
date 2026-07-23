@@ -1,23 +1,7 @@
 ﻿<UserControl x:Class="CoderCommander.Views.SftpPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <UserControl.Resources>
-        <Style x:Key="SftpToolBtn" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="8,0"/>
-            <Setter Property="MinWidth" Value="90"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-        <Style x:Key="SftpToolBtnSmall" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Padding" Value="6,0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-    </UserControl.Resources>
+    <UserControl.Resources/>
 
     <DockPanel>
         <!-- 1. СТРОКА СТАТУСА -->
@@ -59,10 +43,11 @@
                                Foreground="{DynamicResource FgLightBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                <ScrollViewer DockPanel.Dock="Right" HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Command="{Binding AddProfileCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Ssh.Tip.New}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
@@ -70,7 +55,7 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding EditProfileCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Ssh.Tip.Edit}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
@@ -79,7 +64,7 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding DeleteProfileCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             ToolTip="{DynamicResource Ssh.Tip.Delete}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
@@ -91,7 +76,7 @@
                     <Separator Style="{DynamicResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2"/>
 
                     <Button Command="{Binding CheckConnectionCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8CD;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
@@ -99,7 +84,7 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding ConnectCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             IsEnabled="{Binding SelectedProfile, Converter={StaticResource NullToFalse}}">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center">
@@ -118,14 +103,15 @@
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding DisconnectCommand}"
-                            Style="{StaticResource SftpToolBtn}"
+                            Style="{StaticResource SidePanelToolBtnStyle}"
                             IsEnabled="{Binding IsConnected}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8D8;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource Sftp.Disconnect}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </DockPanel>
         </Border>
 
@@ -194,11 +180,11 @@
                 Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Command="{Binding RefreshCommand}"
-                        Style="{StaticResource SftpToolBtnSmall}">
+                        Style="{StaticResource SidePanelToolBtnSmallStyle}">
                     <TextBlock Text="&#x27F3;" VerticalAlignment="Center"/>
                 </Button>
                 <Button DockPanel.Dock="Right" Command="{Binding GoUpCommand}"
-                        Style="{StaticResource SftpToolBtnSmall}">
+                        Style="{StaticResource SidePanelToolBtnSmallStyle}">
                     <TextBlock Text="&#x2191;" VerticalAlignment="Center"/>
                 </Button>
                 <TextBlock DockPanel.Dock="Left"

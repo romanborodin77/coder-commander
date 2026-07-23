@@ -19,20 +19,7 @@
                       UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-        <Style x:Key="FieldBox" TargetType="TextBox">
-            <Setter Property="Background" Value="{DynamicResource BgPanelBrush}"/>
-            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="Padding" Value="5,3"/>
-            <Setter Property="CaretBrush" Value="{DynamicResource FgLightBrush}"/>
-        </Style>
-    </Window.Resources>
+    <Window.Resources/>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -78,8 +65,8 @@
 
                 <!-- Маска / Mask -->
                 <StackPanel Visibility="{Binding UseRegexMode, Converter={StaticResource BoolToVisInv}}">
-                    <TextBlock Text="{DynamicResource MultiRename.Mask}" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding Mask, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+                    <TextBlock Text="{DynamicResource MultiRename.Mask}" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox Text="{Binding Mask, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
                     <TextBlock Text="{DynamicResource MultiRename.MaskHint}"
                                Foreground="{DynamicResource FgMutedBrush}" FontSize="11" Margin="0,4,0,8"
                                TextWrapping="Wrap" MaxWidth="700"/>
@@ -94,11 +81,11 @@
                             <ColumnDefinition Width="70"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{DynamicResource MultiRename.CounterStart}" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{DynamicResource FgMutedBrush}"/>
-                        <TextBox Grid.Column="1" Text="{Binding CounterStart, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+                        <TextBox Grid.Column="1" Text="{Binding CounterStart, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
                         <TextBlock Grid.Column="2" Text="{DynamicResource MultiRename.CounterStep}" VerticalAlignment="Center" Margin="10,0,6,0" Foreground="{DynamicResource FgMutedBrush}"/>
-                        <TextBox Grid.Column="3" Text="{Binding CounterStep, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+                        <TextBox Grid.Column="3" Text="{Binding CounterStep, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
                         <TextBlock Grid.Column="4" Text="{DynamicResource MultiRename.CounterWidth}" VerticalAlignment="Center" Margin="10,0,6,0" Foreground="{DynamicResource FgMutedBrush}"/>
-                        <TextBox Grid.Column="5" Text="{Binding CounterWidth, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+                        <TextBox Grid.Column="5" Text="{Binding CounterWidth, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
                     </Grid>
 
                     <!-- Стиль имени / Name style -->
@@ -116,7 +103,7 @@
                         <TextBlock Text="{DynamicResource MultiRename.BadChar}" VerticalAlignment="Center"
                                    Margin="0,0,8,0" Foreground="{DynamicResource FgMutedBrush}"/>
                         <TextBox Text="{Binding BadCharReplacement, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="40" Style="{StaticResource FieldBox}"/>
+                                 Width="40" Style="{StaticResource FieldInputStyle}"/>
                         <TextBlock Text="{DynamicResource MultiRename.BadCharTip}" VerticalAlignment="Center"
                                    Margin="10,0,0,0" Foreground="{DynamicResource FgMutedBrush}" FontSize="11"/>
                     </StackPanel>
@@ -124,10 +111,10 @@
 
                 <!-- Регекс / Regex find-replace -->
                 <StackPanel Visibility="{Binding UseRegexMode, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{DynamicResource MultiRename.Find}" Style="{StaticResource FieldLabel}"/>
-                    <TextBox Text="{Binding FindPattern, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
-                    <TextBlock Text="{DynamicResource MultiRename.Replace}" Style="{StaticResource FieldLabel}" Margin="0,8,0,0"/>
-                    <TextBox Text="{Binding ReplacePattern, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"/>
+                    <TextBlock Text="{DynamicResource MultiRename.Find}" Style="{StaticResource FieldLabelStyle}"/>
+                    <TextBox Text="{Binding FindPattern, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
+                    <TextBlock Text="{DynamicResource MultiRename.Replace}" Style="{StaticResource FieldLabelStyle}" Margin="0,8,0,0"/>
+                    <TextBox Text="{Binding ReplacePattern, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldInputStyle}"/>
                     <CheckBox Content="{DynamicResource MultiRename.CaseSensitive}"
                               IsChecked="{Binding CaseSensitive}" Margin="0,8,0,8"
                               Foreground="{DynamicResource FgLightBrush}"/>
@@ -135,7 +122,7 @@
 
                 <!-- Переменные [V:name] -->
                 <StackPanel Visibility="{Binding HasVariables, Converter={StaticResource BoolToVis}}" Margin="0,0,0,10">
-                    <TextBlock Text="{DynamicResource MultiRename.Variables}" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource MultiRename.Variables}" Style="{StaticResource FieldLabelStyle}"/>
                     <ItemsControl ItemsSource="{Binding Variables}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -147,7 +134,7 @@
                                     <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"
                                                Foreground="{DynamicResource FgMutedBrush}"/>
                                     <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource FieldBox}"/>
+                                             Style="{StaticResource FieldInputStyle}"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -160,20 +147,20 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{DynamicResource MultiRename.Preset}" VerticalAlignment="Center"
                                Margin="0,0,8,0" Foreground="{DynamicResource FgMutedBrush}"/>
                     <ComboBox Grid.Column="1" ItemsSource="{Binding PresetNames}" SelectedItem="{Binding SelectedPreset}"
                               Background="{DynamicResource BgPanelBrush}" Foreground="{DynamicResource FgLightBrush}"
-                              BorderBrush="{DynamicResource BorderBrush}"/>
-                    <Button Grid.Column="2" Content="{DynamicResource MultiRename.PresetSave}" Command="{Binding SavePresetCommand}"
-                            Style="{DynamicResource AccentButtonStyle}" Margin="8,0,0,0" Padding="10,4"/>
-                    <Button Grid.Column="3" Content="{DynamicResource MultiRename.PresetLoad}" Command="{Binding LoadPresetCommand}"
-                            Margin="6,0,0,0" Padding="10,4" Style="{DynamicResource DefaultButtonStyle}"/>
-                    <Button Grid.Column="4" Content="{DynamicResource MultiRename.PresetDelete}" Command="{Binding DeletePresetCommand}"
-                            Margin="6,0,0,0" Padding="10,4" Style="{DynamicResource DefaultButtonStyle}"/>
+                              BorderBrush="{DynamicResource BorderBrush}" Margin="0,0,8,0"/>
+                    <WrapPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button Content="{DynamicResource MultiRename.PresetSave}" Command="{Binding SavePresetCommand}"
+                                Style="{DynamicResource AccentButtonStyle}" Padding="10,4"/>
+                        <Button Content="{DynamicResource MultiRename.PresetLoad}" Command="{Binding LoadPresetCommand}"
+                                Margin="6,0,0,0" Padding="10,4" Style="{DynamicResource DefaultButtonStyle}"/>
+                        <Button Content="{DynamicResource MultiRename.PresetDelete}" Command="{Binding DeletePresetCommand}"
+                                Margin="6,0,0,0" Padding="10,4" Style="{DynamicResource DefaultButtonStyle}"/>
+                    </WrapPanel>
                 </Grid>
 
                 <!-- Логирование / Logging -->
@@ -186,12 +173,12 @@
                         <TextBlock Text="{DynamicResource MultiRename.LogPath}" VerticalAlignment="Center"
                                    Margin="0,0,8,0" Foreground="{DynamicResource FgMutedBrush}"/>
                         <TextBox Text="{Binding LogPath, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource FieldBox}" Width="320"/>
+                                 Style="{StaticResource FieldInputStyle}" Width="320"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Предпросмотр / Preview -->
-                <TextBlock Text="{DynamicResource MultiRename.Preview}" Style="{StaticResource FieldLabel}"/>
+                <TextBlock Text="{DynamicResource MultiRename.Preview}" Style="{StaticResource FieldLabelStyle}"/>
                 <DataGrid ItemsSource="{Binding Items}" Height="200"
                           AutoGenerateColumns="False" HeadersVisibility="Column"
                           IsReadOnly="True" GridLinesVisibility="None"
@@ -236,13 +223,14 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center"
-                           Foreground="{DynamicResource FgMutedBrush}"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           TextTrimming="CharacterEllipsis"/>
+                <WrapPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Content="{DynamicResource MultiRename.Apply}" Command="{Binding ApplyCommand}"
                             Style="{DynamicResource AccentButtonStyle}" Padding="14,6" IsDefault="True"/>
                     <Button Content="{DynamicResource Dialog.Cancel}" Click="CancelButton_Click"
                             Padding="14,6" Margin="8,0,0,0" IsCancel="True" Style="{DynamicResource DefaultButtonStyle}"/>
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
     </Grid>

@@ -135,23 +135,69 @@
                   CanUserDeleteRows="False" GridLinesVisibility="Horizontal"
                   HeadersVisibility="Column" RowHeaderWidth="0" Margin="6"
                   MouseDoubleClick="DataGrid_MouseDoubleClick">
-            <DataGrid.Resources>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="{DynamicResource BgHeaderBrush}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
-                    <Setter Property="Padding" Value="8,6"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                </Style>
-            </DataGrid.Resources>
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="{DynamicResource Sync.Col.Apply}" Binding="{Binding Apply}" Width="Auto"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.Path}" Binding="{Binding RelativePath}" Width="2.4*"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftSize}" Binding="{Binding SizeLeft, Converter={StaticResource FileSize}}" Width="*"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftTime}" Binding="{Binding LastWriteLeft, StringFormat='yyyy-MM-dd HH:mm'}" Width="*"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightSize}" Binding="{Binding SizeRight, Converter={StaticResource FileSize}}" Width="*"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightTime}" Binding="{Binding LastWriteRight, StringFormat='yyyy-MM-dd HH:mm'}" Width="*"/>
-                <DataGridTextColumn Header="{DynamicResource Sync.Col.Diff}" Binding="{Binding Difference}" Width="Auto"/>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.Path}" Binding="{Binding RelativePath}" Width="2.4*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftSize}" Binding="{Binding SizeLeft, Converter={StaticResource FileSize}}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.LeftTime}" Binding="{Binding LastWriteLeft, StringFormat='yyyy-MM-dd HH:mm'}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightSize}" Binding="{Binding SizeRight, Converter={StaticResource FileSize}}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.RightTime}" Binding="{Binding LastWriteRight, StringFormat='yyyy-MM-dd HH:mm'}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="{DynamicResource Sync.Col.Diff}" Binding="{Binding Difference}" Width="Auto">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Margin" Value="4,0"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTemplateColumn Header="{DynamicResource Sync.Col.Action}" Width="Auto">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -169,22 +215,22 @@
         <!-- Row 3: Тулбар действий / Action toolbar -->
         <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
-            <StackPanel Orientation="Horizontal">
+            <WrapPanel Orientation="Horizontal">
                 <Button Content="{DynamicResource Sync.All}" Command="{Binding SelectAllCommand}"
-                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="10,5" Margin="0,0,6,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Sync.None}" Command="{Binding SelectNoneCommand}"
-                        Padding="10,5" Margin="0,0,12,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="10,5" Margin="0,0,12,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <TextBlock Text="{DynamicResource Sync.Set}" Foreground="{DynamicResource FgMutedBrush}"
-                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                           VerticalAlignment="Center" Margin="0,0,6,4"/>
                 <Button Content="{DynamicResource Sync.CopyLeft}" Command="{Binding SetCopyLeftCommand}"
-                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="10,5" Margin="0,0,6,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Sync.CopyRight}" Command="{Binding SetCopyRightCommand}"
-                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="10,5" Margin="0,0,6,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Sync.DeleteBoth}" Command="{Binding SetDeleteBothCommand}"
-                        Padding="10,5" Margin="0,0,6,0" Style="{DynamicResource DefaultButtonStyle}"/>
+                        Padding="10,5" Margin="0,0,6,4" Style="{DynamicResource DefaultButtonStyle}"/>
                 <Button Content="{DynamicResource Sync.ClearAction}" Command="{Binding SetNoneCommand}"
-                        Padding="10,5" Style="{DynamicResource DefaultButtonStyle}"/>
-            </StackPanel>
+                        Padding="10,5" Margin="0,0,0,4" Style="{DynamicResource DefaultButtonStyle}"/>
+            </WrapPanel>
         </Border>
 
         <!-- Row 4: Статус + кнопки / Status + buttons -->

@@ -106,7 +106,7 @@
                 <TextBox x:Name="DestinationBox" Grid.Column="1"
                          Text="{Binding DestinationPath, UpdateSourceTrigger=PropertyChanged}"
                          FontSize="12" VerticalContentAlignment="Center" Padding="6,4"
-                         Background="{DynamicResource BgSurfaceBrush}"
+                         Background="{DynamicResource SurfaceBrush}"
                          Foreground="{DynamicResource FgLightBrush}"
                          BorderBrush="{DynamicResource BorderBrush}"/>
                 <Button Grid.Column="2" Content="{DynamicResource CopyMove.Browse}"
@@ -117,7 +117,7 @@
 
             <!-- Self-copy warning -->
             <TextBlock Grid.Row="4" Text="{Binding SelfCopyWarning}" FontSize="12"
-                       Foreground="#E8C44A" FontWeight="SemiBold"
+                        Foreground="{DynamicResource WarnBrush}" FontWeight="SemiBold"
                        Visibility="{Binding SelfCopyWarning, Converter={StaticResource EmptyToCollapsedConverter}}"/>
 
             <!-- File count + total size -->
@@ -141,7 +141,7 @@
 
             <!-- Source items list (scrollable) -->
             <Border Grid.Row="8"
-                    Background="{DynamicResource BgSurfaceBrush}"
+                    Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1" CornerRadius="4" Padding="4">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -180,7 +180,7 @@
                               DisplayMemberPath="Display"
                               SelectedValue="{Binding SelectedOverwritePolicy}"
                               FontSize="12" VerticalContentAlignment="Center"
-                              Background="{DynamicResource BgSurfaceBrush}"
+                              Background="{DynamicResource SurfaceBrush}"
                               Foreground="{DynamicResource FgLightBrush}"
                               BorderBrush="{DynamicResource BorderBrush}"/>
                 </DockPanel>

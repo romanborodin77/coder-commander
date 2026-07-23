@@ -94,7 +94,7 @@ public partial class SearchDialogViewModel : ObservableObject
     [ObservableProperty] private bool _isRunning;
 
     /// <summary>Статусная строка. / Status text.</summary>
-    [ObservableProperty] private string _statusText = "Готово / Ready";
+    [ObservableProperty] private string _statusText = LocalizationService.Current.GetString("Search.ReadyStatus");
 
     /// <summary>Варианты единиц размера для ComboBox. / Size unit options for ComboBox.</summary>
     public IReadOnlyList<SearchSizeUnit> SizeUnitOptions { get; } =

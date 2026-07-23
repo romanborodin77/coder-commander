@@ -96,7 +96,7 @@ public partial class OpenWithViewModel : ObservableObject
         var dialog = new OpenFileDialog
         {
             Title = LocalizationService.Current.GetString("OpenWith.BrowseTitle"),
-            Filter = "Исполняемые файлы (*.exe)|*.exe|Все файлы (*.*)|*.*",
+            Filter = LocalizationService.Current.GetString("OpenWith.ExeFilter"),
             FilterIndex = 1
         };
 
