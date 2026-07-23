@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CoderCommander.ViewModels;
@@ -35,24 +36,92 @@ public partial class TabViewModel : ObservableObject
     {
         _panel = panel;
         UpdateTitle();
-        // При изменении пути панели обновляем заголовок вкладки
-        // Update the tab title when the panel's current path changes
-        panel.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(PanelViewModel.CurrentPath))
-                UpdateTitle();
-        };
+        SubscribeToPanel(panel);
+    }
+
+    /// <summary>
+    /// Подписывается на изменения свойств панели для обновления заголовка.
+    /// Subscribes to panel property changes for title updates.
+    /// </summary>
+    private void SubscribeToPanel(PanelViewModel panel)
+    {
+        panel.PropertyChanged += OnPanelPropertyChanged;
+    }
+
+    /// <summary>
+    /// Отписывается от изменений свойств панели.
+    /// Unsubscribes from panel property changes.
+    /// </summary>
+    private void UnsubscribeFromPanel(PanelViewModel? panel)
+    {
+        if (panel is null) return;
+        panel.PropertyChanged -= OnPanelPropertyChanged;
+    }
+
+    private void OnPanelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PanelViewModel.CurrentPath))
+            UpdateTitle();
+    }
+
+    /// <summary>
+    /// Вызывается при замене панели: отписывается от старой и подписывается на новую.
+    /// Called when Panel changes: unsubscribes from old, subscribes to new.
+    /// </summary>
+    partial void OnPanelChanged(PanelViewModel? oldValue, PanelViewModel newValue)
+    {
+        UnsubscribeFromPanel(oldValue);
+        SubscribeToPanel(newValue);
+        UpdateTitle();
     }
 
     /// <summary>
     /// Обновляет заголовок вкладки, извлекая имя последнего сегмента пути.
+    /// Для облачных путей (cloud://) показывает имя профиля.
     /// Updates the tab title by extracting the last path segment name.
+    /// For cloud paths (cloud://), shows the profile name.
     /// </summary>
     private void UpdateTitle()
     {
-        var path = Panel.CurrentPath.TrimEnd('\\');
-        if (path.Length == 0) { TabTitle = Panel.CurrentPath; return; }
-        var name = Path.GetFileName(path);
-        TabTitle = string.IsNullOrEmpty(name) ? Panel.CurrentPath : name;
+        var path = Panel.CurrentPath;
+        if (string.IsNullOrEmpty(path)) return;
+
+        // Облачные пути: cloud://profileId/... → имя профиля.
+        if (path.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+        {
+            var profileId = ExtractProfileId(path);
+            var profileName = FindProfileName(profileId);
+            TabTitle = string.IsNullOrEmpty(profileName) ? profileId : profileName;
+            return;
+        }
+
+        var trimmed = path.TrimEnd('\\');
+        if (trimmed.Length == 0) { TabTitle = path; return; }
+        var name = Path.GetFileName(trimmed);
+        TabTitle = string.IsNullOrEmpty(name) ? path : name;
+    }
+
+    /// <summary>Извлекает profileId из cloud:// пути. / Extracts profileId from cloud:// path.</summary>
+    private static string ExtractProfileId(string cloudPath)
+    {
+        var withoutScheme = "cloud://".Length;
+        var slash = cloudPath.IndexOf('/', withoutScheme);
+        return slash > withoutScheme ? cloudPath[withoutScheme..slash] : cloudPath[withoutScheme..];
+    }
+
+    /// <summary>Находит имя профиля по ID. / Finds profile name by ID.</summary>
+    private static string FindProfileName(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId)) return "";
+        try
+        {
+            var profiles = new Services.CloudStorageService().GetProfiles();
+            var profile = profiles.FirstOrDefault(p => p.Id == profileId);
+            return profile?.Name ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 }

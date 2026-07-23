@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CoderCommander.Models;
@@ -25,6 +26,9 @@ public sealed class BookmarkService
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CoderCommander", "settings.json");
+
+    // FIXED: SemaphoreSlim to prevent concurrent read-modify-write race in Save().
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
 
     /// <summary>
     /// Добавляет закладку. Возвращает false, если путь уже существует.
@@ -87,8 +91,10 @@ public sealed class BookmarkService
     /// Сохраняет закладки в settings.json (с сохранением остальных полей).
     /// Saves bookmarks to settings.json (preserving other fields).
     /// </summary>
+    // FIXED: Added SemaphoreSlim to prevent race conditions in concurrent read-modify-write.
     public void Save()
     {
+        _saveLock.Wait();
         try
         {
             AppSettings? settings = null;
@@ -114,6 +120,10 @@ public sealed class BookmarkService
         catch (Exception ex)
         {
             LogService.Error("Ошибка сохранения закладок: " + ex.Message, "Bookmarks", ex);
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 

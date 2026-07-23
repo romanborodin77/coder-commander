@@ -1,10 +1,13 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Views;
 
 namespace CoderCommander.ViewModels;
 
@@ -88,7 +91,17 @@ public partial class PluginManagerViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshPluginsAsync()
     {
-        await PluginManager.Instance.LoadPluginsAsync();
-        RefreshPlugins();
+        try
+        {
+            await PluginManager.Instance.LoadPluginsAsync();
+            RefreshPlugins();
+        }
+        catch (Exception ex)
+        {
+            StyledMessageBoxWindow.Show(
+                string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message),
+                LocalizationService.Current.GetString("Error.Title"),
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }

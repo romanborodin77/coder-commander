@@ -104,9 +104,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public GitViewModel Git { get; }
     /// <summary>ViewModel для Docker-панели.</summary>
     public DockerViewModel Docker { get; }
-    /// <summary>ViewModel для SSH-панели.</summary>
-    public SshViewModel Ssh { get; }
-    /// <summary>ViewModel для SFTP-панели.</summary>
+    /// <summary>ViewModel для SFTP/SSH-панели.</summary>
     public SftpViewModel Sftp { get; }
     /// <summary>ViewModel для панели облачных хранилищ (ph8.4). / ViewModel for cloud storage panel.</summary>
     public CloudStorageViewModel CloudStorage { get; }
@@ -167,9 +165,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Git.OpenDiffAsync = async (name, content) => { OpenViewerRequest?.Invoke(name, content); };
         Git.PromptFunc = (title, prompt, def) => Prompt(title, prompt, def ?? "");
         Docker = new DockerViewModel(_docker);
-        Ssh = new SshViewModel(_ssh);
         Sftp = new SftpViewModel(_ssh, new SftpService(), () => ActivePanel.CurrentPath, (t, m) => Prompt(t, m));
         CloudStorage = new CloudStorageViewModel(new CloudStorageService(), () => ActivePanel.CurrentPath, (t, m) => Prompt(t, m));
+        CloudStorage.CloudDrivesChanged += (_, _) => RefreshCloudDrives();
+        RefreshCloudDrives();
         RegisterQuickCommands();
 
         // Инициализируем менеджер плагинов (ph8.3) / Initialize plugin manager (ph8.3)
@@ -189,6 +188,67 @@ public partial class MainViewModel : ObservableObject, IDisposable
             foreach (var t in LeftTabs) _ = t.Panel.RefreshAsync();
             foreach (var t in RightTabs) _ = t.Panel.RefreshAsync();
         };
+    }
+
+    /// <summary>
+    /// Обновляет список облачных дисков в обеих панелях из текущих профилей.
+    /// Автоматически подключает все профили при запуске.
+    /// Updates cloud drive list in both panels from current profiles.
+    /// Auto-connects all profiles on startup.
+    /// </summary>
+    public void RefreshCloudDrives()
+    {
+        var profiles = CloudStorage.Profiles;
+        var cloudDrives = profiles.Select(p =>
+        {
+            var drive = new CloudDriveItem(p.Id, p.Name);
+            // Если профиль подключён — привязываем активную ФС.
+            if (CloudStorage.ActiveFileSystem is not null &&
+                string.Equals(CloudStorage.SelectedProfile?.Id, p.Id, StringComparison.Ordinal))
+            {
+                drive.FileSystem = CloudStorage.ActiveFileSystem;
+            }
+            return drive;
+        }).ToList();
+
+        foreach (var tab in LeftTabs) tab.Panel.SetCloudDrives(cloudDrives);
+        foreach (var tab in RightTabs) tab.Panel.SetCloudDrives(cloudDrives);
+
+        // Автоматическое подключение всех профилей (fire-and-forget).
+        _ = ConnectAllCloudDrivesAsync(cloudDrives);
+    }
+
+    /// <summary>
+    /// Подключает все облачные профили асинхронно при запуске.
+    /// Silently connects all cloud profiles on startup.
+    /// </summary>
+    private async Task ConnectAllCloudDrivesAsync(List<CloudDriveItem> drives)
+    {
+        var service = new CloudStorageService();
+        var profiles = service.GetProfiles();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+        foreach (var drive in drives)
+        {
+            if (drive.FileSystem is not null) continue; // уже подключён
+            var profile = profiles.FirstOrDefault(p => p.Id == drive.ProfileId);
+            if (profile is null) continue;
+
+            try
+            {
+                var fs = CloudStorageService.CreateFileSystem(profile);
+                await fs.ConnectAsync(cts.Token);
+                drive.FileSystem = fs;
+            }
+            catch (Exception ex)
+            {
+                LogService.Warn($"Cloud connect failed: {ex.Message}", nameof(MainViewModel));
+            }
+        }
+
+        // Обновляем панели после подключения.
+        foreach (var tab in LeftTabs) tab.Panel.SetCloudDrives(drives);
+        foreach (var tab in RightTabs) tab.Panel.SetCloudDrives(drives);
     }
 
     // ═══════════════════════════════════════════
@@ -217,7 +277,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var pv = new PanelViewModel(_git);
             LeftTabs.Add(new TabViewModel(pv));
-            _ = pv.NavigateToAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), false);
+            var defaultPath = s.LastLeftPath;
+            if (string.IsNullOrEmpty(defaultPath) || !System.IO.Directory.Exists(defaultPath))
+                defaultPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            _ = pv.NavigateToAsync(defaultPath, false);
         }
         ActiveLeftTab = LeftTabs[0];
 
@@ -236,7 +299,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var pv = new PanelViewModel(_git);
             RightTabs.Add(new TabViewModel(pv));
-            _ = pv.NavigateToAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), false);
+            var defaultPath = s.LastRightPath;
+            if (string.IsNullOrEmpty(defaultPath) || !System.IO.Directory.Exists(defaultPath))
+                defaultPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            _ = pv.NavigateToAsync(defaultPath, false);
         }
         ActiveRightTab = RightTabs[0];
     }
@@ -250,6 +316,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var s = SettingsService.Load();
         s.LeftTabPaths = LeftTabs.Select(t => t.Panel.CurrentPath).ToList();
         s.RightTabPaths = RightTabs.Select(t => t.Panel.CurrentPath).ToList();
+        if (LeftTabs.Count > 0) s.LastLeftPath = LeftTabs[0].Panel.CurrentPath;
+        if (RightTabs.Count > 0) s.LastRightPath = RightTabs[0].Panel.CurrentPath;
         SettingsService.Save(s);
     }
 
@@ -453,7 +521,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             var r = await _docker.ComposeDownAsync(ActivePanel.CurrentPath); return r.Success ? L10n("Quick.ComposeDownResult") : r.StdErr;
         }));
-        _commands.Register(new QuickCommand(L10n("Quick.SshPanel"), L10n("Quick.SshPanelDesc"), async _ => { Ssh.SetVisible(true); return L10n("Quick.SshResult"); }));
         _commands.Register(new QuickCommand(L10n("Quick.SftpPanel"), L10n("Quick.SftpPanelDesc"), async _ => { Sftp.SetVisible(true); return L10n("Quick.SftpResult"); }));
         _commands.Register(new QuickCommand(L10n("Quick.CloudStorage"), L10n("Quick.CloudStorageDesc"), async _ => { CloudStorage.SetVisible(true); return L10n("Quick.CloudStorageResult"); }));
         _commands.Register(new QuickCommand(L10n("Quick.TerminalOpen"), L10n("Quick.TerminalOpenDesc"), async _ => { OpenTerminal(); return L10n("Quick.TerminalResult"); }));
@@ -497,14 +564,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsBottomPanelVisible = true;
         _ = Docker.RefreshAsync();
     }
-    /// <summary>Показать вкладку SSH.</summary>
-    [RelayCommand] public void ShowSshTab() { SelectedTabIndex = 2; Ssh.SetVisible(true); IsBottomPanelVisible = true; }
-    /// <summary>Показать вкладку SFTP.</summary>
-    [RelayCommand] public void ShowSftpTab() { SelectedTabIndex = 3; Sftp.SetVisible(true); IsBottomPanelVisible = true; }
+    /// <summary>Показать вкладку SFTP/SSH.</summary>
+    [RelayCommand] public void ShowSftpTab() { SelectedTabIndex = 2; Sftp.SetVisible(true); IsBottomPanelVisible = true; }
     /// <summary>Показать вкладку облачных хранилищ (ph8.4). / Show cloud storage tab.</summary>
-    [RelayCommand] public void ShowCloudStorageTab() { SelectedTabIndex = 4; CloudStorage.SetVisible(true); IsBottomPanelVisible = true; }
+    [RelayCommand] public void ShowCloudStorageTab() { SelectedTabIndex = 3; CloudStorage.SetVisible(true); IsBottomPanelVisible = true; }
 
-    /// <summary>Закрыть нижнюю панель (Git/Docker/SSH/SFTP).</summary>
+    /// <summary>Закрыть нижнюю панель (Git/Docker/SFTP/Cloud).</summary>
     [RelayCommand] public void CloseBottomPanel() => IsBottomPanelVisible = false;
 
     /// <summary>Выполнить выбранную быструю команду из палитры.</summary>
@@ -608,11 +673,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp"
             or ".ico" or ".tiff" or ".tif" or ".webp" or ".svg";
     }
-
-    /// <summary>Сохранить изменения в редакторе (обрабатывается через popup-окно).</summary>
-    [RelayCommand] public async Task SaveEditorAsync() { /* Сохранение через popup-окно */ }
-    /// <summary>Закрыть редактор (обрабатывается через popup-окно).</summary>
-    [RelayCommand] public void CloseEditor() { /* Закрытие через popup-окно */ }
 
     //========== Меню: команды ==========
     ///<summary>Корректный выход приложения.</summary>
@@ -758,11 +818,68 @@ public partial class MainViewModel : ObservableObject, IDisposable
         dlg.Show();
     }
 
+    /// <summary>
+    /// Разрешает файловую систему панели и внутренний путь для операций.
+    /// Resolves the panel's filesystem and internal path for operations.
+    /// Для cloud:// путей извлекает внутренний путь и возвращает VirtualFileSystem.
+    /// For cloud:// paths, extracts the internal path and returns VirtualFileSystem.
+    /// </summary>
+    private static (IFileSystem fs, string internalPath) ResolvePanelFs(PanelViewModel panel)
+    {
+        var path = panel.CurrentPath;
+        if (path.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+        {
+            var fs = panel.VirtualFileSystem ?? LocalFileSystem.Instance;
+            var internalPath = ExtractCloudPathStatic(path);
+            return (fs, internalPath);
+        }
+        return (LocalFileSystem.Instance, path);
+    }
+
+    /// <summary>
+    /// Извлекает внутренний путь из cloud:// URL.
+    /// Extracts the internal path from a cloud:// URL.
+    /// </summary>
+    private static string ExtractCloudPathStatic(string cloudPath)
+    {
+        var withoutScheme = "cloud://".Length;
+        var slash = cloudPath.IndexOf('/', withoutScheme);
+        return slash > withoutScheme ? "/" + cloudPath[(slash + 1)..] : "/";
+    }
+
+    /// <summary>
+    /// Извлекает внутренний путь элемента из cloud:// полного пути.
+    /// Extracts the internal item path from a cloud:// full path.
+    /// </summary>
+    private static string ResolveItemPath(string fullPath)
+    {
+        if (fullPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            return ExtractCloudPathStatic(fullPath);
+        return fullPath;
+    }
+
+    /// <summary>
+    /// Определяет, нужна ли кросс-VFS операция (хотя бы одна панель — виртуальная).
+    /// Determines whether a cross-VFS operation is needed (at least one panel is virtual).
+    /// </summary>
+    private static bool NeedsCrossVfs(PanelViewModel src, PanelViewModel dst)
+        => src.VirtualFileSystem is not null || dst.VirtualFileSystem is not null;
+
     private async Task Cm(List<FileSystemItem> it, string td, bool mv, OverwritePolicy policy,
         bool copyAttributes, bool copyTimestamps, bool copyNtfsPermissions)
     {
         var settings = SettingsService.Load();
         var bufferSize = settings.CopyBufferSizeKB * 1024;
+
+        var otherPanel = ActivePanel == LeftPanel ? RightPanel : LeftPanel;
+
+        // Определяем, нужна ли кросс-VFS операция.
+        // Determine if a cross-VFS operation is needed.
+        if (NeedsCrossVfs(ActivePanel, otherPanel))
+        {
+            await CmCrossVfsAsync(it, td, mv, policy);
+            return;
+        }
 
         var lfs = new LocalFileSystem();
         var sources = it.Select(i => i.FullPath).ToList();
@@ -857,39 +974,258 @@ public partial class MainViewModel : ObservableObject, IDisposable
         await SyncActiveVirtualPanelAsync();
     }
 
+    /// <summary>
+    /// Кросс-VFS копирование/перенос через CrossVfsCopyOperation.
+    /// Cross-VFS copy/move via CrossVfsCopyOperation.
+    /// Используется, когда хотя бы одна панель — виртуальная (cloud/WebDAV/SFTP).
+    /// Used when at least one panel is virtual (cloud/WebDAV/SFTP).
+    /// </summary>
+    private async Task CmCrossVfsAsync(List<FileSystemItem> it, string td, bool mv, OverwritePolicy policy)
+    {
+        var otherPanel = ActivePanel == LeftPanel ? RightPanel : LeftPanel;
+
+        // Разрешаем ФС и внутренние пути для обеих панелей.
+        // Resolve filesystems and internal paths for both panels.
+        var (srcFs, _) = ResolvePanelFs(ActivePanel);
+        var (dstFs, dstInternalPath) = ResolvePanelFs(otherPanel);
+
+        // Если td изменён пользователем в диалоге и это cloud:// — извлекаем внутренний путь.
+        // If td was edited by user in dialog and is cloud://, extract internal path.
+        if (td.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            dstInternalPath = ExtractCloudPathStatic(td);
+
+        // Преобразуем пути элементов из cloud:// во внутренние пути ФС.
+        // Convert item paths from cloud:// to internal FS paths.
+        var sources = it.Select(i => ResolveItemPath(i.FullPath)).ToList();
+
+        // Маппим OverwritePolicy.Ask → Skip для CrossVfs (диалог конфликта не поддерживается).
+        // Map OverwritePolicy.Ask → Skip for CrossVfs (conflict dialog not supported).
+        var xvfsPolicy = policy == OverwritePolicy.Ask ? OverwritePolicy.Overwrite : policy;
+
+        var op = new CrossVfsCopyOperation(srcFs, dstFs, sources, dstInternalPath, mv, xvfsPolicy, null);
+
+        var title = mv ? L10n("OpDlg.Title.Move") : L10n("OpDlg.Title.Copy");
+        var progressVm = new ViewModels.OperationDialogViewModel(op, title, ActivePanel.CurrentPath, td);
+
+        var progressDlg = new Views.OperationDialogWindow { DataContext = progressVm, Owner = Application.Current.MainWindow };
+
+        IsBusy = true;
+        try
+        {
+            var executeTask = Task.Run(() => op.ExecuteAsync(progressVm.CancellationToken));
+
+            progressDlg.ShowDialog();
+
+            try { await executeTask; } catch (OperationCanceledException) { }
+
+            if (op.State == OperationState.Completed)
+            {
+                var done = (int)op.Copied;
+                if (op.Skipped > 0 || op.Failed > 0)
+                    StatusText = $"{(mv ? L10n("Status.Moved") : L10n("Status.Copied"))}{done}, skip: {op.Skipped}, err: {op.Failed}";
+                else
+                    StatusText = (mv ? L10n("Status.Moved") : L10n("Status.Copied")) + done;
+            }
+            else if (op.State == OperationState.Canceled)
+                StatusText = L10n("CrossVfs.Cancelled");
+            else if (op.State == OperationState.Failed)
+                StatusText = string.Format(L10n("Status.Error"), op.LastError?.Message ?? "Unknown");
+        }
+        finally
+        {
+            progressVm.Dispose();
+            IsBusy = false; ProgressValue = 0; ProgressText = "";
+        }
+
+        await ActivePanel.RefreshAsync();
+        await (ActivePanel == LeftPanel ? RightPanel : LeftPanel).RefreshAsync();
+        await SyncActiveVirtualPanelAsync();
+    }
+
     /// <summary>Создать новую папку в текущей директории (F7).</summary>
     [RelayCommand]
     public async Task CreateFolderAsync()
     {
         var n = Prompt(L10n("Dialog.NewFolderTitle"), L10n("Dialog.NewFolderName"));
         if (string.IsNullOrWhiteSpace(n)) return;
-        try { Directory.CreateDirectory(Path.Combine(ActivePanel.CurrentPath, n)); await ActivePanel.RefreshAsync(); }
+        try
+        {
+            if (ActivePanel.VirtualFileSystem is not null)
+            {
+                var basePath = ResolveItemPath(ActivePanel.CurrentPath);
+                var remotePath = basePath.TrimEnd('/') + "/" + n;
+                await ActivePanel.VirtualFileSystem.CreateDirectoryAsync(remotePath);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.Combine(ActivePanel.CurrentPath, n));
+            }
+            await ActivePanel.RefreshAsync();
+        }
         catch (Exception e) { StatusText = e.Message; }
     }
 
-    /// <summary>Удалить выделенные элементы (F8, Del).</summary>
+    /// <summary>Удалить выделенные элементы (F8, Del, Shift+Del).</summary>
+    /// <remarks>
+    /// Подход Double Commander: разворачивает папки в плоский список (рекурсивно),
+    /// удаляет файлы и пустые папки снизу вверх. Это надёжнее Directory.Delete(recursive=true),
+    /// который может молча пропустить файлы с ограниченным доступом.
+    /// Double Commander approach: expand dirs into flat list (recursive),
+    /// delete files and empty dirs bottom-up. More reliable than Directory.Delete(recursive=true),
+    /// which may silently skip inaccessible files.
+    /// </remarks>
     [RelayCommand]
     public async Task DeleteAsync()
     {
         var it = ActivePanel.GetSelectionOrCurrent().ToList(); if (it.Count == 0) return;
-        // Подтверждение удаления только если разрешено в настройках.
-        // Confirm deletion only when allowed by settings.
         if (SettingsService.Load().ConfirmDelete &&
             StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Dialog.ConfirmDelete"), it.Count), LocalizationService.Current.GetString("Dialog.ConfirmDeleteTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        IsBusy = true; int n = 0;
+        IsBusy = true; int n = 0; int failed = 0;
         try
         {
-            foreach (var i in it)
+            // Виртуальная ФС (cloud/WebDAV) — удаляем через IFileSystem.
+            // Virtual FS (cloud/WebDAV) — delete via IFileSystem.
+            if (ActivePanel.VirtualFileSystem is not null)
             {
-                ProgressText = L10n("Operation.Deleting") + " " + i.Name;
-                if (i.IsDirectory) Directory.Delete(i.FullPath, true); else File.Delete(i.FullPath);
-                n++; ProgressValue = n * 100.0 / it.Count;
+                var vfs = ActivePanel.VirtualFileSystem;
+                var ct = System.Threading.CancellationToken.None;
+                // Разворачиваем папки в плоский список через виртуальную ФС.
+                // Expand dirs into flat list via virtual FS.
+                var flatList = new List<(string Path, bool IsDir)>();
+                foreach (var i in it)
+                {
+                    var internalPath = ResolveItemPath(i.FullPath);
+                    if (i.IsDirectory)
+                        await ExpandVirtualDirectoryAsync(vfs, internalPath, flatList, ct);
+                    else
+                        flatList.Add((internalPath, false));
+                }
+
+                // Сортируем: файлы первыми, папки — по глубине (снизу вверх).
+                var sorted = flatList
+                    .OrderByDescending(f => f.IsDir ? (f.Path.Count(c => c == '/')) : int.MaxValue)
+                    .ThenBy(f => f.IsDir ? 1 : 0)
+                    .ToList();
+
+                foreach (var f in sorted)
+                {
+                    ProgressText = L10n("Operation.Deleting") + " " + Path.GetFileName(f.Path.TrimEnd('/'));
+                    try
+                    {
+                        await vfs.DeleteAsync(f.Path, recursive: false, ct);
+                        n++;
+                    }
+                    catch (Exception) { failed++; }
+                    ProgressValue = n * 100.0 / sorted.Count;
+                }
             }
-            await ActivePanel.RefreshAsync(); StatusText = string.Format(LocalizationService.Current.GetString("Status.Deleted"), it.Count);
-            await SyncActiveVirtualPanelAsync(); // ph2.2: удалённые выпадают из результатов
+            else
+            {
+                // Локальная ФС — существующая логика.
+                // Local FS — existing logic.
+                var flatList = new List<(string Path, bool IsDir)>();
+                foreach (var i in it)
+                {
+                    if (i.IsDirectory)
+                        ExpandDirectoryRecursive(i.FullPath, flatList);
+                    else
+                        flatList.Add((i.FullPath, false));
+                }
+
+                var sorted = flatList
+                    .OrderByDescending(f => f.IsDir ? Path.GetDirectoryName(f.Path)?.Length ?? 0 : int.MaxValue)
+                    .ThenBy(f => f.IsDir ? 1 : 0)
+                    .ToList();
+
+                foreach (var f in sorted)
+                {
+                    ProgressText = L10n("Operation.Deleting") + " " + Path.GetFileName(f.Path);
+                    try
+                    {
+                        if (f.IsDir)
+                        {
+                            if (Directory.Exists(f.Path))
+                                Directory.Delete(f.Path, recursive: false);
+                        }
+                        else
+                        {
+                            if (File.Exists(f.Path))
+                                File.Delete(f.Path);
+                        }
+                        n++;
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        try
+                        {
+                            if (f.IsDir)
+                            {
+                                foreach (var sub in Directory.EnumerateFileSystemEntries(f.Path))
+                                    File.SetAttributes(sub, File.GetAttributes(sub) & ~FileAttributes.ReadOnly);
+                                Directory.Delete(f.Path, recursive: false);
+                            }
+                            else
+                            {
+                                File.SetAttributes(f.Path, File.GetAttributes(f.Path) & ~FileAttributes.ReadOnly);
+                                File.Delete(f.Path);
+                            }
+                            n++;
+                        }
+                        catch (Exception) { failed++; }
+                    }
+                    catch (Exception) { failed++; }
+                    ProgressValue = n * 100.0 / sorted.Count;
+                }
+            }
+            await ActivePanel.RefreshAsync();
+            StatusText = failed == 0
+                ? string.Format(LocalizationService.Current.GetString("Status.Deleted"), n)
+                : string.Format(LocalizationService.Current.GetString("Status.DeletedOf"), n - failed, n + failed, $"({failed} failed)");
+            await SyncActiveVirtualPanelAsync();
         }
         catch (Exception e) { StatusText = string.Format(LocalizationService.Current.GetString("Status.DeletedOf"), n, it.Count, e.Message); }
         finally { IsBusy = false; ProgressValue = 0; ProgressText = ""; }
+    }
+
+    /// <summary>
+    /// Рекурсивно разворачивает виртуальную директорию в плоский список через IFileSystem.
+    /// Recursively expands a virtual directory into flat list via IFileSystem.
+    /// </summary>
+    private static async Task ExpandVirtualDirectoryAsync(IFileSystem fs, string dirPath, List<(string Path, bool IsDir)> list, CancellationToken ct)
+    {
+        list.Add((dirPath, true));
+        try
+        {
+            var entries = await fs.EnumerateAsync(dirPath, includeHidden: true, ct).ConfigureAwait(false);
+            foreach (var e in entries)
+            {
+                if (e.IsDirectory)
+                    await ExpandVirtualDirectoryAsync(fs, e.FullPath, list, ct).ConfigureAwait(false);
+                else
+                    list.Add((e.FullPath, false));
+            }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>
+    /// Рекурсивно разворачивает директорию в плоский список (папка + всё содержимое).
+    /// Эквивалент DC FillAndCnt: получает полный список файлов (recursive).
+    /// Recursively expands a directory into flat list (dir + all contents).
+    /// Equivalent of DC FillAndCnt: gets full list of files (recursive).
+    /// </summary>
+    private static void ExpandDirectoryRecursive(string dirPath, List<(string Path, bool IsDir)> list)
+    {
+        list.Add((dirPath, true));
+        try
+        {
+            foreach (var sub in Directory.EnumerateDirectories(dirPath))
+                ExpandDirectoryRecursive(sub, list);
+            foreach (var file in Directory.EnumerateFiles(dirPath))
+                list.Add((file, false));
+        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
     }
 
     /// <summary>Переименовать выбранный элемент.</summary>
@@ -897,14 +1233,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task RenameAsync()
     {
         var i = ActivePanel.SelectedItem; if (i is null || i.IsParent) return;
-        var oldPath = i.FullPath; // ph2.2: нужен для обновления виртуальной панели результатов
+        var oldPath = i.FullPath;
         var n = Prompt(L10n("Dialog.RenameTitle"), L10n("Dialog.RenameName"), i.Name);
         if (string.IsNullOrWhiteSpace(n)) return;
         try
         {
-            var np = Path.Combine(Path.GetDirectoryName(i.FullPath)!, n);
-            if (i.IsDirectory) Directory.Move(i.FullPath, np); else File.Move(i.FullPath, np);
-            await SyncActiveVirtualPanelAsync(oldPath, np); // ph2.2: обновить путь в результатах
+            if (ActivePanel.VirtualFileSystem is not null)
+            {
+                var oldInternal = ResolveItemPath(i.FullPath);
+                var parentDir = oldInternal.Contains('/') ? oldInternal[..oldInternal.LastIndexOf('/')] : "";
+                var newInternal = parentDir + "/" + n;
+                await ActivePanel.VirtualFileSystem.MoveAsync(oldInternal, newInternal, overwrite: false);
+            }
+            else
+            {
+                var np = Path.Combine(Path.GetDirectoryName(i.FullPath)!, n);
+                if (i.IsDirectory) Directory.Move(i.FullPath, np); else File.Move(i.FullPath, np);
+            }
+            await SyncActiveVirtualPanelAsync(oldPath, i.FullPath);
             await ActivePanel.RefreshAsync();
         }
         catch (Exception e) { StatusText = e.Message; }
@@ -1009,10 +1355,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task PublishSelectedAsync()
     {
         var i = ActivePanel.SelectedItem; if (i is null || i.IsParent) return;
-        if (Ssh.Profiles.Count == 0) { Ssh.SetVisible(true); StatusText = L10n("Status.NoSshProfiles"); return; }
-        var prof = Ssh.SelectedProfile ?? Ssh.Profiles[0];
-        await Ssh.PublishAsync(prof, i.FullPath);
-        StatusText = Ssh.Status;
+        if (Sftp.Profiles.Count == 0) { Sftp.SetVisible(true); StatusText = L10n("Status.NoSshProfiles"); return; }
+        await Sftp.PublishAsync(i.FullPath);
+        StatusText = Sftp.Status;
     }
 
     /// <summary>Выделить все файлы.</summary>
@@ -1041,6 +1386,91 @@ public partial class MainViewModel : ObservableObject, IDisposable
     
     /// <summary>Поменять панели местами.</summary>
     [RelayCommand] public void SwapPanels() { (LeftPanel.CurrentPath, RightPanel.CurrentPath) = (RightPanel.CurrentPath, LeftPanel.CurrentPath); _ = LeftPanel.RefreshAsync(); _ = RightPanel.RefreshAsync(); StatusText = L10n("Status.PanelsSwapped"); }
+
+    /// <summary>Установить путь неактивной панели = путь активной (DC cm_TargetEqualSource, Alt+Z).</summary>
+    [RelayCommand]
+    public async Task TargetEqualSourceAsync()
+    {
+        var inactive = ActivePanel == LeftPanel ? RightPanel : LeftPanel;
+        await inactive.NavigateToAsync(ActivePanel.CurrentPath);
+        StatusText = L10n("Status.PanelsSynced");
+    }
+
+    /// <summary>Копировать файлы в буфер обмена (Ctrl+C, DC cm_CopyToClipboard).</summary>
+    [RelayCommand]
+    public void CopyFilesToClipboard()
+    {
+        var files = ActivePanel.GetSelectionOrCurrent().Where(i => !i.IsParent).Select(i => i.FullPath).ToList();
+        if (files.Count == 0) return;
+        var fileList = new System.Collections.Specialized.StringCollection();
+        fileList.AddRange(files.ToArray());
+        Clipboard.SetFileDropList(fileList);
+        _clipboardIsCut = false;
+        StatusText = $"Скопировано в буфер: {files.Count}";
+    }
+
+    /// <summary>Вырезать файлы в буфер обмена (Ctrl+X, DC cm_CutToClipboard).</summary>
+    [RelayCommand]
+    public void CutFilesToClipboard()
+    {
+        var files = ActivePanel.GetSelectionOrCurrent().Where(i => !i.IsParent).Select(i => i.FullPath).ToList();
+        if (files.Count == 0) return;
+        var fileList = new System.Collections.Specialized.StringCollection();
+        fileList.AddRange(files.ToArray());
+        Clipboard.SetFileDropList(fileList);
+        _clipboardIsCut = true;
+        StatusText = $"Вырезано в буфер: {files.Count}";
+    }
+
+    private bool _clipboardIsCut;
+
+    /// <summary>Вставить файлы из буфера обмена (Ctrl+V, DC cm_PasteFromClipboard).</summary>
+    [RelayCommand]
+    public async Task PasteFilesFromClipboardAsync()
+    {
+        if (!Clipboard.ContainsFileDropList()) return;
+        var files = Clipboard.GetFileDropList().Cast<string>().ToList();
+        if (files.Count == 0) return;
+        var destDir = ActivePanel.CurrentPath;
+        var items = files.Select(f => new FileSystemItem(f, Directory.Exists(f))).ToList();
+        if (_clipboardIsCut)
+        {
+            foreach (var f in files)
+            {
+                try
+                {
+                    var dest = Path.Combine(destDir, Path.GetFileName(f));
+                    if (Directory.Exists(f)) Directory.Move(f, dest);
+                    else File.Move(f, dest);
+                }
+                catch { }
+            }
+            _clipboardIsCut = false;
+        }
+        else
+        {
+            ShowCopyMoveDialog(items, destDir, false);
+        }
+        await ActivePanel.RefreshAsync();
+    }
+
+    /// <summary>Создать новый файл и открыть в редакторе (DC cm_EditNew, Shift+F4).</summary>
+    [RelayCommand]
+    public async Task EditNewAsync()
+    {
+        var name = Prompt(L10n("Dialog.NewFileTitle"), L10n("Dialog.NewFileName"), "newfile.txt");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var path = Path.Combine(ActivePanel.CurrentPath, name);
+        try
+        {
+            if (!File.Exists(path)) File.WriteAllText(path, "");
+            await ActivePanel.RefreshAsync();
+            // Открыть в редакторе
+            if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
+                _ = mvm.EditFileAsync();
+        }
+        catch (Exception ex) { StatusText = ex.Message; }
+    }
     
     /// <summary>Показать информацию о дисках.</summary>
     [RelayCommand] public void ShowDiskInfo() { try { var drives = DriveInfo.GetDrives(); var msg = string.Join("\n\n", drives.Select(d => { var name = d.Name.TrimEnd('\\'); var type = d.DriveType switch { DriveType.Fixed => L10n("Disk.Type.Fixed"), DriveType.Removable => L10n("Disk.Type.Removable"), DriveType.CDRom => L10n("Disk.Type.CDRom"), DriveType.Network => L10n("Disk.Type.Network"), DriveType.Ram => L10n("Disk.Type.Ram"), _ => L10n("Disk.Type.Unknown") }; if (!d.IsReady) return $"■ {name}  [{type}]  {L10n("Disk.NotReady")}"; var label = string.IsNullOrEmpty(d.VolumeLabel) ? "—" : d.VolumeLabel; var free = d.AvailableFreeSpace; var total = d.TotalSize; var used = total - free; var pct = total > 0 ? (int)(used * 100.0 / total) : 0; return $"■ {name}  [{type}]  {d.DriveFormat}\n  {L10n("Disk.Label")}: {label}\n  {L10n("Disk.Total")}: {FormatBytes(total)}\n  {L10n("Disk.Used")}: {FormatBytes(used)} ({pct}%)\n  {L10n("Disk.Free")}: {FormatBytes(free)} ({100 - pct}%)"; })); StyledMessageBoxWindow.Show(msg, L10n("Disk.Title"), MessageBoxButton.OK, MessageBoxImage.Information); } catch (Exception ex) { StatusText = string.Format(L10n("Status.Error"), ex.Message); } }
@@ -1058,20 +1488,80 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Title = title, Width = 400, Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            Owner = Application.Current.MainWindow
+            WindowStyle = WindowStyle.None,
+            Owner = Application.Current.MainWindow,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgPanelBrush"]
         };
-        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15) };
-        sp.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 8) });
-        var tb = new System.Windows.Controls.TextBox { Text = def };
+
+        var root = new System.Windows.Controls.DockPanel();
+
+        // Title bar
+        var titleBar = new System.Windows.Controls.Border
+        {
+            Height = 36, Background = (System.Windows.Media.Brush)Application.Current.Resources["TitleBarBgBrush"]
+        };
+        System.Windows.Controls.DockPanel.SetDock(titleBar, System.Windows.Controls.Dock.Top);
+        var titleSp = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleSp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = title,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleBar.Child = titleSp;
+        titleBar.MouseLeftButtonDown += (_, _) => w.DragMove();
+        root.Children.Add(titleBar);
+
+        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15, 10, 15, 10) };
+        sp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = prompt,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        var tb = new System.Windows.Controls.TextBox
+        {
+            Text = def,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgInputBrush"],
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.Resources["BorderBrush"]
+        };
         sp.Children.Add(tb);
-        var btns = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var ok = new System.Windows.Controls.Button { Content = LocalizationService.Current.GetString("MsgBox.OK"), Width = 80, IsDefault = true };
-        var cn = new System.Windows.Controls.Button { Content = LocalizationService.Current.GetString("Dialog.Cancel"), Width = 80, IsCancel = true, Margin = new Thickness(8, 0, 0, 0) };
+
+        var btns = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        var ok = new System.Windows.Controls.Button
+        {
+            Content = LocalizationService.Current.GetString("MsgBox.OK"),
+            Width = 80, IsDefault = true,
+            Style = (System.Windows.Style)Application.Current.Resources["AccentButtonStyle"]
+        };
+        var cn = new System.Windows.Controls.Button
+        {
+            Content = LocalizationService.Current.GetString("Dialog.Cancel"),
+            Width = 80, IsCancel = true,
+            Margin = new Thickness(8, 0, 0, 0),
+            Style = (System.Windows.Style)Application.Current.Resources["DefaultButtonStyle"]
+        };
         ok.Click += (_, _) => w.DialogResult = true;
         cn.Click += (_, _) => w.DialogResult = false;
-        btns.Children.Add(ok); btns.Children.Add(cn);
+        btns.Children.Add(ok);
+        btns.Children.Add(cn);
         sp.Children.Add(btns);
-        w.Content = sp;
+
+        root.Children.Add(sp);
+        w.Content = root;
         tb.SelectAll(); tb.Focus();
         return w.ShowDialog() == true ? tb.Text : null;
     }

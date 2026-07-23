@@ -20,7 +20,7 @@
     </Window.DataContext>
 
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="38"
+        <WindowChrome CaptionHeight="36"
                       ResizeBorderThickness="6"
                       GlassFrameThickness="0"
                       CornerRadius="0"
@@ -35,13 +35,11 @@
         <KeyBinding Key="F10" Modifiers="Shift" Command="{Binding ToggleTerminalPanelCommand}"/>
         
         <!-- Навигация и управление -->
-        <KeyBinding Key="Enter" Command="{Binding OpenItemCommand}"/>
         <KeyBinding Key="Escape" Command="{Binding EscapeKeyCommand}"/>
         
         <!-- Управление с Ctrl -->
         <KeyBinding Key="R" Modifiers="Ctrl" Command="{Binding RefreshAllCommand}"/>
         <KeyBinding Key="H" Modifiers="Ctrl" Command="{Binding ToggleHiddenCommand}"/>
-        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveEditorCommand}"/>
         <KeyBinding Key="OemComma" Modifiers="Ctrl" Command="{Binding OpenSettingsCommand}"/>
         <KeyBinding Key="Enter" Modifiers="Alt" Command="{Binding ShowPropertiesCommand}"/>
         <KeyBinding Key="U" Modifiers="Ctrl" Command="{Binding SwapPanelsCommand}"/>
@@ -49,24 +47,26 @@
         <KeyBinding Key="Q" Modifiers="Ctrl+Shift" Command="{Binding OpenOperationQueueCommand}"/>
         <KeyBinding Key="B" Modifiers="Ctrl" Command="{Binding ToggleBookmarkCommand}"/>
 
-    <!-- Выделение -->
+    <!-- Быстрый просмотр -->
     <KeyBinding Key="F11" Command="{Binding ActivePanel.ToggleQuickViewCommand}"/>
-    <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding OpenWithCommand}"/>
 
-    <!-- Выделение -->
-        <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding SelectAllCommand}"/>
-        <KeyBinding Key="D" Modifiers="Ctrl" Command="{Binding DeselectAllCommand}"/>
-        <KeyBinding Key="A" Modifiers="Ctrl+Shift" Command="{Binding InvertSelectionCommand}"/>
-        <KeyBinding Key="Add" Command="{Binding SelectByPatternCommand}"/>
-        <KeyBinding Key="OemPlus" Command="{Binding SelectByPatternCommand}"/>
-        <KeyBinding Key="Subtract" Command="{Binding DeselectByPatternCommand}"/>
-        <KeyBinding Key="OemMinus" Command="{Binding DeselectByPatternCommand}"/>
-        
         <!-- Команды с Ctrl+Shift -->
         <KeyBinding Key="C" Modifiers="Ctrl+Shift" Command="{Binding CompareDirectoriesCommand}"/>
         <KeyBinding Key="F" Modifiers="Ctrl+Shift" Command="{Binding CompareFilesCommand}"/>
         <KeyBinding Key="D" Modifiers="Ctrl+Shift" Command="{Binding ShowDiskInfoCommand}"/>
-        <KeyBinding Key="V" Modifiers="Ctrl+Shift" Command="{Binding ActivePanel.ToggleFlatViewCommand}"/>
+        <KeyBinding Key="V" Modifiers="Ctrl+Shift" Command="{Binding LeftPanel.ToggleFlatViewCommand}"/>
+        <KeyBinding Key="Q" Modifiers="Ctrl" Command="{Binding ExitAppCommand}"/>
+        <KeyBinding Key="F7" Modifiers="Alt" Command="{Binding SearchFilesCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl+Shift" Command="{Binding SyncDirsCommand}"/>
+
+        <!-- Буфер обмена файлами / File clipboard -->
+        <KeyBinding Key="C" Modifiers="Ctrl" Command="{Binding CopyFilesToClipboardCommand}"/>
+        <KeyBinding Key="X" Modifiers="Ctrl" Command="{Binding CutFilesToClipboardCommand}"/>
+        <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding PasteFilesFromClipboardCommand}"/>
+
+        <!-- Навигация / Navigation -->
+        <KeyBinding Key="Z" Modifiers="Alt" Command="{Binding TargetEqualSourceCommand}"/>
+        <KeyBinding Key="F4" Modifiers="Shift" Command="{Binding EditNewCommand}"/>
     </Window.InputBindings>
     <Window.Resources>
         <!-- ═══ Shared Panel Tab Item Style ═══ -->
@@ -274,7 +274,7 @@
             <Border x:Name="TitleBar" 
                     Panel.ZIndex="3000"
                     VerticalAlignment="Top" 
-                    Height="38"
+                    Height="36"
                     Background="{DynamicResource TitleBarBgBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,0,1">
@@ -335,7 +335,7 @@
                 </Grid>
             </Border>
             <!-- Main content wrapper -->
-            <Grid Margin="0,38,0,0">
+            <Grid Margin="0,36,0,0">
                 <!-- COMMAND PALETTE OVERLAY -->
                 <Border Background="{DynamicResource OverlayBrush}"
                 Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVis}}"
@@ -534,6 +534,14 @@
                           Command="{Binding ToggleTerminalPanelCommand}"/>
                 <MenuItem Header="{DynamicResource Menu.Commands.Palette}" InputGestureText="F1"
                           Command="{Binding OpenCommandPaletteCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource Menu.Commands.DirTreeLeft}" InputGestureText="Alt+F1"
+                          Command="{Binding OpenDirectoryTreeLeftCommand}"/>
+                <MenuItem Header="{DynamicResource Menu.Commands.DirTreeRight}" InputGestureText="Alt+F2"
+                          Command="{Binding OpenDirectoryTreeRightCommand}"/>
+                <Separator/>
+                <MenuItem Header="{DynamicResource OpQueue.Title}" InputGestureText="Ctrl+Shift+Q"
+                          Command="{Binding OpenOperationQueueCommand}"/>
             </MenuItem>
             
             <!-- Инструменты -->
@@ -542,8 +550,6 @@
                           Command="{Binding ShowGitTabCommand}"/>
                 <MenuItem Header="{DynamicResource Menu.Tools.Docker}"
                           Command="{Binding ShowDockerTabCommand}"/>
-                <MenuItem Header="{DynamicResource Menu.Tools.Ssh}"
-                          Command="{Binding ShowSshTabCommand}"/>
                 <MenuItem Header="{DynamicResource Menu.Tools.Sftp}"
                           Command="{Binding ShowSftpTabCommand}"/>
                 <MenuItem Header="{DynamicResource Menu.Tools.CloudStorage}"
@@ -591,7 +597,7 @@
         <!-- Настройки -->
         <MenuItem Header="{DynamicResource Menu.Settings}">
             <MenuItem Header="{DynamicResource Menu.Settings.Dialog}" InputGestureText="Ctrl+,"
-                      Click="Settings_Click"/>
+                      Command="{Binding OpenSettingsCommand}"/>
             <Separator/>
             <MenuItem Header="{DynamicResource Menu.Settings.Theme}">
                 <MenuItem Header="{DynamicResource Menu.Settings.Theme.Dark}"
@@ -623,8 +629,8 @@
         <!-- Избранное -->
         <MenuItem Header="{DynamicResource Menu.Bookmarks}"
                   SubmenuOpened="BookmarksMenu_SubmenuOpened">
-            <MenuItem Header="{DynamicResource Bookmark.Add}"
-                      Command="{Binding AddBookmarkCommand}"
+            <MenuItem Header="{DynamicResource Bookmark.Toggle}"
+                      Command="{Binding ToggleBookmarkCommand}"
                       InputGestureText="Ctrl+B"/>
             <MenuItem Header="{DynamicResource Bookmark.Manage}"
                       Command="{Binding ManageBookmarksCommand}"/>
@@ -656,24 +662,24 @@
                         <Button Style="{StaticResource ToolbarButtonStyle}"
                                 Command="{Binding RefreshAllCommand}"
                                 ToolTip="{DynamicResource Tip.Refresh}"
-                                Width="36" Height="34">
+                                Width="34" Height="34">
                             <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
                         </Button>
                         <Border Style="{StaticResource ToolbarSepStyle}"/>
 
                         <!-- Back / Forward / Up -->
                         <Button Style="{StaticResource ToolbarButtonStyle}"
-                                Command="{Binding LeftPanel.GoBackCommand}"
+                                Command="{Binding ActivePanel.GoBackCommand}"
                                 ToolTip="{DynamicResource Tip.Back}" Width="34" Height="34">
                                 <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
                         </Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}"
-                                Command="{Binding LeftPanel.GoForwardCommand}"
+                                Command="{Binding ActivePanel.GoForwardCommand}"
                                 ToolTip="{DynamicResource Tip.Forward}" Width="34" Height="34">
                                 <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
                         </Button>
                         <Button Style="{StaticResource ToolbarButtonStyle}"
-                                Command="{Binding LeftPanel.GoUpCommand}"
+                                Command="{Binding ActivePanel.GoUpCommand}"
                                 ToolTip="{DynamicResource Tip.Up}" Width="34" Height="34">
                                 <TextBlock Text="&#xE74A;" FontFamily="Segoe MDL2 Assets" FontSize="16"/>
                         </Button>
@@ -731,13 +737,7 @@
                                 ToolTip="{DynamicResource Tip.Docker}" Width="34" Height="34">
                                 <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                         </Button>
-                        <!-- SSH -->
-                        <Button Style="{StaticResource ToolbarButtonStyle}"
-                                Command="{Binding ShowSshTabCommand}"
-                                ToolTip="{DynamicResource Tip.Ssh}" Width="34" Height="34">
-                                <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
-                        </Button>
-                        <!-- SFTP -->
+                        <!-- SFTP / SSH -->
                         <Button Style="{StaticResource ToolbarButtonStyle}"
                                 Command="{Binding ShowSftpTabCommand}"
                                 ToolTip="{DynamicResource Tip.Sftp}" Width="34" Height="34">
@@ -750,6 +750,12 @@
                                 <TextBlock Text="&#xE753;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                         </Button>
                         <Border Style="{StaticResource ToolbarSepStyle}"/>
+                        <!-- Operation Queue -->
+                        <Button Style="{StaticResource ToolbarButtonStyle}"
+                                Command="{Binding OpenOperationQueueCommand}"
+                                ToolTip="{DynamicResource OpQueue.Title}" Width="34" Height="34">
+                                <TextBlock Text="&#xE7C4;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+                        </Button>
                         <!-- Command palette -->
                         <Button Style="{StaticResource ToolbarButtonStyle}"
                                 Command="{Binding OpenCommandPaletteCommand}"
@@ -1036,7 +1042,7 @@
                                         Foreground="{DynamicResource FgDimBrush}"
                                         FontSize="13"
                                         Command="{Binding CloseBottomPanelCommand}"
-                                         ToolTip="{DynamicResource Main.Tip.Minimize}"/>
+                                         ToolTip="{DynamicResource Main.Tip.TerminalClose}"/>
                             </Grid>
                         </Border>
 
@@ -1047,7 +1053,7 @@
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x2387;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#xE950;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
                                     <TextBlock Text="{DynamicResource Tab.Git}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
                                                FontWeight="Medium"/>
                                 </StackPanel>
@@ -1067,23 +1073,11 @@
                             <views:DockerPanel DataContext="{Binding Docker}"/>
                         </TabItem>
 
-                        <!-- ── SSH ── -->
+                        <!-- ── SFTP / SSH ── -->
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE756;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{DynamicResource Tab.Ssh}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
-                                               FontWeight="Medium"/>
-                                </StackPanel>
-                            </TabItem.Header>
-                            <views:SshPanel DataContext="{Binding Ssh}"/>
-                        </TabItem>
-
-                        <!-- ── SFTP ── -->
-                        <TabItem>
-                            <TabItem.Header>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x21C4;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
                                     <TextBlock Text="{DynamicResource Tab.Sftp}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
                                                FontWeight="Medium"/>
                                 </StackPanel>
@@ -1095,7 +1089,7 @@
                         <TabItem>
                             <TabItem.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#x2601;" FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#xE944;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
                                     <TextBlock Text="{DynamicResource Menu.Tools.CloudTab}" Margin="7,0,0,0" FontSize="12" VerticalAlignment="Center"
                                                FontWeight="Medium"/>
                                 </StackPanel>

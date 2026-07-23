@@ -50,6 +50,7 @@ public class EnumLocalizedConverter : IValueConverter
         return list;
     }
 
-    /// <summary>Обратное преобразование не поддерживается. / Reverse conversion is not supported.</summary>
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+    /// <summary>Обратное преобразование: LocalizedEnumItem → enum value. / Reverse: LocalizedEnumItem → enum value.</summary>
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is LocalizedEnumItem item ? item.Value : Binding.DoNothing;
 }

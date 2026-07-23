@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,7 +30,9 @@ public sealed class GDriveFileSystem : CloudFileSystem, IDisposable
     private readonly string _refreshToken;
 
     /// <summary>Кэш путей к ID папок для ускорения навигации. / Path-to-folder-ID cache for faster navigation.</summary>
-    private readonly Dictionary<string, string> _folderCache = new();
+    // FIXED: Replaced Dictionary with ConcurrentDictionary to prevent InvalidOperationException
+    // when concurrent async methods modify the cache simultaneously.
+    private readonly ConcurrentDictionary<string, string> _folderCache = new();
 
     /// <inheritdoc/>
     public override string Name => "Google Drive";
@@ -177,7 +180,7 @@ public sealed class GDriveFileSystem : CloudFileSystem, IDisposable
         }
         catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            _folderCache.Remove(path);
+            _folderCache.TryRemove(path, out _);
             return null;
         }
     }
@@ -247,7 +250,7 @@ public sealed class GDriveFileSystem : CloudFileSystem, IDisposable
 
         InvalidateCacheForPath(source);
         if (await ResolvePathToIdAsync(source, ct) is null)
-            _folderCache.Remove(source);
+            _folderCache.TryRemove(source, out _);
 
         var info = await GetFileInfoAsync(destination, ct);
         if (info?.IsDirectory == true)
@@ -398,7 +401,7 @@ public sealed class GDriveFileSystem : CloudFileSystem, IDisposable
     {
         var keys = _folderCache.Keys.Where(k => k == path || k.StartsWith(path + "/")).ToList();
         foreach (var key in keys)
-            _folderCache.Remove(key);
+            _folderCache.TryRemove(key, out _);
     }
 
     private void EnsureService()

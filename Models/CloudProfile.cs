@@ -17,7 +17,9 @@ public enum CloudProvider
     /// <summary>Yandex Disk. / Yandex Disk.</summary>
     YandexDisk,
     /// <summary>NextCloud (WebDAV). / NextCloud (WebDAV).</summary>
-    NextCloud
+    NextCloud,
+    /// <summary>Любое WebDAV-хранилище. / Any WebDAV storage.</summary>
+    WebDAV
 }
 
 /// <summary>
@@ -36,8 +38,8 @@ public class CloudProfile
     public CloudProvider Provider { get; set; } = CloudProvider.S3;
 
     /// <summary>
-    /// Учётные данные (ключи, токены). Хранятся в plain text (TODO: шифрование).
-    /// Credentials (keys, tokens). Stored in plain text (TODO: encryption).
+    /// Учётные данные (ключи, токены). Чувствительные значения шифруются DPAPI при сохранении.
+    /// Credentials (keys, tokens). Sensitive values are encrypted via DPAPI on save.
     /// </summary>
     public Dictionary<string, string> Credentials { get; set; } = new();
 
@@ -52,4 +54,7 @@ public class CloudProfile
 
     /// <summary>Корневая папка в облаке (по умолчанию "/"). / Root folder in the cloud (default "/").</summary>
     public string? RootPath { get; set; }
+
+    /// <summary>Игнорировать ошибки SSL-сертификата (для самоподписанных сертификатов). / Ignore SSL certificate errors (for self-signed certificates).</summary>
+    public bool IgnoreCertificateErrors { get; set; }
 }

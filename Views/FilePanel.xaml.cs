@@ -18,10 +18,22 @@ namespace CoderCommander.Views;
 public partial class FilePanel : UserControl
 {
     /// <summary>
-    /// Текущее направление сортировки для колонки (по ключу колонки).
-    /// Current sort direction per column key.
+    /// Направления сортировки колонок (избыточно, хранится в ColumnDefinition; оставлен для обратной совместимости).
+    /// Column sort directions (redundant — stored in ColumnDefinition; kept for backward compat).
     /// </summary>
     private readonly Dictionary<string, ListSortDirection> _sortDirections = new();
+
+    /// <summary>
+    /// Символы-стрелки для индикации направления сортировки.
+    /// Arrow characters for sort direction indicator.
+    /// </summary>
+    private const string SortAscArrow = " ▲";
+    private const string SortDescArrow = " ▼";
+
+    // FIXED: Store handler reference to prevent memory leak from static event subscription.
+    // Each FilePanel instance subscribed to static ColumnConfigService.ColumnsChanged via lambda,
+    // which captured the instance and prevented GC.
+    private readonly EventHandler? _columnsChangedHandler;
 
     /// <summary>
     /// Конструктор: инициализация XAML, подписка на события фокуса, DataContext, быстрый фильтр, колонки.
@@ -34,14 +46,22 @@ public partial class FilePanel : UserControl
         DataContextChanged += FilePanel_DataContextChanged;
 
         // Подписка на события быстрого фильтра/поиска (ph1.1)
+        FileList.PreviewKeyDown += FileList_PreviewKeyDown;
         FileList.KeyDown += QuickSearch_KeyDown;
         FileList.TextInput += QuickSearch_TextInput;
         FilterInput.KeyDown += FilterInput_KeyDown;
 
         // Динамические колонки: загрузка конфигурации и подписка на изменения
-        ColumnConfigService.ColumnsChanged += (_, _) => RebuildColumns();
+        _columnsChangedHandler = (_, _) => RebuildColumns();
+        ColumnConfigService.ColumnsChanged += _columnsChangedHandler;
         ColumnConfigService.Load();
         Loaded += (_, _) => RebuildColumns();
+        // FIXED: Unsubscribe from static event on Unloaded to prevent memory leak.
+        Unloaded += (_, _) =>
+        {
+            if (_columnsChangedHandler is not null)
+                ColumnConfigService.ColumnsChanged -= _columnsChangedHandler;
+        };
     }
 
     // ═══════════════════════════════════════════════
@@ -116,10 +136,178 @@ public partial class FilePanel : UserControl
         {
             if (i.IsDirectory)
                 _ = vm.NavigateToAsync(i.IsParent
-                    ? Directory.GetParent(vm.CurrentPath)?.FullName ?? vm.CurrentPath
+                    ? vm.GetParentPath()
                     : i.FullPath);
             else if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
                 _ = mvm.OpenItemAsync();
+        }
+    }
+
+    /// <summary>
+    /// Якорь диапазона для Shift+клик и Shift+стрелки (как в Double Commander).
+    /// Range anchor for Shift+click and Shift+arrows (like Double Commander).
+    /// </summary>
+    private int _rangeAnchor = -1;
+
+    /// <summary>
+    /// PreviewKeyDown: управление метками и курсором (Ins, Space, *, Shift+стрелки, Ctrl+A/D/I, Gray+/-).
+    /// Курсор (SelectedItem) и метки (IsSelected) независимы (архитектура Double Commander).
+    /// PreviewKeyDown: mark and cursor management (Ins, Space, *, Shift+arrows, Ctrl+A/D/I, Gray+/-).
+    /// Cursor (SelectedItem) and marks (IsSelected) are independent (Double Commander architecture).
+    /// </summary>
+    private void FileList_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not PanelViewModel vm || sender is not ListBox lb) return;
+
+        // ── Ins / Space: переключить метку текущего + курсор вниз ──
+        // ── Ins / Space: toggle current mark + cursor down ──
+        if (e.Key == Key.Insert || (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None))
+        {
+            e.Handled = true;
+            if (vm.SelectedItem is not Models.FileSystemItem cur || cur.IsParent) return;
+            cur.IsSelected = !cur.IsSelected;
+            MoveCursor(lb, 1);
+            return;
+        }
+
+        // ── Shift+Up/Down: переключить метку текущего + двигать курсор (DC InvertActiveFile) ──
+        // ── Shift+Up/Down: toggle current mark + move cursor (DC InvertActiveFile) ──
+        if (Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            if (e.Key == Key.Down)
+            {
+                e.Handled = true;
+                if (vm.SelectedItem is Models.FileSystemItem cur && !cur.IsParent)
+                    cur.IsSelected = !cur.IsSelected;
+                MoveCursor(lb, 1);
+                return;
+            }
+            if (e.Key == Key.Up)
+            {
+                e.Handled = true;
+                if (vm.SelectedItem is Models.FileSystemItem cur && !cur.IsParent)
+                    cur.IsSelected = !cur.IsSelected;
+                MoveCursor(lb, -1);
+                return;
+            }
+        }
+
+        // ── * (numpad Multiply или Shift+8): инвертировать все метки ──
+        // ── * (numpad Multiply or Shift+8): invert all marks ──
+        if (e.Key == Key.Multiply || (e.Key == Key.D8 && Keyboard.Modifiers == ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            foreach (var fi in vm.Items.Where(i => !i.IsParent))
+                fi.IsSelected = !fi.IsSelected;
+            return;
+        }
+
+        // ── Ctrl+A: выделить все ──
+        if (e.Key == Key.A && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            foreach (var fi in vm.Items.Where(i => !i.IsParent))
+                fi.IsSelected = true;
+            return;
+        }
+
+        // ── Ctrl+D: снять все метки ──
+        if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            foreach (var fi in vm.Items)
+                fi.IsSelected = false;
+            return;
+        }
+
+        // ── Ctrl+I: инвертировать все метки ──
+        if (e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            foreach (var fi in vm.Items.Where(i => !i.IsParent))
+                fi.IsSelected = !fi.IsSelected;
+            return;
+        }
+
+        // ── Gray+ / OemPlus: выделить по маске ──
+        if ((e.Key == Key.Add || e.Key == Key.OemPlus) && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
+                mvm.SelectByPatternCommand.Execute(null);
+            return;
+        }
+
+        // ── Gray- / OemMinus: снять по маске ──
+        if ((e.Key == Key.Subtract || e.Key == Key.OemMinus) && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
+                mvm.DeselectByPatternCommand.Execute(null);
+            return;
+        }
+
+        // ── Shift+Gray+ / Shift+OemPlus: выделить по расширению текущего (DC cm_MarkCurrentExtension) ──
+        if ((e.Key == Key.Add || e.Key == Key.OemPlus) && Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            e.Handled = true;
+            vm.MarkCurrentExtension(true);
+            return;
+        }
+
+        // ── Shift+Gray- / Shift+OemMinus: снять по расширению текущего ──
+        if ((e.Key == Key.Subtract || e.Key == Key.OemMinus) && Keyboard.Modifiers == ModifierKeys.Shift)
+        {
+            e.Handled = true;
+            vm.MarkCurrentExtension(false);
+            return;
+        }
+
+        // ── Ctrl+\ : перейти к корню диска (DC cm_ChangeDirToRoot) ──
+        if (e.Key == Key.OemBackslash && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _ = vm.GoToRootAsync();
+            return;
+        }
+
+        // ── Ctrl+PgUp : перейти в родительскую папку (DC cm_ChangeDirToParent) ──
+        if (e.Key == Key.Prior && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _ = vm.GoUpAsync();
+            return;
+        }
+
+        // ── Ctrl+PgDn : открыть папку/архив под курсором (DC cm_OpenArchive) ──
+        if (e.Key == Key.Next && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            if (vm.SelectedItem is Models.FileSystemItem cur && cur.IsDirectory && !cur.IsParent)
+                _ = vm.NavigateToAsync(cur.FullPath);
+            return;
+        }
+
+        var mods = Keyboard.Modifiers;
+        // Обновление status bar после любой операции с метками
+        if (e.Handled) vm.RefreshStatusBar();
+    }
+
+    /// <summary>
+    /// Сдвигает курсор ListBox на offset позиций (±1), скроллит в зону видимости.
+    /// Move ListBox cursor by offset positions (±1), scroll into view.
+    /// </summary>
+    private static void MoveCursor(ListBox lb, int offset)
+    {
+        var idx = lb.SelectedIndex;
+        if (idx < 0) return;
+        var newIdx = idx + offset;
+        if (newIdx < 0) newIdx = 0;
+        if (newIdx >= lb.Items.Count) newIdx = lb.Items.Count - 1;
+        if (newIdx != idx)
+        {
+            lb.SelectedIndex = newIdx;
+            lb.ScrollIntoView(lb.Items[newIdx]);
         }
     }
 
@@ -153,7 +341,7 @@ public partial class FilePanel : UserControl
                     e.Handled = true;
                     if (selItem.IsDirectory)
                         _ = vm.NavigateToAsync(selItem.IsParent
-                            ? Directory.GetParent(vm.CurrentPath)?.FullName ?? vm.CurrentPath
+                            ? vm.GetParentPath()
                             : selItem.FullPath);
                     else if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
                         _ = mvm.OpenItemAsync();
@@ -165,15 +353,24 @@ public partial class FilePanel : UserControl
                 break;
             case Key.Delete:
                 if (Application.Current.MainWindow?.DataContext is MainViewModel mvmDel)
-                    mvmDel.DeleteCommand.Execute(null);
+                {
+                    if (Keyboard.Modifiers == ModifierKeys.Shift)
+                        mvmDel.WipeCommand.Execute(null);
+                    else
+                        mvmDel.DeleteCommand.Execute(null);
+                }
                 e.Handled = true;
                 break;
-            case Key.A when Keyboard.Modifiers == ModifierKeys.Control:
-                foreach (var it in lb.Items)
-                    if (it is Models.FileSystemItem fi) fi.IsSelected = true;
+            case Key.Home:
                 e.Handled = true;
+                if (lb.Items.Count > 0) { lb.SelectedIndex = 0; lb.ScrollIntoView(lb.Items[0]); }
+                break;
+            case Key.End:
+                e.Handled = true;
+                if (lb.Items.Count > 0) { lb.SelectedIndex = lb.Items.Count - 1; lb.ScrollIntoView(lb.Items[^1]); }
                 break;
         }
+        vm.RefreshStatusBar();
     }
 
     /// <summary>
@@ -351,6 +548,8 @@ public partial class FilePanel : UserControl
         {
             RebuildColumnHeaders();
             RebuildItemTemplate();
+            if (DataContext is PanelViewModel vm)
+                vm.ApplySortFromConfig();
         }));
     }
 
@@ -371,6 +570,12 @@ public partial class FilePanel : UserControl
         Grid.SetColumn(iconHeader, 0);
         ColumnHeadersGrid.Children.Add(iconHeader);
 
+        // Определяем, какая колонка сейчас сортируется (по SortedColumnKey)
+        var sortedKey = ColumnConfigService.SortedColumnKey;
+        var sortedCol = !string.IsNullOrEmpty(sortedKey)
+            ? cols.FirstOrDefault(c => c.Key == sortedKey)
+            : null;
+
         int colIdx = 1;
         foreach (var col in cols)
         {
@@ -382,9 +587,16 @@ public partial class FilePanel : UserControl
             ColumnHeadersGrid.ColumnDefinitions.Add(
                 new System.Windows.Controls.ColumnDefinition { Width = width, MinWidth = minW });
 
+            // Добавляем индикатор сортировки к заголовку (стрелка)
+            var headerText = col.Header;
+            if (sortedCol == col)
+            {
+                headerText += col.SortDirection == ListSortDirection.Ascending ? SortAscArrow : SortDescArrow;
+            }
+
             var header = new TextBlock
             {
-                Text = col.Header,
+                Text = headerText,
                 Style = (Style)FindResource("ColumnHeaderStyle"),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -423,8 +635,9 @@ public partial class FilePanel : UserControl
             var template = (DataTemplate)XamlReader.Parse(xaml);
             FileList.ItemTemplate = template;
         }
-        catch
+        catch (Exception ex)
         {
+            LogService.Error($"RebuildItemTemplate failed: {ex.Message}", nameof(FilePanel));
             FileList.ItemTemplate = null;
         }
     }
@@ -510,8 +723,15 @@ public partial class FilePanel : UserControl
                     break;
 
                 case "CreatedDate":
+                    sb.AppendLine($"<TextBlock Grid.Column=\"{ci}\" Text=\"{{Binding CreatedDate, StringFormat='yyyy-MM-dd HH:mm'}}\"");
+                    sb.AppendLine("  Foreground=\"{DynamicResource FgDimBrush}\"");
+                    sb.AppendLine("  HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"");
+                    sb.AppendLine("  Margin=\"6,0,0,0\" FontSize=\"11\"");
+                    sb.AppendLine("  FontFamily=\"Consolas, Segoe UI\" TextTrimming=\"CharacterEllipsis\"/>");
+                    break;
+
                 case "Attributes":
-                    sb.AppendLine($"<TextBlock Grid.Column=\"{ci}\" Text=\"—\"");
+                    sb.AppendLine($"<TextBlock Grid.Column=\"{ci}\" Text=\"{{Binding Attributes}}\"");
                     sb.AppendLine("  Foreground=\"{DynamicResource FgDimBrush}\"");
                     sb.AppendLine("  HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"");
                     sb.AppendLine("  Margin=\"6,0,0,0\" FontSize=\"11\"");
@@ -519,6 +739,7 @@ public partial class FilePanel : UserControl
                     break;
 
                 case "Type":
+                    // FileSystemItem has no TypeDisplay property; Extension is the closest available
                     sb.AppendLine($"<TextBlock Grid.Column=\"{ci}\" Text=\"{{Binding Extension}}\"");
                     sb.AppendLine("  Foreground=\"{DynamicResource FgDimBrush}\"");
                     sb.AppendLine("  HorizontalAlignment=\"Left\" VerticalAlignment=\"Center\"");
@@ -560,31 +781,8 @@ public partial class FilePanel : UserControl
         if (sender is not TextBlock header || header.Tag is not string key) return;
         if (DataContext is not PanelViewModel vm) return;
 
-        var view = vm.ItemsView;
-        if (view is null) return;
-
-        // Переключаем направление сортировки
-        var dir = _sortDirections.TryGetValue(key, out var existing) && existing == ListSortDirection.Ascending
-            ? ListSortDirection.Descending
-            : ListSortDirection.Ascending;
-        _sortDirections[key] = dir;
-
-        view.SortDescriptions.Clear();
-
-        // Папки всегда сверху
-        view.SortDescriptions.Add(new SortDescription(nameof(Models.FileSystemItem.IsDirectory), ListSortDirection.Descending));
-
-        var propDesc = key switch
-        {
-            "Name" => nameof(Models.FileSystemItem.Name),
-            "Extension" => nameof(Models.FileSystemItem.Extension),
-            "Size" => nameof(Models.FileSystemItem.Size),
-            "ModifiedDate" => nameof(Models.FileSystemItem.Modified),
-            _ => nameof(Models.FileSystemItem.Name)
-        };
-
-        view.SortDescriptions.Add(new SortDescription(propDesc, dir));
-        view.Refresh();
+        vm.SetSortByColumn(key);
+        RebuildColumnHeaders();
     }
 
     // ═══════════════════════════════════════════════
@@ -606,26 +804,53 @@ public partial class FilePanel : UserControl
     private void ListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not PanelViewModel vm) return;
+        var lb = FileList;
         var hit = e.OriginalSource as DependencyObject;
         var item = FindAncestor<ListBoxItem>(hit);
         if (item is null) return;
+        if (item.DataContext is not Models.FileSystemItem fi) return;
 
-        // Если кликнули по невыделенному элементу — выделяем его (без запуска drag).
-        // Если кликнули по выделенному — запоминаем позицию для potential drag.
-        if (!item.IsSelected)
+        var isCtrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+        var isShift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
+        // Управляем только метками (FileSystemItem.IsSelected).
+        // Курсор (SelectedItem) и фокус — WPF обрабатывает сам (e.Handled не ставим!).
+        // Manage marks only (FileSystemItem.IsSelected).
+        // Cursor (SelectedItem) and focus — WPF handles natively (don't set e.Handled!).
+
+        if (isCtrl && !fi.IsParent)
         {
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            // Ctrl+клик: переключить метку, остальные не трогать
+            fi.IsSelected = !fi.IsSelected;
+            _rangeAnchor = lb.SelectedIndex;
+        }
+        else if (isShift && !fi.IsParent)
+        {
+            // Shift+клик: диапазон меток от якоря до кликнутого
+            var anchor = _rangeAnchor >= 0 ? _rangeAnchor : lb.SelectedIndex;
+            var clickIdx = lb.Items.IndexOf(fi);
+            if (anchor >= 0 && clickIdx >= 0)
             {
-                item.IsSelected = !item.IsSelected;
-            }
-            else
-            {
-                foreach (var fi in vm.Items) fi.IsSelected = false;
-                item.IsSelected = true;
+                var from = Math.Min(anchor, clickIdx);
+                var to = Math.Max(anchor, clickIdx);
+                for (int i = from; i <= to; i++)
+                    if (lb.Items[i] is Models.FileSystemItem item2 && !item2.IsParent)
+                        item2.IsSelected = true;
             }
         }
+        else if (!fi.IsParent)
+        {
+            // Обычный клик: сбросить все метки (курсор поставит WPF)
+            foreach (var x in vm.Items) x.IsSelected = false;
+            _rangeAnchor = lb.SelectedIndex;
+        }
+        else
+        {
+            // Клик по ".." — не сбрасываем метки
+            _rangeAnchor = lb.SelectedIndex;
+        }
 
-        // Запоминаем позицию — drag стартует в MouseMove если движение ≥ threshold.
+        // Drag detection
         _dragStartPoint = e.GetPosition(FileList);
         _dragPending = true;
     }

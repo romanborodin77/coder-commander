@@ -1,9 +1,12 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CoderCommander.Models;
 using CoderCommander.Services;
 using CoderCommander.Views;
 
@@ -34,10 +37,14 @@ public partial class SftpViewModel : ObservableObject
     [ObservableProperty] private bool _isVisible;
     /// <summary>Флаг установленного SFTP-подключения.</summary>
     [ObservableProperty] private bool _isConnected;
+    /// <summary>Подключён ли выбранный профиль.</summary>
+    [ObservableProperty] private bool _isSelectedProfileConnected;
     /// <summary>Строка статуса для отображения в UI.</summary>
     [ObservableProperty] private string _status = LocalizationService.Current.GetString("Sftp.SelectProfileAndConnect");
     /// <summary>Флаг выполнения операции (блокировка UI).</summary>
     [ObservableProperty] private bool _isBusy;
+
+    private CancellationTokenSource? _cts;
 
     /// <summary>
     /// Создаёт экземпляр SftpViewModel с необходимыми сервисами и фабричными функциями.
@@ -63,7 +70,11 @@ public partial class SftpViewModel : ObservableObject
     public void SetVisible(bool v)
     {
         IsVisible = v;
-        if (v) Profiles = new ObservableCollection<SshProfile>(_ssh.LoadProfiles());
+        if (v)
+        {
+            Profiles = new ObservableCollection<SshProfile>(_ssh.LoadProfiles());
+            UpdateSelectedProfileConnected();
+        }
     }
 
     /// <summary>Закрыть панель SFTP (скрыть вкладку).</summary>
@@ -84,10 +95,34 @@ public partial class SftpViewModel : ObservableObject
                 return;
             }
             IsConnected = true;
-            await NavigateToAsync(CurrentRemotePath);
+            UpdateSelectedProfileConnected();
+            CurrentRemotePath = "/";
+            await NavigateToAsync("/");
         }
         catch (System.Exception e) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); IsConnected = false; }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>Отключиться от удалённого сервера.</summary>
+    [RelayCommand]
+    public void DisconnectAsync()
+    {
+        _cts?.Cancel();
+        IsConnected = false;
+        Items.Clear();
+        UpdateSelectedProfileConnected();
+        Status = LocalizationService.Current.GetString("Sftp.Disconnected");
+    }
+
+    /// <summary>Обновляет IsSelectedProfileConnected на основе текущего выбора.</summary>
+    private void UpdateSelectedProfileConnected()
+    {
+        IsSelectedProfileConnected = IsConnected && SelectedProfile is not null;
+    }
+
+    partial void OnSelectedProfileChanged(SshProfile? value)
+    {
+        UpdateSelectedProfileConnected();
     }
 
     /// <summary>
@@ -98,14 +133,17 @@ public partial class SftpViewModel : ObservableObject
     public async Task NavigateToAsync(string remotePath)
     {
         if (SelectedProfile is null) return;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
         IsBusy = true; Status = string.Format(LocalizationService.Current.GetString("Sftp.LoadingPath"), remotePath);
         try
         {
-            var list = await _sftp.ListDirectoryAsync(SelectedProfile, remotePath);
+            var list = await _sftp.ListDirectoryAsync(SelectedProfile, remotePath, _cts.Token);
             Items = new ObservableCollection<SftpEntryModel>(list);
             CurrentRemotePath = remotePath;
             Status = string.Format(LocalizationService.Current.GetString("Sftp.ItemsIn"), list.Count, remotePath);
         }
+        catch (OperationCanceledException) { }
         catch (System.Exception e) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); }
         finally { IsBusy = false; }
     }
@@ -219,5 +257,132 @@ public partial class SftpViewModel : ObservableObject
     {
         if (SelectedItem is null || SelectedItem.IsParent) return null;
         return SelectedItem;
+    }
+
+    /// <summary>Открыть диалог добавления нового SSH-профиля.</summary>
+    [RelayCommand]
+    public void AddProfile()
+    {
+        var dlg = new AddSshProfileWindow { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() == true && dlg.ResultProfile is not null)
+        {
+            var profiles = _ssh.LoadProfiles();
+            profiles.Add(dlg.ResultProfile);
+            _ssh.SaveProfiles(profiles);
+            RefreshProfiles();
+        }
+    }
+
+    /// <summary>Открыть диалог редактирования выбранного SSH-профиля.</summary>
+    [RelayCommand]
+    public void EditProfile()
+    {
+        if (SelectedProfile is null)
+        {
+            StyledMessageBoxWindow.Show(LocalizationService.Current.GetString("Sftp.SelectProfile"), "", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dlg = new AddSshProfileWindow { Owner = Application.Current.MainWindow };
+        dlg.LoadForEdit(SelectedProfile);
+        if (dlg.ShowDialog() == true && dlg.ResultProfile is not null)
+        {
+            var profiles = _ssh.LoadProfiles();
+            profiles.RemoveAll(p => p.Name == SelectedProfile.Name);
+            profiles.Add(dlg.ResultProfile);
+            _ssh.SaveProfiles(profiles);
+            RefreshProfiles();
+        }
+    }
+
+    /// <summary>Удалить выбранный SSH-профиль.</summary>
+    [RelayCommand]
+    public void DeleteProfile()
+    {
+        if (SelectedProfile is null)
+        {
+            StyledMessageBoxWindow.Show(LocalizationService.Current.GetString("Sftp.SelectProfile"), "", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (StyledMessageBoxWindow.Show(
+            string.Format(LocalizationService.Current.GetString("Ssh.DeleteConfirm"), SelectedProfile.Name),
+            LocalizationService.Current.GetString("Ssh.DeleteTitle"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        var profiles = _ssh.LoadProfiles();
+        profiles.RemoveAll(p => p.Name == SelectedProfile.Name);
+        _ssh.SaveProfiles(profiles);
+        RefreshProfiles();
+    }
+
+    /// <summary>Перезагрузить список SSH-профилей из хранилища.</summary>
+    private void RefreshProfiles()
+    {
+        var selected = SelectedProfile?.Name;
+        Profiles = new ObservableCollection<SshProfile>(_ssh.LoadProfiles());
+        if (selected is not null)
+            SelectedProfile = Profiles.FirstOrDefault(p => p.Name == selected);
+    }
+
+    /// <summary>
+    /// Проверяет доступность выбранного SSH-профиля.
+    /// Checks availability of the selected SSH profile.
+    /// </summary>
+    [RelayCommand]
+    public async Task CheckConnectionAsync()
+    {
+        var p = SelectedProfile;
+        if (p is null) { Status = LocalizationService.Current.GetString("Ssh.NoProfileSelected"); return; }
+        IsBusy = true; Status = LocalizationService.Current.GetString("Ssh.Checking");
+        try
+        {
+            var ok = await _ssh.IsReachableAsync(p);
+            Status = ok
+                ? string.Format(LocalizationService.Current.GetString("Ssh.Reachable"), p.Name)
+                : string.Format(LocalizationService.Current.GetString("Ssh.Unreachable"), p.Name);
+        }
+        catch (System.Exception e) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// Публикует локальный файл или папку на удалённом сервере по выбранному профилю.
+    /// Publishes a local file/folder to the remote server using the selected profile.
+    /// </summary>
+    /// <param name="localPath">Локальный путь к файлу или папке.</param>
+    public async Task PublishAsync(string localPath)
+    {
+        var profile = SelectedProfile ?? Profiles.FirstOrDefault();
+        if (profile is null) { Status = LocalizationService.Current.GetString("Status.NoSshProfiles"); return; }
+        IsBusy = true;
+        try
+        {
+            var r = await _ssh.PublishAsync(profile, localPath);
+            Status = r.Success
+                ? string.Format(LocalizationService.Current.GetString("Ssh.Published"), localPath)
+                : string.Format(LocalizationService.Current.GetString("Status.Error"), r.StdErr);
+        }
+        catch (System.Exception e) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>
+    /// Выполняет произвольную команду на удалённом сервере.
+    /// Runs an arbitrary command on the remote server.
+    /// </summary>
+    /// <param name="command">Команда для выполнения.</param>
+    public async Task RunRemoteAsync(string command)
+    {
+        var profile = SelectedProfile ?? Profiles.FirstOrDefault();
+        if (profile is null) { Status = LocalizationService.Current.GetString("Status.NoSshProfiles"); return; }
+        IsBusy = true;
+        try
+        {
+            var r = await _ssh.RunRemoteAsync(profile, command);
+            Status = r.Success ? r.StdOut : string.Format(LocalizationService.Current.GetString("Status.Error"), r.StdErr);
+        }
+        catch (System.Exception e) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), e.Message); }
+        finally { IsBusy = false; }
     }
 }

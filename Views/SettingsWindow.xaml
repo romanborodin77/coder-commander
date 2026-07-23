@@ -72,14 +72,14 @@
             </Grid.RowDefinitions>
 
             <!-- Title Bar -->
-            <Border Grid.Row="0" Height="32" Background="{DynamicResource TitleBarBgBrush}"
+            <Border Grid.Row="0" Height="36" Background="{DynamicResource TitleBarBgBrush}"
                     BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
                     MouseLeftButtonDown="TitleBar_MouseDown">
                 <Grid>
                     <TextBlock Text="{DynamicResource Settings.Title}" FontSize="13" FontWeight="SemiBold"
                                Foreground="{DynamicResource FgLightBrush}"
                                VerticalAlignment="Center" Margin="12,0,0,0"/>
-                    <Button Width="32" Height="32"
+                    <Button Width="36" Height="36"
                             HorizontalAlignment="Right"
                             Style="{StaticResource CloseButtonStyle}"
                             Click="Close_Click">
@@ -172,7 +172,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.WindowOpacity}"/>
                                 <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}"
-                                          SelectedIndex="0">
+                                          SelectedIndex="{Binding WindowOpacityIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="100%"/>
                                     <ComboBoxItem Content="95%"/>
                                     <ComboBoxItem Content="90%"/>
@@ -402,7 +402,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.TerminalHeight}"/>
-                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="1">
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="{Binding TerminalHeightIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="200"/>
                                     <ComboBoxItem Content="300"/>
                                     <ComboBoxItem Content="400"/>
@@ -415,7 +415,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.ScrollbackLines}"/>
-                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="1">
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="{Binding ScrollbackLinesIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="5000"/>
                                     <ComboBoxItem Content="9999"/>
                                     <ComboBoxItem Content="50000"/>
@@ -523,10 +523,10 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.AutoRefresh}"/>
                                 <ComboBox Grid.Column="1" Style="{StaticResource CompactCombo}" SelectedIndex="{Binding AutoRefreshIntervalIndex}">
-                                    <ComboBoxItem Content="1000 {DynamicResource Settings.Ms}"/>
-                                    <ComboBoxItem Content="2000 {DynamicResource Settings.Ms}"/>
-                                    <ComboBoxItem Content="3000 {DynamicResource Settings.Ms}"/>
-                                    <ComboBoxItem Content="5000 {DynamicResource Settings.Ms}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Interval1000}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Interval2000}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Interval3000}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.Interval5000}"/>
                                 </ComboBox>
                             </Grid>
                             <Grid Style="{StaticResource CompactRow}">
@@ -640,12 +640,136 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.MaxRecursion}"/>
-                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="1">
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactSmallCombo}" SelectedIndex="{Binding MaxRecursionIndex, Mode=TwoWay}">
                                     <ComboBoxItem Content="10"/>
                                     <ComboBoxItem Content="50"/>
                                     <ComboBoxItem Content="100"/>
                                     <ComboBoxItem Content="999"/>
                                 </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- ═══════════ Archivers ═══════════ -->
+                <TabItem Style="{StaticResource CompactTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7B8;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource Settings.Archivers}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,6">
+                        <StackPanel>
+                            <!-- Внешние архиваторы -->
+                            <TextBlock Style="{StaticResource CompactGroupHeader}" Text="{DynamicResource Settings.ArchExternal}"/>
+
+                            <!-- 7-Zip -->
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource CompactLabel}" Text="7-Zip"/>
+                                <TextBox Grid.Column="1" Width="200" FontSize="12" Margin="8,0,0,0"
+                                         Text="{Binding SevenZipPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                <Button Grid.Column="2" Content="{DynamicResource Settings.Browse}" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                        Style="{DynamicResource DefaultButtonStyle}"
+                                        Click="BrowseSevenZip_Click"/>
+                            </Grid>
+                            <CheckBox Style="{StaticResource CompactCheck}"
+                                      IsChecked="{Binding UseExternalSevenZip}" Content="{DynamicResource Settings.ArchUseExternal7z}"/>
+
+                            <Border Style="{StaticResource CompactSeparator}"/>
+
+                            <!-- WinRAR -->
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource CompactLabel}" Text="WinRAR"/>
+                                <TextBox Grid.Column="1" Width="200" FontSize="12" Margin="8,0,0,0"
+                                         Text="{Binding WinRarPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                <Button Grid.Column="2" Content="{DynamicResource Settings.Browse}" Padding="8,3" FontSize="11" Margin="4,0,0,0"
+                                        Style="{DynamicResource DefaultButtonStyle}"
+                                        Click="BrowseWinRar_Click"/>
+                            </Grid>
+                            <CheckBox Style="{StaticResource CompactCheck}"
+                                      IsChecked="{Binding UseExternalWinRar}" Content="{DynamicResource Settings.ArchUseExternalRar}"/>
+
+                            <Border Style="{StaticResource CompactSeparator}"/>
+
+                            <!-- Параметры по умолчанию -->
+                            <TextBlock Style="{StaticResource CompactGroupHeader}" Text="{DynamicResource Settings.ArchDefaults}"/>
+
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.ArchFormat}"/>
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactCombo}" SelectedIndex="{Binding DefaultArchiveFormatIndex}">
+                                    <ComboBoxItem Content="ZIP"/>
+                                    <ComboBoxItem Content="7Z"/>
+                                    <ComboBoxItem Content="TAR"/>
+                                    <ComboBoxItem Content="GZIP"/>
+                                </ComboBox>
+                            </Grid>
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.ArchCompression}"/>
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactCombo}" SelectedIndex="{Binding ArchiveCompressionLevelIndex}">
+                                    <ComboBoxItem Content="{DynamicResource Settings.ArchCompressNone}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.ArchCompressFast}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.ArchCompressNormal}"/>
+                                    <ComboBoxItem Content="{DynamicResource Settings.ArchCompressMax}"/>
+                                </ComboBox>
+                            </Grid>
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.ArchEncoding}"/>
+                                <ComboBox Grid.Column="1" Style="{StaticResource CompactCombo}" SelectedIndex="{Binding ArchiveEncodingIndex}">
+                                    <ComboBoxItem Content="UTF-8"/>
+                                    <ComboBoxItem Content="CP866 (DOS)"/>
+                                    <ComboBoxItem Content="Windows-1251"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Border Style="{StaticResource CompactSeparator}"/>
+
+                            <!-- Пароль -->
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource CompactLabel}" Text="{DynamicResource Settings.ArchPassword}"/>
+                                <TextBox Grid.Column="1" Width="140" FontSize="12"
+                                         Text="{Binding ArchiveDefaultPassword, UpdateSourceTrigger=PropertyChanged}"/>
+                            </Grid>
+
+                            <Border Style="{StaticResource CompactSeparator}"/>
+
+                            <!-- Поведение -->
+                            <TextBlock Style="{StaticResource CompactGroupHeader}" Text="{DynamicResource Settings.SectionBehavior}"/>
+                            <Grid Style="{StaticResource CompactRow}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" Style="{StaticResource CompactCheck}"
+                                          IsChecked="{Binding DeleteAfterArchive}" Content="{DynamicResource Settings.ArchDeleteAfter}"/>
+                                <CheckBox Grid.Column="1" Style="{StaticResource CompactCheck}"
+                                          IsChecked="{Binding OpenArchiveAfterCreate}" Content="{DynamicResource Settings.ArchOpenAfter}"/>
                             </Grid>
                         </StackPanel>
                     </ScrollViewer>
@@ -737,7 +861,7 @@
                                     </Setter>
                                     <Style.Triggers>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
+                                            <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
                                             <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                                         </Trigger>
                                     </Style.Triggers>
@@ -752,7 +876,7 @@
                                             <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource AccentDimBrush}"/>
+                                            <Setter Property="Background" Value="{DynamicResource SelectionActiveBrush}"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>

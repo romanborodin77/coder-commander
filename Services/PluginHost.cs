@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
@@ -11,6 +12,12 @@ namespace CoderCommander.Services;
 /// </summary>
 public sealed class PluginHost : IPluginHost
 {
+    /// <summary>
+    /// Зарегистрированные плагинами файловые системы (имя → IFileSystem).
+    /// Filesystems registered by plugins (name → IFileSystem).
+    /// </summary>
+    public static ConcurrentDictionary<string, IFileSystem> RegisteredFileSystems { get; } = new();
+
     private readonly CommandEngine _commands;
     private readonly MainViewModel _mainVm;
 
@@ -29,6 +36,7 @@ public sealed class PluginHost : IPluginHost
     /// <inheritdoc />
     public void RegisterFileSystem(string name, IFileSystem fs)
     {
+        RegisteredFileSystems[name] = fs;
         LogService.Info($"Plugin registered filesystem: {name}", nameof(PluginHost));
     }
 
@@ -49,6 +57,7 @@ public sealed class PluginHost : IPluginHost
     /// <inheritdoc />
     public void RegisterSyntaxHighlighter(string extension, string language)
     {
+        SyntaxHighlighter.RegisterExtension(extension, language);
         LogService.Info($"Plugin registered syntax highlighter: {extension} -> {language}", nameof(PluginHost));
     }
 

@@ -57,11 +57,13 @@ public partial class SearchDialog : Window
     /// Открывает файл в редакторе (через <see cref="MainViewModel.OpenEditorRequest"/>).
     /// Opens the file in the editor via OpenEditorRequest.
     /// </summary>
-    private void OpenInEditor(string path)
+    // FIXED: Use async file read instead of synchronous File.ReadAllText which
+    // freezes the UI for large text files (multi-MB).
+    private async void OpenInEditor(string path)
     {
         try
         {
-            var content = System.IO.File.ReadAllText(path);
+            var content = await System.IO.File.ReadAllTextAsync(path);
             if (Application.Current.MainWindow?.DataContext is MainViewModel mvm)
                 mvm.OpenEditorRequest?.Invoke(path, content);
         }

@@ -81,15 +81,18 @@ public partial class EditorTabViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Сохраняет текст в файл (UTF-8). Недоступно в режиме «только чтение».
-    /// Saves text to file (UTF-8). Not available in read-only mode.
+    /// Сохраняет текст в файл с выбранной кодировкой. Недоступно в режиме «только чтение».
+    /// Saves text to file with the selected encoding. Not available in read-only mode.
     /// </summary>
     public void Save()
     {
         if (IsReadOnly) return;
         try
         {
-            File.WriteAllText(FilePath, Content, System.Text.Encoding.UTF8);
+            // FIXED: используем выбранную кодировку вместо захардкоженного UTF-8.
+            // Use the selected encoding instead of hardcoded UTF-8.
+            var enc = ResolveEncoding();
+            File.WriteAllText(FilePath, Content, enc);
             OriginalContent = Content;
             IsModified = false;
         }
@@ -100,6 +103,24 @@ public partial class EditorTabViewModel : ObservableObject
                 LocalizationService.Current.GetString("Error.Title"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Разрешает кодировку по имени свойства Encoding.
+    /// Resolves encoding by the Encoding property name.
+    /// </summary>
+    private System.Text.Encoding ResolveEncoding()
+    {
+        if (string.IsNullOrEmpty(Encoding) || Encoding.Equals("UTF-8", StringComparison.OrdinalIgnoreCase))
+            return System.Text.Encoding.UTF8;
+        try
+        {
+            return System.Text.Encoding.GetEncoding(Encoding);
+        }
+        catch
+        {
+            return System.Text.Encoding.UTF8;
         }
     }
 

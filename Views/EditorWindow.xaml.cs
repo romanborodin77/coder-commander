@@ -84,13 +84,11 @@ public partial class EditorWindow : Window
         }
 
         DataContext = _vm;
+        // FIXED: Consolidated into a single Closing handler to avoid non-deterministic ordering.
+        // Previously had two Closing subscriptions: one for OnClosing and one lambda for ThemeChanged unsubscribe.
+        // The lambda could run before OnClosing, unsubscribing ThemeChanged prematurely.
         Closing += OnClosing;
         ((App)Application.Current).ThemeChanged += OnAppThemeChanged;
-        Closing += (s, e) =>
-        {
-            if (!e.Cancel)
-                ((App)Application.Current).ThemeChanged -= OnAppThemeChanged;
-        };
     }
 
     private static bool IsImageFile(string path)
@@ -998,6 +996,9 @@ public partial class EditorWindow : Window
         if (_isImageMode) return;
         if (!_vm.CheckAllUnsavedChanges())
             e.Cancel = true;
+        // FIXED: Unsubscribe ThemeChanged when window is actually closing (not cancelled).
+        if (!e.Cancel)
+            ((App)Application.Current).ThemeChanged -= OnAppThemeChanged;
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

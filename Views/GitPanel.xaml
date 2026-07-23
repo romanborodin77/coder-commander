@@ -168,11 +168,11 @@
                     <DockPanel>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                             <Button Content="{DynamicResource Git.StageAll}" ToolTip="{DynamicResource Git.Tip.StageAll}"
-                                    Command="{Binding StageAllCommand}" Style="{DynamicResource GitBtn}" FontSize="11"/>
+                                    Command="{Binding StageAllCommand}" Style="{DynamicResource GitBtn}"/>
                             <Button Content="{DynamicResource Git.UnstageAll}" ToolTip="{DynamicResource Git.Tip.UnstageAll}"
-                                    Command="{Binding UnstageAllCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}" FontSize="11"/>
+                                    Command="{Binding UnstageAllCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
                             <Button Content="{DynamicResource Git.OpenInEditor}" ToolTip="{DynamicResource Git.Tip.OpenDiff}"
-                                    Command="{Binding OpenDiffInEditorCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}" FontSize="11"/>
+                                    Command="{Binding OpenDiffInEditorCommand}" Margin="4,0,0,0" Style="{DynamicResource GitBtn}"/>
                         </StackPanel>
                         <TextBlock Text="{DynamicResource Git.ChangesTitle}" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="13"/>
                     </DockPanel>

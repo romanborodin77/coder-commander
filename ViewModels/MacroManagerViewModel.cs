@@ -234,15 +234,24 @@ public partial class MacroManagerViewModel : ObservableObject
     /// </summary>
     private static void RegisterMainCommands(CommandEngine engine, MainViewModel vm)
     {
-        engine.Register(new QuickCommand("app.copy", "Copy files", ct => System.Threading.Tasks.Task.FromResult("copy")));
-        engine.Register(new QuickCommand("app.move", "Move files", ct => System.Threading.Tasks.Task.FromResult("move")));
-        engine.Register(new QuickCommand("app.delete", "Delete files", ct => System.Threading.Tasks.Task.FromResult("delete")));
-        engine.Register(new QuickCommand("app.rename", "Rename", ct => System.Threading.Tasks.Task.FromResult("rename")));
-        engine.Register(new QuickCommand("app.search", "Search files", ct => System.Threading.Tasks.Task.FromResult("search")));
-        engine.Register(new QuickCommand("app.terminal", "Open terminal", ct => System.Threading.Tasks.Task.FromResult("terminal")));
-        engine.Register(new QuickCommand("app.refresh", "Refresh panel", ct => System.Threading.Tasks.Task.FromResult("refresh")));
-        engine.Register(new QuickCommand("app.git", "Git panel", ct => System.Threading.Tasks.Task.FromResult("git")));
-        engine.Register(new QuickCommand("app.docker", "Docker panel", ct => System.Threading.Tasks.Task.FromResult("docker")));
+        engine.Register(new QuickCommand("app.copy", LocalizationService.Current.GetString("Quick.Copy"),
+            _ => { vm.CopyCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.move", LocalizationService.Current.GetString("Quick.Move"),
+            _ => { vm.MoveCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.delete", LocalizationService.Current.GetString("Quick.Delete"),
+            _ => { vm.DeleteCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.rename", LocalizationService.Current.GetString("Quick.Rename"),
+            _ => { vm.RenameCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.search", LocalizationService.Current.GetString("Quick.Search"),
+            _ => { vm.SearchCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.terminal", LocalizationService.Current.GetString("Quick.Terminal"),
+            _ => { vm.ToggleTerminalPanelCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.refresh", LocalizationService.Current.GetString("Quick.Refresh"),
+            _ => { vm.RefreshAllCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.git", LocalizationService.Current.GetString("Quick.Git"),
+            _ => { vm.ShowGitTabCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
+        engine.Register(new QuickCommand("app.docker", LocalizationService.Current.GetString("Quick.Docker"),
+            _ => { vm.ShowDockerTabCommand.Execute(null); return System.Threading.Tasks.Task.FromResult(""); }));
     }
 
     /// <summary>
@@ -255,31 +264,70 @@ public partial class MacroManagerViewModel : ObservableObject
             Title = title, Width = 400, Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            Owner = Application.Current.MainWindow
+            WindowStyle = WindowStyle.None,
+            Owner = Application.Current.MainWindow,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgPanelBrush"]
         };
 
-        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15) };
+        var root = new System.Windows.Controls.DockPanel();
+
+        var titleBar = new System.Windows.Controls.Border
+        {
+            Height = 36, Background = (System.Windows.Media.Brush)Application.Current.Resources["TitleBarBgBrush"]
+        };
+        System.Windows.Controls.DockPanel.SetDock(titleBar, System.Windows.Controls.Dock.Top);
+        var titleSp = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleSp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = title,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleBar.Child = titleSp;
+        titleBar.MouseLeftButtonDown += (_, _) => w.DragMove();
+        root.Children.Add(titleBar);
+
+        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15, 10, 15, 10) };
         sp.Children.Add(new System.Windows.Controls.TextBlock
         {
-            Text = prompt, Margin = new Thickness(0, 0, 0, 8)
+            Text = prompt,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            Margin = new Thickness(0, 0, 0, 8)
         });
-        var tb = new System.Windows.Controls.TextBox { Text = def };
+        var tb = new System.Windows.Controls.TextBox
+        {
+            Text = def,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgInputBrush"],
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.Resources["BorderBrush"]
+        };
         sp.Children.Add(tb);
 
         var btns = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
         };
         var ok = new System.Windows.Controls.Button
         {
-            Content = LocalizationService.Current.GetString("MsgBox.OK"), Width = 80, IsDefault = true
+            Content = LocalizationService.Current.GetString("MsgBox.OK"),
+            Width = 80, IsDefault = true,
+            Style = (System.Windows.Style)Application.Current.Resources["AccentButtonStyle"]
         };
         var cn = new System.Windows.Controls.Button
         {
             Content = LocalizationService.Current.GetString("Dialog.Cancel"),
             Width = 80, IsCancel = true,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(8, 0, 0, 0),
+            Style = (System.Windows.Style)Application.Current.Resources["DefaultButtonStyle"]
         };
         ok.Click += (_, _) => w.DialogResult = true;
         cn.Click += (_, _) => w.DialogResult = false;
@@ -287,7 +335,8 @@ public partial class MacroManagerViewModel : ObservableObject
         btns.Children.Add(cn);
         sp.Children.Add(btns);
 
-        w.Content = sp;
+        root.Children.Add(sp);
+        w.Content = root;
         tb.SelectAll();
         tb.Focus();
         return w.ShowDialog() == true ? tb.Text : null;

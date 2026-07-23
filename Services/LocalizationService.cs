@@ -141,6 +141,8 @@ public sealed class LocalizationService
         _strings["Menu.Commands.SwitchPanel"] = "Switch panel";
         _strings["Menu.Commands.Terminal"] = "Terminal";
         _strings["Menu.Commands.Palette"] = "Command palette";
+        _strings["Menu.Commands.DirTreeLeft"] = "Directory tree (left panel)";
+        _strings["Menu.Commands.DirTreeRight"] = "Directory tree (right panel)";
 
         _strings["Menu.Tools"] = "Tools";
         _strings["Menu.Tools.Git"] = "Git";
@@ -277,6 +279,11 @@ public sealed class LocalizationService
         _strings["Columns.MoveDown"] = "Down";
         _strings["Columns.Width"] = "Width:";
         _strings["Columns.Hide"] = "Hide column";
+        _strings["Columns.SortBy"] = "Sorting";
+        _strings["Columns.SortColumn"] = "Column:";
+        _strings["Columns.SortDirection"] = "Direction:";
+        _strings["Columns.SortAscending"] = "Ascending";
+        _strings["Columns.SortDescending"] = "Descending";
         _strings["Menu.View.Columns"] = "Configure Columns…";
 
         // ═══════════════════════════════════════════
@@ -317,7 +324,7 @@ public sealed class LocalizationService
         _strings["Git.Changes"] = "changes";
         _strings["Git.Commit"] = "\u2714 Commit (Ctrl+Enter)";
         _strings["Git.Amend"] = "Amend";
-        _strings["Git.StageAll"] = "+ All";
+        _strings["Git.StageAll"] = "All";
         _strings["Git.UnstageAll"] = "- All";
         _strings["Git.OpenInEditor"] = "\u25C9 editor";
         _strings["Git.ChangesTitle"] = "Changes";
@@ -368,7 +375,10 @@ public sealed class LocalizationService
         // SSH PANEL
         // ═══════════════════════════════════════════
         _strings["Ssh.Profiles"] = "Server profiles";
-        _strings["Ssh.New"] = "\uFF0B New";
+        _strings["Ssh.New"] = "New";
+        _strings["Ssh.NewProfile"] = "New profile";
+        _strings["Ssh.Add"] = "Add";
+        _strings["Ssh.Edit"] = "Edit";
         _strings["Ssh.Save"] = "Save";
         _strings["Ssh.Delete"] = "Delete";
         _strings["Ssh.CheckConnection"] = "Check connection";
@@ -380,6 +390,7 @@ public sealed class LocalizationService
         _strings["Ssh.Port"] = "Port";
         _strings["Ssh.RemotePath"] = "Remote path";
         _strings["Ssh.IdentityFile"] = "Private key (Identity File)";
+        _strings["Ssh.Password"] = "Password";
         _strings["Ssh.Publish"] = "Publish";
         _strings["Ssh.PublishHint"] = "Select a file or folder in the active panel and click \"Publish to server\". The selected profile is used by default.";
 
@@ -395,10 +406,11 @@ public sealed class LocalizationService
         // ═══════════════════════════════════════════
         _strings["Sftp.Connect"] = "Connect";
         _strings["Sftp.Reconnect"] = "Reconnect";
+        _strings["Sftp.Disconnect"] = "Disconnect";
         _strings["Sftp.Refresh"] = "\u27F3 Refresh";
         _strings["Sftp.Download"] = "\u2B07 Download";
         _strings["Sftp.Upload"] = "\u2B06 Upload";
-        _strings["Sftp.NewFolder"] = "\uFF0B Folder";
+        _strings["Sftp.NewFolder"] = "Folder";
         _strings["Sftp.Up"] = "\u2191 Up";
         _strings["Sftp.Path"] = "Path:";
         _strings["Sftp.Loading"] = "Loading...";
@@ -565,10 +577,11 @@ public sealed class LocalizationService
         _strings["Split.SizePrompt"] = "Enter volume size (e.g. 100M, 1.5G, 500K):";
         _strings["Split.BadSize"] = "Invalid volume size";
         _strings["Split.Started"] = "Splitting file…";
-        _strings["Split.Done"] = "Split done: {0} file(s)";
-        _strings["Combine.NoFile"] = "Select .sum or first volume (.001)";
+        _strings["Split.Done"] = "Split done: {0} volume(s) created";
+        _strings["Split.VirtualNotSupported"] = "Split is not supported for virtual file systems";
         _strings["Combine.Started"] = "Combining volumes…";
         _strings["Combine.Done"] = "Combine done: {0} ({1} volumes)";
+        _strings["Combine.VirtualNotSupported"] = "Combine is not supported for virtual file systems";
 
         // ═══════════════════════════════════════════
         // DIALOGS
@@ -697,6 +710,7 @@ public sealed class LocalizationService
     //═══════════════════════════════════════════
     _strings["Menu.Bookmarks"] = "Bookmarks";
     _strings["Bookmark.Add"] = "Add bookmark";
+    _strings["Bookmark.Toggle"] = "Toggle bookmark";
     _strings["Bookmark.Remove"] = "Remove bookmark";
     _strings["Bookmark.Rename"] = "Rename bookmark";
     _strings["Bookmark.Navigate"] = "Navigate to bookmark";
@@ -899,6 +913,7 @@ public sealed class LocalizationService
         _strings["Archive.NoArchive"] = "Archive not found";
         _strings["Archive.NoArchiveSelected"] = "Select an archive file (.zip/.7z/.rar/.tar/.gz)";
         _strings["Archive.NoExtractPath"] = "Destination not specified";
+        _strings["Archive.VirtualNotSupported"] = "Archives are not supported for virtual file systems";
         _strings["Archive.Creating"] = "Creating archive…";
         _strings["Archive.Extracting"] = "Extracting archive…";
         _strings["Archive.CreateDone"] = "Archive created: {0}";
@@ -1220,6 +1235,10 @@ public sealed class LocalizationService
         _strings["Sftp.DeleteTitle"] = "Confirmation";
         _strings["Sftp.Deleting"] = "Deleting {0}";
         _strings["Sftp.Renaming"] = "Renaming {0}";
+        _strings["Sftp.Disconnected"] = "Disconnected";
+        _strings["Sftp.ProfilesSection"] = "SSH Profiles";
+        _strings["Sftp.NotConnectedHint"] = "Not connected";
+        _strings["Sftp.NotConnectedHint2"] = "Select a profile and click Connect";
 
         // ═══════════════════════════════════════════
         // SSH EXTENDED STATUS
@@ -1230,6 +1249,9 @@ public sealed class LocalizationService
         _strings["Ssh.Checking"] = "Checking connection...";
         _strings["Ssh.Reachable"] = "Connected to {0} successfully";
         _strings["Ssh.Unreachable"] = "Cannot connect to {0}";
+        _strings["Ssh.DeleteConfirm"] = "Delete profile \"{0}\"?";
+        _strings["Ssh.DeleteTitle"] = "Delete profile";
+        _strings["Sftp.SelectProfile"] = "Select a profile";
 
         // ═══════════════════════════════════════════
         // GIT EXTENDED STATUS
@@ -1301,6 +1323,26 @@ public sealed class LocalizationService
         _strings["Cloud.RenameCtx"] = "Rename";
         _strings["Cloud.DeleteCtx"] = "Delete";
         _strings["Cloud.MakeDirCtx"] = "Create folder";
+        _strings["Cloud.AlreadyConnected"] = "Profile \"{0}\" is already connected";
+        _strings["Cloud.DisconnectedFrom"] = "Disconnected from: {0}";
+        _strings["Cloud.ProfilesSection"] = "Connected storages";
+        _strings["Cloud.AddBtn"] = "Add";
+        _strings["Cloud.EditBtn"] = "Edit";
+        _strings["Cloud.DeleteBtn"] = "Delete";
+        _strings["Cloud.ConnectBtn"] = "Connect";
+        _strings["Cloud.DisconnectBtnShort"] = "Disconnect";
+        _strings["Cloud.PathLabel"] = "Path:";
+        _strings["Cloud.NotConnectedHint"] = "Select a profile and click «Connect»";
+        _strings["Cloud.NotConnectedHint2"] = "or add a new profile via the «Add» button";
+        _strings["Cloud.GDrive.SaveBtn"] = "Save";
+        _strings["Cloud.GDrive.AuthBrowserBtn"] = "Authorize in browser";
+        _strings["Cloud.AddProfileTitle"] = "Add cloud profile";
+        _strings["Cloud.EditProfileTitle"] = "Edit cloud profile";
+        _strings["Cloud.ProfileNameLabel"] = "Profile name:";
+        _strings["Cloud.ProviderLabel"] = "Provider:";
+        _strings["Cloud.IgnoreCert"] = "Ignore SSL certificate errors";
+        _strings["Cloud.CancelBtn"] = "Cancel";
+        _strings["Cloud.AddBtnConfirm"] = "Add";
 
         // ═══════════════════════════════════════════
         // COPY/MOVE DIALOG (ph9.5)
@@ -1500,9 +1542,9 @@ public sealed class LocalizationService
         _strings["Tab.Docker"] = "Docker";
         _strings["Tab.Ssh"] = "SSH";
         _strings["Tab.Sftp"] = "SFTP";
-        _strings["Terminal.NewCmd"] = "+ CMD";
-        _strings["Terminal.NewPs"] = "+ PowerShell";
-        _strings["Terminal.NewPwsh"] = "+ pwsh";
+        _strings["Terminal.NewCmd"] = "CMD";
+        _strings["Terminal.NewPs"] = "PowerShell";
+        _strings["Terminal.NewPwsh"] = "pwsh";
         _strings["Archive.FilesForArchive"] = "Files for archive: {0}";
         _strings["Archive.EntriesInArchive"] = "Entries in archive: {0}";
         _strings["Bookmark.Count"] = "{0} bookmark(s)";
@@ -1846,6 +1888,10 @@ public sealed class LocalizationService
         _strings["Settings.FullPaths"] = "Full paths";
         _strings["Settings.RememberPaths"] = "Remember paths";
         _strings["Settings.Ms"] = "ms";
+        _strings["Settings.Interval1000"] = "1000 ms";
+        _strings["Settings.Interval2000"] = "2000 ms";
+        _strings["Settings.Interval3000"] = "3000 ms";
+        _strings["Settings.Interval5000"] = "5000 ms";
         _strings["Settings.AutoRefreshCheck"] = "Auto-refresh";
         _strings["Settings.DoubleClickFile"] = "Double-click → file";
         _strings["Settings.Overwrite"] = "Overwrite";
@@ -1860,6 +1906,71 @@ public sealed class LocalizationService
         _strings["Settings.ConfirmDeleteLabel"] = "Delete";
         _strings["Settings.ConfirmOverwriteLabel"] = "Overwrite";
         _strings["Settings.MaxRecursion"] = "Max recursion depth";
+
+        // ═══════════════════════════════════════════
+        // ARCHIVERS (ph9.7)
+        // ═══════════════════════════════════════════
+        _strings["Settings.Archivers"] = "Archivers";
+        _strings["Settings.ArchExternal"] = "External archivers";
+        _strings["Settings.ArchUseExternal7z"] = "Use external 7-Zip for archive creation";
+        _strings["Settings.ArchUseExternalRar"] = "Use external WinRAR for archive creation";
+        _strings["Settings.ArchDefaults"] = "Default options";
+        _strings["Settings.ArchFormat"] = "Archive format";
+        _strings["Settings.ArchCompression"] = "Compression level";
+        _strings["Settings.ArchCompressNone"] = "No compression";
+        _strings["Settings.ArchCompressFast"] = "Fast";
+        _strings["Settings.ArchCompressNormal"] = "Normal";
+        _strings["Settings.ArchCompressMax"] = "Maximum";
+        _strings["Settings.ArchEncoding"] = "Filename encoding";
+        _strings["Settings.ArchPassword"] = "Default password";
+        _strings["Settings.ArchDeleteAfter"] = "Delete after archiving";
+        _strings["Settings.ArchOpenAfter"] = "Open after creation";
+        _strings["Settings.Browse"] = "Browse...";
+        _strings["Settings.ArchSelect7z"] = "Select 7z.exe";
+        _strings["Settings.ArchSelectRar"] = "Select WinRAR.exe";
+        _strings["Settings.ArchFilter7z"] = "7-Zip (7z.exe)|7z.exe|Executables (*.exe)|*.exe|All files (*.*)|*.*";
+        _strings["Settings.ArchFilterRar"] = "WinRAR (WinRAR.exe;Rar.exe)|WinRAR.exe;Rar.exe|Executables (*.exe)|*.exe|All files (*.*)|*.*";
+
+        // ═══════════════════════════════════════════
+        // TERMINAL ERRORS
+        // ═══════════════════════════════════════════
+        _strings["Error.TerminalStart"] = "Terminal start error: {0}";
+        _strings["Error.TerminalNotStarted"] = "Terminal not started: {0}";
+        _strings["Error.OpenColumns"] = "Error opening column settings: {0}";
+
+        // ═══════════════════════════════════════════
+        // CLIPBOARD
+        // ═══════════════════════════════════════════
+        _strings["Clipboard.Busy"] = "Clipboard busy";
+
+        // ═══════════════════════════════════════════
+        // DOCKER
+        // ═══════════════════════════════════════════
+        _strings["Docker.Started"] = "Started";
+        _strings["Docker.Stopped"] = "Stopped";
+        _strings["Docker.Removed"] = "Removed";
+        _strings["Docker.ImageRemoved"] = "Image removed";
+        _strings["Docker.Error"] = "Error: ";
+
+        // ═══════════════════════════════════════════
+        // SEARCH
+        // ═══════════════════════════════════════════
+        _strings["Search.NoResults"] = "No search results";
+        _strings["Search.ResultsFormat"] = "Search results: {0}";
+        _strings["Search.NoSavedResults"] = "No saved search results";
+
+        // ═══════════════════════════════════════════
+        // QUICK COMMANDS (macro stubs)
+        // ═══════════════════════════════════════════
+        _strings["Quick.Copy"] = "Copy files";
+        _strings["Quick.Move"] = "Move files";
+        _strings["Quick.Delete"] = "Delete files";
+        _strings["Quick.Rename"] = "Rename";
+        _strings["Quick.Search"] = "Search files";
+        _strings["Quick.Terminal"] = "Open terminal";
+        _strings["Quick.Refresh"] = "Refresh panel";
+        _strings["Quick.Git"] = "Git panel";
+        _strings["Quick.Docker"] = "Docker panel";
     }
 
     /// <summary>

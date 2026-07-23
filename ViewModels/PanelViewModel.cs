@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 
@@ -36,12 +37,65 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isFlatView;
     /// <summary>Коллекция элементов текущей директории.</summary>
     public ObservableCollection<FileSystemItem> Items { get; } = [];
-    private readonly Stack<string> _back = new(); private readonly Stack<string> _fwd = new();
+    /// <summary>История навигации назад с запоминанием позиции курсора (path, focusFile).</summary>
+    /// <summary>Back navigation history with cursor position (path, focusFile).</summary>
+    private readonly Stack<(string path, string? focusFile)> _back = new();
+    /// <summary>История навигации вперёд.</summary>
+    private readonly Stack<(string path, string? focusFile)> _fwd = new();
     /// <summary>Можно вернуться назад по истории.</summary>
     public bool CanGoBack => _back.Count > 0;
     /// <summary>Можно перейти вперёд по истории.</summary>
     public bool CanGoForward => _fwd.Count > 0;
     private bool _disposed;
+
+    // ── Status bar properties ──
+    /// <summary>Количество выделенных элементов (меток).</summary>
+    public int SelectedCount => Items.Count(i => i.IsSelected && !i.IsParent);
+    /// <summary>Размер выделенных файлов в человекочитаемом формате.</summary>
+    public string SelectedSizeDisplay => FormatSize(Items.Where(i => i.IsSelected && !i.IsParent).Sum(i => i.Size));
+    /// <summary>Свободное место на текущем диске.</summary>
+    public string FreeSpaceDisplay => GetFreeSpace();
+    /// <summary>Информация о файле под курсором для status bar.</summary>
+    public string CursorInfo => SelectedItem is null || SelectedItem.IsParent
+        ? $"{Items.Count(i => !i.IsParent)} элементов"
+        : SelectedItem.IsDirectory
+            ? $"[{SelectedItem.Name}] <DIR>"
+            : $"{SelectedItem.Name}  {SelectedItem.SizeDisplay}  {SelectedItem.ModifiedDisplay}";
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] u = ["B", "KB", "MB", "GB", "TB"];
+        double s = bytes; int i = 0;
+        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
+        return $"{s:0.##} {u[i]}";
+    }
+
+    private string GetFreeSpace()
+    {
+        try
+        {
+            if (CurrentPath.Length >= 2 && CurrentPath[1] == ':')
+            {
+                var drive = new DriveInfo(CurrentPath[..2]);
+                return FormatSize(drive.AvailableFreeSpace) + " / " + FormatSize(drive.TotalSize);
+            }
+        }
+        catch { }
+        return "";
+    }
+
+    /// <summary>Уведомляет UI об изменении свойств status bar.</summary>
+    public void RefreshStatusBar()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedSizeDisplay));
+        OnPropertyChanged(nameof(FreeSpaceDisplay));
+        OnPropertyChanged(nameof(CursorInfo));
+    }
+
+    /// <summary>Список облачных профилей для отображения в панели дисков.</summary>
+    private List<CloudDriveItem> _cloudDrives = [];
 
     /// <summary>
     /// Создаёт экземпляр PanelViewModel с опциональным Git-сервисом для отображения статуса файлов.
@@ -51,24 +105,29 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     public PanelViewModel(GitService? git = null)
     {
         _git = git;
-        // Скрытые файлы: берём значение из настроек, чтобы окно настроек применялось.
-        // Hidden files: take the value from settings so the settings dialog is honoured.
         ShowHidden = SettingsService.Load().ShowHidden;
         CurrentPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        // НЕ вызываем RefreshAsync() здесь — навигация (NavigateToAsync) инициирует загрузку.
-        // DO NOT call RefreshAsync() here — navigation (NavigateToAsync) triggers the load.
-        // Ранее вызов из конструктора гонялся с NavigateToAsync в RestoreTabs: RefreshAsync
-        // захватывала лок для UserProfile, NavigateToAsync меняла CurrentPath, и цикл
-        // foreach в RefreshAsync ловил path != CurrentPath и выходил без элементов.
-        // Previously the constructor's RefreshAsync raced with NavigateToAsync in RestoreTabs:
-        // RefreshAsync acquired the lock for UserProfile, NavigateToAsync changed CurrentPath,
-        // and the foreach in RefreshAsync hit path != CurrentPath and exited with no items.
-        InitWatcher(); // ph3.4: умный watcher авто-обновления панели
+        InitWatcher();
     }
 
-    /// <summary>Список доступных дисков для быстрого перехода.</summary>
-    public IEnumerable<DriveItem> Drives => DriveInfo.GetDrives()
-        .Select(d => new DriveItem(d.Name.TrimEnd('\\'), d.DriveType));
+    /// <summary>Список доступных дисков для быстрого перехода (локальные + облачные).</summary>
+    public IEnumerable<object> Drives
+    {
+        get
+        {
+            foreach (var d in DriveInfo.GetDrives())
+                yield return new DriveItem(d.Name.TrimEnd('\\'), d.DriveType);
+            foreach (var cd in _cloudDrives)
+                yield return cd;
+        }
+    }
+
+    /// <summary>Обновить список облачных дисков и уведомить UI.</summary>
+    public void SetCloudDrives(List<CloudDriveItem> drives)
+    {
+        _cloudDrives = drives;
+        OnPropertyChanged(nameof(Drives));
+    }
 
     /// <summary>
     /// Сохраняет текущий путь фокуса для последующего восстановления.
@@ -97,14 +156,12 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrEmpty(_savedFocusPath)) return;
 
-        // Проверяем, это корень диска?
         if (IsRootDrive(_savedFocusPath))
         {
             SelectedItem = null;
             return;
         }
 
-        // Ищем элемент в текущем списке
         var item = Items.FirstOrDefault(i => i.FullPath == _savedFocusPath);
         if (item != null)
         {
@@ -112,21 +169,17 @@ public partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // Элемент удалён — выбираем предыдущий или ".."
         if (Items.Count > 0)
         {
-            // Находим индекс, где должен был быть элемент
             var itemsList = Items.ToList();
             var index = itemsList.FindIndex(i => string.Compare(i.FullPath, _savedFocusPath, StringComparison.OrdinalIgnoreCase) > 0);
 
             if (index > 0)
             {
-                // Выбираем предыдущий элемент
                 SelectedItem = Items[index - 1];
             }
             else if (Items.Count > 0)
             {
-                // Выбираем первый элемент (обычно "..")
                 SelectedItem = Items[0];
             }
         }
@@ -140,11 +193,12 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     /// Проверяет, является ли путь корнем диска (C:\, D:\ и т.д.).
     /// Checks if the path is a drive root (C:\, D:\, etc.).
     /// </summary>
+    // FIXED: Was `Length <= 2` which allowed length 1 → IndexOutOfRangeException on `normalized[1]`
     private static bool IsRootDrive(string path)
     {
         if (string.IsNullOrEmpty(path)) return false;
         var normalized = path.TrimEnd('\\', '/');
-        return normalized.Length <= 2 && char.IsLetter(normalized[0]) && normalized[1] == ':';
+        return normalized.Length == 2 && char.IsLetter(normalized[0]) && normalized[1] == ':';
     }
 
     /// <summary>Перейти к сегменту пути (части адресной строки).</summary>
@@ -160,16 +214,29 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         await NavigateToAsync(np);
     }
 
+    /// <summary>
+    /// Возвращает родительский путь для локальных и облачных путей.
+    /// Returns parent path for both local and cloud paths.
+    /// </summary>
+    public string GetParentPath()
+    {
+        if (CurrentPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = NormalizeCloudPath(CurrentPath);
+            var idx = normalized.LastIndexOf('/');
+            return idx > 8 ? normalized[..idx] : normalized;
+        }
+        return Directory.GetParent(CurrentPath)?.FullName ?? CurrentPath;
+    }
+
     /// <summary>Обновить содержимое панели (перечитать директорию). Потокобезопасно: semaphore.</summary>
     /// <summary>Refresh the panel contents (re-read directory). Thread-safe via semaphore.</summary>
     [RelayCommand]
     public async Task RefreshAsync()
     {
         if (_disposed) return;
-        // Пропускаем, если обновление произошло менее 1 с назад (защита от мерцания).
         var now = DateTime.UtcNow;
         if ((now - _lastRefreshTime).TotalMilliseconds < 1000) return;
-        // Защита от повторного входа.
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
@@ -186,7 +253,6 @@ public partial class PanelViewModel : ObservableObject, IDisposable
 
             var path = CurrentPath;
 
-            // Сохраняем выделение перед пересозданием коллекции Items.
             var selPath = SelectedItem?.FullPath;
             HashSet<string>? selPaths = null;
             if (Items.Count > 0)
@@ -198,7 +264,6 @@ public partial class PanelViewModel : ObservableObject, IDisposable
 
             if (!Directory.Exists(path)) { Items.Clear(); _itemsView = null; SelectedItem = null; return; }
 
-            // ═══ Flat View mode ═══
             if (IsFlatView)
             {
                 await RefreshFlatViewAsync(path, selPath, selPaths ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
@@ -209,8 +274,6 @@ public partial class PanelViewModel : ObservableObject, IDisposable
                 ? (await _git.GetStatusAsync(path, _cts.Token))?.Files.ToDictionary(f => f.Path, f => f.State)
                 : null;
 
-            // Собираем элементы во временный список, затем делаем один Replace.
-            // Collect items into a temp list, then do a single Replace.
             var newItems = new List<FileSystemItem>();
             foreach (var i in await FileService.EnumerateDirectoryAsync(path, ShowHidden, _cts.Token))
             {
@@ -226,8 +289,6 @@ public partial class PanelViewModel : ObservableObject, IDisposable
                 newItems.Add(i);
             }
 
-            // Один Replace вместо Clear + N×Add — WPF получает один Reset-событие.
-            // Single Replace instead of Clear + N×Add — WPF gets one Reset event.
             ReplaceItems(newItems);
 
             RestoreFocus(selPath);
@@ -249,72 +310,150 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     private void ReplaceItems(List<FileSystemItem> newItems)
     {
+        // Отписываемся от старых элементов
+        foreach (var old in Items)
+            old.PropertyChanged -= Item_PropertyChanged;
+
         Items.Clear();
         _itemsView = null;
         foreach (var item in newItems)
+        {
+            item.PropertyChanged += Item_PropertyChanged;
             Items.Add(item);
+        }
+        ApplySortFromConfig();
+        RefreshStatusBar();
     }
 
-/// <summary>
-/// Восстанавливает SelectedItem с учётом возможных изменений (удаление элемента и т.д.).
-/// Restores SelectedItem considering possible changes (item deletion, etc.).
-/// </summary>
-/// <param name="selPath">Сохранённый путь элемента. / Saved item path.</param>
-private void RestoreFocus(string? selPath)
-{
-    if (string.IsNullOrEmpty(selPath))
+    /// <summary>Обновляет status bar при изменении IsSelected или GitState элемента.</summary>
+    private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // Нет сохранённого пути — выбираем первый элемент или null для корня
-        if (IsRootDrive(CurrentPath))
+        if (e.PropertyName == nameof(FileSystemItem.IsSelected))
+            RefreshStatusBar();
+    }
+
+    /// <summary>
+    /// Применяет сохранённую сортировку из ColumnConfigService к ItemsView.
+    /// Applies persisted sort from ColumnConfigService to ItemsView.
+    /// </summary>
+    public void ApplySortFromConfig()
+    {
+        var view = ItemsView;
+        if (view is null) return;
+        view.SortDescriptions.Clear();
+
+        // Находим колонку, по которой задана сортировка.
+        // Все колонки по умолчанию имеют SortDirection=Ascending, но это не значит что они сортируют.
+        // Сортирует только та колонка, которая была выбрана кликом — её SortDirection сохранён.
+        // Для определения используем: берём первую видимую колонку, если она Name — проверяем,
+        // не задана ли сортировка по другой колонке (у которой SortDirection != Ascending после сброса).
+        // На самом деле: все колонки сброшены в Ascending, только активная может быть Ascending или Descending.
+        // Проблема: как отличить Name Ascending (по умолчанию) от Name Ascending (выбрана пользователем)?
+        // Решение: храним колонку сортировки отдельно в ColumnConfigService (SortedColumnKey).
+
+        var sortedKey = ColumnConfigService.SortedColumnKey;
+        ColumnDefinition? sortCol = null;
+        if (!string.IsNullOrEmpty(sortedKey))
+        {
+            sortCol = ColumnConfigService.ActiveColumns.FirstOrDefault(c => c.Key == sortedKey);
+        }
+
+        // Папки сверху (всегда)
+        view.SortDescriptions.Add(
+            new SortDescription(nameof(FileSystemItem.IsDirectory), ListSortDirection.Descending));
+
+        if (sortCol is not null)
+        {
+            view.SortDescriptions.Add(
+                new SortDescription(sortCol.GetSortPropertyName(), sortCol.SortDirection));
+        }
+
+        view.Refresh();
+    }
+
+    /// <summary>
+    /// Устанавливает сортировку по указанной колонке (циклически: Ascending → Descending).
+    /// Sets sort by the specified column (cyclic: Ascending → Descending).
+    /// </summary>
+    public void SetSortByColumn(string columnKey)
+    {
+        var view = ItemsView;
+        if (view is null) return;
+
+        var col = ColumnConfigService.ActiveColumns.FirstOrDefault(c => c.Key == columnKey);
+        if (col is null) return;
+
+        // Циклическое переключение: Asc -> Desc -> Asc
+        var previousDir = col.SortDirection;
+        col.SortDirection = previousDir == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+
+        // Запоминаем, какая колонка сортирует
+        ColumnConfigService.SortedColumnKey = columnKey;
+
+        view.SortDescriptions.Clear();
+        view.SortDescriptions.Add(
+            new SortDescription(nameof(FileSystemItem.IsDirectory), ListSortDirection.Descending));
+        view.SortDescriptions.Add(
+            new SortDescription(col.GetSortPropertyName(), col.SortDirection));
+        view.Refresh();
+
+        ColumnConfigService.Save();
+    }
+
+    /// <summary>
+    /// Восстанавливает SelectedItem с учётом возможных изменений (удаление элемента и т.д.).
+    /// Restores SelectedItem considering possible changes (item deletion, etc.).
+    /// </summary>
+    /// <param name="selPath">Сохранённый путь элемента. / Saved item path.</param>
+    private void RestoreFocus(string? selPath)
+    {
+        if (string.IsNullOrEmpty(selPath))
+        {
+            if (IsRootDrive(CurrentPath))
+            {
+                SelectedItem = null;
+            }
+            else if (Items.Count > 0)
+            {
+                SelectedItem = Items[0];
+            }
+            else
+            {
+                SelectedItem = null;
+            }
+            return;
+        }
+
+        if (IsRootDrive(selPath))
         {
             SelectedItem = null;
+            return;
         }
-        else if (Items.Count > 0)
+
+        var item = Items.FirstOrDefault(i => i.FullPath == selPath);
+        if (item != null)
         {
-            SelectedItem = Items[0];
+            SelectedItem = item;
+            return;
         }
-        else
-        {
-            SelectedItem = null;
-        }
-        return;
-    }
 
-    // Проверяем, это корень диска?
-    if (IsRootDrive(selPath))
-    {
-        SelectedItem = null;
-        return;
-    }
-
-    // Ищем элемент в текущем списке
-    var item = Items.FirstOrDefault(i => i.FullPath == selPath);
-    if (item != null)
-    {
-        SelectedItem = item;
-        return;
-    }
-
-        // Элемент удалён — выбираем предыдущий или ".."
         if (Items.Count > 0)
         {
-            // Находим индекс, где должен был быть элемент
             var itemsList = Items.ToList();
             var index = itemsList.FindIndex(i => string.Compare(i.FullPath, selPath, StringComparison.OrdinalIgnoreCase) >= 0);
 
             if (index > 0)
             {
-                // Выбираем предыдущий элемент
                 SelectedItem = Items[index - 1];
             }
             else if (Items.Count > 1)
             {
-                // Выбираем второй элемент (первый обычно "..")
                 SelectedItem = Items[1];
             }
             else
             {
-                // Только ".." — выбираем его
                 SelectedItem = Items[0];
             }
         }
@@ -392,25 +531,146 @@ private void RestoreFocus(string? selPath)
     /// <param name="hist">Добавлять текущий путь в историю назад (true по умолчанию).</param>
     public async Task NavigateToAsync(string p, bool hist = true)
     {
-        // В виртуальном режиме навигация по папкам заблокирована (ph2.2).
-        // Navigation is blocked while in virtual mode (ph2.2).
-        if (VirtualFileSystem is not null) return;
-        if (string.IsNullOrEmpty(p) || !Directory.Exists(p)) return;
-        if (hist && p != CurrentPath) { _back.Push(CurrentPath); _fwd.Clear(); }
+        if (string.IsNullOrEmpty(p)) return;
+
+        // Облачные пути (начинаются с cloud://) — переключаемся на виртуальный режим.
+        if (p.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+        {
+            // Нормализуем путь: разрешаем ".." и "//" в cloud:// путях.
+            p = NormalizeCloudPath(p);
+
+            var profileId = ExtractCloudProfileId(p);
+            var cloudPath = ExtractCloudPath(p);
+            var drive = _cloudDrives.FirstOrDefault(d => d.ProfileId == profileId);
+
+            // Если FileSystem не установлен — пытаемся подключиться автоматически.
+            if (drive?.FileSystem is null)
+            {
+                try
+                {
+                    var profiles = new CloudStorageService().GetProfiles();
+                    var profile = profiles.FirstOrDefault(pr => pr.Id == profileId);
+                    if (profile is not null)
+                    {
+                        var fs = CloudStorageService.CreateFileSystem(profile);
+                        await fs.ConnectAsync(_cts.Token);
+                        if (drive is not null) drive.FileSystem = fs;
+                    }
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+            }
+
+            if (drive?.FileSystem is not null)
+            {
+                if (hist && p != CurrentPath) { _back.Push((CurrentPath, SelectedItem?.FullPath)); _fwd.Clear(); }
+                VirtualReturnPath = CurrentPath;
+                VirtualFileSystem = drive.FileSystem;
+                CurrentPath = p;
+                await RefreshAsync();
+            }
+            return;
+        }
+
+        // Переход с виртуального режима (cloud://) на локальный путь —
+        // выходим из виртуального режима и продолжаем навигацию.
+        // Switching from virtual mode (cloud://) to a local path —
+        // exit virtual mode and continue navigation.
+        if (VirtualFileSystem is not null)
+        {
+            VirtualFileSystem = null;
+            VirtualReturnPath = "";
+        }
+
+        if (!Directory.Exists(p)) return;
+        if (hist && p != CurrentPath) { _back.Push((CurrentPath, SelectedItem?.FullPath)); _fwd.Clear(); }
         CurrentPath = p;
-        // НЕ сбрасываем SelectedItem — RefreshAsync восстановит выделение
-        // по сохранённым путям, если элемент остался в текущей папке.
         await RefreshAsync();
     }
 
-    /// <summary>Перейти назад по истории.</summary>
-    [RelayCommand] public async Task GoBackAsync() { if (!CanGoBack) return; _fwd.Push(CurrentPath); await NavigateToAsync(_back.Pop(), false); }
-    /// <summary>Перейти вперёд по истории.</summary>
-    [RelayCommand] public async Task GoForwardAsync() { if (!CanGoForward) return; _back.Push(CurrentPath); await NavigateToAsync(_fwd.Pop(), false); }
+    /// <summary>Перейти назад по истории (с восстановлением позиции курсора).</summary>
+    [RelayCommand]
+    public async Task GoBackAsync()
+    {
+        if (!CanGoBack) return;
+        var (path, focus) = _back.Pop();
+        _fwd.Push((CurrentPath, SelectedItem?.FullPath));
+        await NavigateToAsync(path, false);
+        RestoreFocusByPath(focus);
+    }
+
+    /// <summary>Перейти вперёд по истории (с восстановлением позиции курсора).</summary>
+    [RelayCommand]
+    public async Task GoForwardAsync()
+    {
+        if (!CanGoForward) return;
+        var (path, focus) = _fwd.Pop();
+        _back.Push((CurrentPath, SelectedItem?.FullPath));
+        await NavigateToAsync(path, false);
+        RestoreFocusByPath(focus);
+    }
+
+    /// <summary>Восстанавливает курсор на элемент по пути.</summary>
+    private void RestoreFocusByPath(string? focusPath)
+    {
+        if (string.IsNullOrEmpty(focusPath)) return;
+        var item = Items.FirstOrDefault(i => i.FullPath == focusPath);
+        if (item is not null) SelectedItem = item;
+    }
     /// <summary>Перейти в родительскую директорию.</summary>
-    [RelayCommand] public async Task GoUpAsync() { var p = Directory.GetParent(CurrentPath)?.FullName; if (p != null) await NavigateToAsync(p); }
-    /// <summary>Перейти на указанный диск.</summary>
-    [RelayCommand] public async Task GoToDriveAsync(string drive) { if (!string.IsNullOrEmpty(drive)) await NavigateToAsync(drive.TrimEnd('\\') + "\\"); }
+    [RelayCommand]
+    public async Task GoUpAsync()
+    {
+        if (VirtualFileSystem is not null)
+        {
+            // В облачном режиме — поднимаемся по cloud:// пути.
+            if (CurrentPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            {
+                var normalized = NormalizeCloudPath(CurrentPath);
+                var idx = normalized.LastIndexOf('/');
+                if (idx > 8) // после "cloud://id"
+                {
+                    var parent = normalized[..idx];
+                    await NavigateToAsync(parent, false);
+                }
+                else
+                {
+                    // Корень облака — выходим из виртуального режима.
+                    ExitVirtualMode();
+                }
+            }
+            return;
+        }
+        var p = Directory.GetParent(CurrentPath)?.FullName;
+        if (p != null) await NavigateToAsync(p);
+    }
+
+    /// <summary>Перейти на указанный диск (локальный или облачный).</summary>
+    [RelayCommand]
+    public async Task GoToDriveAsync(string drive)
+    {
+        if (string.IsNullOrEmpty(drive)) return;
+
+        // Облачный диск — начинается с "cloud:"
+        if (drive.StartsWith("cloud:", StringComparison.OrdinalIgnoreCase))
+        {
+            var profileId = drive["cloud:".Length..];
+            await NavigateToAsync($"cloud://{profileId}/");
+            return;
+        }
+
+        await NavigateToAsync(drive.TrimEnd('\\') + "\\");
+    }
+
+    /// <summary>Перейти на облачный диск (принимает CloudDriveItem).</summary>
+    [RelayCommand]
+    public async Task GoToCloudDriveAsync(CloudDriveItem drive)
+    {
+        if (drive is null) return;
+        await NavigateToAsync($"cloud://{drive.ProfileId}/");
+    }
 
     /// <summary>Переключить режим плоского списка (Flat View).</summary>
     [RelayCommand]
@@ -454,6 +714,127 @@ private void RestoreFocus(string? selPath)
         return s.Count == 0 ? (SelectedItem is { IsParent: false } ? [SelectedItem] : []) : s;
     }
 
+    // ═══════════════════════════════════════════════
+    // МЕТОДЫ ВЫДЕЛЕНИЯ (по референсу Double Commander)
+    // SELECTION METHODS (per Double Commander reference)
+    // ═══════════════════════════════════════════════
+
+    /// <summary>Выделить все файлы с расширением текущего (DC cm_MarkCurrentExtension).</summary>
+    public void MarkCurrentExtension(bool select)
+    {
+        var ext = SelectedItem?.Extension;
+        if (string.IsNullOrEmpty(ext)) return;
+        foreach (var fi in Items.Where(i => !i.IsParent && i.Extension == ext))
+            fi.IsSelected = select;
+        RefreshStatusBar();
+    }
+
+    /// <summary>Выделить все файлы с именем текущего (DC cm_MarkCurrentName).</summary>
+    public void MarkCurrentName(bool select)
+    {
+        var name = Path.GetFileNameWithoutExtension(SelectedItem?.Name ?? "");
+        if (string.IsNullOrEmpty(name)) return;
+        foreach (var fi in Items.Where(i => !i.IsParent && Path.GetFileNameWithoutExtension(i.Name) == name))
+            fi.IsSelected = select;
+        RefreshStatusBar();
+    }
+
+    /// <summary>Сохранённое выделение для RestoreSelection (DC cm_SaveSelection).</summary>
+    private HashSet<string>? _savedSelection;
+
+    /// <summary>Сохранить текущее выделение (DC cm_SaveSelection).</summary>
+    public void SaveSelection()
+    {
+        _savedSelection = Items.Where(i => i.IsSelected && !i.IsParent)
+            .Select(i => i.FullPath).ToHashSet();
+    }
+
+    /// <summary>Восстановить сохранённое выделение (DC cm_RestoreSelection).</summary>
+    public void RestoreSelection()
+    {
+        if (_savedSelection is null) return;
+        foreach (var fi in Items.Where(i => !i.IsParent))
+            fi.IsSelected = _savedSelection.Contains(fi.FullPath);
+        RefreshStatusBar();
+    }
+
+    // ═══════════════════════════════════════════════
+    // НАВИГАЦИЯ (по референсу Double Commander)
+    // NAVIGATION (per Double Commander reference)
+    // ═══════════════════════════════════════════════
+
+    /// <summary>Перейти к корню диска (DC cm_ChangeDirToRoot, Ctrl+\).</summary>
+    [RelayCommand]
+    public async Task GoToRootAsync()
+    {
+        if (VirtualFileSystem is not null) return;
+        var root = Path.GetPathRoot(CurrentPath);
+        if (root is not null) await NavigateToAsync(root);
+    }
+
+    /// <summary>Перейти к домашней папке (DC cm_ChangeDirToHome).</summary>
+    [RelayCommand]
+    public async Task GoToHomeAsync()
+    {
+        if (VirtualFileSystem is not null) return;
+        await NavigateToAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    }
+
+    /// <summary>
+    /// Извлекает profileId из cloud:// пути.
+    /// Extracts profileId from a cloud:// path.
+    /// </summary>
+    private static string ExtractCloudProfileId(string cloudPath)
+    {
+        // cloud://profileId/rest/of/path
+        var withoutScheme = "cloud://".Length;
+        var slash = cloudPath.IndexOf('/', withoutScheme);
+        return slash > withoutScheme ? cloudPath[withoutScheme..slash] : cloudPath[withoutScheme..];
+    }
+
+    /// <summary>
+    /// Извлекает путь внутри облака из cloud:// пути.
+    /// Extracts the cloud-internal path from a cloud:// path.
+    /// </summary>
+    private static string ExtractCloudPath(string cloudPath)
+    {
+        var withoutScheme = "cloud://".Length;
+        var slash = cloudPath.IndexOf('/', withoutScheme);
+        return slash > withoutScheme ? "/" + cloudPath[(slash + 1)..] : "/";
+    }
+
+    /// <summary>
+    /// Нормализует cloud:// путь: разрешает "..", убирает "//", ".".
+    /// Normalizes cloud:// path: resolves "..", removes "//", ".".
+    /// </summary>
+    private static string NormalizeCloudPath(string cloudPath)
+    {
+        var withoutScheme = "cloud://".Length;
+        var slash = cloudPath.IndexOf('/', withoutScheme);
+        if (slash <= withoutScheme) return cloudPath;
+
+        var profileId = cloudPath[withoutScheme..slash];
+        var internalPath = cloudPath[(slash + 1)..];
+
+        // Разрешаем сегменты ".." и "." в internalPath.
+        var segments = internalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var resolved = new List<string>();
+        foreach (var seg in segments)
+        {
+            if (seg == "..")
+            {
+                if (resolved.Count > 0) resolved.RemoveAt(resolved.Count - 1);
+            }
+            else if (seg != ".")
+            {
+                resolved.Add(seg);
+            }
+        }
+
+        var normalized = resolved.Count > 0 ? "/" + string.Join("/", resolved) : "/";
+        return $"cloud://{profileId}{normalized}";
+    }
+
     /// <summary>
     /// Освобождает ресурсы: отменяет фоновые операции, очищает коллекции.
     /// Releases resources: cancels background operations, clears collections.
@@ -462,12 +843,17 @@ private void RestoreFocus(string? selPath)
     {
         if (_disposed) return;
         _disposed = true;
-        StopWatcher(); // ph3.4: корректно освобождаем FileSystemWatcher
+        StopWatcher();
         PropertyChanged -= OnPanelPropertyChanged;
         _cts.Cancel();
         _cts.Dispose();
         _filterCts?.Cancel();
         _filterCts?.Dispose();
+        // FIXED: Cancel and dispose _qfCts and _quickViewCts to prevent kernel timer leaks.
+        _qfCts?.Cancel();
+        _qfCts?.Dispose();
+        _quickViewCts?.Cancel();
+        _quickViewCts?.Dispose();
         Items.Clear();
         _itemsView = null;
         _refreshLock.Dispose();

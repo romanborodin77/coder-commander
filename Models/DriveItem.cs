@@ -1,4 +1,5 @@
 using System.IO;
+using CoderCommander.FileSystem;
 
 namespace CoderCommander.Models;
 
@@ -30,5 +31,47 @@ public sealed class DriveItem
     {
         Name = name;
         Type = type;
+    }
+}
+
+/// <summary>
+/// Модель облачного диска для панели навигации.
+/// Cloud drive item model for the navigation panel.
+/// </summary>
+public sealed class CloudDriveItem
+{
+    /// <summary>
+    /// Отображаемое имя (имя профиля).
+    /// Display name (profile name).
+    /// </summary>
+    public string Name { get; }
+
+    /// <summary>
+    /// Тип иконки (символ шрифта Segoe MDL2 Assets).
+    /// Icon glyph (Segoe MDL2 Assets font character).
+    /// </summary>
+    public string Icon { get; }
+
+    /// <summary>
+    /// Идентификатор профиля.
+    /// Profile identifier.
+    /// </summary>
+    public string ProfileId { get; }
+
+    /// <summary>
+    /// Подключённая облачная файловая система.
+    /// Connected cloud file system.
+    /// </summary>
+    public CloudFileSystem? FileSystem { get; set; }
+
+    /// <summary>
+    /// Создаёт экземпляр CloudDriveItem.
+    /// Creates a CloudDriveItem instance.
+    /// </summary>
+    public CloudDriveItem(string profileId, string name, string icon = "\uE944")
+    {
+        ProfileId = profileId;
+        Name = name;
+        Icon = icon;
     }
 }

@@ -271,6 +271,11 @@ public class CrossVfsCopyOperation : FileOperation
         {
             // Local → Cloud: прямая загрузка / Direct upload to cloud.
             ct.ThrowIfCancellationRequested();
+            // Создаём родительские каталоги на стороне облака.
+            // Create parent directories on the cloud side.
+            var dir = dstPath.Contains('/') ? dstPath[..dstPath.LastIndexOf('/')] : "";
+            if (!string.IsNullOrEmpty(dir) && dir != "/")
+                await EnsureCloudDirectoryAsync(_destFs, dir, ct).ConfigureAwait(false);
             await CloudUploadAsync(_destFs, srcPath, dstPath, fileProgress, ct).ConfigureAwait(false);
         }
         else if (IsCloudFileSystem(_sourceFs) && _destFs is LocalFileSystem)
@@ -329,6 +334,27 @@ public class CrossVfsCopyOperation : FileOperation
     private static bool IsCloudFileSystem(IFileSystem fs) => fs is CloudFileSystem;
 
     /// <summary>
+    /// Рекурсивно создаёт каталоги на облачной ФС (игнорируя ошибку «уже существует»).
+    /// Recursively creates directories on a cloud FS (ignoring «already exists» errors).
+    /// </summary>
+    private static async Task EnsureCloudDirectoryAsync(IFileSystem fs, string dirPath, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(dirPath) || dirPath == "/") return;
+        var parts = dirPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var current = "";
+        foreach (var part in parts)
+        {
+            current = current + "/" + part;
+            try
+            {
+                if (!await fs.ExistsAsync(current, ct).ConfigureAwait(false))
+                    await fs.CreateDirectoryAsync(current, ct).ConfigureAwait(false);
+            }
+            catch { /* каталог мог быть создан параллельно — игнорируем */ }
+        }
+    }
+
+    /// <summary>
     /// Скачивает файл из облачной файловой системы.
     /// Downloads a file from a cloud file system.
     /// </summary>
@@ -340,6 +366,8 @@ public class CrossVfsCopyOperation : FileOperation
             case AzureBlobFileSystem az: await az.DownloadFileAsync(remotePath, localPath, progress, ct); break;
             case YandexDiskFileSystem yd: await yd.DownloadFileAsync(remotePath, localPath, progress, ct); break;
             case NextCloudFileSystem nc: await nc.DownloadFileAsync(remotePath, localPath, progress, ct); break;
+            case WebDavFileSystem wd: await wd.DownloadFileAsync(remotePath, localPath, progress, ct); break;
+            case GDriveFileSystem gd: await gd.DownloadFileAsync(remotePath, localPath, progress, ct); break;
             default: throw new NotSupportedException($"Download not supported for {fs.Name}");
         }
     }
@@ -356,6 +384,8 @@ public class CrossVfsCopyOperation : FileOperation
             case AzureBlobFileSystem az: await az.UploadFileAsync(localPath, remotePath, progress, ct); break;
             case YandexDiskFileSystem yd: await yd.UploadFileAsync(localPath, remotePath, progress, ct); break;
             case NextCloudFileSystem nc: await nc.UploadFileAsync(localPath, remotePath, progress, ct); break;
+            case WebDavFileSystem wd: await wd.UploadFileAsync(localPath, remotePath, progress, ct); break;
+            case GDriveFileSystem gd: await gd.UploadFileAsync(localPath, remotePath, progress, ct); break;
             default: throw new NotSupportedException($"Upload not supported for {fs.Name}");
         }
     }

@@ -165,7 +165,8 @@ public static class OpenWithService
                 Arguments = $"\"{filePath}\"",
                 UseShellExecute = false
             });
-            proc?.WaitForExit();
+            // Не блокируем UI — запускаем fire-and-forget.
+            // Do not block UI — fire-and-forget.
             AddRecentApp(appPath);
         }
         catch (Exception ex)
@@ -175,7 +176,8 @@ public static class OpenWithService
             try
             {
                 using var fallback = Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
-                fallback?.WaitForExit();
+                // Не блокируем UI — fire-and-forget.
+                // Do not block UI — fire-and-forget.
             }
             catch
             {

@@ -227,6 +227,26 @@ public sealed class MultiRenameEngine
 
             var dir = Path.GetDirectoryName(item.Source.FullPath) ?? "";
             var finalPath = Path.Combine(dir, item.NewName);
+
+            // Проверка безопасности: запрещаем ".." в имени для предотвращения выхода за пределы папки.
+            // Security check: reject ".." in the name to prevent directory traversal.
+            if (item.NewName.Contains(".."))
+            {
+                var msg = $"{item.OriginalName} → {item.NewName}: имя содержит недопустимую последовательность '..'";
+                errors.Add(msg); failSet.Add(item);
+                try
+                {
+                    var restore = Path.Combine(dir, item.OriginalName);
+                    if (!File.Exists(restore) && !Directory.Exists(restore))
+                    {
+                        if (item.Source.IsDirectory) Directory.Move(tempPath, restore);
+                        else File.Move(tempPath, restore);
+                    }
+                }
+                catch { }
+                continue;
+            }
+
             try
             {
                 if (item.Source.IsDirectory) Directory.Move(tempPath, finalPath);

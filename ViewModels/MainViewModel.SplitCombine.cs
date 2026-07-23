@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using CoderCommander.Operations;
+using CoderCommander.Services;
 
 namespace CoderCommander.ViewModels;
 
@@ -28,29 +30,52 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task SplitAsync()
     {
-        var files = GetSelectedFiles();
-        if (files.Count == 0) { StatusText = L10n("Split.NoFiles"); return; }
+        var items = ActivePanel.GetSelectionOrCurrent()
+            .Where(i => !i.IsParent && !i.IsDirectory)
+            .ToList();
+        if (items.Count == 0) { StatusText = L10n("Split.NoFiles"); return; }
+
+        // Виртуальная ФС — не поддерживается.
+        if (ActivePanel.VirtualFileSystem is not null)
+        {
+            StatusText = L10n("Split.VirtualNotSupported");
+            return;
+        }
 
         var sizeText = Prompt(L10n("Split.SizeTitle"), L10n("Split.SizePrompt"), "100M");
         if (sizeText is null) return;
         var volSize = ParseVolumeSize(sizeText);
         if (volSize is null or <= 0) { StatusText = L10n("Split.BadSize"); return; }
 
+        var files = items.Select(i => i.FullPath).ToList();
+        var op = new SplitOperation(files, volSize);
+
+        var title = L10n("Split.Started");
+        var progressVm = new OperationDialogViewModel(op, title, ActivePanel.CurrentPath, "");
+        var progressDlg = new Views.OperationDialogWindow
+        {
+            DataContext = progressVm,
+            Owner = Application.Current.MainWindow
+        };
+
         IsBusy = true;
-        ProgressText = L10n("Split.Started");
         try
         {
-            foreach (var f in files)
-            {
-                var op = new SplitOperation(new[] { f }, volSize,
-                    progress: new Progress<OperationProgress>(p => ProgressText = p.ToString()));
-                await op.ExecuteAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            StatusText = string.Format(L10n("Split.Done"), files.Count);
-            await ActivePanel.RefreshAsync().ConfigureAwait(false);
+            var executeTask = Task.Run(() => op.ExecuteAsync(progressVm.CancellationToken));
+            progressDlg.ShowDialog();
+            try { await executeTask; } catch (OperationCanceledException) { }
+
+            if (op.State == OperationState.Completed)
+                StatusText = string.Format(L10n("Split.Done"), op.VolumesCreated);
+            else if (op.State == OperationState.Canceled)
+                StatusText = L10n("CrossVfs.Cancelled");
+            else if (op.State == OperationState.Failed)
+                StatusText = string.Format(L10n("Status.Error"), op.LastError?.Message ?? "Unknown");
+
+            await ActivePanel.RefreshAsync();
         }
         catch (Exception ex) { StatusText = string.Format(L10n("Status.Error"), ex.Message); }
-        finally { IsBusy = false; ProgressText = ""; }
+        finally { progressVm.Dispose(); IsBusy = false; ProgressValue = 0; ProgressText = ""; }
     }
 
     /// <summary>
@@ -60,34 +85,52 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task CombineAsync()
     {
-        var files = GetSelectedFiles();
+        var items = ActivePanel.GetSelectionOrCurrent()
+            .Where(i => !i.IsParent && !i.IsDirectory)
+            .ToList();
+
         // Для склейки достаточно выбрать summary (.sum) или первый том (.001).
-        // For combine, selecting the summary (.sum) or the first volume (.001) is enough.
-        var target = files.FirstOrDefault(f =>
+        var target = items.Select(i => i.FullPath).FirstOrDefault(f =>
                         f.EndsWith(".sum", StringComparison.OrdinalIgnoreCase)
                      || VolumeNameRegex().IsMatch(Path.GetFileName(f)));
         if (target is null) { StatusText = L10n("Combine.NoFile"); return; }
 
+        // Виртуальная ФС — не поддерживается.
+        if (ActivePanel.VirtualFileSystem is not null)
+        {
+            StatusText = L10n("Combine.VirtualNotSupported");
+            return;
+        }
+
+        var op = new CombineOperation(target);
+
+        var title = L10n("Combine.Started");
+        var progressVm = new OperationDialogViewModel(op, title, Path.GetDirectoryName(target) ?? "", op.OutputPath ?? "");
+        var progressDlg = new Views.OperationDialogWindow
+        {
+            DataContext = progressVm,
+            Owner = Application.Current.MainWindow
+        };
+
         IsBusy = true;
-        ProgressText = L10n("Combine.Started");
         try
         {
-            var op = new CombineOperation(target,
-                progress: new Progress<OperationProgress>(p => ProgressText = p.ToString()));
-            await op.ExecuteAsync(CancellationToken.None).ConfigureAwait(false);
-            StatusText = string.Format(L10n("Combine.Done"), op.OutputPath, op.VolumesCombined);
-            await ActivePanel.RefreshAsync().ConfigureAwait(false);
+            var executeTask = Task.Run(() => op.ExecuteAsync(progressVm.CancellationToken));
+            progressDlg.ShowDialog();
+            try { await executeTask; } catch (OperationCanceledException) { }
+
+            if (op.State == OperationState.Completed)
+                StatusText = string.Format(L10n("Combine.Done"), op.OutputPath, op.VolumesCombined);
+            else if (op.State == OperationState.Canceled)
+                StatusText = L10n("CrossVfs.Cancelled");
+            else if (op.State == OperationState.Failed)
+                StatusText = string.Format(L10n("Status.Error"), op.LastError?.Message ?? "Unknown");
+
+            await ActivePanel.RefreshAsync();
         }
         catch (Exception ex) { StatusText = string.Format(L10n("Status.Error"), ex.Message); }
-        finally { IsBusy = false; ProgressText = ""; }
+        finally { progressVm.Dispose(); IsBusy = false; ProgressValue = 0; ProgressText = ""; }
     }
-
-    /// <summary>Возвращает выбранные файлы (без каталогов и «..») активной панели. / Selected files (no dirs, no "..") of the active panel.</summary>
-    private List<string> GetSelectedFiles()
-        => ActivePanel.Items
-            .Where(i => i.IsSelected && !i.IsDirectory && !i.IsParent)
-            .Select(i => i.FullPath)
-            .ToList();
 
     /// <summary>
     /// Разбирает строку размера тома: поддерживает суффиксы K/M/G/T (и B), десятичные доли.

@@ -65,26 +65,25 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Команда: добавить или перейти к закладке (горячая клавиша Ctrl+B).
-    /// Если текущий путь уже в закладках — ничего (пользователь видит статус).
-    /// Если нет — добавляет. Для перехода используйте меню или BookmarksWindow.
-    /// Command: add or navigate to bookmark (Ctrl+B hotkey).
-    /// If current path is already bookmarked — nothing (user sees status).
-    /// If not — adds it. Use menu or BookmarksWindow to navigate.
+    /// Команда: добавить или удалить закладку (горячая клавиша Ctrl+B).
+    /// Если текущий путь уже в закладках — удаляет её. Иначе — добавляет.
+    /// Command: add or remove bookmark (Ctrl+B hotkey).
+    /// If current path is already bookmarked — removes it. Otherwise — adds it.
     /// </summary>
     [RelayCommand]
     private void ToggleBookmark()
     {
         var path = ActivePanel.CurrentPath;
 
-        // Проверяем, есть ли уже закладка на этот путь.
-        // Check if bookmark for this path already exists.
+        // Проверяем, есть ли уже закладка на этот путь — если да, удаляем.
+        // Check if bookmark for this path already exists — if so, remove it.
         foreach (var bm in BookmarkService.Current.Bookmarks)
         {
             if (string.Equals(bm.Path.TrimEnd('\\', '/'), path.TrimEnd('\\', '/'),
                 System.StringComparison.OrdinalIgnoreCase))
             {
-                StatusText = L10n("Bookmark.AlreadyExists");
+                BookmarkService.Current.Remove(bm);
+                StatusText = L10n("Bookmark.Removed");
                 return;
             }
         }

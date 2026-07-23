@@ -24,6 +24,7 @@ namespace CoderCommander.Services;
 public static class SyntaxHighlighter
 {
     private static readonly ConcurrentDictionary<string, IHighlightingDefinition> _cache = new();
+    private static readonly ConcurrentDictionary<string, string> _extensionOverrides = new();
     private static readonly Dictionary<string, string> _customByName = new()
     {
         ["CSharp"] = CSharpXshd,
@@ -46,6 +47,19 @@ public static class SyntaxHighlighter
         ["Rust"] = RustXshd,
         ["PHP"] = PhpXshd
     };
+
+    /// <summary>
+    /// Регистрирует сопоставление расширения файла → имя языка подсветки (для плагинов).
+    /// Registers a file extension → highlighting language name mapping (for plugins).
+    /// </summary>
+    /// <param name="extension">Расширение файла (например, ".myext"). File extension (e.g., ".myext").</param>
+    /// <param name="language">Имя языка из _customByName. Language name from _customByName.</param>
+    public static void RegisterExtension(string extension, string language)
+    {
+        if (string.IsNullOrEmpty(extension)) return;
+        var ext = extension.StartsWith('.') ? extension.ToLowerInvariant() : "." + extension.ToLowerInvariant();
+        _extensionOverrides[ext] = language;
+    }
 
     /// <summary>
     /// Применяет подсветку синтаксиса к редактору на основе расширения файла.
@@ -84,6 +98,15 @@ public static class SyntaxHighlighter
     {
         var ext = (Path.GetExtension(path) ?? "").ToLowerInvariant();
         var name = Path.GetFileName(path);
+
+        // Проверяем переопределения, зарегистрированные плагинами.
+        // Check plugin-registered extension overrides first.
+        if (!string.IsNullOrEmpty(ext) && _extensionOverrides.TryGetValue(ext, out var overrideLang))
+        {
+            var def = Custom(overrideLang);
+            if (def is not null) return def;
+        }
+
         return ext switch
         {
             ".cs" => Custom("CSharp"),

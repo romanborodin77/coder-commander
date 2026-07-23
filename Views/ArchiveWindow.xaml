@@ -146,13 +146,13 @@
                         <TextBlock Grid.Column="6" Text="{DynamicResource Archive.Password}"
                                    Foreground="{DynamicResource FgLightBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="7"
-                                 Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="{DynamicResource BgInputBrush}"
-                                 Foreground="{DynamicResource FgLightBrush}"
-                                 BorderBrush="{DynamicResource BorderBrush}"
-                                 BorderThickness="1" Padding="4,2"
-                                />
+                        <PasswordBox Grid.Column="7"
+                                  x:Name="ArchivePasswordBox"
+                                  Background="{DynamicResource BgInputBrush}"
+                                  Foreground="{DynamicResource FgLightBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1" Padding="4,2"
+                                 />
                     </Grid>
 
                     <!-- Список файлов / File list -->
@@ -235,13 +235,13 @@
                         <TextBlock Grid.Column="4" Text="{DynamicResource Archive.Password}"
                                    Foreground="{DynamicResource FgLightBrush}"
                                    VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Grid.Column="5"
-                                 Text="{Binding ExtractPassword, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="{DynamicResource BgInputBrush}"
-                                 Foreground="{DynamicResource FgLightBrush}"
-                                 BorderBrush="{DynamicResource BorderBrush}"
-                                 BorderThickness="1" Padding="4,2"
-                                />
+                        <PasswordBox Grid.Column="5"
+                                  x:Name="ExtractPasswordBox"
+                                  Background="{DynamicResource BgInputBrush}"
+                                  Foreground="{DynamicResource FgLightBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="1" Padding="4,2"
+                                 />
                     </Grid>
 
                     <!-- Содержимое архива / Archive contents -->

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -75,7 +76,7 @@ public sealed class CopyService
             {
                 var d = Path.Combine(dst, Path.GetFileName(f)!);
                 try { await CopyFile(f, d, policy, onConflict, summary, ct); }
-                catch { summary.Failed++; }
+                catch (Exception ex) { summary.Failed++; summary.Errors.Add($"{f}: {ex.Message}"); }
             }
             foreach (var d in Directory.EnumerateDirectories(src))
             {
@@ -85,7 +86,7 @@ public sealed class CopyService
         else
         {
             try { await CopyFile(src, dst, policy, onConflict, summary, ct); }
-            catch { summary.Failed++; }
+            catch (Exception ex) { summary.Failed++; summary.Errors.Add($"{src}: {ex.Message}"); }
         }
     }
 
@@ -162,4 +163,9 @@ public sealed class CopySummary
     /// Общее количество скопированных байт. / Total bytes copied.
     /// </summary>
     public long Bytes { get; set; }
+
+    /// <summary>
+    /// Список сообщений об ошибках для неудачных файлов. / List of error messages for failed files.
+    /// </summary>
+    public List<string> Errors { get; } = new();
 }

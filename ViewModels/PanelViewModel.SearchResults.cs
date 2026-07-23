@@ -77,22 +77,48 @@ public partial class PanelViewModel
         var selPath = SelectedItem?.FullPath;
         var selPaths = Items.Where(i => i.IsSelected && !i.IsParent).Select(i => i.FullPath).ToHashSet();
         Items.Clear();
-        _itemsView = null; // сброс кэша ICollectionView / reset cached ICollectionView
+        _itemsView = null;
         try
         {
+            // Определяем внутренний путь для IFileSystem.
+            // For cloud:// paths, extract the path after the profileId segment.
+            var fsPath = CurrentPath;
+            if (CurrentPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            {
+                fsPath = ExtractCloudPath(CurrentPath);
+            }
+
             var entries = VirtualFileSystem is not null
-                ? await VirtualFileSystem.EnumerateAsync(CurrentPath, ShowHidden, _cts.Token)
+                ? await VirtualFileSystem.EnumerateAsync(fsPath, ShowHidden, _cts.Token)
                 : Enumerable.Empty<FileEntry>();
+            System.Diagnostics.Debug.WriteLine($"[RefreshVirtual] fsPath={fsPath} entries={((System.Collections.IList)entries).Count} CurrentPath={CurrentPath}");
             foreach (var e in entries)
             {
                 if (_cts.IsCancellationRequested) return;
                 if (!string.IsNullOrEmpty(Filter) && !e.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase)) continue;
-                var item = new FileSystemItem(e.FullPath, e.IsDirectory, e.Size, e.LastWriteTimeUtc.ToLocalTime());
+
+                // Для облачных путей строим виртуальный полный путь.
+                var fullPath = CurrentPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentPath.TrimEnd('/') + "/" + e.Name
+                    : e.FullPath;
+                System.Diagnostics.Debug.WriteLine($"[RefreshVirtual] e.Name={e.Name} e.FullPath={e.FullPath} → fullPath={fullPath}");
+
+                var item = new FileSystemItem(fullPath, e.IsDirectory, e.Size, e.LastWriteTimeUtc.ToLocalTime());
                 Items.Add(item);
                 if (selPaths.Contains(item.FullPath)) item.IsSelected = true;
             }
+
+            // Добавляем ".." для облачных путей (не в корне).
+            if (CurrentPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            {
+                var cloudPath = ExtractCloudPath(CurrentPath);
+                if (cloudPath != "/")
+                {
+                    Items.Insert(0, new FileSystemItem(CurrentPath + "/..", isDirectory: true, isParent: true));
+                }
+            }
         }
-        catch (System.OperationCanceledException) { return; }
+        catch (OperationCanceledException) { return; }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Ошибка виртуальной панели: {ex.Message}"); }
 
         if (selPath != null)

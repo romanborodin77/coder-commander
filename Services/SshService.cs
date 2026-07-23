@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Collections.Generic;
 using System.Threading;
@@ -41,7 +42,10 @@ public sealed class SshService
         try
         {
             if (!File.Exists(ProfilesFile)) return new List<SshProfile>();
-            return JsonSerializer.Deserialize<List<SshProfile>>(File.ReadAllText(ProfilesFile)) ?? new List<SshProfile>();
+            var list = JsonSerializer.Deserialize<List<SshProfile>>(File.ReadAllText(ProfilesFile)) ?? new List<SshProfile>();
+            // Дешифруем пароли через DPAPI после десериализации.
+            // Decrypt passwords via DPAPI after deserialization.
+            return list.Select(p => p with { Password = CredentialProtector.Unprotect(p.Password) }).ToList();
         }
         catch { return new List<SshProfile>(); }
     }
@@ -55,7 +59,10 @@ public sealed class SshService
     {
         var dir = Path.GetDirectoryName(ProfilesFile);
         if (dir is not null) Directory.CreateDirectory(dir);
-        File.WriteAllText(ProfilesFile, JsonSerializer.Serialize(profiles, new JsonSerializerOptions { WriteIndented = true }));
+        // Шифруем пароли через DPAPI перед сериализацией.
+        // Encrypt passwords via DPAPI before serialization.
+        var safe = profiles.Select(p => p with { Password = CredentialProtector.Protect(p.Password) }).ToList();
+        File.WriteAllText(ProfilesFile, JsonSerializer.Serialize(safe, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     /// <summary>
@@ -105,11 +112,16 @@ public sealed class SshService
         // Аутентификация по приватному ключу, если указан путь к файлу.
         if (!string.IsNullOrWhiteSpace(p.IdentityFile) && File.Exists(p.IdentityFile))
         {
+            // NOTE: PrivateKeyFile implements IDisposable but cannot be disposed here because
+            // ConnectionInfo stores a reference and uses it during authentication.
+            // The unmanaged key handle will be released when the GC finalizes the object.
+            // For a proper fix, BuildConnectionInfo should return a disposable wrapper.
             var keyFile = new PrivateKeyFile(p.IdentityFile);
             auth.Add(new PrivateKeyAuthenticationMethod(p.User, keyFile));
         }
-        // Аутентификация по паролю (интерактивная/клавиатурная) — используется при отсутствии ключа.
-        auth.Add(new PasswordAuthenticationMethod(p.User, ""));
+        // Аутентификация по паролю — используется при отсутствии ключа или как запасной метод.
+        // Password authentication — used when no key is present or as a fallback method.
+        auth.Add(new PasswordAuthenticationMethod(p.User, p.Password ?? ""));
         auth.Add(new KeyboardInteractiveAuthenticationMethod(p.User));
 
         return new ConnectionInfo(
@@ -159,7 +171,8 @@ public sealed class SshService
 /// <param name="Port">Порт SSH (обычно 22). SSH port (typically 22).</param>
 /// <param name="RemotePath">Удалённый путь по умолчанию. Default remote path.</param>
 /// <param name="IdentityFile">Путь к файлу приватного ключа (опционально). Path to the private key file (optional).</param>
-public sealed record SshProfile(string Name, string Host, string User, int Port, string RemotePath, string? IdentityFile = null)
+/// <param name="Password">Пароль для аутентификации (опционально, хранится зашифрованным через DPAPI). Password for authentication (optional, stored encrypted via DPAPI).</param>
+public sealed record SshProfile(string Name, string Host, string User, int Port, string RemotePath, string? IdentityFile = null, string Password = "")
 {
     /// <summary>
     /// Возвращает строку вида user@host:path для использования в SCP.

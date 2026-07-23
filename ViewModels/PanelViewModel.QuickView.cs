@@ -58,6 +58,8 @@ public partial class PanelViewModel
     /// </summary>
     partial void OnSelectedItemChanged(FileSystemItem? value)
     {
+        RefreshStatusBar();
+
         if (!IsQuickViewOpen) return;
 
         _quickViewCts?.Cancel();

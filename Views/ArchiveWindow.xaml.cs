@@ -299,6 +299,7 @@ public partial class ArchiveWindowViewModel : ObservableObject
 
             StatusText = string.Format(L10n("Archive.CreateDone"), OutputPath);
             ProgressValue = 100;
+            OnOperationCompleted?.Invoke();
         }
         catch (OperationCanceledException)
         {
@@ -368,6 +369,7 @@ public partial class ArchiveWindowViewModel : ObservableObject
 
             StatusText = string.Format(L10n("Archive.ExtractDone"), ExtractOutputPath);
             ProgressValue = 100;
+            OnOperationCompleted?.Invoke();
         }
         catch (OperationCanceledException)
         {
@@ -403,6 +405,9 @@ public partial class ArchiveWindowViewModel : ObservableObject
 
     /// <summary>Событие закрытия окна из ViewModel. / Window close request event from ViewModel.</summary>
     public event Action? OnCloseRequested;
+
+    /// <summary>Событие завершения операции (для обновления панели). / Operation completed event (to refresh panel).</summary>
+    public event Action? OnOperationCompleted;
 
     // ═══════════════════════════════════════
     // Вспомогательные методы / Helpers
@@ -568,6 +573,9 @@ public partial class ArchiveWindow : Window
 {
     private readonly ArchiveWindowViewModel _vm;
 
+    /// <summary>ViewModel окна (для внешних подписок). / Window ViewModel (for external subscriptions).</summary>
+    internal ArchiveWindowViewModel ViewModel => _vm;
+
     /// <summary>
     /// Конструктор окна: создаёт ViewModel, устанавливает DataContext.
     /// Window constructor: creates ViewModel, sets DataContext.
@@ -583,6 +591,9 @@ public partial class ArchiveWindow : Window
         _vm = new ArchiveWindowViewModel(mode, files, archivePath);
         _vm.OnCloseRequested += () => Close();
         DataContext = _vm;
+
+        ArchivePasswordBox.PasswordChanged += (s, e) => _vm.Password = ArchivePasswordBox.Password;
+        ExtractPasswordBox.PasswordChanged += (s, e) => _vm.ExtractPassword = ExtractPasswordBox.Password;
     }
 
     #region Заголовок окна / Window chrome handlers

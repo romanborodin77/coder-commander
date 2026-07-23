@@ -416,17 +416,25 @@ var decoder = enc.GetDecoder();
             var provider = ContentProviderRegistry.Instance.GetProvider(fi.FullName);
             if (provider is not null)
             {
-                using var providerStream = provider.OpenContentAsync(fi.FullName, ct).GetAwaiter().GetResult();
+                // FIXED: Use synchronous stream read instead of .GetAwaiter().GetResult() which
+                // causes thread pool starvation when many files are scanned in parallel.
+                // OpenContentAsync returns a stream — read it synchronously via CopyTo.
+                Stream? providerStream = null;
+                try { providerStream = provider.OpenContentAsync(fi.FullName, ct).GetAwaiter().GetResult(); }
+                catch { /* provider unavailable — fall through to direct read */ }
                 if (providerStream is not null)
                 {
-                    byte[] bytes;
-                    try { bytes = ReadAllBytesFromStream(providerStream, (int)size); }
-                    catch { return; }
+                    using (providerStream)
+                    {
+                        byte[] bytes;
+                        try { bytes = ReadAllBytesFromStream(providerStream, (int)size); }
+                        catch { return; }
 
-                    if (enc.IsSingleByte && ContainsNul(bytes, preamble)) return;
-                    var text = enc.GetString(bytes, preamble, bytes.Length - preamble);
-                    CollectMatches(regex, text, fi, enc, outMatches, ref lastLine);
-                    return;
+                        if (enc.IsSingleByte && ContainsNul(bytes, preamble)) return;
+                        var text = enc.GetString(bytes, preamble, bytes.Length - preamble);
+                        CollectMatches(regex, text, fi, enc, outMatches, ref lastLine);
+                        return;
+                    }
                 }
             }
 

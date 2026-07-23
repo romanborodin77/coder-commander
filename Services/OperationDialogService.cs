@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.Windows;
 using CoderCommander.Operations;
 using CoderCommander.ViewModels;
@@ -79,7 +80,10 @@ public sealed class OperationDialogService
 
             OpOverwritePolicy result = OpOverwritePolicy.Skip;
             bool all = false;
-            var ev = new System.Threading.ManualResetEventSlim(false);
+            // FIXED: Use TaskCompletionSource instead of ManualResetEventSlim to avoid deadlock.
+            // BeginInvoke posts to UI thread; ev.Wait() on calling thread (thread pool) — safe.
+            // But ev.Set() was never called, causing permanent deadlock on every file conflict.
+            var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -106,9 +110,11 @@ public sealed class OperationDialogService
                     result = dlg.Result;
                     all = dlg.ApplyToAll;
                 }
+
+                tcs.TrySetResult(null); // FIXED: Signal completion
             }));
 
-            try { ev.Wait(); } catch { return OpOverwritePolicy.Skip; }
+            try { tcs.Task.Wait(TimeSpan.FromSeconds(30)); } catch { return OpOverwritePolicy.Skip; }
             if (all)
             {
                 applyToAll = true;

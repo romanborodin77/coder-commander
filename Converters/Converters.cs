@@ -23,7 +23,7 @@ public class BoolToIconConverter : IValueConverter
     /// <param name="p">Параметр конвертера (не используется) / Converter parameter (unused).</param>
     /// <param name="c">Сведения о культуре (не используются) / Culture info (unused).</param>
     /// <returns>Символ-глиф папки "\uE8B7" или файла "\uE8A5" / Folder "\uE8B7" or file "\uE8A5" glyph character.</returns>
-    public object Convert(object v, Type t, object p, CultureInfo c) => (bool)v ? "\uE8B7" : "\uE8A5"; // папка (Folder) / файл (Document)
+    public object Convert(object v, Type t, object p, CultureInfo c) => v is bool b && b ? "\uE8B7" : "\uE8A5"; // папка (Folder) / файл (Document)
 
     /// <summary>
     /// Обратное преобразование не поддерживается.
@@ -79,7 +79,7 @@ public class DirectoryColorConverter : IValueConverter
     /// <param name="p">Параметр конвертера (не используется) / Converter parameter (unused).</param>
     /// <param name="c">Сведения о культуре (не используются) / Culture info (unused).</param>
     /// <returns>SolidColorBrush с акцентным цветом для папок или цветом текста для файлов / SolidColorBrush with accent color for folders or text color for files.</returns>
-    public object Convert(object v, Type t, object p, CultureInfo c) => (bool)v
+    public object Convert(object v, Type t, object p, CultureInfo c) => v is bool b && b
         ? (SolidColorBrush)(Application.Current.Resources["AccentBrush"]
             ?? new SolidColorBrush(Color.FromRgb(122, 139, 250)))
         : (SolidColorBrush)(Application.Current.Resources["FgLightBrush"]
@@ -108,7 +108,7 @@ public class BoolToVisibilityConverter : IValueConverter
     /// <param name="p">Параметр конвертера (не используется) / Converter parameter (unused).</param>
     /// <param name="c">Сведения о культуре (не используются) / Culture info (unused).</param>
     /// <returns>Visibility.Visible или Visibility.Collapsed / Visibility.Visible or Visibility.Collapsed.</returns>
-    public object Convert(object v, Type t, object p, CultureInfo c) => (bool)v ? Visibility.Visible : Visibility.Collapsed;
+    public object Convert(object v, Type t, object p, CultureInfo c) => v is bool b && b ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Обратное преобразование не поддерживается.
@@ -133,7 +133,7 @@ public class BoolToVisibilityInverseConverter : IValueConverter
     /// <param name="p">Параметр конвертера (не используется) / Converter parameter (unused).</param>
     /// <param name="c">Сведения о культуре (не используются) / Culture info (unused).</param>
     /// <returns>Visibility.Collapsed или Visibility.Visible / Visibility.Collapsed or Visibility.Visible.</returns>
-    public object Convert(object v, Type t, object p, CultureInfo c) => (bool)v ? Visibility.Collapsed : Visibility.Visible;
+    public object Convert(object v, Type t, object p, CultureInfo c) => v is bool b && b ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>
     /// Обратное преобразование не поддерживается.
@@ -168,15 +168,15 @@ public class GitStateToBrushConverter : IValueConverter
     /// <param name="p">Параметр конвертера (не используется) / Converter parameter (unused).</param>
     /// <param name="c">Сведения о культуре (не используются) / Culture info (unused).</param>
     /// <returns>SolidColorBrush с цветом, соответствующим статусу Git / SolidColorBrush with the color matching the Git status.</returns>
-    public object Convert(object v, Type t, object p, CultureInfo c) => (GitState)v switch
-    {
-        GitState.Modified => new SolidColorBrush(Color.FromRgb(230, 170, 0)),
-        GitState.Added => new SolidColorBrush(Color.FromRgb(78, 154, 6)),
-        GitState.Deleted => new SolidColorBrush(Color.FromRgb(200, 40, 40)),
-        GitState.Untracked => new SolidColorBrush(Color.FromRgb(120, 120, 120)),
-        GitState.Conflicted => new SolidColorBrush(Color.FromRgb(220, 60, 60)),
-        _ => Application.Current.Resources["FgLightBrush"]
-    };
+    public object Convert(object v, Type t, object p, CultureInfo c) => v is GitState gs ? gs switch
+        {
+            GitState.Modified => new SolidColorBrush(Color.FromRgb(230, 170, 0)),
+            GitState.Added => new SolidColorBrush(Color.FromRgb(78, 154, 6)),
+            GitState.Deleted => new SolidColorBrush(Color.FromRgb(200, 40, 40)),
+            GitState.Untracked => new SolidColorBrush(Color.FromRgb(120, 120, 120)),
+            GitState.Conflicted => new SolidColorBrush(Color.FromRgb(220, 60, 60)),
+            _ => Application.Current.TryFindResource("FgLightBrush") ?? Brushes.White
+        } : Brushes.White;
 
     /// <summary>
     /// Обратное преобразование не поддерживается.
@@ -745,6 +745,37 @@ public class QueueStatusToTextConverter : IValueConverter
             };
         }
         return "";
+    }
+
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>Конвертер: null → false, иначе true. / Converter: null → false, otherwise true.</summary>
+public class NullToFalseConverter : IValueConverter
+{
+    public object Convert(object? v, Type t, object p, CultureInfo c) => v is not null;
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>Конвертер: CloudProvider → иконка Segoe MDL2. / Converter: CloudProvider → Segoe MDL2 icon.</summary>
+public class CloudProviderToIconConverter : IValueConverter
+{
+    public object Convert(object v, Type t, object p, CultureInfo c)
+    {
+        if (v is Models.CloudProvider provider)
+        {
+            return provider switch
+            {
+                Models.CloudProvider.S3 => "\uE946",          // Server / storage
+                Models.CloudProvider.AzureBlob => "\uE7B4",   // Container
+                Models.CloudProvider.GoogleDrive => "\uE774",  // Globe (web)
+                Models.CloudProvider.YandexDisk => "\uE753",   // Cloud upload
+                Models.CloudProvider.NextCloud => "\uE968",    // Cloud sync
+                Models.CloudProvider.WebDAV => "\uE774",       // Globe (web)
+                _ => "\uE944"
+            };
+        }
+        return "\uE944";
     }
 
     public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();

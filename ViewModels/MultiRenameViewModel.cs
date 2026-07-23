@@ -301,11 +301,50 @@ public partial class MultiRenameViewModel : ObservableObject
             Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.None,
             Owner = Application.Current.MainWindow,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgPanelBrush"],
         };
-        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15) };
-        sp.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 8) });
-        var tb = new System.Windows.Controls.TextBox { Text = def };
+
+        var root = new System.Windows.Controls.DockPanel();
+
+        var titleBar = new System.Windows.Controls.Border
+        {
+            Height = 36, Background = (System.Windows.Media.Brush)Application.Current.Resources["TitleBarBgBrush"]
+        };
+        System.Windows.Controls.DockPanel.SetDock(titleBar, System.Windows.Controls.Dock.Top);
+        var titleSp = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleSp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = title,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleBar.Child = titleSp;
+        titleBar.MouseLeftButtonDown += (_, _) => w.DragMove();
+        root.Children.Add(titleBar);
+
+        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15, 10, 15, 10) };
+        sp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = prompt,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        var tb = new System.Windows.Controls.TextBox
+        {
+            Text = def,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgInputBrush"],
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.Resources["BorderBrush"]
+        };
         sp.Children.Add(tb);
         var btns = new System.Windows.Controls.StackPanel
         {
@@ -313,16 +352,30 @@ public partial class MultiRenameViewModel : ObservableObject
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 12, 0, 0),
         };
-        var ok = new System.Windows.Controls.Button { Content = L10n("Dialog.Ok"), Width = 75, IsDefault = true };
-        var cancel = new System.Windows.Controls.Button { Content = L10n("Dialog.Cancel"), Width = 75, IsCancel = true, Margin = new Thickness(8, 0, 0, 0) };
+        var ok = new System.Windows.Controls.Button
+        {
+            Content = L10n("Dialog.Ok"),
+            Width = 75, IsDefault = true,
+            Style = (System.Windows.Style)Application.Current.Resources["AccentButtonStyle"]
+        };
+        var cancel = new System.Windows.Controls.Button
+        {
+            Content = L10n("Dialog.Cancel"),
+            Width = 75, IsCancel = true,
+            Margin = new Thickness(8, 0, 0, 0),
+            Style = (System.Windows.Style)Application.Current.Resources["DefaultButtonStyle"]
+        };
         btns.Children.Add(ok);
         btns.Children.Add(cancel);
         sp.Children.Add(btns);
-        w.Content = sp;
+        root.Children.Add(sp);
+        w.Content = root;
 
         string? result = null;
         ok.Click += (_, _) => { result = tb.Text; w.DialogResult = true; };
         cancel.Click += (_, _) => { w.DialogResult = false; };
+        tb.SelectAll();
+        tb.Focus();
         return w.ShowDialog() == true ? result : null;
     }
 }

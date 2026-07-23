@@ -30,10 +30,10 @@ public partial class MainViewModel
     public void ShowSearchResults(IEnumerable<SearchResult>? results)
     {
         var list = results?.ToList() ?? new List<SearchResult>();
-        if (list.Count == 0) { StatusText = "Нет результатов поиска"; return; }
+        if (list.Count == 0) { StatusText = L10n("Search.NoResults"); return; }
         _lastSearchResults = list;
         ActivePanel.EnterVirtualMode(new SearchResultSource(list));
-        StatusText = string.Format("Результаты поиска: {0}", list.Count);
+        StatusText = string.Format(L10n("Search.ResultsFormat"), list.Count);
     }
 
     /// <summary>
@@ -44,7 +44,7 @@ public partial class MainViewModel
     public void ShowLastSearchResults()
     {
         if (_lastSearchResults is null || _lastSearchResults.Count == 0)
-        { StatusText = "Нет сохранённых результатов поиска"; return; }
+        { StatusText = L10n("Search.NoSavedResults"); return; }
         ShowSearchResults(_lastSearchResults);
     }
 

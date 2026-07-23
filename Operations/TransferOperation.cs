@@ -160,6 +160,19 @@ public abstract class TransferOperation : FileOperation
     {
         LogService.Info($"TransferDirectoryAsync: src={src}, dst={dst}", nameof(TransferOperation));
 
+        // FIXED: Symlink traversal — не следуем по reparse points при копировании.
+        // Don't follow reparse points (symlinks/junctions) when copying.
+        var srcDirInfo = new DirectoryInfo(src);
+        if ((srcDirInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            // Для symlink/junction — копируем как файл-ссылку, не рекурсивно.
+            // For symlink/junction — copy as a link, not recursively.
+            LogService.Info($"Skipping reparse point contents: {src}", nameof(TransferOperation));
+            try { await _fs.CreateDirectoryAsync(dst, ct).ConfigureAwait(false); }
+            catch { }
+            return;
+        }
+
         bool sameVolume = IsMove && SameVolume(src, dst);
         if (sameVolume)
         {
@@ -179,7 +192,6 @@ public abstract class TransferOperation : FileOperation
         _copied++;
         ReportProgress(dst);
 
-        var srcDirInfo = new DirectoryInfo(src);
         var dstDirInfo = new DirectoryInfo(dst);
 
         var entries = await _fs.EnumerateAsync(src, ct: ct).ConfigureAwait(false);

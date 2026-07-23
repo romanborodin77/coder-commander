@@ -20,6 +20,7 @@ namespace CoderCommander.FileSystem;
 public sealed class S3FileSystem : CloudFileSystem, IDisposable
 {
     private AmazonS3Client? _client;
+    private readonly object _clientLock = new();
     private readonly string _accessKey;
     private readonly string _secretKey;
     private readonly string _region;
@@ -77,15 +78,24 @@ public sealed class S3FileSystem : CloudFileSystem, IDisposable
             config.ServiceURL = _endpoint;
             config.ForcePathStyle = true;
         }
-        _client = new AmazonS3Client(credentials, config);
+        // FIXED: Lock to prevent race between Connect/Disconnect and operations.
+        lock (_clientLock)
+        {
+            _client?.Dispose();
+            _client = new AmazonS3Client(credentials, config);
+        }
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
     public override Task DisconnectAsync()
     {
-        _client?.Dispose();
-        _client = null;
+        // FIXED: Lock to prevent race between Connect/Disconnect and operations.
+        lock (_clientLock)
+        {
+            _client?.Dispose();
+            _client = null;
+        }
         return Task.CompletedTask;
     }
 
@@ -326,14 +336,22 @@ public sealed class S3FileSystem : CloudFileSystem, IDisposable
 
     private void EnsureClient()
     {
-        if (_client is null)
-            throw new InvalidOperationException("S3 not connected. Call ConnectAsync first.");
+        // FIXED: Lock to prevent race with DisconnectAsync setting _client = null.
+        lock (_clientLock)
+        {
+            if (_client is null)
+                throw new InvalidOperationException("S3 not connected. Call ConnectAsync first.");
+        }
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        _client?.Dispose();
-        _client = null;
+        // FIXED: Lock to prevent race with concurrent operations.
+        lock (_clientLock)
+        {
+            _client?.Dispose();
+            _client = null;
+        }
     }
 }

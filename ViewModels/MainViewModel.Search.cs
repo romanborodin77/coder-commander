@@ -30,11 +30,11 @@ public partial class MainViewModel
             vm.RootPath = ActivePanel.CurrentPath;
             // Двойной клик по результату открывает файл в редакторе.
             // Double-click on a result opens the file in the editor.
-            vm.OpenFileRequest = p =>
+            vm.OpenFileRequest = async p =>
             {
                 try
                 {
-                    var content = Task.Run(() => File.ReadAllTextAsync(p)).GetAwaiter().GetResult();
+                    var content = await File.ReadAllTextAsync(p);
                     OpenEditorRequest?.Invoke(p, content);
                 }
                 catch (Exception ex) { StatusText = string.Format(L10n("Status.Error"), ex.Message); }

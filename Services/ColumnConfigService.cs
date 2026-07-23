@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using CoderCommander.Models;
@@ -29,6 +30,12 @@ public static class ColumnConfigService
     public static event EventHandler? ColumnsChanged;
 
     /// <summary>
+    /// Ключ колонки, по которой выполняется сортировка (null/пусто = нет сортировки).
+    /// Column key for the current sort (null/empty = no sort).
+    /// </summary>
+    public static string? SortedColumnKey { get; set; }
+
+    /// <summary>
     /// Вызывает событие изменения колонок (для внешних вызовов).
     /// Raises columns changed event (for external callers).
     /// </summary>
@@ -55,33 +62,16 @@ public static class ColumnConfigService
     public static void Load()
     {
         ActiveColumns.Clear();
+        SortedColumnKey = null;
 
         try
         {
             if (File.Exists(ConfigPath))
             {
                 var json = File.ReadAllText(ConfigPath);
-                var saved = JsonSerializer.Deserialize<List<ColumnDto>>(json);
-                if (saved is { Count: > 0 })
-                {
-                    foreach (var dto in saved)
-                    {
-                        var template = ColumnDefinition.AllColumns.FirstOrDefault(c => c.Key == dto.Key);
-                        var col = template is not null
-                            ? template.Clone()
-                            : new ColumnDefinition(dto.Key, dto.Key, 80);
-                        col.Header = dto.Header ?? col.Header;
-                        col.Width = dto.Width > 0 ? dto.Width : col.Width;
-                        col.IsVisible = dto.IsVisible;
-                        col.DisplayIndex = dto.DisplayIndex;
-                        ActiveColumns.Add(col);
-                    }
-
-                    // Garantirium: Name всегда присутствует и первый
-                    EnsureNameColumn();
-                    ColumnsChanged?.Invoke(null, EventArgs.Empty);
-                    return;
-                }
+                // Пробуем новый формат (объект-контейнер) или старый (плоский массив) — обратная совместимость.
+                if (TryLoadNewFormat(json)) return;
+                if (TryLoadLegacyFormat(json)) return;
             }
         }
         catch
@@ -90,6 +80,69 @@ public static class ColumnConfigService
         }
 
         ResetToDefault();
+    }
+
+    private static bool TryLoadNewFormat(string json)
+    {
+        try
+        {
+            var container = JsonSerializer.Deserialize<ColumnConfigDto>(json);
+            if (container?.Columns is { Count: > 0 })
+            {
+                foreach (var dto in container.Columns)
+                {
+                    var col = CreateColumnFromDto(dto);
+                    ActiveColumns.Add(col);
+                }
+                SortedColumnKey = container.SortedColumnKey;
+                EnsureNameColumn();
+                ColumnsChanged?.Invoke(null, EventArgs.Empty);
+                return true;
+            }
+        }
+        catch
+        {
+            // Не новый формат — пробуем legacy
+        }
+        return false;
+    }
+
+    private static bool TryLoadLegacyFormat(string json)
+    {
+        try
+        {
+            var saved = JsonSerializer.Deserialize<List<ColumnDto>>(json);
+            if (saved is { Count: > 0 })
+            {
+                foreach (var dto in saved)
+                {
+                    var col = CreateColumnFromDto(dto);
+                    ActiveColumns.Add(col);
+                }
+                EnsureNameColumn();
+                ColumnsChanged?.Invoke(null, EventArgs.Empty);
+                return true;
+            }
+        }
+        catch
+        {
+            // Не legacy — ошибка
+        }
+        return false;
+    }
+
+    private static ColumnDefinition CreateColumnFromDto(ColumnDto dto)
+    {
+        var template = ColumnDefinition.AllColumns.FirstOrDefault(c => c.Key == dto.Key);
+        var col = template is not null
+            ? template.Clone()
+            : new ColumnDefinition(dto.Key, dto.Key, 80);
+        // Header is always resolved from localized AllColumns, not from saved JSON
+        col.Width = dto.Width > 0 ? dto.Width : col.Width;
+        col.IsVisible = dto.IsVisible;
+        col.DisplayIndex = dto.DisplayIndex;
+        col.SortDirection = dto.SortDirection;
+        return col;
     }
 
     /// <summary>
@@ -101,15 +154,20 @@ public static class ColumnConfigService
         try
         {
             Directory.CreateDirectory(SettingsDir);
-            var dtos = ActiveColumns.Select((c, i) => new ColumnDto
+            var container = new ColumnConfigDto
             {
-                Key = c.Key,
-                Header = c.Header,
-                Width = c.Width,
-                IsVisible = c.IsVisible,
-                DisplayIndex = i
-            }).ToList();
-            var json = JsonSerializer.Serialize(dtos, new JsonSerializerOptions { WriteIndented = true });
+                SortedColumnKey = SortedColumnKey,
+                Columns = ActiveColumns.Select((c, i) => new ColumnDto
+                {
+                    Key = c.Key,
+                    Header = c.Header,
+                    Width = c.Width,
+                    IsVisible = c.IsVisible,
+                    DisplayIndex = i,
+                    SortDirection = c.SortDirection
+                }).ToList()
+            };
+            var json = JsonSerializer.Serialize(container, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(ConfigPath, json);
         }
         catch
@@ -125,6 +183,7 @@ public static class ColumnConfigService
     public static void ResetToDefault()
     {
         ActiveColumns.Clear();
+        SortedColumnKey = null;
         foreach (var col in DefaultColumns())
             ActiveColumns.Add(col);
         Save();
@@ -181,5 +240,16 @@ public static class ColumnConfigService
         public double Width { get; set; }
         public bool IsVisible { get; set; } = true;
         public int DisplayIndex { get; set; }
+        public ListSortDirection SortDirection { get; set; } = ListSortDirection.Ascending;
+    }
+
+    /// <summary>
+    /// DTO-контейнер для хранения конфигурации колонок вместе с ключом сортировки.
+    /// Container DTO storing column configuration along with the sorting column key.
+    /// </summary>
+    private class ColumnConfigDto
+    {
+        public string? SortedColumnKey { get; set; }
+        public List<ColumnDto> Columns { get; set; } = new();
     }
 }

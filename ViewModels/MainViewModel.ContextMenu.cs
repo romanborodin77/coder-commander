@@ -27,8 +27,9 @@ public partial class MainViewModel
     {
         var item = ActivePanel.SelectedItem;
         if (item is null) return;
-        Clipboard.SetText(item.FullPath);
-        StatusText = L10n("Ctx.PathCopied");
+        // FIXED: Clipboard.SetText can throw ExternalException when clipboard is locked by another process.
+        try { Clipboard.SetText(item.FullPath); StatusText = L10n("Ctx.PathCopied"); }
+        catch (System.Runtime.InteropServices.ExternalException) { StatusText = L10n("Clipboard.Busy"); }
     }
 
     /// <summary>Скопировать имя файла в буфер обмена.</summary>
@@ -37,8 +38,8 @@ public partial class MainViewModel
     {
         var item = ActivePanel.SelectedItem;
         if (item is null) return;
-        Clipboard.SetText(item.Name);
-        StatusText = L10n("Ctx.NameCopied");
+        try { Clipboard.SetText(item.Name); StatusText = L10n("Ctx.NameCopied"); }
+        catch (System.Runtime.InteropServices.ExternalException) { StatusText = L10n("Clipboard.Busy"); }
     }
 
     /// <summary>Скопировать путь без расширения в буфер обмена.</summary>
@@ -47,8 +48,8 @@ public partial class MainViewModel
     {
         var item = ActivePanel.SelectedItem;
         if (item is null) return;
-        Clipboard.SetText(Path.ChangeExtension(item.FullPath, null));
-        StatusText = L10n("Ctx.PathCopied");
+        try { Clipboard.SetText(Path.ChangeExtension(item.FullPath, null)); StatusText = L10n("Ctx.PathCopied"); }
+        catch (System.Runtime.InteropServices.ExternalException) { StatusText = L10n("Clipboard.Busy"); }
     }
 
     /// <summary>Скопировать имя файла без расширения в буфер обмена.</summary>
@@ -57,8 +58,8 @@ public partial class MainViewModel
     {
         var item = ActivePanel.SelectedItem;
         if (item is null) return;
-        Clipboard.SetText(Path.GetFileNameWithoutExtension(item.FullPath));
-        StatusText = L10n("Ctx.NameCopied");
+        try { Clipboard.SetText(Path.GetFileNameWithoutExtension(item.FullPath)); StatusText = L10n("Ctx.NameCopied"); }
+        catch (System.Runtime.InteropServices.ExternalException) { StatusText = L10n("Clipboard.Busy"); }
     }
 
     // ═══════════════════════════════════════════

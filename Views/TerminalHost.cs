@@ -43,7 +43,8 @@ public sealed class TerminalHost : HwndHost
     /// Флаг, был ли уже зарегистрирован оконный класс Win32 (однократная регистрация).
     /// Flag indicating whether the Win32 window class has already been registered (single registration).
     /// </summary>
-    private static bool _classRegistered;
+    private static int _classRegistered; // FIXED: Use int for Interlocked.CompareExchange (race-safe)
+    private static readonly object _classLock = new();
 
     /// <summary>
     /// Создаёт дочернее нативное окно-плейсхолдер под родительским HWND.
@@ -61,28 +62,31 @@ public sealed class TerminalHost : HwndHost
 
         var hInstance = Marshal.GetHINSTANCE(typeof(TerminalHost).Module);
 
-        // Регистрируем оконный класс только один раз
-        if (!_classRegistered)
+        // Регистрируем оконный класс только один раз (FIXED: thread-safe with lock)
+        lock (_classLock)
         {
-            var wc = new WNDCLASS
+            if (_classRegistered == 0)
             {
-                style = 0,
-                lpfnWndProc = DefWindowProc,
-                hInstance = hInstance,
-                hbrBackground = (IntPtr)(COLOR_WINDOW + 1),
-                lpszClassName = WindowClass,
-            };
-            var regResult = RegisterClass(wc);
-            CoderCommander.Services.LogService.Debug(
-                $"TerminalHost.BuildWindowCore: RegisterClass result={regResult}, lastError={Marshal.GetLastWin32Error()}",
-                "Terminal");
-            if (regResult == 0)
-            {
-                var err = Marshal.GetLastWin32Error();
-                if (err != 1410) // ERROR_CLASS_ALREADY_REGISTERED
-                    throw new System.ComponentModel.Win32Exception(err, "RegisterClass TerminalHost failed");
+                var wc = new WNDCLASS
+                {
+                    style = 0,
+                    lpfnWndProc = DefWindowProc,
+                    hInstance = hInstance,
+                    hbrBackground = (IntPtr)(COLOR_WINDOW + 1),
+                    lpszClassName = WindowClass,
+                };
+                var regResult = RegisterClass(wc);
+                CoderCommander.Services.LogService.Debug(
+                    $"TerminalHost.BuildWindowCore: RegisterClass result={regResult}, lastError={Marshal.GetLastWin32Error()}",
+                    "Terminal");
+                if (regResult == 0)
+                {
+                    var err = Marshal.GetLastWin32Error();
+                    if (err != 1410) // ERROR_CLASS_ALREADY_REGISTERED
+                        throw new System.ComponentModel.Win32Exception(err, "RegisterClass TerminalHost failed");
+                }
+                _classRegistered = 1;
             }
-            _classRegistered = true;
         }
 
         var w = (int)Math.Max(Width, 1);

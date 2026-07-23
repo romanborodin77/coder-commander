@@ -88,6 +88,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         ReserveDiskSpace = s.ReserveDiskSpace;
         // ph9.6
         WindowOpacity = s.WindowOpacity;
+        WindowOpacityIndex = GetWindowOpacityIndex(s.WindowOpacity);
         ShowFullPathInTitle = s.ShowFullPathInTitle;
         ShowFileSize = s.ShowFileSize;
         ShowModificationDate = s.ShowModificationDate;
@@ -97,7 +98,9 @@ public class SettingsViewModel : INotifyPropertyChanged
         DoubleClickOpenFolder = s.DoubleClickOpenFolder;
         ShowHiddenFolders = s.ShowHiddenFolders;
         DefaultTerminalHeight = s.DefaultTerminalHeight;
+        TerminalHeightIndex = GetTerminalHeightIndex(s.DefaultTerminalHeight);
         TerminalScrollbackLines = s.TerminalScrollbackLines;
+        ScrollbackLinesIndex = GetScrollbackIndex(s.TerminalScrollbackLines);
         TerminalCursorStyleIndex = s.TerminalCursorStyle switch { "block" => 0, "underscore" => 1, "bar" => 2, _ => 0 };
         EditorHighlightCurrentLine = s.EditorHighlightCurrentLine;
         EditorHighlightBrackets = s.EditorHighlightBrackets;
@@ -114,7 +117,19 @@ public class SettingsViewModel : INotifyPropertyChanged
         VerifyAfterCopy = s.VerifyAfterCopy;
         AbortOnError = s.AbortOnError;
         MaxRecursionDepth = s.MaxRecursionDepth;
+        MaxRecursionIndex = GetMaxRecursionIndex(s.MaxRecursionDepth);
         AutoShowQueue = s.AutoShowQueue;
+        // Архиваторы (ph9.7)
+        SevenZipPath = s.SevenZipPath;
+        WinRarPath = s.WinRarPath;
+        UseExternalSevenZip = s.UseExternalSevenZip;
+        UseExternalWinRar = s.UseExternalWinRar;
+        ArchiveCompressionLevelIndex = s.ArchiveCompressionLevel;
+        DefaultArchiveFormatIndex = GetArchiveFormatIndex(s.DefaultArchiveFormat);
+        ArchiveDefaultPassword = s.ArchiveDefaultPassword;
+        DeleteAfterArchive = s.DeleteAfterArchive;
+        OpenArchiveAfterCreate = s.OpenArchiveAfterCreate;
+        ArchiveEncodingIndex = s.ArchiveEncodingIndex;
         HotkeysVM.LoadFrom(s);
     }
 
@@ -161,7 +176,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         s.CopyTimestamps = CopyTimestamps;
         s.ReserveDiskSpace = ReserveDiskSpace;
         // ph9.6
-        s.WindowOpacity = WindowOpacity;
+        s.WindowOpacity = GetWindowOpacityFromIndex(WindowOpacityIndex);
         s.ShowFullPathInTitle = ShowFullPathInTitle;
         s.ShowFileSize = ShowFileSize;
         s.ShowModificationDate = ShowModificationDate;
@@ -170,8 +185,8 @@ public class SettingsViewModel : INotifyPropertyChanged
         s.ShowDirectoryTree = ShowDirectoryTree;
         s.DoubleClickOpenFolder = DoubleClickOpenFolder;
         s.ShowHiddenFolders = ShowHiddenFolders;
-        s.DefaultTerminalHeight = DefaultTerminalHeight;
-        s.TerminalScrollbackLines = TerminalScrollbackLines;
+        s.DefaultTerminalHeight = GetTerminalHeightFromIndex(TerminalHeightIndex);
+        s.TerminalScrollbackLines = GetScrollbackFromIndex(ScrollbackLinesIndex);
         s.TerminalCursorStyle = TerminalCursorStyleIndex switch { 0 => "block", 1 => "underscore", 2 => "bar", _ => "block" };
         s.EditorHighlightCurrentLine = EditorHighlightCurrentLine;
         s.EditorHighlightBrackets = EditorHighlightBrackets;
@@ -187,8 +202,19 @@ public class SettingsViewModel : INotifyPropertyChanged
         s.ShowFullPathsInPanels = ShowFullPathsInPanels;
         s.VerifyAfterCopy = VerifyAfterCopy;
         s.AbortOnError = AbortOnError;
-        s.MaxRecursionDepth = MaxRecursionDepth;
+        s.MaxRecursionDepth = GetMaxRecursionFromIndex(MaxRecursionIndex);
         s.AutoShowQueue = AutoShowQueue;
+        // Архиваторы (ph9.7)
+        s.SevenZipPath = SevenZipPath;
+        s.WinRarPath = WinRarPath;
+        s.UseExternalSevenZip = UseExternalSevenZip;
+        s.UseExternalWinRar = UseExternalWinRar;
+        s.ArchiveCompressionLevel = ArchiveCompressionLevelIndex;
+        s.DefaultArchiveFormat = GetArchiveFormatFromIndex(DefaultArchiveFormatIndex);
+        s.ArchiveDefaultPassword = ArchiveDefaultPassword;
+        s.DeleteAfterArchive = DeleteAfterArchive;
+        s.OpenArchiveAfterCreate = OpenArchiveAfterCreate;
+        s.ArchiveEncodingIndex = ArchiveEncodingIndex;
         HotkeysVM.SaveTo(s);
     }
 
@@ -275,6 +301,47 @@ public class SettingsViewModel : INotifyPropertyChanged
     private static int GetTabWidthFromIndex(int idx) => idx switch
     {
         0 => 2, 1 => 4, 2 => 6, 3 => 8, _ => 4
+    };
+    private static int GetWindowOpacityIndex(double opacity) => opacity switch
+    {
+        1.0 => 0, 0.95 => 1, 0.9 => 2, 0.85 => 3, 0.8 => 4, _ => 0
+    };
+    private static double GetWindowOpacityFromIndex(int idx) => idx switch
+    {
+        0 => 1.0, 1 => 0.95, 2 => 0.9, 3 => 0.85, 4 => 0.8, _ => 1.0
+    };
+    private static int GetTerminalHeightIndex(double height) => height switch
+    {
+        200 => 0, 300 => 1, 400 => 2, 500 => 3, _ => 1
+    };
+    private static double GetTerminalHeightFromIndex(int idx) => idx switch
+    {
+        0 => 200, 1 => 300, 2 => 400, 3 => 500, _ => 300
+    };
+    private static int GetScrollbackIndex(int lines) => lines switch
+    {
+        5000 => 0, 9999 => 1, 50000 => 2, _ => 1
+    };
+    private static int GetScrollbackFromIndex(int idx) => idx switch
+    {
+        0 => 5000, 1 => 9999, 2 => 50000, _ => 9999
+    };
+    private static int GetMaxRecursionIndex(int depth) => depth switch
+    {
+        10 => 0, 50 => 1, 100 => 2, 999 => 3, _ => 1
+    };
+    private static int GetMaxRecursionFromIndex(int idx) => idx switch
+    {
+        0 => 10, 1 => 50, 2 => 100, 3 => 999, _ => 50
+    };
+
+    private static int GetArchiveFormatIndex(string fmt) => fmt switch
+    {
+        "zip" => 0, "7z" => 1, "tar" => 2, "gz" => 3, _ => 0
+    };
+    private static string GetArchiveFormatFromIndex(int idx) => idx switch
+    {
+        0 => "zip", 1 => "7z", 2 => "tar", 3 => "gz", _ => "zip"
     };
 
     // ========== Binding-свойства ==========
@@ -405,6 +472,9 @@ public class SettingsViewModel : INotifyPropertyChanged
     private double _windowOpacity = 1.0;
     public double WindowOpacity { get => _windowOpacity; set { _windowOpacity = value; OnPropertyChanged(); } }
 
+    private int _windowOpacityIndex;
+    public int WindowOpacityIndex { get => _windowOpacityIndex; set { _windowOpacityIndex = value; _windowOpacity = GetWindowOpacityFromIndex(value); OnPropertyChanged(); OnPropertyChanged(nameof(WindowOpacity)); } }
+
     private bool _showFullPathInTitle = true;
     public bool ShowFullPathInTitle { get => _showFullPathInTitle; set { _showFullPathInTitle = value; OnPropertyChanged(); } }
 
@@ -434,8 +504,14 @@ public class SettingsViewModel : INotifyPropertyChanged
     private double _defaultTerminalHeight = 300;
     public double DefaultTerminalHeight { get => _defaultTerminalHeight; set { _defaultTerminalHeight = value; OnPropertyChanged(); } }
 
+    private int _terminalHeightIndex = 1;
+    public int TerminalHeightIndex { get => _terminalHeightIndex; set { _terminalHeightIndex = value; _defaultTerminalHeight = GetTerminalHeightFromIndex(value); OnPropertyChanged(); OnPropertyChanged(nameof(DefaultTerminalHeight)); } }
+
     private int _terminalScrollbackLines = 9999;
     public int TerminalScrollbackLines { get => _terminalScrollbackLines; set { _terminalScrollbackLines = value; OnPropertyChanged(); } }
+
+    private int _scrollbackLinesIndex = 1;
+    public int ScrollbackLinesIndex { get => _scrollbackLinesIndex; set { _scrollbackLinesIndex = value; _terminalScrollbackLines = GetScrollbackFromIndex(value); OnPropertyChanged(); OnPropertyChanged(nameof(TerminalScrollbackLines)); } }
 
     private int _terminalCursorStyleIndex;
     public int TerminalCursorStyleIndex { get => _terminalCursorStyleIndex; set { _terminalCursorStyleIndex = value; OnPropertyChanged(); } }
@@ -488,8 +564,55 @@ public class SettingsViewModel : INotifyPropertyChanged
     private int _maxRecursionDepth = 50;
     public int MaxRecursionDepth { get => _maxRecursionDepth; set { _maxRecursionDepth = value; OnPropertyChanged(); } }
 
+    private int _maxRecursionIndex = 1;
+    public int MaxRecursionIndex { get => _maxRecursionIndex; set { _maxRecursionIndex = value; _maxRecursionDepth = GetMaxRecursionFromIndex(value); OnPropertyChanged(); OnPropertyChanged(nameof(MaxRecursionDepth)); } }
+
     private bool _autoShowQueue = true;
     public bool AutoShowQueue { get => _autoShowQueue; set { _autoShowQueue = value; OnPropertyChanged(); } }
+
+    // ═══════════════════════════════════════════
+    // АРХИВАТОРЫ (ph9.7)
+    // ═══════════════════════════════════════════
+
+    /// <summary>Путь к 7-Zip. / Path to 7-Zip.</summary>
+    private string _sevenZipPath = "";
+    public string SevenZipPath { get => _sevenZipPath; set { _sevenZipPath = value; OnPropertyChanged(); } }
+
+    /// <summary>Путь к WinRAR. / Path to WinRAR.</summary>
+    private string _winRarPath = "";
+    public string WinRarPath { get => _winRarPath; set { _winRarPath = value; OnPropertyChanged(); } }
+
+    /// <summary>Использовать внешний 7-Zip. / Use external 7-Zip.</summary>
+    private bool _useExternalSevenZip;
+    public bool UseExternalSevenZip { get => _useExternalSevenZip; set { _useExternalSevenZip = value; OnPropertyChanged(); } }
+
+    /// <summary>Использовать внешний WinRAR. / Use external WinRAR.</summary>
+    private bool _useExternalWinRar;
+    public bool UseExternalWinRar { get => _useExternalWinRar; set { _useExternalWinRar = value; OnPropertyChanged(); } }
+
+    /// <summary>Индекс уровня сжатия (0=Без, 1=Быстрый, 2=Норм, 3=Макс). / Compression level index.</summary>
+    private int _archiveCompressionLevelIndex = 2;
+    public int ArchiveCompressionLevelIndex { get => _archiveCompressionLevelIndex; set { _archiveCompressionLevelIndex = value; OnPropertyChanged(); } }
+
+    /// <summary>Индекс формата архива по умолчанию (0=zip, 1=7z, 2=tar, 3=gz). / Default archive format index.</summary>
+    private int _defaultArchiveFormatIndex;
+    public int DefaultArchiveFormatIndex { get => _defaultArchiveFormatIndex; set { _defaultArchiveFormatIndex = value; OnPropertyChanged(); } }
+
+    /// <summary>Пароль по умолчанию для архивов. / Default archive password.</summary>
+    private string _archiveDefaultPassword = "";
+    public string ArchiveDefaultPassword { get => _archiveDefaultPassword; set { _archiveDefaultPassword = value; OnPropertyChanged(); } }
+
+    /// <summary>Удалять файлы после архивации. / Delete files after archiving.</summary>
+    private bool _deleteAfterArchive;
+    public bool DeleteAfterArchive { get => _deleteAfterArchive; set { _deleteAfterArchive = value; OnPropertyChanged(); } }
+
+    /// <summary>Открывать архив после создания. / Open archive after creation.</summary>
+    private bool _openArchiveAfterCreate = true;
+    public bool OpenArchiveAfterCreate { get => _openArchiveAfterCreate; set { _openArchiveAfterCreate = value; OnPropertyChanged(); } }
+
+    /// <summary>Индекс кодировки имён файлов (0=UTF-8, 1=CP866, 2=Win-1251). / Archive encoding index.</summary>
+    private int _archiveEncodingIndex;
+    public int ArchiveEncodingIndex { get => _archiveEncodingIndex; set { _archiveEncodingIndex = value; OnPropertyChanged(); } }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {

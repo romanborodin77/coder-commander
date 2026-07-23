@@ -86,6 +86,20 @@ public sealed class WipeOperation : FileOperation
     {
         if (Directory.Exists(path))
         {
+            // FIXED: Symlink traversal — проверяем ReparsePoint перед рекурсией.
+            // Если это symlink/junction, удаляем саму ссылку, не затирая цель.
+            var dirInfo = new DirectoryInfo(path);
+            if ((dirInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                try { Directory.Delete(path, recursive: false); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Warn($"Cannot delete reparse point {path}: {ex.Message}", nameof(WipeOperation));
+                }
+                Interlocked.Increment(ref _doneItems);
+                ReportProgress(path);
+                return;
+            }
             // Сначала вытираем содержимое, затем удаляем пустой каталог.
             // Wipe contents first, then remove the now-empty directory.
             foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))

@@ -207,40 +207,56 @@ public partial class GitViewModel : ObservableObject
     [RelayCommand]
     public async Task StageAsync()
     {
-        var path = _getPath();
-        if (path is null || SelectedFile is null) return;
-        await _git.AddAsync(path, new[] { SelectedFile.Path });
-        await RefreshAsync();
+        try
+        {
+            var path = _getPath();
+            if (path is null || SelectedFile is null) return;
+            await _git.AddAsync(path, new[] { SelectedFile.Path });
+            await RefreshAsync();
+        }
+        catch (Exception ex) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message); }
     }
 
     /// <summary>Снять индексацию (unstage) выбранного файла.</summary>
     [RelayCommand]
     public async Task UnstageAsync()
     {
-        var path = _getPath();
-        if (path is null || SelectedFile is null) return;
-        await _git.UnstageAsync(path, new[] { SelectedFile.Path });
-        await RefreshAsync();
+        try
+        {
+            var path = _getPath();
+            if (path is null || SelectedFile is null) return;
+            await _git.UnstageAsync(path, new[] { SelectedFile.Path });
+            await RefreshAsync();
+        }
+        catch (Exception ex) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message); }
     }
 
     /// <summary>Проиндексировать все изменения (git add .).</summary>
     [RelayCommand]
     public async Task StageAllAsync()
     {
-        var path = _getPath();
-        if (path is null) return;
-        await _git.AddAsync(path, new[] { "." });
-        await RefreshAsync();
+        try
+        {
+            var path = _getPath();
+            if (path is null) return;
+            await _git.AddAsync(path, new[] { "." });
+            await RefreshAsync();
+        }
+        catch (Exception ex) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message); }
     }
 
     /// <summary>Снять индексацию со всех файлов.</summary>
     [RelayCommand]
     public async Task UnstageAllAsync()
     {
-        var path = _getPath();
-        if (path is null) return;
-        await _git.UnstageAsync(path, Files.Select(f => f.Path));
-        await RefreshAsync();
+        try
+        {
+            var path = _getPath();
+            if (path is null) return;
+            await _git.UnstageAsync(path, Files.Select(f => f.Path));
+            await RefreshAsync();
+        }
+        catch (Exception ex) { Status = string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message); }
     }
 
     /// <summary>Отменить изменения в выбранном файле (git checkout/discard).</summary>

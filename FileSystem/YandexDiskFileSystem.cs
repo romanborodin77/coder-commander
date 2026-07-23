@@ -89,11 +89,13 @@ public sealed class YandexDiskFileSystem : CloudFileSystem, IDisposable
     {
         EnsureClient();
         var ydPath = BuildApiPath(path);
-        var url = $"{BaseUrl}resources?path={Uri.EscapeDataString(ydPath)}&fields=_embedded.items";
+        var url = $"{BaseUrl}resources?path={Uri.EscapeDataString(ydPath)}";
 
         var resp = await _http!.GetAsync(url, ct);
         resp.EnsureSuccessStatusCode();
         var json = await resp.Content.ReadAsStringAsync(ct);
+        LogService.Debug($"[YandexDisk] EnumerateAsync path={path} ydPath={ydPath}", nameof(YandexDiskFileSystem));
+        LogService.Debug($"[YandexDisk] Response (first 500): {json[..Math.Min(json.Length, 500)]}", nameof(YandexDiskFileSystem));
         using var doc = JsonDocument.Parse(json);
 
         var result = new List<FileEntry>();
@@ -110,9 +112,14 @@ public sealed class YandexDiskFileSystem : CloudFileSystem, IDisposable
             if (!includeHidden && name.StartsWith('.')) continue;
 
             var type = item.GetStringOrDefault("type"); // "dir" or "file"
-            var fullPath = item.GetStringOrDefault("path") ?? path.TrimEnd('/') + "/" + name;
-            // API возвращает path вида "disk:/foo/bar" — нормализуем / API returns "disk:/foo/bar" — normalize.
-            var normalizedPath = NormalizeApiPathToEntryPath(fullPath, ydPath, name);
+            var rawPath = item.GetStringOrDefault("path");
+            var normalizedPath = NormalizeApiPathToEntryPath(rawPath, name, path);
+            LogService.Debug($"[YandexDisk]   item: name={name} type={type} rawPath={rawPath} → normalized={normalizedPath}", nameof(YandexDiskFileSystem));
+
+            // Пропускаем сам запрашиваемый ресурс (API может вернуть его в списке).
+            // Skip the requested resource itself (API may include it in the list).
+            if (string.Equals(normalizedPath.TrimEnd('/'), path.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                continue;
 
             var isDir = string.Equals(type, "dir", StringComparison.OrdinalIgnoreCase);
             var size = item.TryGetProperty("size", out var sizeEl) ? sizeEl.GetInt64() : 0;
@@ -312,25 +319,40 @@ public sealed class YandexDiskFileSystem : CloudFileSystem, IDisposable
         var p = path.TrimStart('/');
         // Yandex Disk API ожидает путь вида "/foo/bar" или "disk:/foo/bar".
         // API expects path like "/foo/bar" or "disk:/foo/bar".
-        if (p.StartsWith("disk:/") || p.StartsWith("disk:\\"))
-            return "/" + p.Substring("disk:/".Length);
+        if (p.StartsWith("disk:/", StringComparison.OrdinalIgnoreCase) ||
+            p.StartsWith("disk:\\", StringComparison.OrdinalIgnoreCase))
+            p = p.Substring("disk:/".Length);
+
+        if (string.IsNullOrEmpty(p))
+            return "/";
         return "/" + p;
     }
 
     /// <summary>
-    /// Нормализует путь из ответа API ("disk:/...") в путь относительно _rootPath.
-    /// Normalizes API response path ("disk:/...") to a path relative to _rootPath.
+    /// Нормализует путь из ответа API ("disk:/...") в абсолютный путь.
+    /// Normalizes API response path ("disk:/...") to an absolute path.
     /// </summary>
-    private string NormalizeApiPathToEntryPath(string apiPath, string parentApiPath, string name)
+    private string NormalizeApiPathToEntryPath(string? apiPath, string name, string requestPath)
     {
-        // API возвращает "disk:/foo/bar/name" — извлекаем относительный путь.
-        // API returns "disk:/foo/bar/name" — extract relative path.
-        var normalized = apiPath;
-        if (normalized.StartsWith("disk:"))
-            normalized = normalized.Substring("disk:".Length);
+        // Если path не вернулся из API — строим из родительского пути и имени.
+        // If path wasn't returned from API — build from parent path and name.
+        if (string.IsNullOrEmpty(apiPath))
+        {
+            var parent = requestPath.TrimEnd('/');
+            return string.IsNullOrEmpty(parent) ? "/" + name : parent + "/" + name;
+        }
 
-        if (_rootPath == "/" || string.IsNullOrWhiteSpace(_rootPath))
-            return normalized;
+        var normalized = apiPath;
+
+        // Убираем префикс "disk:" (API Яндекс.Диска: "disk:/foo/bar" → "/foo/bar").
+        // Strip "disk:" prefix (Yandex Disk API: "disk:/foo/bar" → "/foo/bar").
+        if (normalized.StartsWith("disk:", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized["disk:".Length..];
+
+        // Если путь после удаления "disk:" пуст — это корень.
+        if (string.IsNullOrEmpty(normalized))
+            normalized = "/";
+
         return normalized;
     }
 

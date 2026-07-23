@@ -30,6 +30,8 @@
 <conv:InverseBoolConverter x:Key="InverseBool"/>
 <conv:FileIconConverter x:Key="FileIcon"/>
 <conv:FileIconColorConverter x:Key="FileIconColor"/>
+<conv:NullToFalseConverter x:Key="NullToFalse"/>
+<conv:CloudProviderToIconConverter x:Key="CloudProviderToIcon"/>
 
             <!-- ═══════════════════════════════════════════════
                STORYBOARDS
@@ -65,7 +67,7 @@
                 <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
                 <Setter Property="WindowChrome.WindowChrome">
                     <Setter.Value>
-                        <WindowChrome CaptionHeight="32" GlassFrameThickness="0"
+                        <WindowChrome CaptionHeight="36" GlassFrameThickness="0"
                                       ResizeBorderThickness="6" CornerRadius="0"/>
                     </Setter.Value>
                 </Setter>
@@ -248,7 +250,8 @@
                 <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="FontSize" Value="13"/>
-                <Setter Property="SelectionBrush" Value="{DynamicResource AccentDimBrush}"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource VsSelection}"/>
+                <Setter Property="SelectionTextBrush" Value="Transparent"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="TextBox">
@@ -709,41 +712,80 @@
             <Style TargetType="CheckBox">
                 <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Padding" Value="6,3"/>
+                <Setter Property="Padding" Value="8,3"/>
                 <Setter Property="FontSize" Value="13"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="CheckBox">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Border x:Name="Box" Width="18" Height="18"
-                                        Background="{Binding Source={x:Static services:ThemeColors.BgButtonBrush}}"
-                                        BorderBrush="{Binding Source={x:Static services:ThemeColors.BgButtonBorderBrush}}"
-                                        BorderThickness="1.5" CornerRadius="5" VerticalAlignment="Center">
-                                    <Path x:Name="Check" Data="M3,7 L6.5,10.5 L12,4"
-                                          Stroke="{Binding Source={x:Static services:ThemeColors.AccentBrush}}" StrokeThickness="2"
-                                          StrokeLineJoin="Round" StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round" Visibility="Collapsed"/>
+                                <!-- Box -->
+                                <Border x:Name="Box" Width="16" Height="16"
+                                        Background="{DynamicResource BgButtonBrush}"
+                                        BorderBrush="{DynamicResource BgButtonBorderBrush}"
+                                        BorderThickness="1.5" CornerRadius="4"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,0,0">
+                                    <!-- Галочка -->
+                                    <Path x:Name="CheckMark"
+                                          Data="M3.5,7 L6.5,10 L11,4.5"
+                                          Stroke="White" StrokeThickness="1.8"
+                                          StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Visibility="Collapsed"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Width="11" Height="11"
+                                          RenderTransformOrigin="0.5,0.5">
+                                        <Path.RenderTransform>
+                                            <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                                        </Path.RenderTransform>
+                                    </Path>
                                 </Border>
-                                <ContentPresenter Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <!-- Content -->
+                                <ContentPresenter Grid.Column="1"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"/>
                             </Grid>
                             <ControlTemplate.Triggers>
+                                <!-- Checked -->
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
-                                    <Setter TargetName="Box" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
-                                    <Setter TargetName="Box" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                 </Trigger>
+                                <!-- Indeterminate (3-state) -->
+                                <Trigger Property="IsChecked" Value="{x:Null}">
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                    <!-- Минус вместо галочки -->
+                                    <Setter TargetName="CheckMark" Property="Data" Value="M3,8 L11,8"/>
+                                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <!-- Hover -->
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Box" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                    <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                </Trigger>
+                                <!-- Pressed -->
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Box" Property="Opacity" Value="0.8"/>
+                                </Trigger>
+                                <!-- Disabled -->
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource FgDimBrush}"/>
+                                    <Setter TargetName="Box" Property="Opacity" Value="0.4"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
-    </Style>
+            </Style>
 
     <!-- Accent Button для диалогов -->
     <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -787,6 +829,7 @@
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="FontSize" Value="13"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource VsSelection}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="PasswordBox">
@@ -875,7 +918,7 @@
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
-                <Setter Property="SelectionBrush" Value="{DynamicResource AccentDimBrush}"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource VsSelection}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="DatePickerTextBox">

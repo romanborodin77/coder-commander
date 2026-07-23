@@ -84,7 +84,9 @@ public partial class MainWindow : Window
         _vm = vm;
         vm.PropertyChanged += OnVmPropertyChanged;
         vm.TerminalTabs.CollectionChanged += OnTerminalTabsChanged;
-        vm.PropertyChanged += OnActiveTerminalTabChanged;
+        // FIXED: Removed duplicate PropertyChanged subscription for OnActiveTerminalTabChanged.
+        // It was redundant — OnVmPropertyChanged already handles all property changes including ActiveTerminalTab.
+        // This caused double SyncTerminalTabs() + double EnsureTerminalShellsStarted() on every property change.
 
         // Устанавливаем делегаты для открытия редактора/просмотрщика
         vm.OpenEditorRequest = (path, content) => OpenEditor(path, content);
@@ -125,7 +127,6 @@ public partial class MainWindow : Window
         if (_vm is null) return;
         _vm.PropertyChanged -= OnVmPropertyChanged;
         _vm.TerminalTabs.CollectionChanged -= OnTerminalTabsChanged;
-        _vm.PropertyChanged -= OnActiveTerminalTabChanged;
         _vm.Dispose();
         foreach (var th in _terminalHosts.Values) th.Dispose();
         _terminalHosts.Clear();
@@ -231,7 +232,11 @@ public partial class MainWindow : Window
                     !_vm.TerminalServices.ContainsKey(tab.Id))
                 {
                     tab.IsShellStarting = true;
-                    _ = StartShellForTabAsync(tab, hwnd);
+                    // FIXED: Observe exceptions from fire-and-forget async to prevent process crash
+                    // on unobserved TaskException on the finalizer thread.
+                    _ = StartShellForTabAsync(tab, hwnd).ContinueWith(
+                        t => { if (t.Exception is not null) LogService.Error($"Terminal start failed: {t.Exception.Message}", nameof(MainWindow), t.Exception); },
+                        TaskContinuationOptions.OnlyOnFaulted);
                 }
             };
 
@@ -250,7 +255,10 @@ public partial class MainWindow : Window
                 !_vm.TerminalServices.ContainsKey(tab.Id))
             {
                 tab.IsShellStarting = true;
-                _ = StartShellForTabAsync(tab, host.HostHandle);
+                // FIXED: Observe exceptions from fire-and-forget async.
+                _ = StartShellForTabAsync(tab, host.HostHandle).ContinueWith(
+                    t => { if (t.Exception is not null) LogService.Error($"Terminal start failed: {t.Exception.Message}", nameof(MainWindow), t.Exception); },
+                    TaskContinuationOptions.OnlyOnFaulted);
             }
         }
 
@@ -277,7 +285,10 @@ public partial class MainWindow : Window
             {
                 LogService.Debug($"EnsureTerminalShellsStarted: starting shell for tab {tab.Id}", "Terminal");
                 tab.IsShellStarting = true;
-                _ = StartShellForTabAsync(tab, host.HostHandle);
+                // FIXED: Observe exceptions from fire-and-forget async.
+                _ = StartShellForTabAsync(tab, host.HostHandle).ContinueWith(
+                    t => { if (t.Exception is not null) LogService.Error($"Terminal start failed: {t.Exception.Message}", nameof(MainWindow), t.Exception); },
+                    TaskContinuationOptions.OnlyOnFaulted);
             }
         }
     }
@@ -300,7 +311,7 @@ public partial class MainWindow : Window
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand,
-            ToolTip = "Закрыть вкладку"
+            ToolTip = LocalizationService.Current.GetString("Editor.Tip.Close")
         };
         // Ссылка на VM через WeakReference
         var vmRef = new WeakReference<MainViewModel>((MainViewModel)Application.Current.MainWindow!.DataContext);
@@ -356,8 +367,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            LogService.Error($"Ошибка запуска терминала", "Terminal", ex);
-            _vm.StatusText = $"Терминал не запущен: {ex.Message}";
+            LogService.Error(string.Format(LocalizationService.Current.GetString("Error.TerminalStart"), ex.Message), "Terminal", ex);
+            _vm.StatusText = string.Format(LocalizationService.Current.GetString("Error.TerminalNotStarted"), ex.Message);
         }
         finally
         {
@@ -604,12 +615,6 @@ public partial class MainWindow : Window
         }
         return null;
     }
-private void Settings_Click(object sender, RoutedEventArgs e)
-    {
-        _vm?.OpenSettingsCommand.Execute(null);
-    }
-
-//========== Обработка окна редактора/просмотрщика (F3/F4) ==========
 
 /// <summary>
 /// Обработчик пункта «Настроить колонки»: открывает диалог настроек колонок.
@@ -624,7 +629,7 @@ private void Columns_Click(object sender, RoutedEventArgs e)
     }
     catch (Exception ex)
     {
-        LogService.Error($"Ошибка открытия настроек колонок: {ex.Message}", "Columns", ex);
+        LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenColumns"), ex.Message), "Columns", ex);
     }
 }
 
@@ -717,7 +722,8 @@ private void OpenSyncDirs(string left, string right, System.Collections.Generic.
     catch (System.Exception ex)
     {
         LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenSync"), ex.Message), "SyncDirs", ex);
-        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenEditor"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
+        // FIXED: Was "Error.OpenEditor" — wrong localization key for SyncDirs error message.
+        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenSync"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
             MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
@@ -739,7 +745,7 @@ private void OpenOperationQueue()
     catch (Exception ex)
     {
         LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenQueue"), ex.Message), "OperationQueue", ex);
-        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenEditor"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
+        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenQueue"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
             MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
@@ -761,7 +767,7 @@ private void OpenBookmarks()
     catch (Exception ex)
     {
         LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenBookmarks"), ex.Message), "Bookmarks", ex);
-        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenEditor"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
+        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenBookmarks"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
             MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
@@ -781,12 +787,19 @@ private void OpenArchive(string mode, System.Collections.Generic.IReadOnlyList<s
         {
             Owner = this
         };
+        w.ViewModel.OnOperationCompleted += async () =>
+        {
+            if (_vm is null) return;
+            await _vm.ActivePanel.RefreshAsync();
+            var other = _vm.ActivePanel == _vm.LeftPanel ? _vm.RightPanel : _vm.LeftPanel;
+            await other.RefreshAsync();
+        };
         ShowDialogWithFocus(w);
     }
     catch (System.Exception ex)
     {
         LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenArchive"), ex.Message), "Archive", ex);
-        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenEditor"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
+        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenArchive"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
             MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
@@ -812,7 +825,7 @@ private void OpenDirectoryTree(string initialPath, PanelViewModel targetPanel)
     catch (Exception ex)
     {
         LogService.Error(string.Format(LocalizationService.Current.GetString("Error.OpenTree"), ex.Message), "DirectoryTree", ex);
-        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenEditor"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
+        StyledMessageBoxWindow.Show(string.Format(LocalizationService.Current.GetString("Error.OpenTree"), ex.Message), LocalizationService.Current.GetString("Error.Title"),
             MessageBoxButton.OK, MessageBoxImage.Error);
     }
 }
@@ -964,8 +977,10 @@ public void ApplyHotkeys()
 
     // Удаляем старые панельные InputBindings (оставляем app-level: F10, Ctrl+S, Shift+F10, Ctrl+, и т.д.)
     // Remove ONLY panel InputBindings (keep app-level: F10, Ctrl+S, Shift+F10, Ctrl+, etc.)
-    var toRemove = InputBindings.Cast<InputBinding>()
-        .Where(b => b is KeyBinding kb && kb.Command is not null && IsPanelCommand(kb.Command))
+    // FIXED: Use OfType<KeyBinding>() instead of Cast<InputBinding>() to avoid InvalidCastException
+    // if any non-InputBinding items (e.g. mouse bindings) exist in the collection.
+    var toRemove = InputBindings.OfType<KeyBinding>()
+        .Where(b => b.Command is not null && IsPanelCommand(b.Command))
         .ToList();
     foreach (var kb in toRemove) InputBindings.Remove(kb);
 

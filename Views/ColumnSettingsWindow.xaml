@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource Columns.Configure}"
-        Width="620" Height="480"
+        Width="640" Height="580"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource BgDarkBrush}"
@@ -96,11 +96,18 @@
                 </StackPanel>
 
                 <!-- Active columns -->
-                <DockPanel Grid.Column="2">
-                    <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Columns.Active}"
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="{DynamicResource Columns.Active}"
                                Foreground="{DynamicResource FgDimBrush}" FontSize="12"
                                FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                             CornerRadius="6" Background="{DynamicResource SurfaceBrush}">
                         <ListBox ItemsSource="{Binding ActiveColumns}"
                                  SelectedItem="{Binding SelectedActive}"
@@ -126,7 +133,7 @@
                     </Border>
 
                     <!-- Width editor for selected column -->
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    <StackPanel Grid.Row="2" Orientation="Horizontal"
                                 Margin="0,8,0,0" Visibility="{Binding SelectedActive, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{DynamicResource Columns.Width}"
                                    Foreground="{DynamicResource FgDimBrush}" FontSize="12"
@@ -141,7 +148,57 @@
                         <TextBlock Text="{DynamicResource Columns.Px}" Foreground="{DynamicResource FgMutedBrush}" FontSize="11"
                                    VerticalAlignment="Center" Margin="4,0,0,0"/>
                     </StackPanel>
-                </DockPanel>
+
+                    <!-- Sort by -->
+                    <Border Grid.Row="3" Margin="0,8,0,0"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                            Padding="8,6" Background="{DynamicResource SurfaceBrush}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                   Text="{DynamicResource Columns.SortBy}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource FgLightBrush}" Margin="0,0,0,3"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="{DynamicResource Columns.SortColumn}" FontSize="10"
+                                       Foreground="{DynamicResource FgDimBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,2"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1"
+                                      ItemsSource="{Binding ActiveColumns}"
+                                      SelectedValue="{Binding SelectedSortKey}"
+                                      SelectedValuePath="Key"
+                                      Height="30" FontSize="10" Margin="0,0,0,2"
+                                      HorizontalAlignment="Stretch"
+                                      Background="{DynamicResource SurfaceBrush}"
+                                      Foreground="{DynamicResource FgLightBrush}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Header}" FontSize="10"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="{DynamicResource Columns.SortDirection}" FontSize="10"
+                                       Foreground="{DynamicResource FgDimBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <ComboBox Grid.Row="2" Grid.Column="1"
+                                      ItemsSource="{Binding SortDirections}"
+                                      SelectedItem="{Binding SelectedSortDirection}"
+                                      DisplayMemberPath="Display"
+                                      Height="30" FontSize="10"
+                                      HorizontalAlignment="Stretch"
+                                      Background="{DynamicResource SurfaceBrush}"
+                                      Foreground="{DynamicResource FgLightBrush}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- Bottom buttons -->

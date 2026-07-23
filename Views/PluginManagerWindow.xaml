@@ -93,8 +93,8 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Background" Value="{DynamicResource SelectionActiveBrush}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource FgLightBrush}"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>

@@ -207,10 +207,24 @@ public sealed class ChildConsoleService : IDisposable
         // Собираем командную строку (запас вместимости для CreateProcessW)
         var commandLine = new StringBuilder(1024);
         if (shellExe.Equals("powershell", StringComparison.OrdinalIgnoreCase))
-            commandLine.Append("powershell.exe -NoExit -Command \"Set-Location '" + workingDir.Replace("'", "''") + "'\"");
+        {
+            // FIXED: Escape double quotes and PowerShell metacharacters to prevent injection.
+            // A path containing `'` was already escaped, but `"$();|` were not.
+            var escapedDir = workingDir
+                .Replace("'", "''")
+                .Replace("`", "``")
+                .Replace("$", "`$")
+                .Replace(";", "`;")
+                .Replace("|", "`|");
+            commandLine.Append($"powershell.exe -NoExit -Command \"Set-Location '{escapedDir}'\"");
+        }
         else
-            // Используем cd /d без внешних кавычек — cmd.exe сам парсит путь с пробелами
-            commandLine.Append("cmd.exe /K cd /d \"" + workingDir + "\"");
+        {
+            // FIXED: Escape double quotes in path to prevent cmd.exe command injection.
+            // A path like C:\foo" & calc & echo " would execute arbitrary commands.
+            var escapedDir = workingDir.Replace("\"", "\"\"");
+            commandLine.Append($"cmd.exe /K cd /d \"{escapedDir}\"");
+        }
 
         var si = new STARTUPINFO
         {

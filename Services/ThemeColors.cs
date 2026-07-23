@@ -25,8 +25,8 @@ public static class ThemeColors
     public static SolidColorBrush AccentDimBrush { get; } = new(Color.FromArgb(0x33, 0x00, 0x78, 0xD4));
     public static SolidColorBrush BgHeaderBrush { get; } = new(Color.FromRgb(0x25, 0x25, 0x26));
     public static SolidColorBrush SurfaceBrush { get; } = new(Color.FromRgb(0x25, 0x25, 0x26));
-    public static SolidColorBrush SelectionBrush { get; } = new(Color.FromArgb(0x33, 0x78, 0xD4, 0x55));
-    public static SolidColorBrush SelectionActiveBrush { get; } = new(Color.FromArgb(0x55, 0x78, 0xD4, 0x88));
+    public static SolidColorBrush SelectionBrush { get; } = new(Color.FromArgb(0x33, 0x26, 0x4F, 0x78));
+    public static SolidColorBrush SelectionActiveBrush { get; } = new(Color.FromArgb(0x55, 0x26, 0x4F, 0x78));
     public static SolidColorBrush BgButtonBrush { get; } = new(Color.FromRgb(0x33, 0x37, 0x45));
     public static SolidColorBrush BgButtonHoverBrush { get; } = new(Color.FromRgb(0x3D, 0x41, 0x50));
     public static SolidColorBrush BgButtonBorderBrush { get; } = new(Color.FromRgb(0x4A, 0x4E, 0x5C));
@@ -46,8 +46,8 @@ public static class ThemeColors
             AccentDimBrush.Color = Color.FromArgb(0x22, 0x00, 0x66, 0xBF);
             BgHeaderBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
             SurfaceBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
-            SelectionBrush.Color = Color.FromArgb(0x33, 0x66, 0xBF, 0x44);
-            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x66, 0xBF, 0x77);
+            SelectionBrush.Color = Color.FromArgb(0x33, 0xAD, 0xD6, 0xFF);
+            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0xAD, 0xD6, 0xFF);
             BgButtonBrush.Color = Color.FromRgb(0xDC, 0xE0, 0xE8);
             BgButtonHoverBrush.Color = Color.FromRgb(0xCD, 0xD1, 0xDA);
             BgButtonBorderBrush.Color = Color.FromRgb(0xBC, 0xC1, 0xCC);
@@ -65,8 +65,8 @@ public static class ThemeColors
             AccentDimBrush.Color = Color.FromArgb(0x33, 0x00, 0x78, 0xD4);
             BgHeaderBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
             SurfaceBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
-            SelectionBrush.Color = Color.FromArgb(0x33, 0x78, 0xD4, 0x55);
-            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x78, 0xD4, 0x88);
+            SelectionBrush.Color = Color.FromArgb(0x33, 0x26, 0x4F, 0x78);
+            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x26, 0x4F, 0x78);
         }
     }
 }

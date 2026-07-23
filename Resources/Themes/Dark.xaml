@@ -24,8 +24,8 @@
     <Color x:Key="BorderMuted">#252526</Color>
     <Color x:Key="BorderFocus">#0078D4</Color>
     <Color x:Key="PanelBorder">#2B2B2B44</Color>
-    <Color x:Key="Selection">#3378D455</Color>
-    <Color x:Key="SelectionActive">#5578D488</Color>
+    <Color x:Key="Selection">#33264F78</Color>
+    <Color x:Key="SelectionActive">#55264F78</Color>
     <Color x:Key="Ok">#4ECF6E</Color>
     <Color x:Key="Warn">#E4A615</Color>
     <Color x:Key="Err">#F14C4C</Color>

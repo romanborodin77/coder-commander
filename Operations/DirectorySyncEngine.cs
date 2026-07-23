@@ -397,6 +397,7 @@ public static class DirectorySyncEngine
 
     private static async Task VerifyContentAsync(IReadOnlyList<SyncPair> pairs, CancellationToken ct)
     {
+        var syncLock = new object();
         await Parallel.ForEachAsync(pairs,
             new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount), CancellationToken = ct },
             async (pair, cti) =>
@@ -405,16 +406,21 @@ public static class DirectorySyncEngine
                 {
                     var hl = await ChecksumHelper.ComputeHashAsync(pair.Left!.FullPath, ChecksumAlgorithm.SHA256, null, cti).ConfigureAwait(false);
                     var hr = await ChecksumHelper.ComputeHashAsync(pair.Right!.FullPath, ChecksumAlgorithm.SHA256, null, cti).ConfigureAwait(false);
-                    if (string.Equals(hl, hr, StringComparison.OrdinalIgnoreCase))
+                    // FIXED: lock при модификации WPF-bound свойств из параллельного контекста.
+                    // Lock when modifying WPF-bound properties from parallel context.
+                    lock (syncLock)
                     {
-                        // Содержимое совпадает → считаем равными (различие только по времени).
-                        // Content matches → treat as equal (only time differs).
-                        pair.Action = SyncAction.Equal;
-                        pair.Apply = false;
-                    }
-                    else
-                    {
-                        pair.Difference |= SyncDifference.Content;
+                        if (string.Equals(hl, hr, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Содержимое совпадает → считаем равными (различие только по времени).
+                            // Content matches → treat as equal (only time differs).
+                            pair.Action = SyncAction.Equal;
+                            pair.Apply = false;
+                        }
+                        else
+                        {
+                            pair.Difference |= SyncDifference.Content;
+                        }
                     }
                 }
                 catch (OperationCanceledException) { throw; }

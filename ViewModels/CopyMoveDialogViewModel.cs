@@ -109,11 +109,18 @@ public partial class CopyMoveDialogViewModel : ObservableObject
         foreach (var p in paths)
         {
             _sourcePaths.Add(p);
-            var name = Path.GetFileName(p);
-            var isDir = Directory.Exists(p);
+            var name = Path.GetFileName(p.TrimEnd('/', '\\'));
+            var isCloud = p.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase);
+            var isDir = isCloud ? p.TrimEnd('/').EndsWith("/") || !Path.HasExtension(p) : Directory.Exists(p);
             SourceItems.Add(new SourceItemInfo(name, isDir));
 
-            if (File.Exists(p))
+            if (isCloud)
+            {
+                // Для облачных путей размер неизвестен до скачивания — считаем только количество.
+                // For cloud paths, size is unknown without download — count only.
+                count++;
+            }
+            else if (File.Exists(p))
             {
                 total += new FileInfo(p).Length;
                 count++;
@@ -126,7 +133,7 @@ public partial class CopyMoveDialogViewModel : ObservableObject
             }
         }
         FileCount = count;
-        TotalSizeText = FormatSize(total);
+        TotalSizeText = count > 0 && total == 0 ? "" : FormatSize(total);
     }
 
     partial void OnDestinationPathChanged(string value)
@@ -142,15 +149,34 @@ public partial class CopyMoveDialogViewModel : ObservableObject
             return;
         }
 
-        var destNorm = Path.GetFullPath(DestinationPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        foreach (var src in _sourcePaths)
+        // cloud:// и другие виртуальные пути — пропускаем проверку self-copy
+        // (Path.GetFullPath не работает с не-локальными путями).
+        // cloud:// and other virtual paths — skip self-copy check
+        // (Path.GetFullPath doesn't work with non-local paths).
+        if (DestinationPath.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
         {
-            var srcNorm = Path.GetFullPath(src).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (string.Equals(srcNorm, destNorm, System.StringComparison.OrdinalIgnoreCase))
+            SelfCopyWarning = "";
+            return;
+        }
+
+        try
+        {
+            var destNorm = Path.GetFullPath(DestinationPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (var src in _sourcePaths)
             {
-                SelfCopyWarning = LocalizationService.Current.GetString("CopyMove.SelfCopyWarning");
-                return;
+                if (src.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase)) continue;
+                var srcNorm = Path.GetFullPath(src).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.Equals(srcNorm, destNorm, StringComparison.OrdinalIgnoreCase))
+                {
+                    SelfCopyWarning = LocalizationService.Current.GetString("CopyMove.SelfCopyWarning");
+                    return;
+                }
             }
+        }
+        catch
+        {
+            // Path.GetFullPath может бросить для нестандартных путей — просто пропускаем.
+            // Path.GetFullPath may throw for non-standard paths — just skip.
         }
         SelfCopyWarning = "";
     }

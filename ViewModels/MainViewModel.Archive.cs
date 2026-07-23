@@ -48,13 +48,20 @@ public partial class MainViewModel
     [RelayCommand]
     private void Pack()
     {
-        var items = ActivePanel.Items
-            .Where(i => i.IsSelected && !i.IsParent)
+        var items = ActivePanel.GetSelectionOrCurrent()
+            .Where(i => !i.IsParent)
             .ToList();
 
         if (items.Count == 0)
         {
             StatusText = L10n("Archive.NoFiles");
+            return;
+        }
+
+        // Виртуальная ФС — не поддерживается.
+        if (ActivePanel.VirtualFileSystem is not null)
+        {
+            StatusText = L10n("Archive.VirtualNotSupported");
             return;
         }
 
@@ -97,14 +104,23 @@ public partial class MainViewModel
     [RelayCommand]
     private void Extract()
     {
+        var items = ActivePanel.GetSelectionOrCurrent()
+            .Where(i => !i.IsParent && !i.IsDirectory)
+            .ToList();
+
         // Ищем первый выделенный файл, являющийся архивом.
-        // Find the first selected file that is an archive.
-        var archiveItem = ActivePanel.Items
-            .FirstOrDefault(i => i.IsSelected && !i.IsParent && !i.IsDirectory && IsArchiveFile(i.FullPath));
+        var archiveItem = items.FirstOrDefault(i => IsArchiveFile(i.FullPath));
 
         if (archiveItem is null)
         {
             StatusText = L10n("Archive.NoArchiveSelected");
+            return;
+        }
+
+        // Виртуальная ФС — не поддерживается.
+        if (ActivePanel.VirtualFileSystem is not null)
+        {
+            StatusText = L10n("Archive.VirtualNotSupported");
             return;
         }
 

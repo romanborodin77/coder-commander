@@ -26,6 +26,7 @@
     <PackageReference Include="System.IO.Hashing" Version="8.0.0" />
     <!-- DiffPlex (ph3.1): Myers O(ND) diff для сравнения текстовых файлов (рядом + встроку). -->
     <PackageReference Include="DiffPlex" Version="1.7.2" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <!-- SharpCompress (ph4.1): чтение ZIP/7Z/RAR/TAR/GZ/BZ2/XZ/LZ архивов через streaming. -->
     <!-- CodePages (ph2.1): legacy-кодировки (Windows-1251, KOI8-R, …) для поиска по содержимому. -->
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />

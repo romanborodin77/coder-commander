@@ -104,6 +104,10 @@ public partial class QueuedOperation : ObservableObject
     {
         Cts.Dispose();
         Cts = new CancellationTokenSource();
+        // FIXED: отписываемся перед повторной подпиской, чтобы избежать дублирования хендлеров.
+        // Unsubscribe before re-subscribing to prevent duplicate event handlers.
+        Operation.StateChanged -= OnStateChanged;
+        Operation.ProgressChanged -= OnProgressChanged;
         Operation.StateChanged += OnStateChanged;
         Operation.ProgressChanged += OnProgressChanged;
         Status = QueuedOperationStatus.Queued;
@@ -138,5 +142,8 @@ public partial class QueuedOperation : ObservableObject
     {
         Operation.StateChanged -= OnStateChanged;
         Operation.ProgressChanged -= OnProgressChanged;
+        // FIXED: диспозим Cts для предотвращения утечки ресурса.
+        // Dispose Cts to prevent resource leak.
+        Cts.Dispose();
     }
 }

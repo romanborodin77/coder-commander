@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -61,7 +62,32 @@ public static class LogService
         {
             if (!Directory.Exists(_logDir))
                 Directory.CreateDirectory(_logDir);
+            CleanupOldLogs();
             _initialized = true;
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Удаляет лог-файлы старше указанного количества дней.
+    /// Deletes log files older than the specified number of days.
+    /// </summary>
+    /// <param name="maxDays">Максимальный возраст лог-файла в днях. / Max log file age in days.</param>
+    public static void CleanupOldLogs(int maxDays = 30)
+    {
+        try
+        {
+            if (!Directory.Exists(_logDir)) return;
+            var cutoff = DateTime.Now.AddDays(-maxDays);
+            foreach (var file in Directory.EnumerateFiles(_logDir, "codercommander_*.log"))
+            {
+                try
+                {
+                    if (File.GetLastWriteTime(file) < cutoff)
+                        File.Delete(file);
+                }
+                catch { }
+            }
         }
         catch { }
     }

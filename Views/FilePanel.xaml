@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:CoderCommander.Converters"
              xmlns:views="clr-namespace:CoderCommander.Views"
+             xmlns:models="clr-namespace:CoderCommander.Models"
              xmlns:services="clr-namespace:CoderCommander.Services"
              Focusable="True">
 
@@ -214,8 +215,8 @@
                                     <StackPanel Orientation="Horizontal"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
+                            <ItemsControl.Resources>
+                                <DataTemplate DataType="{x:Type models:DriveItem}">
                                     <Button Style="{DynamicResource DriveButtonStyle}"
                                             Command="{Binding DataContext.GoToDriveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding Name}"
@@ -228,7 +229,20 @@
                                         </StackPanel>
                                     </Button>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:CloudDriveItem}">
+                                    <Button Style="{DynamicResource DriveButtonStyle}"
+                                            Command="{Binding DataContext.GoToCloudDriveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="{Binding Name}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Icon}"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.Resources>
                         </ItemsControl>
                     </ScrollViewer>
                 </Border>
@@ -546,32 +560,32 @@ Measure, из-за чего TextTrimming длинных именах сраба�
 колонка имени "*" сожмётся корректно.
 -->
 <ListBox x:Name="FileList"
-         Grid.Column="0"
-                 ItemsSource="{Binding ItemsView}"
-                  SelectedItem="{Binding SelectedItem}"
-                  SelectionMode="Extended"
-                  MouseDoubleClick="LB_Dbl"
-                  KeyDown="ListBox_KeyDown"
-                  Focusable="True"
-                  AllowDrop="True"
-                  PreviewMouseLeftButtonDown="ListBox_PreviewMouseLeftButtonDown"
-                  PreviewMouseMove="ListBox_PreviewMouseMove"
-                  PreviewMouseLeftButtonUp="ListBox_PreviewMouseLeftButtonUp"
-                  DragEnter="ListBox_DragEnter"
-                  DragLeave="ListBox_DragLeave"
-                  DragOver="ListBox_DragOver"
-                  Drop="ListBox_Drop"
-                   HorizontalContentAlignment="Stretch"
-                   HorizontalAlignment="Stretch"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                   ScrollViewer.VerticalScrollBarVisibility="Visible"
-                   ScrollViewer.CanContentScroll="True"
-                   VirtualizingPanel.IsVirtualizing="True"
-                   VirtualizingPanel.VirtualizationMode="Recycling"
-                   FontFamily="{DynamicResource PanelFontFamily}"
-                   FontSize="{DynamicResource PanelFontSize}"
-                   AlternationCount="2"
-                   Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+          Grid.Column="0"
+                  ItemsSource="{Binding ItemsView}"
+                   SelectedItem="{Binding SelectedItem}"
+                   SelectionMode="Single"
+                   MouseDoubleClick="LB_Dbl"
+                   KeyDown="ListBox_KeyDown"
+                   Focusable="True"
+                   AllowDrop="True"
+                   PreviewMouseLeftButtonDown="ListBox_PreviewMouseLeftButtonDown"
+                   PreviewMouseMove="ListBox_PreviewMouseMove"
+                   PreviewMouseLeftButtonUp="ListBox_PreviewMouseLeftButtonUp"
+                   DragEnter="ListBox_DragEnter"
+                   DragLeave="ListBox_DragLeave"
+                   DragOver="ListBox_DragOver"
+                   Drop="ListBox_Drop"
+                    HorizontalContentAlignment="Stretch"
+                    HorizontalAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Visible"
+                    ScrollViewer.CanContentScroll="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    FontFamily="{DynamicResource PanelFontFamily}"
+                    FontSize="{DynamicResource PanelFontSize}"
+                    AlternationCount="2"
+                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
 
             <!-- Context Menu -->
             <ListBox.ContextMenu>
@@ -579,6 +593,22 @@ Measure, из-за чего TextTrimming длинных именах сраба�
             <MenuItem Header="{DynamicResource Ctx.Open}"
                       Command="{Binding OpenItemCommand}"
                       Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.Copy}"
+                      Command="{Binding CopyCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.Move}"
+                      Command="{Binding MoveCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.CreateFolder}"
+                      Command="{Binding CreateFolderCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.Delete}"
+                      Command="{Binding DeleteCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <MenuItem Header="{DynamicResource Ctx.Rename}"
+                      Command="{Binding RenameCommand}"
+                      Style="{DynamicResource ContextMenuItemStyle}"/>
+            <Separator/>
             <MenuItem Header="{DynamicResource OpenWith.Menu}" InputGestureText="Shift+Enter"
                       Command="{Binding OpenWithCommand}"
                       Style="{DynamicResource ContextMenuItemStyle}"/>
@@ -659,24 +689,87 @@ Measure, из-за чего TextTrimming длинных именах сраба�
     <!-- ListBox.ItemTemplate будет установлен из code-behind -->
 
         <ListBox.ItemContainerStyle>
-            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Style TargetType="ListBoxItem">
                 <!--
-                    Двусторонний биндинг IsSelected <-> FileSystemItem.IsSelected.
-                    WPF НЕ сбрасывает ListBoxItem.IsSelected при потере фокуса другим
-                    ListBox (фокус уходит, но IsSelected сохраняется). Сброс происходит
-                    только при Items.Clear()+Add — но PanelViewModel.RefreshAsync теперь
-                    восстанавливает выделение по сохранённым FullPath.
+                    Курсор (SelectedItem/IsSelected) и метки (FileSystemItem.IsSelected) — независимы.
+                    WPF Single mode tracks only cursor. Marks are shown via DataTrigger on FileSystemItem.IsSelected.
+                    Cursor (SelectedItem/IsSelected) and marks (FileSystemItem.IsSelected) are independent.
                 -->
-                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
                 <Setter Property="MinHeight" Value="27"/>
                 <Setter Property="Padding" Value="4,0"/>
                 <Setter Property="Margin" Value="0,0"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                <Style.Triggers>
-                    <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-                         <Setter Property="Background" Value="{DynamicResource RowAltBrush}"/>
-                    </Trigger>
-                </Style.Triggers>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="AccentBar" Grid.Column="0"
+                                        CornerRadius="2" Margin="2,4,0,4" Opacity="0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentBrush}}" Offset="0"/>
+                                            <GradientStop Color="{Binding Color, Source={x:Static services:ThemeColors.AccentSecondaryBrush}}" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <Border x:Name="Bd" Grid.Column="1"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="1"
+                                        Padding="{TemplateBinding Padding}" CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                </Border>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <!-- Чередование строк (AlternationIndex=1) -->
+                                <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowAltBrush}"/>
+                                </Trigger>
+                                <!-- Метка (FileSystemItem.IsSelected=True): подсветка + акцент-бар -->
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SelectionBrush}}"/>
+                                    <Setter TargetName="AccentBar" Property="Opacity" Value="1"/>
+                                </DataTrigger>
+                                <!-- Курсор (ListBoxItem.IsSelected=True): рамка -->
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentBrush}}"/>
+                                </Trigger>
+                                <!-- Курсор + фокус клавиатуры: яркая рамка -->
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsSelected" Value="True"/>
+                                        <Condition Property="IsKeyboardFocusWithin" Value="True"/>
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{Binding Source={x:Static services:ThemeColors.AccentSecondaryBrush}}"/>
+                                    <Setter TargetName="Bd" Property="BorderThickness" Value="2"/>
+                                </MultiTrigger>
+                                <!-- Hover без метки -->
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsMouseOver" Value="True"/>
+                                        <Condition Property="IsSelected" Value="False"/>
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SurfaceHoverBrush}}"/>
+                                </MultiTrigger>
+                                <!-- Hover с меткой -->
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsMouseOver" Value="True"/>
+                                        <Condition Property="IsSelected" Value="True"/>
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SelectionActiveBrush}}"/>
+                                </MultiTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
     </ListBox.ItemContainerStyle>
     </ListBox>
@@ -690,7 +783,9 @@ Measure, из-за чего TextTrimming длинных именах сраба�
             <Grid Margin="10,0,10,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -705,14 +800,43 @@ Measure, из-за чего TextTrimming длинных именах сраба�
                                VerticalAlignment="Center"/>
                 </Border>
 
-                <!-- Selected path (right side) -->
+                <!-- Selected count + size -->
+                <TextBlock Grid.Column="1"
+                           Margin="10,0,0,0"
+                           FontSize="11"
+                           VerticalAlignment="Center">
+                    <Run Text="{Binding SelectedCount, Mode=OneWay}"
+                         Foreground="{DynamicResource AccentBrush}"/>
+                    <Run Text=" / " Foreground="{DynamicResource FgMutedBrush}"/>
+                    <Run Text="{Binding SelectedSizeDisplay, Mode=OneWay}"
+                         Foreground="{DynamicResource FgDimBrush}"/>
+                </TextBlock>
+
+                <!-- Cursor file info -->
                 <TextBlock Grid.Column="2"
+                           Text="{Binding CursorInfo}"
+                           Foreground="{DynamicResource FgDimBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="12,0,0,0"/>
+
+                <!-- Free space -->
+                <TextBlock Grid.Column="3"
+                           Text="{Binding FreeSpaceDisplay}"
+                           Foreground="{DynamicResource FgMutedBrush}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="12,0,0,0"/>
+
+                <!-- Current path -->
+                <TextBlock Grid.Column="4"
                            Text="{Binding CurrentPath}"
                            Foreground="{DynamicResource FgMutedBrush}"
                            FontSize="11"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
-                           MaxWidth="350"
+                           MaxWidth="200"
                            Margin="12,0,0,0"/>
             </Grid>
         </Border>

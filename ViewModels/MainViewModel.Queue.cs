@@ -51,6 +51,16 @@ public partial class MainViewModel
     {
         if (items.Count == 0) return;
 
+        var otherPanel = ActivePanel == LeftPanel ? RightPanel : LeftPanel;
+
+        // Кросс-VFS операция: хотя бы одна панель виртуальная.
+        // Cross-VFS operation: at least one panel is virtual.
+        if (NeedsCrossVfs(ActivePanel, otherPanel))
+        {
+            EnqueueCrossVfsCopyMove(items, targetDir, isMove, policy);
+            return;
+        }
+
         var settings = SettingsService.Load();
         var lfs = new LocalFileSystem();
         var sources = items.Select(i => i.FullPath).ToList();
@@ -114,6 +124,53 @@ public partial class MainViewModel
             try
             {
                 await transferOp.ExecuteAsync(ct);
+            }
+            finally
+            {
+                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                {
+                    await ActivePanel.RefreshAsync();
+                    await (ActivePanel == LeftPanel ? RightPanel : LeftPanel).RefreshAsync();
+                    await SyncActiveVirtualPanelAsync();
+                });
+            }
+        });
+
+        _queue.Enqueue(wrappedOp, desc, srcDir, targetDir, opType);
+        ShowQueueWindow();
+    }
+
+    /// <summary>
+    /// Добавляет кросс-VFS операцию в очередь.
+    /// Enqueues a cross-VFS operation into the queue.
+    /// </summary>
+    private void EnqueueCrossVfsCopyMove(List<FileSystemItem> items, string targetDir, bool isMove, OverwritePolicy policy)
+    {
+        var otherPanel = ActivePanel == LeftPanel ? RightPanel : LeftPanel;
+        var (srcFs, _) = ResolvePanelFs(ActivePanel);
+        var (dstFs, dstInternalPath) = ResolvePanelFs(otherPanel);
+
+        if (targetDir.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
+            dstInternalPath = ExtractCloudPathStatic(targetDir);
+
+        var sources = items.Select(i => ResolveItemPath(i.FullPath)).ToList();
+        var xvfsPolicy = policy == OverwritePolicy.Ask ? OverwritePolicy.Overwrite : policy;
+
+        var xvfsOp = new CrossVfsCopyOperation(srcFs, dstFs, sources, dstInternalPath, isMove, xvfsPolicy, null);
+
+        var count = items.Count;
+        var opTitle = isMove ? L10n("OpDlg.Title.Move") : L10n("OpDlg.Title.Copy");
+        var opType = isMove ? "Move" : "Copy";
+        var desc = count == 1
+            ? $"{opTitle}: {Path.GetFileName(items[0].FullPath)}"
+            : $"{opTitle}: {count} items";
+        var srcDir = ActivePanel.CurrentPath;
+
+        var wrappedOp = new DelegateOperation(xvfsOp, async ct =>
+        {
+            try
+            {
+                await xvfsOp.ExecuteAsync(ct);
             }
             finally
             {

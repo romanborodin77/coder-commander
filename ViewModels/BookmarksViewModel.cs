@@ -218,31 +218,70 @@ public partial class BookmarksViewModel : ObservableObject
             Title = title, Width = 400, Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
-            Owner = Application.Current.MainWindow
+            WindowStyle = WindowStyle.None,
+            Owner = Application.Current.MainWindow,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgPanelBrush"]
         };
 
-        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15) };
+        var root = new System.Windows.Controls.DockPanel();
+
+        var titleBar = new System.Windows.Controls.Border
+        {
+            Height = 36, Background = (System.Windows.Media.Brush)Application.Current.Resources["TitleBarBgBrush"]
+        };
+        System.Windows.Controls.DockPanel.SetDock(titleBar, System.Windows.Controls.Dock.Top);
+        var titleSp = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        titleSp.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = title,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        titleBar.Child = titleSp;
+        titleBar.MouseLeftButtonDown += (_, _) => w.DragMove();
+        root.Children.Add(titleBar);
+
+        var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(15, 10, 15, 10) };
         sp.Children.Add(new System.Windows.Controls.TextBlock
         {
-            Text = prompt, Margin = new Thickness(0, 0, 0, 8)
+            Text = prompt,
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            Margin = new Thickness(0, 0, 0, 8)
         });
-        var tb = new System.Windows.Controls.TextBox { Text = def };
+        var tb = new System.Windows.Controls.TextBox
+        {
+            Text = def,
+            Background = (System.Windows.Media.Brush)Application.Current.Resources["BgInputBrush"],
+            Foreground = (System.Windows.Media.Brush)Application.Current.Resources["FgLightBrush"],
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.Resources["BorderBrush"]
+        };
         sp.Children.Add(tb);
 
         var btns = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
         };
         var ok = new System.Windows.Controls.Button
         {
-            Content = LocalizationService.Current.GetString("MsgBox.OK"), Width = 80, IsDefault = true
+            Content = LocalizationService.Current.GetString("MsgBox.OK"),
+            Width = 80, IsDefault = true,
+            Style = (System.Windows.Style)Application.Current.Resources["AccentButtonStyle"]
         };
         var cn = new System.Windows.Controls.Button
         {
             Content = LocalizationService.Current.GetString("Dialog.Cancel"),
             Width = 80, IsCancel = true,
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(8, 0, 0, 0),
+            Style = (System.Windows.Style)Application.Current.Resources["DefaultButtonStyle"]
         };
         ok.Click += (_, _) => w.DialogResult = true;
         cn.Click += (_, _) => w.DialogResult = false;
@@ -250,7 +289,8 @@ public partial class BookmarksViewModel : ObservableObject
         btns.Children.Add(cn);
         sp.Children.Add(btns);
 
-        w.Content = sp;
+        root.Children.Add(sp);
+        w.Content = root;
         tb.SelectAll();
         tb.Focus();
         return w.ShowDialog() == true ? tb.Text : null;

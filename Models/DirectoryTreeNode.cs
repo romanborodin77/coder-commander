@@ -93,14 +93,13 @@ public partial class DirectoryTreeNode : ObservableObject
                         Children.Clear();
                         foreach (var d in dirs)
                             Children.Add(new DirectoryTreeNode(d));
+                        IsLoaded = true;
                     }));
                 }
                 catch (UnauthorizedAccessException) { }
                 catch (IOException) { }
                 catch (InvalidOperationException) { }
             });
-
-            IsLoaded = true;
         }
         finally
         {

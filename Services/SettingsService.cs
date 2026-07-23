@@ -63,6 +63,16 @@ public class AppSettings
     /// </summary>
     public string LastPath { get; set; } = "";
 
+    /// <summary>
+    /// Последний путь левой панели. / Last left panel path.
+    /// </summary>
+    public string LastLeftPath { get; set; } = "";
+
+    /// <summary>
+    /// Последний путь правой панели. / Last right panel path.
+    /// </summary>
+    public string LastRightPath { get; set; } = "";
+
     //Редактор / Editor
 
     /// <summary>
@@ -359,6 +369,38 @@ public class AppSettings
 
     /// <summary>Показывать очередь операций автоматически. / Auto-show operation queue.</summary>
     public bool AutoShowQueue { get; set; } = true;
+
+    // ═══════════════ Архиваторы (ph9.7) ═══════════════
+
+    /// <summary>Путь к 7-Zip (7z.exe). Пусто — встроенный SharpCompress. / Path to 7-Zip (7z.exe). Empty = built-in SharpCompress.</summary>
+    public string SevenZipPath { get; set; } = "";
+
+    /// <summary>Путь к WinRAR (WinRAR.exe). Пусто — не используется. / Path to WinRAR (WinRAR.exe). Empty = not used.</summary>
+    public string WinRarPath { get; set; } = "";
+
+    /// <summary>Использовать внешний 7-Zip для создания архивов. / Use external 7-Zip for archive creation.</summary>
+    public bool UseExternalSevenZip { get; set; }
+
+    /// <summary>Использовать внешний WinRAR для создания архивов. / Use external WinRAR for archive creation.</summary>
+    public bool UseExternalWinRar { get; set; }
+
+    /// <summary>Уровень сжатия по умолчанию (0=Без сжатия, 1=Быстрый, 2=Нормальный, 3=Максимальный). / Default compression level.</summary>
+    public int ArchiveCompressionLevel { get; set; } = 2;
+
+    /// <summary>Формат архива по умолчанию (zip, 7z, tar, gz). / Default archive format.</summary>
+    public string DefaultArchiveFormat { get; set; } = "zip";
+
+    /// <summary>Пароль по умолчанию для архивов (пусто — без пароля). / Default archive password (empty = no password).</summary>
+    public string ArchiveDefaultPassword { get; set; } = "";
+
+    /// <summary>Удалять файлы после успешного создания архива. / Delete files after successful archive creation.</summary>
+    public bool DeleteAfterArchive { get; set; }
+
+    /// <summary>Открывать архив после создания. / Open archive after creation.</summary>
+    public bool OpenArchiveAfterCreate { get; set; } = true;
+
+    /// <summary>Кодировка для имён файлов в архиве (0=UTF-8, 1=CP866, 2=Windows-1251). / Encoding for filenames in archive.</summary>
+    public int ArchiveEncodingIndex { get; set; }
 }
 
 /// <summary>
@@ -372,6 +414,8 @@ public static class SettingsService
         "CoderCommander");
     private static readonly string SettingsPath = Path.Combine(SettingsDir, "settings.json");
     private static volatile AppSettings? _current;
+    // FIXED: Lock object to prevent race conditions between concurrent Load/Save calls.
+    private static readonly object _lock = new();
 
     /// <summary>
     /// Загружает настройки из файла (с кэшированием) или возвращает настройки по умолчанию.
@@ -382,25 +426,30 @@ public static class SettingsService
     {
         var snapshot = _current;
         if (snapshot is not null) return snapshot;
-        try
+        lock (_lock)
         {
-            if (File.Exists(SettingsPath))
+            snapshot = _current;
+            if (snapshot is not null) return snapshot;
+            try
             {
-                var json = File.ReadAllText(SettingsPath);
-                snapshot = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
-                _current = snapshot;
-                return snapshot;
+                if (File.Exists(SettingsPath))
+                {
+                    var json = File.ReadAllText(SettingsPath);
+                    snapshot = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    _current = snapshot;
+                    return snapshot;
+                }
             }
-        }
-        catch
-        {
-            // При ошибке чтения — используем настройки по умолчанию.
-            // On read error — use default settings.
-        }
+            catch
+            {
+                // При ошибке чтения — используем настройки по умолчанию.
+                // On read error — use default settings.
+            }
 
-        snapshot = new AppSettings();
-        _current = snapshot;
-        return snapshot;
+            snapshot = new AppSettings();
+            _current = snapshot;
+            return snapshot;
+        }
     }
 
     /// <summary>
@@ -410,19 +459,22 @@ public static class SettingsService
     /// <param name="settings">Объект настроек. / Settings object.</param>
     public static void Save(AppSettings settings)
     {
-        _current = settings;
-        try
+        lock (_lock)
         {
-            Directory.CreateDirectory(SettingsDir);
-            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            var tempPath = SettingsPath + ".tmp";
-            File.WriteAllText(tempPath, json);
-            File.Move(tempPath, SettingsPath, overwrite: true);
-        }
-        catch
-        {
-            // При ошибке записи — молча игнорируем.
-            // On write error — silently ignore.
+            _current = settings;
+            try
+            {
+                Directory.CreateDirectory(SettingsDir);
+                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                var tempPath = SettingsPath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, SettingsPath, overwrite: true);
+            }
+            catch
+            {
+                // При ошибке записи — молча игнорируем.
+                // On write error — silently ignore.
+            }
         }
     }
 

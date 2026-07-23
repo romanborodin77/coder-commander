@@ -55,6 +55,18 @@ public partial class FileSystemItem : ObservableObject
     public DateTime Modified { get; }
 
     /// <summary>
+    /// Дата и время создания.
+    /// Creation date and time.
+    /// </summary>
+    public DateTime CreatedDate { get; }
+
+    /// <summary>
+    /// Атрибуты файла.
+    /// File attributes.
+    /// </summary>
+    public string Attributes { get; }
+
+    /// <summary>
     /// Расширение файла в нижнем регистре (для каталогов — пустая строка).
     /// File extension in lowercase (empty string for directories).
     /// </summary>
@@ -66,16 +78,12 @@ public partial class FileSystemItem : ObservableObject
     /// Инициализирует новый экземпляр FileSystemItem.
     /// Initializes a new instance of FileSystemItem.
     /// </summary>
-    /// <param name="fullPath">Полный путь к файлу или каталогу / Full path to the file or directory.</param>
-    /// <param name="isDirectory">Является ли элемент каталогом / Whether the item is a directory.</param>
-    /// <param name="size">Размер файла в байтах (по умолчанию 0) / File size in bytes (default 0).</param>
-    /// <param name="modified">Дата последнего изменения / Last modified date.</param>
-    /// <param name="isParent">Является ли элемент ссылкой ".." / Whether the item is ".." parent reference.</param>
-    /// <param name="gitState">Состояние Git для элемента / Git state for the item.</param>
     public FileSystemItem(string fullPath, bool isDirectory, long size = 0, DateTime? modified = null, bool isParent = false, GitState gitState = GitState.Unchanged, string? displayName = null)
     {
         FullPath = fullPath; IsDirectory = isDirectory; IsParent = isParent; Size = size; _gitState = gitState;
         Modified = modified ?? DateTime.Now;
+        CreatedDate = isParent ? DateTime.MinValue : GetSafeCreationTime(fullPath, isDirectory);
+        Attributes = isParent ? "" : GetSafeAttributes(fullPath, isDirectory);
         Extension = isDirectory ? "" : Path.GetExtension(fullPath).ToLowerInvariant();
         DisplayName = displayName;
         SizeDisplay = isDirectory ? "<DIR>" : FormatSize(size);
@@ -100,5 +108,19 @@ public partial class FileSystemItem : ObservableObject
         string[] u = ["B","KB","MB","GB","TB"]; double s = bytes; int i = 0;
         while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
         return $"{s:0.##} {u[i]}";
+    }
+
+    private static DateTime GetSafeCreationTime(string path, bool isDirectory)
+    {
+        if (isDirectory) return DateTime.MinValue;
+        try { return File.GetCreationTime(path); }
+        catch { return DateTime.MinValue; }
+    }
+
+    private static string GetSafeAttributes(string path, bool isDirectory)
+    {
+        if (isDirectory) return "";
+        try { return File.GetAttributes(path).ToString(); }
+        catch { return ""; }
     }
 }

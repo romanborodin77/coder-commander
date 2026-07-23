@@ -77,7 +77,10 @@ public sealed class OperationQueueService
         {
             foreach (var qo in Pending.Where(q => q.Status == QueuedOperationStatus.Queued).ToList())
             {
-                _ = TryStartAsync(qo);
+                // FIXED: Observe exceptions from fire-and-forget to prevent silent queue corruption.
+                _ = TryStartAsync(qo).ContinueWith(
+                    t => { if (t.Exception is not null) LogService.Error($"Queue start failed: {t.Exception.Message}", nameof(OperationQueueService), t.Exception); },
+                    TaskContinuationOptions.OnlyOnFaulted);
             }
         }
     }
@@ -103,7 +106,10 @@ public sealed class OperationQueueService
 
         if (!_isPaused)
         {
-            _ = TryStartAsync(qo);
+            // FIXED: Observe exceptions from fire-and-forget.
+            _ = TryStartAsync(qo).ContinueWith(
+                t => { if (t.Exception is not null) LogService.Error($"Queue start failed: {t.Exception.Message}", nameof(OperationQueueService), t.Exception); },
+                TaskContinuationOptions.OnlyOnFaulted);
         }
         return qo;
     }
@@ -186,7 +192,10 @@ public sealed class OperationQueueService
         QueuedOperation? next;
         lock (_lock) { next = Pending.FirstOrDefault(q => q.Status == QueuedOperationStatus.Queued); }
         if (next != null)
-            _ = TryStartAsync(next);
+            // FIXED: Observe exceptions from fire-and-forget.
+            _ = TryStartAsync(next).ContinueWith(
+                t => { if (t.Exception is not null) LogService.Error($"Queue start failed: {t.Exception.Message}", nameof(OperationQueueService), t.Exception); },
+                TaskContinuationOptions.OnlyOnFaulted);
     }
 
     public void CancelAll()
@@ -246,7 +255,10 @@ public sealed class OperationQueueService
         if (!_isPaused)
         {
             foreach (var qo in failed.Where(q => q.Status == QueuedOperationStatus.Queued))
-                _ = TryStartAsync(qo);
+                // FIXED: Observe exceptions from fire-and-forget.
+                _ = TryStartAsync(qo).ContinueWith(
+                    t => { if (t.Exception is not null) LogService.Error($"Queue start failed: {t.Exception.Message}", nameof(OperationQueueService), t.Exception); },
+                    TaskContinuationOptions.OnlyOnFaulted);
         }
     }
 

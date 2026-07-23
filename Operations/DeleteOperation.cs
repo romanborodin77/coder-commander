@@ -51,12 +51,15 @@ public sealed class DeleteOperation : FileOperation
         foreach (var t in _targets)
         {
             ct.ThrowIfCancellationRequested();
-            if (Directory.Exists(t))
+            // FIXED: Use IFileSystem.ExistsAsync instead of Directory.Exists/File.Exists
+            // to support cross-VFS operations (SFTP, Cloud).
+            var info = await _fs.GetFileInfoAsync(t, ct).ConfigureAwait(false);
+            if (info is { IsDirectory: true })
             {
-                try { Count(t, ct); }
-                catch { /* продолжаем подсчёт насколько возможно / best-effort */ }
+                try { await CountAsync(t, ct).ConfigureAwait(false); }
+                catch { /* продолжаем подсчёт насколько Возможно / best-effort */ }
             }
-            else if (File.Exists(t)) _total++;
+            else if (info is not null) _total++;
         }
 
         foreach (var t in _targets)
@@ -74,46 +77,54 @@ public sealed class DeleteOperation : FileOperation
 
     private async Task DeleteEntryAsync(string path, CancellationToken ct)
     {
-        if (Directory.Exists(path))
+        // FIXED: Use IFileSystem.GetFileInfoAsync instead of Directory.Exists for cross-VFS support.
+        var info = await _fs.GetFileInfoAsync(path, ct).ConfigureAwait(false);
+        if (info is { IsDirectory: true })
         {
+            // FIXED: Symlink traversal — проверяем ReparsePoint перед рекурсией.
+            // Если это symlink/junction, удаляем саму ссылку, а не её содержимое.
+            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                await _fs.DeleteAsync(path, recursive: false, ct).ConfigureAwait(false);
+                _done++; ReportProgress(path);
+                return;
+            }
             // Сначала удаляем содержимое, затем сам каталог (рекурсивно).
             // Delete contents first, then the directory itself (recursive).
             try
             {
-                foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
+                // FIXED: Use IFileSystem.EnumerateAsync instead of Directory.EnumerateFiles
+                // for cross-VFS support (SFTP, Cloud).
+                var entries = await _fs.EnumerateAsync(path, includeHidden: true, ct).ConfigureAwait(false);
+                foreach (var entry in entries)
                 {
                     ct.ThrowIfCancellationRequested();
+                    if (entry.IsDirectory) continue; // Handle subdirectories in second pass
                     try
                     {
-                        await _fs.DeleteAsync(f, false, ct).ConfigureAwait(false);
+                        await _fs.DeleteAsync(entry.FullPath, false, ct).ConfigureAwait(false);
                         _done++;
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _failed++;
-                        _errors.Add($"{f}: {ex.Message}");
-                        LogService.Error($"Delete failed for {f}: {ex.Message}", nameof(DeleteOperation), ex);
+                        _errors.Add($"{entry.FullPath}: {ex.Message}");
+                        LogService.Error($"Delete failed for {entry.FullPath}: {ex.Message}", nameof(DeleteOperation), ex);
                     }
-                    ReportProgress(f);
+                    ReportProgress(entry.FullPath);
                 }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _failed++;
-                _errors.Add($"{path}: {ex.Message}");
-                LogService.Error($"Enum files failed for {path}: {ex.Message}", nameof(DeleteOperation), ex);
-            }
-            try
-            {
-                foreach (var d in Directory.EnumerateDirectories(path))
+
+                // Now handle subdirectories
+                foreach (var entry in entries)
                 {
                     ct.ThrowIfCancellationRequested();
-                    try { await DeleteEntryAsync(d, ct).ConfigureAwait(false); }
+                    if (!entry.IsDirectory) continue;
+                    try { await DeleteEntryAsync(entry.FullPath, ct).ConfigureAwait(false); }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         _failed++;
-                        _errors.Add($"{d}: {ex.Message}");
-                        LogService.Error($"Delete dir failed for {d}: {ex.Message}", nameof(DeleteOperation), ex);
+                        _errors.Add($"{entry.FullPath}: {ex.Message}");
+                        LogService.Error($"Delete dir failed for {entry.FullPath}: {ex.Message}", nameof(DeleteOperation), ex);
                     }
                 }
             }
@@ -121,7 +132,7 @@ public sealed class DeleteOperation : FileOperation
             {
                 _failed++;
                 _errors.Add($"{path}: {ex.Message}");
-                LogService.Error($"Enum dirs failed for {path}: {ex.Message}", nameof(DeleteOperation), ex);
+                LogService.Error($"Enum entries failed for {path}: {ex.Message}", nameof(DeleteOperation), ex);
             }
             await _fs.DeleteAsync(path, recursive: false, ct).ConfigureAwait(false);
             _done++; ReportProgress(path);
@@ -136,18 +147,16 @@ public sealed class DeleteOperation : FileOperation
     private void ReportProgress(string currentFile)
         => Report(new OperationProgress(currentFile, 0, 0, _done, _total, _done, _total));
 
-    private void Count(string path, CancellationToken ct)
+    // FIXED: Use IFileSystem.EnumerateAsync instead of Directory.* for cross-VFS support.
+    private async Task CountAsync(string path, CancellationToken ct)
     {
-        foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly))
+        var entries = await _fs.EnumerateAsync(path, includeHidden: true, ct).ConfigureAwait(false);
+        foreach (var entry in entries)
         {
             ct.ThrowIfCancellationRequested();
             _total++;
-        }
-        foreach (var d in Directory.EnumerateDirectories(path))
-        {
-            ct.ThrowIfCancellationRequested();
-            _total++;
-            Count(d, ct);
+            if (entry.IsDirectory)
+                await CountAsync(entry.FullPath, ct).ConfigureAwait(false);
         }
     }
 }

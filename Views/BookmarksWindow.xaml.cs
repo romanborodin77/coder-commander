@@ -1,5 +1,7 @@
+using System;
 using System.Windows;
 using System.Windows.Input;
+using CoderCommander.Services;
 using CoderCommander.ViewModels;
 
 namespace CoderCommander.Views;
@@ -27,12 +29,20 @@ public partial class BookmarksWindow : Window
     /// Двойной клик: перейти к закладке и закрыть окно.
     /// Double-click: navigate to bookmark and close window.
     /// </summary>
+    // FIXED: Added try/catch to prevent unhandled exception crash in async void event handler.
     private async void BookmarksList_DblClick(object sender, MouseButtonEventArgs e)
     {
-        if (DataContext is BookmarksViewModel vm && vm.SelectedBookmark is not null)
+        try
         {
-            await vm.NavigateToBookmarkAsync();
-            DialogResult = true;
+            if (DataContext is BookmarksViewModel vm && vm.SelectedBookmark is not null)
+            {
+                await vm.NavigateToBookmarkAsync();
+                DialogResult = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Navigate to bookmark failed: {ex.Message}", nameof(BookmarksWindow), ex);
         }
     }
 
@@ -40,18 +50,26 @@ public partial class BookmarksWindow : Window
     /// Enter: перейти к закладке; Escape: закрыть окно.
     /// Enter: navigate to bookmark; Escape: close window.
     /// </summary>
+    // FIXED: Added try/catch to prevent unhandled exception crash in async void event handler.
     private async void BookmarksList_KeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is not BookmarksViewModel vm) return;
+        try
+        {
+            if (DataContext is not BookmarksViewModel vm) return;
 
-        if (e.Key == Key.Enter && vm.SelectedBookmark is not null)
-        {
-            await vm.NavigateToBookmarkAsync();
-            DialogResult = true;
+            if (e.Key == Key.Enter && vm.SelectedBookmark is not null)
+            {
+                await vm.NavigateToBookmarkAsync();
+                DialogResult = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                Close();
+            }
         }
-        else if (e.Key == Key.Escape)
+        catch (Exception ex)
         {
-            Close();
+            LogService.Error($"Navigate to bookmark failed: {ex.Message}", nameof(BookmarksWindow), ex);
         }
     }
 

@@ -25,6 +25,12 @@ public partial class CloudStorageViewModel : ObservableObject
     private readonly Func<string, string, string?>? _prompt;
     private CancellationTokenSource? _cts;
 
+    /// <summary>Словарь подключённых ФС по ID профиля. / Connected filesystems by profile ID.</summary>
+    private readonly Dictionary<string, CloudFileSystem> _connectedProfiles = new();
+
+    /// <summary>Событие изменения облачных дисков (для обновления панелей).</summary>
+    public event EventHandler? CloudDrivesChanged;
+
     /// <summary>Список профилей облачных хранилищ. / Cloud storage profile list.</summary>
     [ObservableProperty] private ObservableCollection<CloudProfile> _profiles = new();
 
@@ -55,6 +61,9 @@ public partial class CloudStorageViewModel : ObservableObject
     /// <summary>Активное облачное подключение. / Active cloud connection.</summary>
     private CloudFileSystem? _activeFs;
 
+    /// <summary>Публичный доступ к активной облачной ФС (для интеграции с панелями). / Public access to active cloud FS (for panel integration).</summary>
+    public CloudFileSystem? ActiveFileSystem => _activeFs;
+
     /// <summary>Google Drive Client ID (из текущего профиля). / Google Drive Client ID (from current profile).</summary>
     [ObservableProperty] private string _gDriveClientId = "";
 
@@ -70,6 +79,9 @@ public partial class CloudStorageViewModel : ObservableObject
     /// <summary>Выполняется ли авторизация Google Drive. / Whether Google Drive authorization is in progress.</summary>
     [ObservableProperty] private bool _isGDriveAuthorizing;
 
+    /// <summary>Подключён ли выбранный профиль. / Whether the selected profile is connected.</summary>
+    [ObservableProperty] private bool _isSelectedProfileConnected;
+
     /// <summary>
     /// Создаёт экземпляр CloudStorageViewModel.
     /// Creates a CloudStorageViewModel instance.
@@ -82,6 +94,9 @@ public partial class CloudStorageViewModel : ObservableObject
         _cloudService = cloudService;
         _getLocalDir = getLocalDir;
         _prompt = prompt;
+        // Загружаем профили сразу при создании (для автоподключения при старте).
+        // Load profiles immediately (for auto-connect on startup).
+        LoadProfiles();
     }
 
     /// <summary>
@@ -100,6 +115,9 @@ public partial class CloudStorageViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedProfileChanged(CloudProfile? value)
     {
+        // Обновляем статус подключения выбранного профиля.
+        IsSelectedProfileConnected = value is not null && _connectedProfiles.ContainsKey(value.Id);
+
         if (value?.Provider == CloudProvider.GoogleDrive)
         {
             value.Credentials.TryGetValue("ClientId", out var cid);
@@ -123,6 +141,7 @@ public partial class CloudStorageViewModel : ObservableObject
     {
         var list = _cloudService.GetProfiles();
         Profiles = new ObservableCollection<CloudProfile>(list);
+        CloudDrivesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Закрыть панель. / Close panel.</summary>
@@ -211,76 +230,13 @@ public partial class CloudStorageViewModel : ObservableObject
     [RelayCommand]
     public void AddProfile()
     {
-        var name = _prompt?.Invoke("Новый профиль", "Имя профиля:");
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        // Запрашиваем провайдер / Ask for provider.
-        var providerStr = _prompt?.Invoke("Тип хранилища", "Провайдер (S3 / AzureBlob / YandexDisk / GoogleDrive / NextCloud):");
-        var provider = providerStr?.Trim().ToLowerInvariant() switch
+        var window = new AddCloudProfileWindow
         {
-            "s3" or "aws" => CloudProvider.S3,
-            "azureblob" or "azure" => CloudProvider.AzureBlob,
-            "yandexdisk" or "yandex" or "yd" => CloudProvider.YandexDisk,
-            "googledrive" or "gdrive" => CloudProvider.GoogleDrive,
-            "nextcloud" or "nc" or "webdav" => CloudProvider.NextCloud,
-            _ => CloudProvider.S3
+            Owner = App.Current.MainWindow
         };
+        if (window.ShowDialog() != true || window.ResultProfile is null) return;
 
-        var profile = new CloudProfile { Name = name, Provider = provider };
-
-        // Запрашиваем учётные данные в зависимости от провайдера.
-        // Ask for credentials depending on provider.
-        switch (provider)
-        {
-            case CloudProvider.YandexDisk:
-                var token = _prompt?.Invoke("Yandex Disk", "OAuth токен:");
-                if (!string.IsNullOrWhiteSpace(token))
-                    profile.Credentials["OAuthToken"] = token.Trim();
-                var root = _prompt?.Invoke("Yandex Disk", "Корневая папка (по умолчанию /):");
-                if (!string.IsNullOrWhiteSpace(root))
-                    profile.RootPath = root.Trim();
-                break;
-
-            case CloudProvider.S3:
-                var ak = _prompt?.Invoke("S3", "Access Key:");
-                if (!string.IsNullOrWhiteSpace(ak)) profile.Credentials["AccessKey"] = ak.Trim();
-                var sk = _prompt?.Invoke("S3", "Secret Key:");
-                if (!string.IsNullOrWhiteSpace(sk)) profile.Credentials["SecretKey"] = sk.Trim();
-                var region = _prompt?.Invoke("S3", "Region (us-east-1):");
-                profile.Region = string.IsNullOrWhiteSpace(region) ? "us-east-1" : region.Trim();
-                var bucket = _prompt?.Invoke("S3", "Bucket:");
-                if (!string.IsNullOrWhiteSpace(bucket)) profile.BucketOrContainer = bucket.Trim();
-                break;
-
-            case CloudProvider.AzureBlob:
-                var cs = _prompt?.Invoke("Azure Blob", "Connection String:");
-                if (!string.IsNullOrWhiteSpace(cs)) profile.Credentials["ConnectionString"] = cs.Trim();
-                var azContainer = _prompt?.Invoke("Azure Blob", "Container:");
-                if (!string.IsNullOrWhiteSpace(azContainer)) profile.BucketOrContainer = azContainer.Trim();
-                break;
-
-            case CloudProvider.GoogleDrive:
-                var cid = _prompt?.Invoke("Google Drive", "Client ID:");
-                if (!string.IsNullOrWhiteSpace(cid)) profile.Credentials["ClientId"] = cid.Trim();
-                var csecret = _prompt?.Invoke("Google Drive", "Client Secret:");
-                if (!string.IsNullOrWhiteSpace(csecret)) profile.Credentials["ClientSecret"] = csecret.Trim();
-                var rt = _prompt?.Invoke("Google Drive", "Refresh Token:");
-                if (!string.IsNullOrWhiteSpace(rt)) profile.Credentials["RefreshToken"] = rt.Trim();
-                break;
-
-            case CloudProvider.NextCloud:
-                var ncServer = _prompt?.Invoke("NextCloud", "Server URL (https://cloud.example.com):");
-                if (!string.IsNullOrWhiteSpace(ncServer)) profile.Endpoint = ncServer.Trim().TrimEnd('/');
-                var ncUser = _prompt?.Invoke("NextCloud", "Username:");
-                if (!string.IsNullOrWhiteSpace(ncUser)) profile.Credentials["Username"] = ncUser.Trim();
-                var ncPass = _prompt?.Invoke("NextCloud", "Password (App Password recommended):");
-                if (!string.IsNullOrWhiteSpace(ncPass)) profile.Credentials["Password"] = ncPass.Trim();
-                var ncRoot = _prompt?.Invoke("NextCloud", "Root path (default /):");
-                if (!string.IsNullOrWhiteSpace(ncRoot)) profile.RootPath = ncRoot.Trim();
-                break;
-        }
-
-        _cloudService.AddProfile(profile);
+        _cloudService.AddProfile(window.ResultProfile);
         LoadProfiles();
     }
 
@@ -295,8 +251,104 @@ public partial class CloudStorageViewModel : ObservableObject
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
+        // Отключаем если был подключён.
+        if (_connectedProfiles.TryGetValue(SelectedProfile.Id, out var fs))
+        {
+            _ = fs.DisconnectAsync();
+            (fs as IDisposable)?.Dispose();
+            _connectedProfiles.Remove(SelectedProfile.Id);
+        }
         _cloudService.DeleteProfile(SelectedProfile.Id);
         LoadProfiles();
+    }
+
+    /// <summary>Подключить выбранный профиль. / Connect selected profile.</summary>
+    [RelayCommand]
+    public async Task ConnectSelectedProfileAsync()
+    {
+        if (SelectedProfile is null) return;
+        if (_connectedProfiles.ContainsKey(SelectedProfile.Id))
+        {
+            Status = string.Format(LocalizationService.Current.GetString("Cloud.AlreadyConnected"), SelectedProfile.Name);
+            return;
+        }
+        IsBusy = true;
+        Status = string.Format(LocalizationService.Current.GetString("Cloud.ConnectingStatus"), SelectedProfile.Name);
+        try
+        {
+            _cts?.Cancel();
+            _cts = new CancellationTokenSource();
+            var fs = await _cloudService.ConnectAsync(SelectedProfile, _cts.Token);
+            _connectedProfiles[SelectedProfile.Id] = fs;
+            IsSelectedProfileConnected = true;
+            IsConnected = true;
+            _activeFs = fs;
+            CurrentPath = "/";
+            await NavigateToAsync("/");
+            Status = string.Format(LocalizationService.Current.GetString("Cloud.ConnectedTo"), SelectedProfile.Name);
+            CloudDrivesChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (OperationCanceledException)
+        {
+            Status = LocalizationService.Current.GetString("Cloud.Cancelled");
+        }
+        catch (Exception e)
+        {
+            Status = string.Format(LocalizationService.Current.GetString("Cloud.Error"), e.Message);
+            LogService.Error($"Cloud connect failed: {e.Message}", nameof(CloudStorageViewModel), e);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>Отключить выбранный профиль. / Disconnect selected profile.</summary>
+    [RelayCommand]
+    public async Task DisconnectSelectedProfileAsync()
+    {
+        if (SelectedProfile is null) return;
+        if (_connectedProfiles.TryGetValue(SelectedProfile.Id, out var fs))
+        {
+            await fs.DisconnectAsync();
+            (fs as IDisposable)?.Dispose();
+            _connectedProfiles.Remove(SelectedProfile.Id);
+        }
+        IsSelectedProfileConnected = false;
+        // Если это был активный профиль — очищаем.
+        if (_activeFs is not null && SelectedProfile is not null &&
+            _connectedProfiles.Values.All(f => f != _activeFs))
+        {
+            _activeFs = null;
+            IsConnected = false;
+            Items.Clear();
+        }
+        Status = string.Format(LocalizationService.Current.GetString("Cloud.DisconnectedFrom"), SelectedProfile?.Name ?? "");
+        CloudDrivesChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Редактировать выбранный профиль. / Edit selected profile.</summary>
+    [RelayCommand]
+    public void EditProfile()
+    {
+        if (SelectedProfile is null) return;
+        var window = new AddCloudProfileWindow
+        {
+            Owner = App.Current.MainWindow,
+            EditMode = true,
+            EditProfile = SelectedProfile
+        };
+        if (window.ShowDialog() != true || window.ResultProfile is null) return;
+        // Обновляем профиль.
+        window.ResultProfile.Id = SelectedProfile.Id;
+        _cloudService.UpdateProfile(window.ResultProfile);
+        // Если профиль был подключён — отключаем (нужно переподключиться).
+        if (_connectedProfiles.ContainsKey(SelectedProfile.Id))
+        {
+            _ = DisconnectSelectedProfileAsync();
+        }
+        LoadProfiles();
+        SelectedProfile = Profiles.FirstOrDefault(p => p.Id == window.ResultProfile.Id);
     }
 
     /// <summary>Подключиться к облачному хранилищу по выбранному профилю. / Connect to cloud storage by selected profile.</summary>
@@ -328,6 +380,7 @@ public partial class CloudStorageViewModel : ObservableObject
             CurrentPath = "/";
             await NavigateToAsync("/");
             Status = string.Format(LocalizationService.Current.GetString("Cloud.ConnectedTo"), SelectedProfile.Name);
+            CloudDrivesChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -358,6 +411,7 @@ public partial class CloudStorageViewModel : ObservableObject
         IsConnected = false;
         Items.Clear();
         Status = LocalizationService.Current.GetString("Cloud.DisconnectedStatus");
+        CloudDrivesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Переходит к указанному пути и загружает содержимое. / Navigates to a path and loads contents.</summary>
@@ -371,6 +425,9 @@ public partial class CloudStorageViewModel : ObservableObject
             _cts?.Cancel();
             _cts = new CancellationTokenSource();
             var entries = await _activeFs.EnumerateAsync(path, ct: _cts.Token);
+            LogService.Debug($"[CloudVM] NavigateToAsync path={path} entries={entries.Count}", nameof(CloudStorageViewModel));
+            foreach (var e in entries)
+                LogService.Debug($"[CloudVM]   entry: Name={e.Name} FullPath={e.FullPath} IsDir={e.IsDirectory}", nameof(CloudStorageViewModel));
             Items = new ObservableCollection<FileEntry>(entries);
             CurrentPath = path;
             Status = string.Format(LocalizationService.Current.GetString("Status.ItemsIn"), entries.Count, path);
@@ -443,6 +500,8 @@ public partial class CloudStorageViewModel : ObservableObject
                 await nc.DownloadFileAsync(item.FullPath, localPath, null);
             else if (_activeFs is GDriveFileSystem gdrive)
                 await gdrive.DownloadFileAsync(item.FullPath, localPath, null);
+            else if (_activeFs is WebDavFileSystem webdav)
+                await webdav.DownloadFileAsync(item.FullPath, localPath, null);
             else
                 throw new NotSupportedException($"Download not supported for {_activeFs.Name}");
 
@@ -483,6 +542,8 @@ public partial class CloudStorageViewModel : ObservableObject
                 await nc.UploadFileAsync(localPath, remotePath, null);
             else if (_activeFs is GDriveFileSystem gdrive)
                 await gdrive.UploadFileAsync(localPath, remotePath, null);
+            else if (_activeFs is WebDavFileSystem webdav)
+                await webdav.UploadFileAsync(localPath, remotePath, null);
             else
                 throw new NotSupportedException($"Upload not supported for {_activeFs.Name}");
 

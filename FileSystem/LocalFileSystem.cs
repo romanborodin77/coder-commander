@@ -147,7 +147,9 @@ public sealed class LocalFileSystem : IFileSystem
     }
 
     /// <inheritdoc/>
-    public Task CopyAsync(string source, string destination, bool overwrite = false, CancellationToken ct = default)
+    // FIXED: Changed from sync-over-async (.Wait()) to proper async/await to prevent
+    // thread pool starvation and potential deadlocks on SynchronizationContext.
+    public async Task CopyAsync(string source, string destination, bool overwrite = false, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         if (Directory.Exists(source))
@@ -173,7 +175,7 @@ public sealed class LocalFileSystem : IFileSystem
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    CopyAsync(d, Path.Combine(destination, Path.GetFileName(d)!), overwrite, ct).Wait();
+                    await CopyAsync(d, Path.Combine(destination, Path.GetFileName(d)!), overwrite, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -184,7 +186,7 @@ public sealed class LocalFileSystem : IFileSystem
             }
             if (errors.Count > 0)
                 throw new IOException($"Copy completed with {errors.Count} error(s):\n{string.Join("\n", errors)}");
-            return Task.CompletedTask;
+            return;
         }
         
         // Если файл назначения существует и overwrite=true, снимаем атрибут Read-only.
@@ -203,7 +205,6 @@ public sealed class LocalFileSystem : IFileSystem
         }
         
         File.Copy(source, destination, overwrite);
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>

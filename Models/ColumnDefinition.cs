@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CoderCommander.Services;
+
+// ReSharper disable once RedundantUsingDirective — используется для enum значений в SortDirection
 
 namespace CoderCommander.Models;
 
 /// <summary>
-/// Определение колонки в панели файлов: ключ, заголовок, ширина, видимость, порядок.
-/// Column definition for file panel: key, header, width, visibility, order.
+/// Определение колонки в панели файлов: ключ, заголовок, ширина, видимость, порядок, сортировка.
+/// Column definition for file panel: key, header, width, visibility, order, sort direction.
 /// </summary>
 public partial class ColumnDefinition : ObservableObject
 {
@@ -62,6 +65,13 @@ public partial class ColumnDefinition : ObservableObject
     public bool IsMonospace { get; }
 
     /// <summary>
+    /// Направление сортировки: None (не сортировать), Ascending, Descending.
+    /// Sort direction: None (no sort), Ascending, Descending.
+    /// </summary>
+    [ObservableProperty]
+    private ListSortDirection _sortDirection = ListSortDirection.Ascending;
+
+    /// <summary>
     /// Создаёт экземпляр ColumnDefinition.
     /// Creates ColumnDefinition instance.
     /// </summary>
@@ -88,18 +98,18 @@ public partial class ColumnDefinition : ObservableObject
     }
 
     /// <summary>
-    /// Список всех доступных колонок по умолчанию.
-    /// List of all available columns by default.
+    /// Возвращает список всех доступных колонок с локализованными заголовками.
+    /// Returns all available columns with localized headers.
     /// </summary>
-    public static List<ColumnDefinition> AllColumns { get; } = new()
+    public static List<ColumnDefinition> AllColumns => new()
     {
-        new ColumnDefinition("Name", "Имя", 200, isRequired: true),
-        new ColumnDefinition("Extension", "Расширение", 80),
-        new ColumnDefinition("Size", "Размер", 90, isRightAligned: true, isMonospace: true),
-        new ColumnDefinition("ModifiedDate", "Дата изм.", 130, isMonospace: true),
-        new ColumnDefinition("CreatedDate", "Дата созд.", 130, isMonospace: true),
-        new ColumnDefinition("Attributes", "Атрибуты", 80, isMonospace: true),
-        new ColumnDefinition("Type", "Тип", 80)
+        new ColumnDefinition("Name", LocalizationService.Current.GetString("Columns.Name"), 200, isRequired: true),
+        new ColumnDefinition("Extension", LocalizationService.Current.GetString("Columns.Extension"), 80),
+        new ColumnDefinition("Size", LocalizationService.Current.GetString("Columns.Size"), 90, isRightAligned: true, isMonospace: true),
+        new ColumnDefinition("ModifiedDate", LocalizationService.Current.GetString("Columns.Modified"), 130, isMonospace: true),
+        new ColumnDefinition("CreatedDate", LocalizationService.Current.GetString("Columns.Created"), 130, isMonospace: true),
+        new ColumnDefinition("Attributes", LocalizationService.Current.GetString("Columns.Attributes"), 80, isMonospace: true),
+        new ColumnDefinition("Type", LocalizationService.Current.GetString("Columns.Type"), 80)
     };
 
     /// <summary>
@@ -109,6 +119,25 @@ public partial class ColumnDefinition : ObservableObject
     public ColumnDefinition Clone() => new(Key, Header, Width, IsRequired, IsRightAligned, IsMonospace)
     {
         IsVisible = IsVisible,
-        DisplayIndex = DisplayIndex
+        DisplayIndex = DisplayIndex,
+        SortDirection = SortDirection
+    };
+
+    public override string ToString() => Header;
+
+    /// <summary>
+    /// Возвращает имя свойства FileSystemItem для сортировки по ключу колонки.
+    /// Returns the FileSystemItem property name for sorting by this column key.
+    /// </summary>
+    public string GetSortPropertyName() => Key switch
+    {
+        "Name" => nameof(FileSystemItem.Name),
+        "Extension" => nameof(FileSystemItem.Extension),
+        "Size" => nameof(FileSystemItem.Size),
+        "ModifiedDate" => nameof(FileSystemItem.Modified),
+        "CreatedDate" => nameof(FileSystemItem.CreatedDate),
+        "Attributes" => nameof(FileSystemItem.Attributes),
+        "Type" => nameof(FileSystemItem.Extension),
+        _ => nameof(FileSystemItem.Name)
     };
 }

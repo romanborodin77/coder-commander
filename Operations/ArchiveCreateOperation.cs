@@ -327,22 +327,24 @@ public sealed class ArchiveCreateOperation : FileOperation
             _ => 6
         };
 
-        return new ZipWriterOptions(compressionType)
+        var opts = new ZipWriterOptions(compressionType)
         {
             UseZip64 = true,
             CompressionLevel = deflateLevel
         };
+        return opts;
     }
 
     /// <summary>
     /// Создаёт параметры 7Z-записи. / Creates 7Z writer options.
     /// </summary>
-    private static SevenZipWriterOptions CreateSevenZipOptions()
+    private SevenZipWriterOptions CreateSevenZipOptions()
     {
-        return new SevenZipWriterOptions(CompressionType.LZMA)
+        var opts = new SevenZipWriterOptions(CompressionType.LZMA)
         {
             CompressHeader = true
         };
+        return opts;
     }
 
     /// <summary>

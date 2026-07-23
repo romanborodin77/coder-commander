@@ -128,6 +128,19 @@ public sealed class ArchiveExtractOperation : FileOperation
                 // Check file existence for Skip policy.
                 var destPath = Path.Combine(_outputDirectory, entryKey.Replace('/', '\\'));
 
+                // FIXED: Zip Slip (CWE-22) — валидация path traversal.
+                // Validate that resolved path stays within output directory.
+                var fullOutput = Path.GetFullPath(_outputDirectory);
+                var fullDest = Path.GetFullPath(destPath);
+                var fullDestDir = Path.GetDirectoryName(fullDest) ?? fullDest;
+                if (!fullDest.StartsWith(fullOutput, StringComparison.OrdinalIgnoreCase) &&
+                    !fullDestDir.StartsWith(fullOutput, StringComparison.OrdinalIgnoreCase))
+                {
+                    LogService.Warn($"Archive entry path traversal blocked: {entryKey}", nameof(ArchiveExtractOperation));
+                    filesDone++;
+                    continue;
+                }
+
                 if (!_overwrite && File.Exists(destPath))
                 {
                     filesDone++;

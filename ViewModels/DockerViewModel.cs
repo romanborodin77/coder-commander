@@ -57,9 +57,16 @@ public partial class DockerViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        Containers = new ObservableCollection<DockerContainer>(await _docker.ContainersAsync());
-        Images = new ObservableCollection<DockerImage>(await _docker.ImagesAsync());
-        Status = string.Format(LocalizationService.Current.GetString("Docker.StatusFormat"), Containers.Count, Images.Count);
+        try
+        {
+            Containers = new ObservableCollection<DockerContainer>(await _docker.ContainersAsync());
+            Images = new ObservableCollection<DockerImage>(await _docker.ImagesAsync());
+            Status = string.Format(LocalizationService.Current.GetString("Docker.StatusFormat"), Containers.Count, Images.Count);
+        }
+        catch (Exception ex)
+        {
+            Status = string.Format(LocalizationService.Current.GetString("Status.Error"), ex.Message);
+        }
     }
 
     /// <summary>Запустить выбранный контейнер.</summary>
@@ -68,7 +75,7 @@ public partial class DockerViewModel : ObservableObject
     {
         if (SelectedContainer is null) return;
         var r = await _docker.StartAsync(SelectedContainer.Id);
-        Status = r.Success ? "Запущен" : "Ошибка: " + r.StdErr;
+        Status = r.Success ? LocalizationService.Current.GetString("Docker.Started") : LocalizationService.Current.GetString("Docker.Error") + r.StdErr;
         await RefreshAsync();
     }
 
@@ -78,7 +85,7 @@ public partial class DockerViewModel : ObservableObject
     {
         if (SelectedContainer is null) return;
         var r = await _docker.StopAsync(SelectedContainer.Id);
-        Status = r.Success ? "Остановлен" : "Ошибка: " + r.StdErr;
+        Status = r.Success ? LocalizationService.Current.GetString("Docker.Stopped") : LocalizationService.Current.GetString("Docker.Error") + r.StdErr;
         await RefreshAsync();
     }
 
@@ -88,7 +95,7 @@ public partial class DockerViewModel : ObservableObject
     {
         if (SelectedContainer is null) return;
         var r = await _docker.RemoveAsync(SelectedContainer.Id);
-        Status = r.Success ? "Удалён" : "Ошибка: " + r.StdErr;
+        Status = r.Success ? LocalizationService.Current.GetString("Docker.Removed") : LocalizationService.Current.GetString("Docker.Error") + r.StdErr;
         await RefreshAsync();
     }
 
@@ -98,7 +105,7 @@ public partial class DockerViewModel : ObservableObject
     {
         if (SelectedImage is null) return;
         var r = await _docker.RemoveImageAsync(SelectedImage.Id);
-        Status = r.Success ? "Образ удалён" : "Ошибка: " + r.StdErr;
+        Status = r.Success ? LocalizationService.Current.GetString("Docker.ImageRemoved") : LocalizationService.Current.GetString("Docker.Error") + r.StdErr;
         await RefreshAsync();
     }
 

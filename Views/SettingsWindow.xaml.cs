@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Microsoft.Win32;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
@@ -132,6 +133,38 @@ public partial class SettingsWindow : Window
             _vm.HotkeysVM.ResetToDefaults();
             HotkeyStatusText.Text = "";
         }
+    }
+
+    /// <summary>
+    /// Обработчик кнопки «Обзор» для 7-Zip — открывает диалог выбора 7z.exe.
+    /// Browse button handler for 7-Zip — opens file dialog to select 7z.exe.
+    /// </summary>
+    private void BrowseSevenZip_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = LocalizationService.Current.GetString("Settings.ArchSelect7z"),
+            Filter = LocalizationService.Current.GetString("Settings.ArchFilter7z"),
+            FileName = _vm.SevenZipPath
+        };
+        if (dlg.ShowDialog() == true)
+            _vm.SevenZipPath = dlg.FileName;
+    }
+
+    /// <summary>
+    /// Обработчик кнопки «Обзор» для WinRAR — открывает диалог выбора WinRAR.exe.
+    /// Browse button handler for WinRAR — opens file dialog to select WinRAR.exe.
+    /// </summary>
+    private void BrowseWinRar_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = LocalizationService.Current.GetString("Settings.ArchSelectRar"),
+            Filter = LocalizationService.Current.GetString("Settings.ArchFilterRar"),
+            FileName = _vm.WinRarPath
+        };
+        if (dlg.ShowDialog() == true)
+            _vm.WinRarPath = dlg.FileName;
     }
 
     /// <summary>

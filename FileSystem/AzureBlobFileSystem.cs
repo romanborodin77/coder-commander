@@ -169,7 +169,11 @@ public sealed class AzureBlobFileSystem : CloudFileSystem, IDisposable
                 throw new IOException($"Destination already exists: {destination}");
         }
 
-        await dstBlob.StartCopyFromUriAsync(srcBlob.Uri, cancellationToken: ct);
+        // FIXED: Poll the CopyFromUriOperation for completion instead of fire-and-forget.
+        // Previously, StartCopyFromUriAsync returned before the copy completed, so a
+        // subsequent DeleteAsync(source) could delete the source before the copy finished.
+        var operation = await dstBlob.StartCopyFromUriAsync(srcBlob.Uri, cancellationToken: ct);
+        await operation.WaitForCompletionAsync(ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>

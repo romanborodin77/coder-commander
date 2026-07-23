@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:CoderCommander.ViewModels"
         xmlns:conv="clr-namespace:CoderCommander.Converters"
+        xmlns:services="clr-namespace:CoderCommander.Services"
         Title="{Binding WindowTitle}"
         Width="580" Height="340"
         MinWidth="500" MinHeight="280"
@@ -208,13 +209,25 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ListBoxItem">
-                                    <Border Background="{TemplateBinding Background}"
+                                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="0,0,0,0"
                                             CornerRadius="3"
                                             Padding="{TemplateBinding Padding}">
                                         <ContentPresenter/>
                                     </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SelectionBrush}}"/>
+                                        </Trigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                <Condition Property="IsSelected" Value="True"/>
+                                            </MultiTrigger.Conditions>
+                                            <Setter TargetName="Bd" Property="Background" Value="{Binding Source={x:Static services:ThemeColors.SelectionActiveBrush}}"/>
+                                        </MultiTrigger>
+                                    </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Setter.Value>
                         </Setter>
