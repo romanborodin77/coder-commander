@@ -21,6 +21,9 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>Семафор для защиты RefreshAsync от повторного входа (гонка Watcher/навигация/фильтр).</summary>
     /// <summary>Semaphore guarding RefreshAsync against reentrant calls (Watcher/navigation/filter race).</summary>
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    /// <summary>CTS для отмены устаревшего RefreshAsync при новой навигации.</summary>
+    /// <summary>CTS to cancel stale RefreshAsync on new navigation.</summary>
+    private CancellationTokenSource? _navRefreshCts;
     /// <summary>Текущий путь панели.</summary>
     [ObservableProperty] private string _currentPath = "C:\\";
     /// <summary>Выбранный элемент в списке.</summary>
@@ -232,12 +235,17 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>Обновить содержимое панели (перечитать директорию). Потокобезопасно: semaphore.</summary>
     /// <summary>Refresh the panel contents (re-read directory). Thread-safe via semaphore.</summary>
     [RelayCommand]
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(bool force = false)
     {
         if (_disposed) return;
-        var now = DateTime.UtcNow;
-        if ((now - _lastRefreshTime).TotalMilliseconds < 1000) return;
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        if (!force)
+        {
+            var now = DateTime.UtcNow;
+            if ((now - _lastRefreshTime).TotalMilliseconds < 1000) return;
+        }
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+            _navRefreshCts?.Token ?? default, _cts.Token);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
         try
         {
             await _refreshLock.WaitAsync(cts.Token);
@@ -533,6 +541,12 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrEmpty(p)) return;
 
+        // Отменяем устаревший RefreshAsync от предыдущей навигации.
+        // Cancel stale RefreshAsync from previous navigation.
+        _navRefreshCts?.Cancel();
+        _navRefreshCts?.Dispose();
+        _navRefreshCts = new CancellationTokenSource();
+
         // Облачные пути (начинаются с cloud://) — переключаемся на виртуальный режим.
         if (p.StartsWith("cloud://", StringComparison.OrdinalIgnoreCase))
         {
@@ -569,7 +583,7 @@ public partial class PanelViewModel : ObservableObject, IDisposable
                 VirtualReturnPath = CurrentPath;
                 VirtualFileSystem = drive.FileSystem;
                 CurrentPath = p;
-                await RefreshAsync();
+                await RefreshAsync(force: true);
             }
             return;
         }
@@ -587,7 +601,7 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         if (!Directory.Exists(p)) return;
         if (hist && p != CurrentPath) { _back.Push((CurrentPath, SelectedItem?.FullPath)); _fwd.Clear(); }
         CurrentPath = p;
-        await RefreshAsync();
+        await RefreshAsync(force: true);
     }
 
     /// <summary>Перейти назад по истории (с восстановлением позиции курсора).</summary>
@@ -677,7 +691,7 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     private void ToggleFlatView()
     {
         IsFlatView = !IsFlatView;
-        _ = RefreshAsync();
+        _ = RefreshAsync(force: true);
     }
 
     private CancellationTokenSource? _filterCts;
@@ -689,8 +703,9 @@ public partial class PanelViewModel : ObservableObject, IDisposable
     {
         _filterCts?.Cancel();
         _filterCts?.Dispose();
-        _filterCts = new CancellationTokenSource();
-        var cts = _filterCts;
+        
+        var cts = new CancellationTokenSource();
+        _filterCts = cts;
         _ = FilterDebouncedAsync(cts.Token);
     }
 
@@ -699,9 +714,13 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         try
         {
             await Task.Delay(250, ct);
-            if (!ct.IsCancellationRequested) await RefreshAsync();
+            if (!ct.IsCancellationRequested && !_disposed)
+            {
+                await RefreshAsync(force: true);
+            }
         }
         catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
     }
 
     /// <summary>
@@ -847,13 +866,16 @@ public partial class PanelViewModel : ObservableObject, IDisposable
         PropertyChanged -= OnPanelPropertyChanged;
         _cts.Cancel();
         _cts.Dispose();
+        
         _filterCts?.Cancel();
         _filterCts?.Dispose();
-        // FIXED: Cancel and dispose _qfCts and _quickViewCts to prevent kernel timer leaks.
+        _navRefreshCts?.Cancel();
+        _navRefreshCts?.Dispose();
         _qfCts?.Cancel();
         _qfCts?.Dispose();
         _quickViewCts?.Cancel();
         _quickViewCts?.Dispose();
+        
         Items.Clear();
         _itemsView = null;
         _refreshLock.Dispose();

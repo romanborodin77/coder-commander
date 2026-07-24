@@ -7,7 +7,7 @@
          xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
           Title="{DynamicResource AppTitle}"
           Icon="/app.ico"
-          Width="1500" Height="850"
+          Width="1100" Height="850"
          WindowStartupLocation="CenterScreen"
          WindowStyle="None"
          AllowsTransparency="False"
@@ -68,7 +68,15 @@
         <KeyBinding Key="Z" Modifiers="Alt" Command="{Binding TargetEqualSourceCommand}"/>
         <KeyBinding Key="F4" Modifiers="Shift" Command="{Binding EditNewCommand}"/>
     </Window.InputBindings>
-    <Window.Resources/>
+    <Window.Resources>
+    <!-- Prevent resource dictionary duplication in control templates -->
+    <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <!-- Shared resources for command palette and terminal tabs -->
+            <ResourceDictionary Source="pack://application:,,,/CoderCommander;component/Resources/Themes/SharedResources.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+</Window.Resources>
 
 <Grid Margin="1,0,1,1">
             <!-- ═══ CUSTOM TITLE BAR ═══ -->
@@ -137,13 +145,13 @@
             </Border>
             <!-- Main content wrapper -->
             <Grid Margin="0,36,0,0">
-                <!-- COMMAND PALETTE OVERLAY -->
-                <Border Background="{DynamicResource OverlayBrush}"
+<!-- COMMAND PALETTE OVERLAY -->
+        <Border Background="{DynamicResource OverlayBrush}"
                 Visibility="{Binding IsCommandPaletteOpen, Converter={StaticResource BoolToVis}}"
                 MouseDown="CommandPaletteOverlay_MouseDown"
                 Panel.ZIndex="1000">
             <Border.Effect>
-                <BlurEffect Radius="4"/>
+                <BlurEffect Radius="4" KernelType="Gaussian"/>
             </Border.Effect>
         </Border>
 
@@ -204,11 +212,14 @@
                              Background="Transparent" BorderThickness="0"
                              MouseDoubleClick="Cmd_Dbl"
                              Padding="8,6"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                                 <Setter Property="Margin" Value="2,2"/>
                                 <Setter Property="Padding" Value="12,10"/>
+                                <Setter Property="VirtualizingPanel.IsContainerVirtualizable" Value="True"/>
                             </Style>
                         </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
@@ -662,12 +673,14 @@
                                             Margin="0,0,2,0">
                                         <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
                                     </Button>
-                                    <TabControl x:Name="LeftPanelTabControl"
-                                                ItemsSource="{Binding LeftTabs}"
-                                                SelectedItem="{Binding ActiveLeftTab, Mode=TwoWay}"
-                                                Background="Transparent" BorderThickness="0"
-                                                MouseDown="TabControl_MouseDown"
-                                                Height="26" VerticalAlignment="Top">
+<TabControl x:Name="LeftPanelTabControl"
+                        ItemsSource="{Binding LeftTabs}"
+                        SelectedItem="{Binding ActiveLeftTab, Mode=TwoWay}"
+                        Background="Transparent" BorderThickness="0"
+                        MouseDown="TabControl_MouseDown"
+                        Height="26" VerticalAlignment="Top"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling">
                                         <!-- Template: headers only, no content area -->
                                         <TabControl.Template>
                                             <ControlTemplate TargetType="TabControl">
@@ -747,12 +760,14 @@
                                             Margin="0,0,2,0">
                                         <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
                                     </Button>
-                                    <TabControl x:Name="RightPanelTabControl"
-                                                ItemsSource="{Binding RightTabs}"
-                                                SelectedItem="{Binding ActiveRightTab, Mode=TwoWay}"
-                                                Background="Transparent" BorderThickness="0"
-                                                MouseDown="TabControl_MouseDown"
-                                                Height="26" VerticalAlignment="Top">
+<TabControl x:Name="RightPanelTabControl"
+                        ItemsSource="{Binding RightTabs}"
+                        SelectedItem="{Binding ActiveRightTab, Mode=TwoWay}"
+                        Background="Transparent" BorderThickness="0"
+                        MouseDown="TabControl_MouseDown"
+                        Height="26" VerticalAlignment="Top"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling">
                                         <TabControl.Template>
                                             <ControlTemplate TargetType="TabControl">
                                                 <TabPanel x:Name="HeaderPanel"
@@ -847,8 +862,10 @@
                             </Grid>
                         </Border>
 
-                        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
-                                    SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+<TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
+                        SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling">
 
                         <!-- ── Git ── -->
                         <TabItem>
@@ -963,8 +980,49 @@
                 <!-- Сплиттер для изменения высоты -->
                 <GridSplitter DockPanel.Dock="Top" Style="{StaticResource PanelSplitterH}"/>
                 <!-- Терминал TabControl -->
-                <TabControl x:Name="InnerTerminalTabs" Background="Transparent" BorderThickness="0"
-                            MouseDown="TerminalTabControl_MouseDown"/>
+                <TabControl x:Name="InnerTerminalTabs" 
+                            Background="Transparent" 
+                            BorderThickness="0"
+                            ItemsSource="{Binding TerminalTabs}"
+                            SelectedItem="{Binding ActiveTerminalTab, Mode=TwoWay}"
+                            MouseDown="TerminalTabControl_MouseDown">
+                    <TabControl.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel>
+                                <Button Content="✕"
+                                        Width="16" Height="16"
+                                        FontSize="8" Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Foreground="{DynamicResource FgDimBrush}"
+                                        Cursor="Hand"
+                                        VerticalAlignment="Center"
+                                        DockPanel.Dock="Right"
+                                        Command="{Binding DataContext.CloseTerminalTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"/>
+                                <TextBlock Text="{Binding Title}"
+                                           VerticalAlignment="Center"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource FgLightBrush}"
+                                           Margin="4,0,2,0"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </TabControl.ItemTemplate>
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="TabItem" BasedOn="{StaticResource PanelTabItemStyle}">
+                            <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                    <ContextMenu>
+                                        <MenuItem Header="{DynamicResource Tab.Close}"
+                                                  Command="{Binding PlacementTarget.Tag.CloseTerminalTabCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  Style="{DynamicResource ContextMenuItemStyle}"/>
+                                    </ContextMenu>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.ItemContainerStyle>
+                </TabControl>
             </DockPanel>
         </Border>
         </Grid>

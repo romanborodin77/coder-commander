@@ -34,6 +34,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     ///<summary>Dictionary of running console sessions: tabId -> ChildConsoleService.</summary>
     public Dictionary<int, ChildConsoleService> TerminalServices { get; } = new();
+    
+    private readonly SemaphoreSlim _terminalStartLock = new(1, 1);
 
     // ═══════════════════════════════════════════
     // ВКЛАДКИ ПАНЕЛЕЙ (ph5.9) / PANEL TABS (ph5.9)
@@ -1320,11 +1322,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task StartTerminalForTabAsync(TerminalTabViewModel tab, IntPtr hostHwnd)
     {
         if (tab is null || hostHwnd == IntPtr.Zero) return;
-        if (TerminalServices.TryGetValue(tab.Id, out var old)) { await old.StopAsync(); old.Dispose(); }
+        
+        await _terminalStartLock.WaitAsync();
+        try
+        {
+            if (TerminalServices.TryGetValue(tab.Id, out var old)) 
+            { 
+                await old.StopAsync(); 
+                old.Dispose(); 
+            }
 
-        var svc = new ChildConsoleService();
-        await svc.StartAsync(tab.Shell ?? TerminalShell, ActivePanel.CurrentPath, hostHwnd);
-        TerminalServices[tab.Id] = svc;
+            var svc = new ChildConsoleService();
+            await svc.StartAsync(tab.Shell ?? TerminalShell, ActivePanel.CurrentPath, hostHwnd);
+            TerminalServices[tab.Id] = svc;
+        }
+        finally
+        {
+            _terminalStartLock.Release();
+        }
     }
 
     ///<summary>Передаёт фокус в консоль активной вкладки.</summary>
@@ -1385,7 +1400,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand] public async Task SyncPanelsAsync() { var target = ActivePanel == LeftPanel ? RightPanel : LeftPanel; await target.NavigateToAsync(ActivePanel.CurrentPath); StatusText = L10n("Status.PanelsSynced"); }
     
     /// <summary>Поменять панели местами.</summary>
-    [RelayCommand] public void SwapPanels() { (LeftPanel.CurrentPath, RightPanel.CurrentPath) = (RightPanel.CurrentPath, LeftPanel.CurrentPath); _ = LeftPanel.RefreshAsync(); _ = RightPanel.RefreshAsync(); StatusText = L10n("Status.PanelsSwapped"); }
+    [RelayCommand] public void SwapPanels() { (LeftPanel.CurrentPath, RightPanel.CurrentPath) = (RightPanel.CurrentPath, LeftPanel.CurrentPath); _ = LeftPanel.RefreshAsync(force: true); _ = RightPanel.RefreshAsync(force: true); StatusText = L10n("Status.PanelsSwapped"); }
 
     /// <summary>Установить путь неактивной панели = путь активной (DC cm_TargetEqualSource, Alt+Z).</summary>
     [RelayCommand]
@@ -1433,25 +1448,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (files.Count == 0) return;
         var destDir = ActivePanel.CurrentPath;
         var items = files.Select(f => new FileSystemItem(f, Directory.Exists(f))).ToList();
-        if (_clipboardIsCut)
+        
+        try
         {
-            foreach (var f in files)
+            if (_clipboardIsCut)
             {
-                try
+                foreach (var f in files)
                 {
-                    var dest = Path.Combine(destDir, Path.GetFileName(f));
-                    if (Directory.Exists(f)) Directory.Move(f, dest);
-                    else File.Move(f, dest);
+                    try
+                    {
+                        var dest = Path.Combine(destDir, Path.GetFileName(f));
+                        if (Directory.Exists(f)) Directory.Move(f, dest);
+                        else File.Move(f, dest);
+                    }
+                    catch { }
                 }
-                catch { }
+                _clipboardIsCut = false;
             }
-            _clipboardIsCut = false;
+            else
+            {
+                ShowCopyMoveDialog(items, destDir, false);
+            }
         }
-        else
+        finally
         {
-            ShowCopyMoveDialog(items, destDir, false);
+            await ActivePanel.RefreshAsync();
         }
-        await ActivePanel.RefreshAsync();
     }
 
     /// <summary>Создать новый файл и открыть в редакторе (DC cm_EditNew, Shift+F4).</summary>
@@ -1577,7 +1599,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         foreach (var svc in TerminalServices.Values)
         {
-            try { svc.Dispose(); } catch { }
+            try 
+            { 
+                svc.StopAsync(force: true).Wait(TimeSpan.FromSeconds(2));
+                svc.Dispose(); 
+            } 
+            catch { }
         }
         TerminalServices.Clear();
 
@@ -1587,5 +1614,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         foreach (var tab in LeftTabs) tab.Panel.Dispose();
         foreach (var tab in RightTabs) tab.Panel.Dispose();
+        
+        _terminalStartLock.Dispose();
     }
 }

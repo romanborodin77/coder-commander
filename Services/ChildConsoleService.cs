@@ -24,18 +24,39 @@ public sealed class ChildConsoleService : IDisposable
     private bool _disposed;
     private bool _isRunning;
     private int _processId;
-    private IntPtr _hostHwnd = IntPtr.Zero;    private string _shellType = "cmd"; // "cmd" или "powershell" - используется в ChangeDirectory
+    private IntPtr _hostHwnd = IntPtr.Zero;
+    private string _shellType = "cmd"; // "cmd" или "powershell" - используется в ChangeDirectory
+    private readonly object _stateLock = new();
+    private CancellationTokenSource? _cts;
 
     /// <summary>
     /// Возвращает true, если консольный процесс запущен и работает.
     /// Returns true if the console process is started and running.
     /// </summary>
-    public bool IsRunning => _isRunning;
+    public bool IsRunning
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _isRunning;
+            }
+        }
+    }
     /// <summary>
     /// Возвращает идентификатор запущенного консольного процесса (PID).
     /// Returns the process ID (PID) of the running console process.
     /// </summary>
-    public int ProcessId => _processId;
+    public int ProcessId
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _processId;
+            }
+        }
+    }
 
     // ---- Win32 P/Invoke ----
 
@@ -188,7 +209,10 @@ public sealed class ChildConsoleService : IDisposable
     /// <exception cref="Win32Exception">CreateProcessW не удался / CreateProcessW failed.</exception>
     public async Task StartAsync(string shellExe, string workingDir, IntPtr hostHwnd)
     {
-        if (_isRunning) throw new InvalidOperationException("Терминал уже запущен.");
+        lock (_stateLock)
+        {
+            if (_isRunning) throw new InvalidOperationException("Терминал уже запущен.");
+        }
         if (hostHwnd == IntPtr.Zero) throw new ArgumentException("HWND контейнера не может быть нулевым.");
 
         _hostHwnd = hostHwnd;
@@ -251,13 +275,19 @@ public sealed class ChildConsoleService : IDisposable
 
         LogService.Debug($"ChildConsoleService.StartAsync: process started pid={_pi.dwProcessId}", "Terminal");
         _processId = _pi.dwProcessId;
-        _isRunning = true;
+        
+        lock (_stateLock)
+        {
+            _isRunning = true;
+        }
+
+        _cts = new CancellationTokenSource();
 
         try
         {
             // Поиск окна консоли: сначала по классу окна (ConsoleWindowClass),
             // затем fallback через AttachConsole+GetConsoleWindow (Windows Terminal на Win11)
-            _consoleWindowHandle = await WaitForNewConsoleWindowAsync(existingConsoles, TimeSpan.FromSeconds(10));
+            _consoleWindowHandle = await WaitForNewConsoleWindowAsync(existingConsoles, TimeSpan.FromSeconds(10), _cts.Token);
             if (_consoleWindowHandle == IntPtr.Zero)
             {
                 LogService.Debug("StartAsync: class-window search timed out, trying AttachConsole fallback", "Terminal");
@@ -307,7 +337,14 @@ public sealed class ChildConsoleService : IDisposable
     /// <returns>Task, завершающийся после остановки процесса. Task that completes after the process is stopped.</returns>
     public async Task StopAsync(bool force = false)
     {
-        if (!_isRunning && _consoleWindowHandle == IntPtr.Zero) return;
+        bool shouldStop = false;
+        lock (_stateLock)
+        {
+            if (!_isRunning && _consoleWindowHandle == IntPtr.Zero) return;
+            shouldStop = true;
+        }
+
+        if (!shouldStop) return;
 
         try
         {
@@ -335,7 +372,14 @@ public sealed class ChildConsoleService : IDisposable
             CleanupHandles();
             _consoleWindowHandle = IntPtr.Zero;
             _hostHwnd = IntPtr.Zero;
-            _isRunning = false;            _shellType = "cmd";
+            _cts?.Dispose();
+            _cts = null;
+            
+            lock (_stateLock)
+            {
+                _isRunning = false;
+                _shellType = "cmd";
+            }
         }
     }
 
@@ -422,7 +466,18 @@ public sealed class ChildConsoleService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        try { Task.Run(async () => await StopAsync(force: true)).Wait(TimeSpan.FromSeconds(5)); } catch { }
+        
+        try 
+        { 
+            // Use sync context if available, otherwise run synchronously
+            var task = StopAsync(force: true);
+            if (!task.IsCompleted)
+            {
+                task.Wait(TimeSpan.FromSeconds(5));
+            }
+        } 
+        catch { }
+        
         GC.SuppressFinalize(this);
     }
 
@@ -506,11 +561,11 @@ public sealed class ChildConsoleService : IDisposable
         return IntPtr.Zero;
     }
 
-    private static async Task<IntPtr> WaitForNewConsoleWindowAsync(List<IntPtr> before, TimeSpan timeout)
+    private static async Task<IntPtr> WaitForNewConsoleWindowAsync(List<IntPtr> before, TimeSpan timeout, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var beforeSet = new HashSet<IntPtr>(before);
-        while (sw.Elapsed < timeout)
+        while (sw.Elapsed < timeout && !ct.IsCancellationRequested)
         {
             var after = GetConsoleWindows();
             foreach (var hwnd in after)
@@ -524,7 +579,7 @@ public sealed class ChildConsoleService : IDisposable
                     if (visible) return hwnd;
                 }
             }
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100, ct).ConfigureAwait(false);
         }
         LogService.Debug($"WaitForNewConsoleWindowAsync: timeout after {timeout.TotalSeconds}s, checked {GetConsoleWindows().Count} windows", "Term");
         return IntPtr.Zero;

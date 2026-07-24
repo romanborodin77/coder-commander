@@ -15,6 +15,8 @@ namespace CoderCommander.Services;
 /// </summary>
 public static class ThemeColors
 {
+    private static readonly object _updateLock = new();
+
     public static SolidColorBrush AccentBrush { get; } = new(Color.FromRgb(0x00, 0x78, 0xD4));
     public static SolidColorBrush AccentSecondaryBrush { get; } = new(Color.FromRgb(0x4E, 0xC9, 0xB0));
     public static SolidColorBrush BorderBrush { get; } = new(Color.FromRgb(0x2B, 0x2B, 0x2B));
@@ -35,45 +37,48 @@ public static class ThemeColors
 
     public static void Update(ThemeMode theme)
     {
-        if (theme == ThemeMode.Light)
+        lock (_updateLock)
         {
-            AccentBrush.Color = Color.FromRgb(0x00, 0x66, 0xBF);
-            AccentSecondaryBrush.Color = Color.FromRgb(0x26, 0x7F, 0x99);
-            BorderBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
-            SurfaceHoverBrush.Color = Color.FromRgb(0xE8, 0xE8, 0xE8);
-            FgLightBrush.Color = Color.FromRgb(0x1F, 0x1F, 0x1F);
-            FgDimBrush.Color = Color.FromRgb(0x5A, 0x5A, 0x5A);
-            FgMutedBrush.Color = Color.FromRgb(0x6B, 0x72, 0x80);
-            AccentDimBrush.Color = Color.FromArgb(0x22, 0x00, 0x66, 0xBF);
-            BgHeaderBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
-            SurfaceBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
-            SelectionBrush.Color = Color.FromArgb(0x33, 0xAD, 0xD6, 0xFF);
-            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0xAD, 0xD6, 0xFF);
-            BgButtonBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
-            BgButtonHoverBrush.Color = Color.FromRgb(0xE8, 0xE8, 0xE8);
-            BgButtonBorderBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
-            BgInputBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
-            FgButtonBrush.Color = Color.FromRgb(0x1F, 0x1F, 0x1F);
-        }
-        else
-        {
-            AccentBrush.Color = Color.FromRgb(0x00, 0x78, 0xD4);
-            AccentSecondaryBrush.Color = Color.FromRgb(0x4E, 0xC9, 0xB0);
-            BorderBrush.Color = Color.FromRgb(0x2B, 0x2B, 0x2B);
-            SurfaceHoverBrush.Color = Color.FromRgb(0x2D, 0x2D, 0x2D);
-            FgLightBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
-            FgDimBrush.Color = Color.FromRgb(0x9D, 0xA0, 0xA6);
-            FgMutedBrush.Color = Color.FromRgb(0x87, 0x87, 0x87);
-            AccentDimBrush.Color = Color.FromArgb(0x33, 0x00, 0x78, 0xD4);
-            BgHeaderBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
-            SurfaceBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
-            SelectionBrush.Color = Color.FromArgb(0x33, 0x26, 0x4F, 0x78);
-            SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x26, 0x4F, 0x78);
-            BgButtonBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
-            BgButtonHoverBrush.Color = Color.FromRgb(0x2D, 0x2D, 0x2D);
-            BgButtonBorderBrush.Color = Color.FromRgb(0x2B, 0x2B, 0x2B);
-            BgInputBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
-            FgButtonBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
+            if (theme == ThemeMode.Light)
+            {
+                AccentBrush.Color = Color.FromRgb(0x00, 0x66, 0xBF);
+                AccentSecondaryBrush.Color = Color.FromRgb(0x26, 0x7F, 0x99);
+                BorderBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
+                SurfaceHoverBrush.Color = Color.FromRgb(0xE8, 0xE8, 0xE8);
+                FgLightBrush.Color = Color.FromRgb(0x1F, 0x1F, 0x1F);
+                FgDimBrush.Color = Color.FromRgb(0x5A, 0x5A, 0x5A);
+                FgMutedBrush.Color = Color.FromRgb(0x6B, 0x72, 0x80);
+                AccentDimBrush.Color = Color.FromArgb(0x22, 0x00, 0x66, 0xBF);
+                BgHeaderBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
+                SurfaceBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
+                SelectionBrush.Color = Color.FromArgb(0x33, 0xAD, 0xD6, 0xFF);
+                SelectionActiveBrush.Color = Color.FromArgb(0x55, 0xAD, 0xD6, 0xFF);
+                BgButtonBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
+                BgButtonHoverBrush.Color = Color.FromRgb(0xE8, 0xE8, 0xE8);
+                BgButtonBorderBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
+                BgInputBrush.Color = Color.FromRgb(0xF3, 0xF3, 0xF3);
+                FgButtonBrush.Color = Color.FromRgb(0x1F, 0x1F, 0x1F);
+            }
+            else
+            {
+                AccentBrush.Color = Color.FromRgb(0x00, 0x78, 0xD4);
+                AccentSecondaryBrush.Color = Color.FromRgb(0x4E, 0xC9, 0xB0);
+                BorderBrush.Color = Color.FromRgb(0x2B, 0x2B, 0x2B);
+                SurfaceHoverBrush.Color = Color.FromRgb(0x2D, 0x2D, 0x2D);
+                FgLightBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
+                FgDimBrush.Color = Color.FromRgb(0x9D, 0xA0, 0xA6);
+                FgMutedBrush.Color = Color.FromRgb(0x87, 0x87, 0x87);
+                AccentDimBrush.Color = Color.FromArgb(0x33, 0x00, 0x78, 0xD4);
+                BgHeaderBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
+                SurfaceBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
+                SelectionBrush.Color = Color.FromArgb(0x33, 0x26, 0x4F, 0x78);
+                SelectionActiveBrush.Color = Color.FromArgb(0x55, 0x26, 0x4F, 0x78);
+                BgButtonBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
+                BgButtonHoverBrush.Color = Color.FromRgb(0x2D, 0x2D, 0x2D);
+                BgButtonBorderBrush.Color = Color.FromRgb(0x2B, 0x2B, 0x2B);
+                BgInputBrush.Color = Color.FromRgb(0x25, 0x25, 0x26);
+                FgButtonBrush.Color = Color.FromRgb(0xD4, 0xD4, 0xD4);
+            }
         }
     }
 }

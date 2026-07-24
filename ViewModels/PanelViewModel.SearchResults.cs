@@ -45,7 +45,7 @@ public partial class PanelViewModel
         // Служебный заголовок вместо реального пути (навигация заблокирована).
         // Sentinel title instead of a real path (navigation is blocked).
         CurrentPath = LocalizationService.Current.GetString("Search.ResultsTitle");
-        _ = RefreshAsync();
+        _ = RefreshAsync(force: true);
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ public partial class PanelViewModel
         else
         {
             CurrentPath = ret ?? "C:\\";
-            _ = RefreshAsync();
+            _ = RefreshAsync(force: true);
         }
     }
 

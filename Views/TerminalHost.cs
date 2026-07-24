@@ -1,7 +1,9 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using CoderCommander.Services;
 
 namespace CoderCommander.Views;
 
@@ -13,7 +15,7 @@ namespace CoderCommander.Views;
 /// The actual shell window is embedded into it via Win32 SetParent,
 /// forming a native terminal inside the WPF window.
 /// </summary>
-public sealed class TerminalHost : HwndHost
+public sealed class TerminalHost : HwndHost, IDisposable
 {
     /// <summary>
     /// Имя оконного класса Win32, регистрируемого для placeholder-окна.
@@ -26,6 +28,12 @@ public sealed class TerminalHost : HwndHost
     /// Handle of the created native container window.
     /// </summary>
     private IntPtr _hwnd = IntPtr.Zero;
+
+    /// <summary>
+    /// Флаг, был ли объект уже освобожден.
+    /// Flag indicating whether the object has been disposed.
+    /// </summary>
+    private bool _disposed;
 
     /// <summary>
     /// HWND этого контейнера (куда встраивать консоль).
@@ -56,7 +64,9 @@ public sealed class TerminalHost : HwndHost
     /// <returns>HandleRef на созданное дочернее окно. / HandleRef to the created child window.</returns>
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
     {
-        CoderCommander.Services.LogService.Debug(
+        if (_disposed) throw new ObjectDisposedException(nameof(TerminalHost));
+
+        LogService.Debug(
             $"TerminalHost.BuildWindowCore: parent={hwndParent.Handle:X} size={Width}x{Height}",
             "Terminal");
 
@@ -76,14 +86,14 @@ public sealed class TerminalHost : HwndHost
                     lpszClassName = WindowClass,
                 };
                 var regResult = RegisterClass(wc);
-                CoderCommander.Services.LogService.Debug(
+                LogService.Debug(
                     $"TerminalHost.BuildWindowCore: RegisterClass result={regResult}, lastError={Marshal.GetLastWin32Error()}",
                     "Terminal");
                 if (regResult == 0)
                 {
                     var err = Marshal.GetLastWin32Error();
                     if (err != 1410) // ERROR_CLASS_ALREADY_REGISTERED
-                        throw new System.ComponentModel.Win32Exception(err, "RegisterClass TerminalHost failed");
+                        throw new Win32Exception(err, "RegisterClass TerminalHost failed");
                 }
                 _classRegistered = 1;
             }
@@ -105,13 +115,13 @@ public sealed class TerminalHost : HwndHost
         if (_hwnd == IntPtr.Zero)
         {
             var err = Marshal.GetLastWin32Error();
-            CoderCommander.Services.LogService.Debug(
+            LogService.Debug(
                 $"TerminalHost.BuildWindowCore: CreateWindowEx FAILED err={err}", "Terminal");
-            throw new System.ComponentModel.Win32Exception(err,
+            throw new Win32Exception(err,
                 "CreateWindowEx TerminalHost failed");
         }
 
-        CoderCommander.Services.LogService.Debug(
+        LogService.Debug(
             $"TerminalHost.BuildWindowCore: created hwnd={_hwnd:X}", "Terminal");
         HostReady?.Invoke(_hwnd);
 
@@ -125,7 +135,7 @@ public sealed class TerminalHost : HwndHost
     /// <param name="hwnd">HandleRef на уничтожаемое окно. / HandleRef to the window being destroyed.</param>
     protected override void DestroyWindowCore(HandleRef hwnd)
     {
-        if (hwnd.Handle != IntPtr.Zero)
+        if (!_disposed && hwnd.Handle != IntPtr.Zero)
             DestroyWindow(hwnd.Handle);
         _hwnd = IntPtr.Zero;
     }
@@ -138,11 +148,42 @@ public sealed class TerminalHost : HwndHost
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
-        if (_hwnd != IntPtr.Zero)
+        if (_hwnd != IntPtr.Zero && !_disposed)
         {
             MoveWindow(_hwnd, 0, 0,
                 (int)sizeInfo.NewSize.Width, (int)sizeInfo.NewSize.Height, true);
         }
+    }
+
+    /// <summary>
+    /// Освобождает ресурсы: уничтожает нативное окно при необходимости.
+    /// Releases resources: destroys native window if needed.
+    /// </summary>
+public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        
+        if (_hwnd != IntPtr.Zero)
+        {
+            DestroyWindow(_hwnd);
+            _hwnd = IntPtr.Zero;
+        }
+        
+        HostReady = null;
+        GC.SuppressFinalize(this);
+    }
+
+    // Explicit interface implementation — hides the inherited method.
+    void IDisposable.Dispose() => Dispose();
+
+    /// <summary>
+    /// Финализатор для гарантированной очистки ресурсов.
+    /// Finalizer to ensure resource cleanup.
+    /// </summary>
+    ~TerminalHost()
+    {
+        Dispose();
     }
 
     //========== Win32 constants ==========
