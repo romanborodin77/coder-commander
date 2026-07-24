@@ -945,23 +945,7 @@
                 <TabControl x:Name="InnerTerminalTabs" 
                             Background="Transparent" 
                             BorderThickness="0"
-                            ItemsSource="{Binding TerminalTabs}"
-                            SelectedItem="{Binding ActiveTerminalTab, Mode=TwoWay}"
                             MouseDown="TerminalTabControl_MouseDown">
-                    <TabControl.ItemTemplate>
-                        <DataTemplate>
-                            <DockPanel>
-                                <Button Style="{DynamicResource CloseTabButtonStyle}"
-                                        Command="{Binding DataContext.CloseTerminalTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding}"/>
-                                <TextBlock Text="{Binding Title}"
-                                           VerticalAlignment="Center"
-                                           FontSize="11"
-                                           Foreground="{DynamicResource FgLightBrush}"
-                                           Margin="4,0,2,0"/>
-                            </DockPanel>
-                        </DataTemplate>
-                    </TabControl.ItemTemplate>
                     <TabControl.ItemContainerStyle>
                         <Style TargetType="TabItem" BasedOn="{StaticResource PanelTabItemStyle}">
                             <Setter Property="ContextMenu">
