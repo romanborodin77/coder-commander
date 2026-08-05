@@ -3,20 +3,35 @@ using CoderCommander.Services;
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Bookmark manager: add/remove folder bookmarks.
+/// Represents a saved folder bookmark with a display name and path.
 /// </summary>
 public class BookmarkEntry
 {
+    /// <summary>Display name for the bookmark.</summary>
     public string Name { get; set; } = "";
+
+    /// <summary>Filesystem path of the bookmarked folder.</summary>
     public string Path { get; set; } = "";
+
+    /// <summary>Timestamp when the bookmark was created.</summary>
     public DateTime Created { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Singleton persistence store for <see cref="BookmarkEntry"/> items,
+/// backed by a pipe-delimited text file in AppData.
+/// </summary>
 public sealed class BookmarkStore
 {
+    /// <summary>Shared singleton instance.</summary>
     public static BookmarkStore Instance { get; } = new();
+
+    /// <summary>The current list of bookmarks.</summary>
     public List<BookmarkEntry> Items { get; } = [];
 
+    /// <summary>Adds a bookmark if no entry with the same path (case-insensitive) exists.</summary>
+    /// <param name="name">Display name.</param>
+    /// <param name="path">Filesystem path.</param>
     public void Add(string name, string path)
     {
         if (Items.Any(b => b.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
@@ -24,16 +39,19 @@ public sealed class BookmarkStore
         Save();
     }
 
+    /// <summary>Removes the given bookmark entry and persists the change.</summary>
     public void Remove(BookmarkEntry entry)
     {
         Items.Remove(entry);
         Save();
     }
 
+    /// <summary>Full path to the bookmarks persistence file in AppData.</summary>
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "CoderCommander", "bookmarks.txt");
 
+    /// <summary>Persists all bookmarks to the text file.</summary>
     public void Save()
     {
         try
@@ -48,6 +66,7 @@ public sealed class BookmarkStore
         }
     }
 
+    /// <summary>Loads bookmarks from the persistence file, replacing any in-memory entries.</summary>
     public void Load()
     {
         Items.Clear();
@@ -71,7 +90,7 @@ public sealed class BookmarkStore
 }
 
 /// <summary>
-/// Bookmark management form.
+/// Bookmark management form: add, remove, and navigate to folder bookmarks.
 /// </summary>
 public class BookmarksForm : ThemedForm
 {
@@ -83,6 +102,7 @@ public class BookmarksForm : ThemedForm
     /// <summary>Raised when a bookmark is double-clicked (navigate to it).</summary>
     public event EventHandler<string>? BookmarkActivated;
 
+    /// <summary>Initializes the bookmarks dialog and loads persisted bookmarks.</summary>
     public BookmarksForm()
     {
         var L = LocalizationService.Current;
@@ -142,6 +162,7 @@ public class BookmarksForm : ThemedForm
         Load += (_, _) => RefreshList();
     }
 
+    /// <summary>Handles double-click on a bookmark: raises <see cref="BookmarkActivated"/>.</summary>
     private void OnBookmarkDoubleClick(object? sender, EventArgs e)
     {
         if (_listView.SelectedItems.Count > 0)
@@ -154,6 +175,7 @@ public class BookmarksForm : ThemedForm
         }
     }
 
+    /// <summary>Rebuilds the <see cref="ListView"/> from <see cref="BookmarkStore.Items"/>.</summary>
     private void RefreshList()
     {
         var L = LocalizationService.Current;
@@ -178,6 +200,7 @@ public class BookmarksForm : ThemedForm
         _listView.EndUpdate();
     }
 
+    /// <summary>Prompts for a name and path, then adds a new bookmark.</summary>
     private void AddBookmark()
     {
         var L = LocalizationService.Current;
@@ -193,6 +216,7 @@ public class BookmarksForm : ThemedForm
         }
     }
 
+    /// <summary>Removes the currently selected bookmark from the store.</summary>
     private void RemoveSelected()
     {
         if (_listView.SelectedItems.Count > 0 && _listView.SelectedItems[0].Tag is BookmarkEntry b)

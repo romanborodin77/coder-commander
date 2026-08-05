@@ -19,6 +19,13 @@ internal sealed class FindReplaceBar : Panel
     private readonly ThemedCheckBox _matchCaseCheck;
     private readonly Panel _replaceRow;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FindReplaceBar"/> class, wiring find/replace
+    /// controls to the specified canvas and buffer.
+    /// </summary>
+    /// <param name="canvas">The editor canvas whose selection and highlights are updated on match navigation.</param>
+    /// <param name="buffer">The text buffer to search within.</param>
+    /// <param name="undoStack">The undo stack used for replace operations.</param>
     public FindReplaceBar(CodeEditorCanvas canvas, TextBuffer buffer, UndoStack undoStack)
     {
         _canvas = canvas;
@@ -118,6 +125,7 @@ internal sealed class FindReplaceBar : Panel
         ApplyTheme();
     }
 
+    /// <summary>Applies the current theme to the bar background.</summary>
     public void ApplyTheme()
     {
         var p = ThemeService.Current;
@@ -128,6 +136,11 @@ internal sealed class FindReplaceBar : Panel
         Tag = ThemeRole.HeaderBackground;
     }
 
+    /// <summary>
+    /// Shows the find bar, optionally with the replace row visible. Focuses the find text box
+    /// and re-runs the current pattern if one is already entered.
+    /// </summary>
+    /// <param name="withReplace">If <c>true</c>, the replace row is also displayed.</param>
     public void ShowBar(bool withReplace)
     {
         Visible = true;
@@ -141,6 +154,7 @@ internal sealed class FindReplaceBar : Panel
             OnPatternChanged();
     }
 
+    /// <summary>Hides the bar, clears the find pattern, removes match highlights, and returns focus to the canvas.</summary>
     public void CloseBar()
     {
         Visible = false;

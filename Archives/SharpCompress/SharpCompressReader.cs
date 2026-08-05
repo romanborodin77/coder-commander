@@ -11,7 +11,20 @@ namespace CoderCommander.Archives.SharpCompress;
 /// <summary>Which SharpCompress entry point <see cref="SharpCompressReader"/> should use - kept
 /// as a closed set here rather than exposed generically, since it's the one thing that varies
 /// between the four read-only formats built on this reader.</summary>
-public enum SharpCompressKind { SevenZip, Rar, TarBz2, TarXz }
+public enum SharpCompressKind
+{
+    /// <summary>7z archive — uses <see cref="SevenZipArchive"/>.</summary>
+    SevenZip,
+
+    /// <summary>RAR archive — uses <see cref="RarArchive"/>.</summary>
+    Rar,
+
+    /// <summary>TAR.BZ2 archive — uses <see cref="ReaderFactory"/>.</summary>
+    TarBz2,
+
+    /// <summary>TAR.XZ archive — uses <see cref="ReaderFactory"/> (read-only, no writer support).</summary>
+    TarXz
+}
 
 /// <summary>
 /// The read side of the two files in <c>Archives/SharpCompress/</c> that reference SharpCompress
@@ -29,14 +42,20 @@ public sealed class SharpCompressReader : IArchiveReader
     private readonly string _archivePath;
     private readonly SharpCompressKind _kind;
 
+    /// <summary>Initializes a new reader for the archive at <paramref name="archivePath"/> using the specified <paramref name="kind"/>.</summary>
     public SharpCompressReader(string archivePath, SharpCompressKind kind)
     {
         _archivePath = archivePath;
         _kind = kind;
     }
 
+    /// <summary>SharpCompress readers are forward-only; random access is not supported.</summary>
     public bool SupportsRandomAccess => false;
 
+    /// <summary>
+    /// Reads the directory listing by scanning all entries on a thread pool thread.
+    /// Returns an invalid directory if the file does not exist or is inaccessible.
+    /// </summary>
     public Task<ArchiveDirectory> ReadDirectoryAsync(CancellationToken ct = default)
     {
         if (!File.Exists(_archivePath))
@@ -75,9 +94,11 @@ public sealed class SharpCompressReader : IArchiveReader
         }, ct);
     }
 
+    /// <summary>Throws <see cref="NotSupportedException"/> — SharpCompress forward-only readers cannot open individual entries by index.</summary>
     public Stream OpenEntry(ArchiveEntryRecord entry) =>
         throw new NotSupportedException($"\"{_kind}\" archives do not support random-access entry opening; use ScanAsync instead.");
 
+    /// <summary>Scans all entries sequentially via SharpCompress's <see cref="IReader"/>, yielding each as an <see cref="ArchiveEntryStream"/>.</summary>
     public async IAsyncEnumerable<ArchiveEntryStream> ScanAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
@@ -113,8 +134,13 @@ public sealed class SharpCompressReader : IArchiveReader
         }
     }
 
+    /// <summary>No persistent state to release; all resources are scoped to individual method calls.</summary>
     public void Dispose() { }
 
+    /// <summary>
+    /// Opens a SharpCompress <see cref="IReader"/> for the given <paramref name="stream"/> according to <see cref="_kind"/>.
+    /// The optional <paramref name="archive"/> disposable (for archive-level resources) is returned via out parameter.
+    /// </summary>
     private IReader OpenReader(Stream stream, out IDisposable? archive)
     {
         switch (_kind)
@@ -136,6 +162,7 @@ public sealed class SharpCompressReader : IArchiveReader
         }
     }
 
+    /// <summary>Converts a SharpCompress <see cref="IEntry"/> to an <see cref="ArchiveEntryRecord"/>, stripping "./" prefixes.</summary>
     private static ArchiveEntryRecord ToRecord(IEntry entry, int index)
     {
         var name = (entry.Key ?? "").Replace('\\', '/');

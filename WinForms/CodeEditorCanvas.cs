@@ -48,6 +48,7 @@ internal sealed class CodeEditorCanvas : Control
     private const float MaxZoom = 3f;
 
     private (TextPosition Open, TextPosition Close)? _bracketMatch;
+    /// <summary>Gets or sets whether whitespace characters (spaces, tabs) are rendered as visible glyphs.</summary>
     public bool ShowWhitespace { get; set; }
 
     private static readonly Dictionary<char, char> BracketPairs = new() { ['('] = ')', ['['] = ']', ['{'] = '}' };
@@ -70,20 +71,34 @@ internal sealed class CodeEditorCanvas : Control
     private Point _lastClickPos;
     private int _clickStreak;
 
+    /// <summary>Raised when the caret position changes.</summary>
     public event EventHandler? CaretMoved;
+    /// <summary>Raised when the document content changes (insert, delete, undo, redo).</summary>
     public event EventHandler? ContentChanged;
+    /// <summary>Raised when the scroll position changes.</summary>
     public event EventHandler? ScrollChanged;
 
+    /// <summary>Gets the underlying text buffer.</summary>
     public TextBuffer Buffer => _buffer;
+    /// <summary>Gets the current caret position in zero-based (line, column) coordinates.</summary>
     public TextPosition Caret => _caret;
+    /// <summary>Gets the pixel height of a single line, derived from the current font and zoom.</summary>
     internal int LineHeight => _lineHeight;
+    /// <summary>Gets the average pixel width of a single character, derived from the current font and zoom.</summary>
     internal float CharWidth => _charWidth;
 
+    /// <summary>Gets whether a non-empty selection is active (anchor differs from caret).</summary>
     public bool HasSelection => _selectionAnchor.HasValue && _selectionAnchor.Value != _caret;
+    /// <summary>Gets whether the undo stack has at least one entry available.</summary>
     public bool CanUndo => _undoStack.CanUndo;
+    /// <summary>Gets whether the redo stack has at least one entry available.</summary>
     public bool CanRedo => _undoStack.CanRedo;
+    /// <summary>Gets the undo stack for external state queries (e.g. clean-state tracking).</summary>
     internal UndoStack UndoStack => _undoStack;
 
+    /// <summary>
+    /// Gets the normalized selection range as <c>(start, end)</c>, or <c>null</c> when nothing is selected.
+    /// </summary>
     public (TextPosition Start, TextPosition End)? SelectionRange
     {
         get
@@ -94,6 +109,7 @@ internal sealed class CodeEditorCanvas : Control
         }
     }
 
+    /// <summary>Gets or sets the vertical scroll offset in pixels. Clamped to valid range.</summary>
     internal int ScrollY
     {
         get => _scrollY;
@@ -108,6 +124,7 @@ internal sealed class CodeEditorCanvas : Control
         }
     }
 
+    /// <summary>Gets or sets the horizontal scroll offset in pixels. Clamped to zero minimum.</summary>
     internal int ScrollX
     {
         get => _scrollX;
@@ -121,6 +138,10 @@ internal sealed class CodeEditorCanvas : Control
         }
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CodeEditorCanvas"/> class.
+    /// </summary>
+    /// <param name="buffer">The text buffer to edit.</param>
     public CodeEditorCanvas(TextBuffer buffer)
     {
         _buffer = buffer;
@@ -167,6 +188,7 @@ internal sealed class CodeEditorCanvas : Control
 
     // -- Setup / theming --
 
+    /// <summary>Re-measures glyph metrics (character width, line height) from the current theme font and zoom factor.</summary>
     internal void RescaleMetrics()
     {
         var p = ThemeService.Current;
@@ -188,6 +210,10 @@ internal sealed class CodeEditorCanvas : Control
         Invalidate();
     }
 
+    /// <summary>
+    /// Adjusts the zoom level by <paramref name="steps"/> increments (positive = zoom in, negative = zoom out).
+    /// </summary>
+    /// <param name="steps">Number of 10% zoom steps to apply.</param>
     internal void Zoom(int steps)
     {
         var newZoom = Math.Clamp(_zoomFactor + steps * 0.1f, MinZoom, MaxZoom);
@@ -197,6 +223,7 @@ internal sealed class CodeEditorCanvas : Control
         EnsureCaretVisible();
     }
 
+    /// <summary>Resets the zoom factor to 1.0 (100%).</summary>
     internal void ResetZoom()
     {
         if (Math.Abs(_zoomFactor - 1f) < 0.001f) return;
@@ -205,6 +232,7 @@ internal sealed class CodeEditorCanvas : Control
         EnsureCaretVisible();
     }
 
+    /// <summary>Applies the current theme colors and re-measures metrics.</summary>
     public void ApplyTheme()
     {
         BackColor = ThemeService.Current.PanelBackground;
@@ -214,6 +242,7 @@ internal sealed class CodeEditorCanvas : Control
         Invalidate();
     }
 
+    /// <summary>Resets the caret to (0, 0), clears selection and undo history, and scrolls to the top.</summary>
     internal void ResetCaretToStart()
     {
         _caret = new TextPosition(0, 0);
@@ -234,8 +263,13 @@ internal sealed class CodeEditorCanvas : Control
 
     // -- Syntax highlighting --
 
+    /// <summary>Gets the current language used for syntax highlighting.</summary>
     internal LanguageId Language => _language;
 
+    /// <summary>
+    /// Sets the syntax highlighting language and triggers an immediate re-tokenize.
+    /// </summary>
+    /// <param name="language">The language to highlight as, or <see cref="LanguageId.PlainText"/> to disable.</param>
     internal void SetLanguage(LanguageId language)
     {
         _language = language;
@@ -962,6 +996,7 @@ internal sealed class CodeEditorCanvas : Control
         ContentChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Undoes the last edit group.</summary>
     public void Undo()
     {
         var group = _undoStack.Undo();
@@ -969,6 +1004,7 @@ internal sealed class CodeEditorCanvas : Control
         ApplyInverse(group, forward: false);
     }
 
+    /// <summary>Redoes the last undone edit group.</summary>
     public void Redo()
     {
         var group = _undoStack.Redo();
@@ -1051,6 +1087,7 @@ internal sealed class CodeEditorCanvas : Control
         MoveCaret(new TextPosition(lastLine, _buffer.LineLength(lastLine)), extendSelection: true, ensureVisible: false);
     }
 
+    /// <summary>Copies the current selection to the clipboard.</summary>
     public void Copy()
     {
         if (!HasSelection) return;
@@ -1058,6 +1095,7 @@ internal sealed class CodeEditorCanvas : Control
         TrySetClipboard(_buffer.GetTextInRange(start, end));
     }
 
+    /// <summary>Copies the current selection to the clipboard and deletes it.</summary>
     public void Cut()
     {
         if (!HasSelection) return;
@@ -1065,6 +1103,7 @@ internal sealed class CodeEditorCanvas : Control
         DeleteSelection();
     }
 
+    /// <summary>Pastes text from the clipboard at the caret, replacing any selection.</summary>
     public void Paste()
     {
         string? text;

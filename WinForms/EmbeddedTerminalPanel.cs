@@ -23,9 +23,13 @@ public sealed class EmbeddedTerminalPanel : Panel
     private Panel _sharedContent = null!;
     private RoundedButton _newTabButton = null!;
 
+    /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
 
+    /// <summary>Raised when a tab is created, closed, or the tab count changes.</summary>
     public event EventHandler? TabsChanged;
+
+    /// <summary>Raised when the active tab's output buffer receives new text.</summary>
     public event EventHandler? OutputUpdated;
 
     public EmbeddedTerminalPanel()
@@ -151,6 +155,8 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Fallback working directory for new tabs when there's no active tab to inherit from.</summary>
     public string? DefaultPath { get; set; }
 
+    /// <summary>Change the working directory of the active terminal tab.</summary>
+    /// <param name="path">New working directory path.</param>
     public void SetWorkingDirectory(string path)
     {
         if (!ShellValidator.IsPathAccessible(path))
@@ -651,11 +657,16 @@ public sealed class EmbeddedTerminalPanel : Panel
         }
     }
 
+    /// <summary>Raised when the tracked shell working directory changes.</summary>
     public event EventHandler<DirectoryChangedEventArgs>? DirectoryChanged;
 
+    /// <summary>Event arguments for <see cref="DirectoryChanged"/>.</summary>
     public class DirectoryChangedEventArgs : EventArgs
     {
+        /// <summary>Id of the tab whose directory changed.</summary>
         public Guid TabId { get; set; }
+
+        /// <summary>New working directory path.</summary>
         public string NewPath { get; set; } = "";
     }
 

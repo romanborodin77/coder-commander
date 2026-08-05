@@ -4,10 +4,13 @@ namespace CoderCommander.Operations;
 
 /// <summary>
 /// Base class for all file operations: manages state, progress, cancellation.
-//// </summary>
+/// </summary>
 public abstract class FileOperation : IFileOperation, IDisposable
 {
+    /// <inheritdoc/>
     public abstract OperationType Type { get; }
+
+    /// <inheritdoc/>
     public abstract string Title { get; }
 
     private volatile OperationState _state = OperationState.NotStarted;
@@ -16,12 +19,19 @@ public abstract class FileOperation : IFileOperation, IDisposable
     private readonly object _stateLock = new();
     private bool _cancelRequested;
 
+    /// <inheritdoc/>
     public OperationState State => _state;
+
+    /// <inheritdoc/>
     public Exception? LastError => _lastError;
 
+    /// <inheritdoc/>
     public event EventHandler<OperationState>? StateChanged;
+
+    /// <inheritdoc/>
     public event EventHandler<OperationProgress>? ProgressChanged;
 
+    /// <inheritdoc/>
     public async Task ExecuteAsync(CancellationToken ct = default)
     {
         CancellationTokenSource cts;
@@ -55,6 +65,7 @@ public abstract class FileOperation : IFileOperation, IDisposable
         }
     }
 
+    /// <inheritdoc/>
     public void Cancel()
     {
         lock (_stateLock)
@@ -64,10 +75,13 @@ public abstract class FileOperation : IFileOperation, IDisposable
         }
     }
 
+    /// <summary>Subclasses implement the actual work here. Called once per <see cref="ExecuteAsync"/> invocation.</summary>
     protected abstract Task ExecuteCoreAsync(CancellationToken ct);
 
+    /// <summary>Raises <see cref="ProgressChanged"/> with the given progress report.</summary>
     protected void Report(OperationProgress p) => ProgressChanged?.Invoke(this, p);
 
+    /// <summary>Updates <see cref="State"/> and raises <see cref="StateChanged"/>.</summary>
     protected void SetState(OperationState s)
     {
         lock (_stateLock)
@@ -77,6 +91,7 @@ public abstract class FileOperation : IFileOperation, IDisposable
         StateChanged?.Invoke(this, s);
     }
 
+    /// <summary>Disposes the internal cancellation token source.</summary>
     public void Dispose()
     {
         lock (_stateLock)

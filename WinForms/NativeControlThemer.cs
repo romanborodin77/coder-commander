@@ -62,6 +62,7 @@ public static class NativeControlThemer
         }
     }
 
+    /// <summary>Handles <see cref="Control.HandleCreated"/> to apply dark scrollbars once the handle exists.</summary>
     private static void OnControlHandleCreated(object? sender, EventArgs e)
     {
         if (sender is Control c)
@@ -89,6 +90,7 @@ public static class NativeControlThemer
             lv.HandleCreated += OnListViewHandleCreated;
     }
 
+    /// <summary>Handles <see cref="Control.HandleCreated"/> to apply dark mode theming to a ListView once the handle exists.</summary>
     private static void OnListViewHandleCreated(object? sender, EventArgs e)
     {
         if (sender is ListView lv)
@@ -98,6 +100,7 @@ public static class NativeControlThemer
         }
     }
 
+    /// <summary>Applies dark mode theme, double-buffering, and header theming to a ListView's native chrome.</summary>
     private static void ThemeListViewCore(ListView lv)
     {
         // wParam=0 mirrors the call FilePanelUserControl already made for the main file list
@@ -141,6 +144,7 @@ public static class NativeControlThemer
             lv.HandleCreated += OnListViewHeaderHandleCreated;
     }
 
+    /// <summary>Handles <see cref="Control.HandleCreated"/> to apply header owner-draw once the ListView handle exists.</summary>
     private static void OnListViewHeaderHandleCreated(object? sender, EventArgs e)
     {
         if (sender is ListView lv)
@@ -150,6 +154,7 @@ public static class NativeControlThemer
         }
     }
 
+    /// <summary>Sets up owner-draw events, resize handlers, and column width fitting for a ListView's header.</summary>
     private static void ThemeListViewHeaderCore(ListView lv)
     {
         // This runs again on every theme switch (called from ControlThemer.ThemeSingleControl),
@@ -183,6 +188,7 @@ public static class NativeControlThemer
         lv.Invalidate();
     }
 
+    /// <summary>Handles resize events to re-fit the last column width.</summary>
     private static void FillLastColumnWidthHandler(object? sender, EventArgs e)
     {
         if (sender is ListView lv) RefitLastColumn(lv);
@@ -220,6 +226,7 @@ public static class NativeControlThemer
         if (lastColumn.Width != remainingWidth) lastColumn.Width = remainingWidth;
     }
 
+    /// <summary>Owner-draws a single column header with gradient background, text, and gridline separator.</summary>
     private static void DrawThemedColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
     {
         var p = ThemeService.Current;
@@ -251,6 +258,8 @@ public static class NativeControlThemer
     // ListView.OwnerDraw requires all three Draw* events to be handled; DrawDefault = true falls
     // back to normal row/subitem painting, which already reads the right colors from
     // ListView.BackColor/ForeColor - only the header actually needed owner-drawing.
+    /// <summary>Delegates item drawing to the default renderer (DrawDefault = true).</summary>
     private static void DrawDefaultItem(object? sender, DrawListViewItemEventArgs e) => e.DrawDefault = true;
+    /// <summary>Delegates sub-item drawing to the default renderer (DrawDefault = true).</summary>
     private static void DrawDefaultSubItem(object? sender, DrawListViewSubItemEventArgs e) => e.DrawDefault = true;
 }

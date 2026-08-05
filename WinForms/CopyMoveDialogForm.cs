@@ -26,7 +26,10 @@ public class CopyMoveDialogForm : ThemedForm
     /// <summary>Selected overwrite policy (maps to OverwriteAction enum).</summary>
     public int OverwritePolicyIndex => _overwriteCombo.SelectedIndex;
 
+    /// <summary>Whether to copy file attributes (read-only, hidden, etc.).</summary>
     public bool CopyAttributes => _copyAttrsCheck.Checked;
+
+    /// <summary>Whether to preserve original timestamps.</summary>
     public bool CopyTimestamps => _copyTsCheck.Checked;
 
     /// <param name="items">Files to copy/move.</param>

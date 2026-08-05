@@ -17,6 +17,11 @@ public class ChecksumForm : ThemedForm
     private readonly Label _statusLabel;
     private readonly List<string> _files;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ChecksumForm"/> class for the specified files
+    /// and starts calculation automatically on load.
+    /// </summary>
+    /// <param name="files">List of absolute file paths to compute checksums for.</param>
     public ChecksumForm(IReadOnlyList<string> files)
     {
         _files = files.ToList();

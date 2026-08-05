@@ -5,7 +5,7 @@ namespace CoderCommander.Operations;
 /// <summary>
 /// Delete operation: removes files and directories.
 /// When UseRecycleBin is true, files are sent to Recycle Bin instead of permanent deletion.
-//// </summary>
+/// </summary>
 public sealed class DeleteOperation : FileOperation
 {
     public override OperationType Type => OperationType.Delete;
@@ -13,6 +13,8 @@ public sealed class DeleteOperation : FileOperation
 
     private readonly IFileSystem _fs;
     private readonly IReadOnlyList<FileEntry> _files;
+
+    /// <summary>When true, files are sent to the Recycle Bin instead of being permanently deleted.</summary>
     public bool UseRecycleBin { get; init; } = true;
 
     /// <summary>
@@ -27,12 +29,14 @@ public sealed class DeleteOperation : FileOperation
     private int _filesProcessed;
     private int _filesTotal;
 
+    /// <summary>Creates a delete operation for the given files.</summary>
     public DeleteOperation(IFileSystem fs, IReadOnlyList<FileEntry> files)
     {
         _fs = fs;
         _files = files;
     }
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         _filesTotal = _files.Count;
@@ -133,7 +137,7 @@ public sealed class DeleteOperation : FileOperation
 
 /// <summary>
 /// Wipe operation: overwrites files with zeroes before deletion (secure delete).
-//// </summary>
+/// </summary>
 public sealed class WipeOperation : FileOperation
 {
     public override OperationType Type => OperationType.Wipe;
@@ -144,12 +148,14 @@ public sealed class WipeOperation : FileOperation
     private int _filesProcessed;
     private int _filesTotal;
 
+    /// <summary>Creates a wipe operation for the given files.</summary>
     public WipeOperation(IFileSystem fs, IReadOnlyList<FileEntry> files)
     {
         _fs = fs;
         _files = files;
     }
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         _filesTotal = _files.Count;

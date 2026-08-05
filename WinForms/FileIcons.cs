@@ -5,6 +5,7 @@ using System.Drawing.Text;
 
 namespace CoderCommander.WinForms;
 
+/// <summary>Enumerates the supported file icon types for vector-drawn icons.</summary>
 public enum FileIconType
 {
     File, Folder, ParentFolder,
@@ -50,6 +51,7 @@ public static class FileIcons
         }
     }
 
+    /// <summary>Maps a file extension to its corresponding <see cref="FileIconType"/>.</summary>
     public static FileIconType GetIconType(string extension)
     {
         return extension switch
@@ -86,6 +88,7 @@ public static class FileIcons
         };
     }
 
+    /// <summary>Gets a 16x16 icon bitmap for the specified file type.</summary>
     public static Bitmap Get(FileIconType type) => Get(type, 16);
 
     /// <summary>Render an icon at the requested pixel size (vector quality, DPI-aware).</summary>

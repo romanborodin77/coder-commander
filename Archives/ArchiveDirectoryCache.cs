@@ -13,6 +13,11 @@ public sealed class ArchiveDirectoryCache
     private readonly Dictionary<string, (Stamp Stamp, ArchiveDirectory Directory)> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
+    /// <summary>
+    /// Returns a cached <see cref="ArchiveDirectory"/> for <paramref name="archivePath"/> if the file stamp
+    /// (length + last-write time) matches, or invokes <paramref name="read"/> to build a fresh listing.
+    /// Returns an invalid directory if the file does not exist or cannot be accessed.
+    /// </summary>
     public async Task<ArchiveDirectory> GetOrReadAsync(
         string archivePath,
         Func<CancellationToken, Task<ArchiveDirectory>> read,
@@ -47,6 +52,7 @@ public sealed class ArchiveDirectoryCache
         return directory;
     }
 
+    /// <summary>Removes the cached directory listing for <paramref name="archivePath"/>, forcing a fresh read on the next access.</summary>
     public void Forget(string archivePath)
     {
         lock (_lock)

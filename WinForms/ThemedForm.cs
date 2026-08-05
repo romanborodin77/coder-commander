@@ -14,6 +14,10 @@ public class ThemedForm : Form
     private readonly List<ListViewScrollbarOverlay> _lvOverlays = new();
     private bool _overlaysAttached;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedForm"/> class with standard
+    /// dialog layout, theme-aware colors, and double buffering.
+    /// </summary>
     public ThemedForm()
     {
         DoubleBuffered = true;
@@ -28,12 +32,14 @@ public class ThemedForm : Form
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by scheduling a theme refresh on the UI thread.</summary>
     private void OnThemeChanged(object? sender, EventArgs e)
     {
         if (IsHandleCreated)
             BeginInvoke(RefreshTheme);
     }
 
+    /// <summary>Releases the theme event subscription and disposes all <see cref="ListViewScrollbarOverlay"/> instances.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -46,12 +52,17 @@ public class ThemedForm : Form
         base.Dispose(disposing);
     }
 
+    /// <summary>Applies the immersive dark title bar via <see cref="NativeControlThemer"/> after the native window handle is created.</summary>
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
         NativeControlThemer.ApplyDarkTitleBar(Handle);
     }
 
+    /// <summary>
+    /// Applies resizable border style, attaches <see cref="ListViewScrollbarOverlay"/> instances,
+    /// and applies the current theme palette after the form is loaded.
+    /// </summary>
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
@@ -89,6 +100,7 @@ public class ThemedForm : Form
         }
     }
 
+    /// <summary>Recursively finds all <see cref="ListView"/> controls nested under the given parent.</summary>
     private static IEnumerable<ListView> FindListViews(Control root)
     {
         foreach (Control child in root.Controls)
@@ -101,6 +113,10 @@ public class ThemedForm : Form
         }
     }
 
+    /// <summary>
+    /// Re-applies the current theme palette, refreshes the dark title bar, and forces a full repaint.
+    /// Call this after a live theme switch or when the form needs visual regeneration.
+    /// </summary>
     public void RefreshTheme()
     {
         ApplyTheme();
@@ -109,6 +125,10 @@ public class ThemedForm : Form
         Update();
     }
 
+    /// <summary>
+    /// Applies the current <see cref="ThemeService.Current"/> palette to this form's background,
+    /// foreground, native scrollbars, and all descendant controls via <see cref="ControlThemer"/>.
+    /// </summary>
     protected virtual void ApplyTheme()
     {
         var p = ThemeService.Current;

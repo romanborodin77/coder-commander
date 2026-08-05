@@ -13,6 +13,7 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public interface ISelfThemedControl
 {
+    /// <summary>Re-themes this control and its own subtree in response to a theme change.</summary>
     void RefreshTheme();
 }
 
@@ -31,6 +32,11 @@ public interface ISelfThemedControl
 /// </summary>
 public static class ControlThemer
 {
+    /// <summary>
+    /// Recursively applies the active <see cref="ThemeService.Current"/> palette to every control
+    /// in the tree. Delegates to <see cref="ISelfThemedControl.RefreshTheme"/> for composite
+    /// controls that manage their own descendant theming.
+    /// </summary>
     public static void ThemeDescendants(Control parent)
     {
         var p = ThemeService.Current;
@@ -63,6 +69,10 @@ public static class ControlThemer
         }
     }
 
+    /// <summary>
+    /// Applies theme-specific styling to a single control based on its type (Button, TextBox,
+    /// ListView, Panel, etc.). Handles color, font, border, and native chrome theming.
+    /// </summary>
     internal static void ThemeSingleControl(Control c, ThemePalette p)
     {
         switch (c)
@@ -360,6 +370,7 @@ public static class ControlThemer
         };
     }
 
+    /// <summary>Applies the theme role (Primary/Secondary/Danger) to a <see cref="RoundedButton"/>.</summary>
     private static void ApplyButtonRole(RoundedButton rbtn, ThemeRole? role, ThemePalette p)
     {
         switch (role)
@@ -394,6 +405,7 @@ public static class ControlThemer
         rbtn.Invalidate();
     }
 
+    /// <summary>Owner-draws a <see cref="TabControl"/>'s tab strip background in the current theme color.</summary>
     private static void OnTabControlPaint(object? sender, PaintEventArgs e)
     {
         if (sender is not TabControl tc) return;
@@ -404,6 +416,7 @@ public static class ControlThemer
         e.Graphics.FillRectangle(bgBrush, stripRect);
     }
 
+    /// <summary>Owner-draws a single tab page item with selected/unselected colors and accent highlight.</summary>
     private static void OnTabDrawItem(object? sender, DrawItemEventArgs e)
     {
         if (sender is not TabControl tc) return;

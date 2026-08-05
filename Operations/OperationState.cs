@@ -1,28 +1,52 @@
 namespace CoderCommander.Operations;
 
-/// <summary>
-//// </summary>
+/// <summary>Lifecycle state of a file operation.</summary>
 public enum OperationState
 {
+    /// <summary>Operation has been created but not yet started.</summary>
     NotStarted,
+
+    /// <summary>Operation is actively executing.</summary>
     Running,
+
+    /// <summary>Operation is paused (reserved for future use).</summary>
     Paused,
+
+    /// <summary>Operation finished successfully.</summary>
     Completed,
+
+    /// <summary>Operation was cancelled before finishing.</summary>
     Canceled,
+
+    /// <summary>Operation terminated due to an error.</summary>
     Failed
 }
 
-/// <summary>
-//// </summary>
+/// <summary>Kind of file operation being performed.</summary>
 public enum OperationType
 {
+    /// <summary>Copying files from one location to another.</summary>
     Copy,
+
+    /// <summary>Moving files between locations.</summary>
     Move,
+
+    /// <summary>Deleting files or directories.</summary>
     Delete,
+
+    /// <summary>Securely wiping files before deletion.</summary>
     Wipe,
+
+    /// <summary>Creating a new directory.</summary>
     CreateDirectory,
+
+    /// <summary>Calculating folder sizes or statistics.</summary>
     CalculateStatistics,
+
+    /// <summary>Packing files into an archive.</summary>
     Pack,
+
+    /// <summary>Unpacking files from an archive.</summary>
     Unpack
 }
 

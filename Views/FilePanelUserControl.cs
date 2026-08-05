@@ -32,6 +32,7 @@ public sealed class PanelDropEventArgs : EventArgs
     /// <summary>Panel the items came from; null for drops originating outside the application.</summary>
     public FilePanelUserControl? SourcePanel { get; init; }
 
+    /// <summary>Items that were dropped.</summary>
     public IReadOnlyList<FileSystemItem> Items { get; init; } = [];
 
     /// <summary>Shell paths of an external drop.</summary>
@@ -40,6 +41,7 @@ public sealed class PanelDropEventArgs : EventArgs
     /// <summary>Folder that receives the items — the panel directory or the folder under the cursor.</summary>
     public string Destination { get; init; } = "";
 
+    /// <summary><c>true</c> for a copy, <c>false</c> for a move (Alt key held).</summary>
     public bool IsCopy { get; init; }
 }
 
@@ -70,7 +72,9 @@ public sealed class FilePanelUserControl : UserControl
     private ListViewItem? _hoveredItem;
     private bool _showExtensionInName = true;
 
+    /// <summary>The ViewModel that provides data and commands for this panel.</summary>
     public PanelViewModel ViewModel => _vm;
+    /// <summary>The underlying <see cref="ListView"/> that renders file items.</summary>
     public ListView FileList => _fileList;
 
     /// <summary>Raised when the panel requests activation (got focus).</summary>
@@ -103,6 +107,8 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when the user tries to enter a recognized archive file (double-click or Enter).</summary>
     public event EventHandler<FileSystemItem>? ArchiveEntered;
 
+    /// <summary>Creates the panel UI and wires up the ViewModel, context menu and drag-and-drop.</summary>
+    /// <param name="vm">ViewModel providing data for this panel.</param>
     public FilePanelUserControl(PanelViewModel vm)
     {
         _vm = vm;
@@ -1103,12 +1109,14 @@ public sealed class FilePanelUserControl : UserControl
 
     // -- Theme --
 
+    /// <summary>Re-reads the extension visibility setting and rebuilds the list to apply it.</summary>
     public void RefreshFromViewModel()
     {
         _showExtensionInName = SettingsService.Load().ShowExtensionInName;
         RebuildList();
     }
 
+    /// <summary>Re-applies the current theme palette to all child controls and rebuilds icons.</summary>
     public void ApplyTheme()
     {
         var p = ThemeService.Current;

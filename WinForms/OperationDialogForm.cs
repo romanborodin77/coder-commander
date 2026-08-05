@@ -28,6 +28,8 @@ public class OperationDialogForm : ThemedForm
     /// <summary>Raised when the user clicks Skip.</summary>
     public event EventHandler? SkipRequested;
 
+    /// <param name="operation">The file operation to display progress for.</param>
+    /// <param name="displayName">Display name shown in the dialog header.</param>
     public OperationDialogForm(IFileOperation operation, string displayName)
     {
         _operation = operation;

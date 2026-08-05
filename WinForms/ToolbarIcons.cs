@@ -15,6 +15,7 @@ public static class ToolbarIcons
     private static int _lastDpi = 96;
     private static List<Bitmap>? _pendingDisposal;
 
+    /// <summary>Gets a toolbar icon bitmap for the specified key, generating it if not cached.</summary>
     public static Image? Get(string key)
     {
         if (string.IsNullOrEmpty(key)) return null;

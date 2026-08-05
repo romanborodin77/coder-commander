@@ -12,8 +12,15 @@ public sealed class SelectShellDialog : ThemedForm
     private ThemedComboBox _shellComboBox = null!;
     private Button _okButton = null!;
     private Button _cancelButton = null!;
+    /// <summary>Gets the shell type selected by the user.</summary>
     public ShellType SelectedShell { get; private set; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SelectShellDialog"/> class, populating the
+    /// combo box with the available shell types.
+    /// </summary>
+    /// <param name="availableShells">List of shell types to present in the dialog.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="availableShells"/> is empty.</exception>
     public SelectShellDialog(List<ShellType> availableShells)
     {
         if (!availableShells.Any())

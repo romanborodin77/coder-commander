@@ -3,10 +3,19 @@ using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
+/// <summary>
+/// File overwrite confirmation dialog. Displays source vs. destination info
+/// and offers six overwrite policies (Overwrite, Skip, Rename, OverwriteAll,
+/// SkipAll, OverwriteOlder).
+/// </summary>
 public class OverwriteDialogForm : ThemedForm
 {
+    /// <summary>The selected <see cref="Operations.OverwriteAction"/> value after the dialog closes.</summary>
     public int Result { get; private set; } = 2;
 
+    /// <param name="fileName">Name of the conflicting file.</param>
+    /// <param name="sourceInfo">Size and timestamp of the source file.</param>
+    /// <param name="destInfo">Size and timestamp of the existing destination file.</param>
     public OverwriteDialogForm(string fileName, string sourceInfo, string destInfo)
     {
         var L = LocalizationService.Current;
@@ -139,6 +148,7 @@ public class OverwriteDialogForm : ThemedForm
         CancelButton = escapeBtn;
     }
 
+    /// <summary>Creates a themed label+value info box for source or destination details.</summary>
     private static Panel CreateInfoBox(string title, string value, ThemePalette p)
     {
         var box = new Panel

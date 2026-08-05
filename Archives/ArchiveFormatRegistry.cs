@@ -14,11 +14,14 @@ public static class ArchiveFormatRegistry
 
     private static readonly List<IArchiveFormat> _formats = new();
 
+    /// <summary>Returns all registered formats that support archive creation (<see cref="ArchiveCapabilities.Create"/>).</summary>
     public static IEnumerable<IArchiveFormat> Creatable =>
         _formats.Where(f => f.Capabilities.HasFlag(ArchiveCapabilities.Create));
 
+    /// <summary>Registers an <see cref="IArchiveFormat"/> so it can be detected by extension, signature, or both.</summary>
     public static void Register(IArchiveFormat format) => _formats.Add(format);
 
+    /// <summary>Finds a registered format by its <see cref="IArchiveFormat.Id"/> (case-insensitive), or <c>null</c> if none match.</summary>
     public static IArchiveFormat? ById(string id) =>
         _formats.FirstOrDefault(f => string.Equals(f.Id, id, StringComparison.OrdinalIgnoreCase));
 
@@ -43,6 +46,10 @@ public static class ArchiveFormatRegistry
         return best;
     }
 
+    /// <summary>
+    /// Reads up to 512 bytes from <paramref name="path"/> and matches them against each registered
+    /// format's signature. Returns <c>null</c> on I/O errors or when no format recognizes the header.
+    /// </summary>
     public static IArchiveFormat? FromSignature(string path)
     {
         Span<byte> header = stackalloc byte[SignatureProbeSize];
@@ -78,8 +85,13 @@ public static class ArchiveFormatRegistry
     public static IArchiveFormat? Detect(string path) =>
         FromExtension(path) ?? FromSignature(path);
 
+    /// <summary>Returns <c>true</c> if <see cref="Detect"/> can identify an archive format for <paramref name="path"/>.</summary>
     public static bool IsSupportedArchiveFile(string path) => Detect(path) is not null;
 
+    /// <summary>
+    /// Creates an <see cref="IFileSystem"/> backed by the detected format for <paramref name="archivePath"/>,
+    /// or <c>null</c> if the format is not recognized.
+    /// </summary>
     public static IFileSystem? CreateFileSystem(string archivePath) =>
         Detect(archivePath)?.CreateFileSystem(archivePath);
 }

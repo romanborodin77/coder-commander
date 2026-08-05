@@ -51,13 +51,20 @@ public sealed class TerminalProcessWrapper : IDisposable
     private readonly StringBuilder _echoScanKept = new();
     private int _echoScanLinesSeen;
 
+    /// <summary>Gets the shell type this wrapper manages.</summary>
     public ShellType ShellType { get; }
+    /// <summary>Gets or sets the current working directory of the terminal session.</summary>
     public string CurrentPath { get; set; }
+    /// <summary>Gets whether the underlying process is alive and not disposed.</summary>
     public bool IsRunning => _process != null && !_disposed && !_process.HasExited;
 
+    /// <summary>Raised when the process writes to standard output.</summary>
     public event EventHandler<string>? OutputReceived;
+    /// <summary>Raised when the process writes to standard error.</summary>
     public event EventHandler<string>? ErrorReceived;
+    /// <summary>Raised when the process exits (normally or due to termination).</summary>
     public event EventHandler? ProcessExited;
+    /// <summary>Raised when the process state changes (start, terminate).</summary>
     public event EventHandler? StateChanged;
 
     /// <summary>Initialize terminal process wrapper.</summary>
@@ -369,6 +376,7 @@ public sealed class TerminalProcessWrapper : IDisposable
         }
     }
 
+    /// <summary>Releases all resources, terminates the process, and disposes managed handles.</summary>
     public void Dispose()
     {
         if (_disposed)

@@ -8,20 +8,30 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public sealed class EditorTab : IDisposable
 {
+    /// <summary>Gets or sets the full file-system path associated with this tab. Empty for new/unsaved files.</summary>
     public string FilePath { get; set; }
+    /// <summary>Gets the display name of the file (without directory), or a localized "New file" placeholder when <see cref="FilePath"/> is empty.</summary>
     public string FileName => string.IsNullOrEmpty(FilePath) ? LocalizationService.Current.GetString("Edit.NewFile") : Path.GetFileName(FilePath);
+    /// <summary>Gets or sets the language identifier used for syntax highlighting.</summary>
     public LanguageId Language { get; set; }
     /// <summary>Defaults to UTF-8 without a BOM for new/unsaved files, matching most editors' convention.</summary>
     public Encoding Encoding { get; set; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    /// <summary>Gets the underlying code editor control bound to this tab.</summary>
     public CodeEditorControl Editor { get; }
+    /// <summary>Gets the tab display name, prefixed with <c>*</c> when the file has unsaved modifications.</summary>
     public string DisplayName => IsModified ? $"*{FileName}" : FileName;
 
+    /// <summary>Gets or sets the modified flag. Setting to <c>false</c> resets the clean-state marker used by undo.</summary>
     public bool IsModified
     {
         get => Editor.Modified;
         set => Editor.Modified = value;
     }
 
+    /// <summary>
+    /// Initializes a new editor tab, detecting the language from <paramref name="filePath"/>.
+    /// </summary>
+    /// <param name="filePath">Optional file path for language detection and initial file identity.</param>
     public EditorTab(string? filePath = null)
     {
         FilePath = filePath ?? "";
@@ -29,6 +39,10 @@ public sealed class EditorTab : IDisposable
         Editor = new CodeEditorControl { Dock = DockStyle.Fill, Language = Language };
     }
 
+    /// <summary>
+    /// Reads the file at <paramref name="path"/> into the editor, auto-detecting encoding and language.
+    /// </summary>
+    /// <param name="path">Absolute path to the file to load.</param>
     public void LoadFile(string path)
     {
         try
@@ -52,6 +66,10 @@ public sealed class EditorTab : IDisposable
         }
     }
 
+    /// <summary>
+    /// Saves the editor content to disk, optionally to a new path.
+    /// </summary>
+    /// <param name="path">Destination path, or <c>null</c>/<see cref="string.Empty"/> to save to <see cref="FilePath"/>.</param>
     public void SaveFile(string? path = null)
     {
         var savePath = path ?? FilePath;
@@ -72,6 +90,7 @@ public sealed class EditorTab : IDisposable
         }
     }
 
+    /// <summary>Applies the current theme to the editor control.</summary>
     public void ApplyTheme()
     {
         Editor.ApplyTheme();
@@ -83,8 +102,10 @@ public sealed class EditorTab : IDisposable
         Editor.Language = Language;
     }
 
+    /// <summary>Returns the current caret position as a 1-based (line, column) tuple.</summary>
     public (int Line, int Column) GetCursorPosition() => Editor.GetCursorPosition();
 
+    /// <summary>Disposes the underlying editor control and releases resources.</summary>
     public void Dispose()
     {
         Editor.Dispose();

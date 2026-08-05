@@ -19,6 +19,10 @@ public class EditorForm : ThemedForm
     private ToolStripStatusLabel _lblFileSize = null!;
     private ToolStripStatusLabel _lblModified = null!;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EditorForm"/> class, optionally opening the specified file.
+    /// </summary>
+    /// <param name="path">File path to open on startup, or <c>null</c>/<see cref="string.Empty"/> to create an empty tab.</param>
     public EditorForm(string? path)
     {
         var L = LocalizationService.Current;

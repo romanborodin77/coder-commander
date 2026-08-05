@@ -7,6 +7,7 @@ namespace CoderCommander.FileSystem;
 /// </summary>
 public sealed class LocalFileSystem : IFileSystem
 {
+    /// <inheritdoc/>
     public string Name => "Local";
 
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>

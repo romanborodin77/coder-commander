@@ -32,6 +32,7 @@ public sealed class UnpackOperation : FileOperation
     private long _bytesTotal;
     private long _lastReportTicks;
 
+    /// <summary>Creates an unpack operation that extracts entries from an archive.</summary>
     /// <param name="items">Entries to extract; empty means the whole archive.</param>
     /// <param name="innerBasePath">Folder inside the archive the paths are relative to.</param>
     /// <param name="removeSource">Drop the extracted entries from the archive afterwards (move semantics).</param>
@@ -53,6 +54,7 @@ public sealed class UnpackOperation : FileOperation
         _removeSource = removeSource;
     }
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         var format = ArchiveFormatRegistry.Detect(_archivePath)

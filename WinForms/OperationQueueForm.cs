@@ -15,6 +15,7 @@ public class OperationQueueForm : ThemedForm
     private readonly Button _closeBtn;
     private readonly Label _statusLabel;
 
+    /// <param name="manager">The <see cref="OperationManager"/> whose queue is displayed.</param>
     public OperationQueueForm(OperationManager manager)
     {
         _manager = manager;

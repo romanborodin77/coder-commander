@@ -14,6 +14,10 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     private int _selectedIndex = -1;
     private Control? _trailingControl;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedTabControl"/> class with a button strip
+    /// and content panel, using the current theme palette.
+    /// </summary>
     public ThemedTabControl()
     {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
@@ -43,8 +47,10 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => RefreshTheme();
 
+    /// <summary>Unsubscribes from the <see cref="ThemeService.ThemeChanged"/> event.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -52,8 +58,13 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         base.Dispose(disposing);
     }
 
+    /// <summary>Gets the list of tab pages currently in this control.</summary>
     public IReadOnlyList<ThemedTabPage> Pages => _pages;
 
+    /// <summary>
+    /// Gets or sets the index of the currently selected tab page.
+    /// Setting this value triggers a visual update and raises <see cref="SelectedIndexChanged"/>.
+    /// </summary>
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -66,9 +77,11 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         }
     }
 
+    /// <summary>Gets the currently selected tab page, or <c>null</c> if no tab is selected.</summary>
     public ThemedTabPage? SelectedPage =>
         _selectedIndex >= 0 && _selectedIndex < _pages.Count ? _pages[_selectedIndex] : null;
 
+    /// <summary>Raised when the selected tab page changes.</summary>
     public event EventHandler? SelectedIndexChanged;
 
     /// <summary>
@@ -107,6 +120,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         RebuildButtons();
     }
 
+    /// <summary>Adds a new tab page to the control and selects it if it's the first page.</summary>
     public void AddPage(ThemedTabPage page)
     {
         page.SetParent(this);
@@ -117,6 +131,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         UpdateTabs();
     }
 
+    /// <summary>Removes a tab page and adjusts the selected index accordingly.</summary>
     public void RemovePage(ThemedTabPage page)
     {
         var idx = _pages.IndexOf(page);
@@ -131,6 +146,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         UpdateTabs();
     }
 
+    /// <summary>Refreshes the tab button for the specified page (e.g. after its title changes).</summary>
     internal void RefreshTab(ThemedTabPage page)
     {
         var idx = _pages.IndexOf(page);
@@ -138,6 +154,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         RebuildButtons();
     }
 
+    /// <summary>Removes all tab pages and resets the selection.</summary>
     public void ClearPages()
     {
         _pages.Clear();
@@ -145,6 +162,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         RebuildButtons();
     }
 
+    /// <summary>Rebuilds the tab button strip from the current page list, preserving the trailing control.</summary>
     private void RebuildButtons()
     {
         // Dispose the previous tab buttons (created fresh below) - the trailing control is owned by
@@ -186,6 +204,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         UpdateTabs();
     }
 
+    /// <summary>Updates button colors, border styles, and re-parents the selected page's content.</summary>
     private void UpdateTabs()
     {
         var p = ThemeService.Current;
@@ -228,6 +247,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         _contentPanel.Invalidate();
     }
 
+    /// <summary>Draws the content border and the separator line between the button strip and content area.</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
@@ -254,17 +274,25 @@ public sealed class ThemedTabPage
     private string _text;
     private ThemedTabControl? _parent;
 
+    /// <summary>Gets or sets the display text for the tab button.</summary>
     public string Text
     {
         get => _text;
         internal set => _text = value;
     }
+    /// <summary>Gets the content control displayed when this tab page is selected.</summary>
     public Control Content { get; }
 
+    /// <summary>Sets the parent tab control for this page.</summary>
     internal void SetParent(ThemedTabControl? parent) => _parent = parent;
 
+    /// <summary>Refreshes this tab's button appearance (e.g. after the title text changes).</summary>
     public void RefreshTab() => _parent?.RefreshTab(this);
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedTabPage"/> class with the specified
+    /// display text and content control.
+    /// </summary>
     public ThemedTabPage(string text, Control content)
     {
         _text = text;
