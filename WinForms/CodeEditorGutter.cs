@@ -14,6 +14,11 @@ internal sealed class CodeEditorGutter : Control
 
     private const int HorizontalPadding = 10;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CodeEditorGutter"/> class, pairing it with the
+    /// specified canvas for scroll/caret synchronization.
+    /// </summary>
+    /// <param name="canvas">The editor canvas whose viewport state drives line-number rendering.</param>
     public CodeEditorGutter(CodeEditorCanvas canvas)
     {
         _canvas = canvas;
@@ -35,6 +40,7 @@ internal sealed class CodeEditorGutter : Control
         ApplyTheme();
     }
 
+    /// <summary>Applies the current theme colors and font to the gutter.</summary>
     public void ApplyTheme()
     {
         var p = ThemeService.Current;

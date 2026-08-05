@@ -31,6 +31,7 @@ public sealed class PackOperation : FileOperation
     private long _bytesProcessed;
     private long _bytesTotal;
 
+    /// <summary>Creates a pack operation that writes files into an archive.</summary>
     /// <param name="innerDestPath">Folder inside the archive that receives the files; empty for the root.</param>
     /// <param name="removeSource">Delete the originals once everything is written (move semantics).</param>
     public PackOperation(
@@ -53,13 +54,20 @@ public sealed class PackOperation : FileOperation
 
     private sealed class PackItem
     {
+        /// <summary>Source file entry, or null for directory-only items.</summary>
         public FileEntry? Source { get; init; }
+
+        /// <summary>Entry name inside the archive.</summary>
         public string EntryName { get; init; } = "";
+
+        /// <summary>True when this item represents a directory entry.</summary>
         public bool IsDirectory { get; init; }
+
         /// <summary>Index into <see cref="_files"/> this item was expanded from.</summary>
         public int TopLevelIndex { get; init; }
     }
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         var plan = await BuildPlanAsync(ct).ConfigureAwait(false);

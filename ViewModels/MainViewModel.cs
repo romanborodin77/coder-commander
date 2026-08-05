@@ -13,20 +13,37 @@ namespace CoderCommander.ViewModels;
 //// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
+    /// <summary>Provides local file-system access used by both panels.</summary>
     public IFileSystem FileSystem { get; }
+
+    /// <summary>Queue and scheduler for copy, move, delete, pack and unpack operations.</summary>
     public OperationManager Operations { get; }
+
+    /// <summary>Registry of named commands that the UI and hotkeys invoke.</summary>
     public CommandEngine Commands { get; }
+
+    /// <summary>Maps keyboard shortcuts to <see cref="Commands"/> entries.</summary>
     public HotkeyManager Hotkeys { get; }
 
+    /// <summary>Left file panel ViewModel.</summary>
     public PanelViewModel LeftPanel { get; }
+
+    /// <summary>Right file panel ViewModel.</summary>
     public PanelViewModel RightPanel { get; }
 
+    /// <summary>Currently focused panel (left or right).</summary>
     [ObservableProperty] private PanelViewModel _activePanel;
+
+    /// <summary>Text shown in the main status bar (cursor info, selection, free space).</summary>
     [ObservableProperty] private string _statusText = "";
+
+    /// <summary>Non-empty when one or more background operations are queued.</summary>
     [ObservableProperty] private string _operationQueueText = "";
 
+    /// <summary>The panel that is <em>not</em> currently focused — used as the transfer destination.</summary>
     public PanelViewModel InactivePanel => ActivePanel == LeftPanel ? RightPanel : LeftPanel;
 
+    /// <summary>Initialises the file system, operation manager, command engine and both panels.</summary>
     public MainViewModel()
     {
         FileSystem = new LocalFileSystem();
@@ -56,6 +73,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── Panel management ──
 
+    /// <summary>Makes <paramref name="panel"/> the active panel, deactivating the other.</summary>
     public void SetActivePanel(PanelViewModel panel)
     {
         if (ActivePanel == panel) return;
@@ -65,6 +83,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
+    /// <summary>Swaps the paths of the left and right panels asynchronously.</summary>
     public void SwapPanels()
     {
         _ = SwapPanelsAsync();
@@ -85,6 +104,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Navigates the inactive panel to the same path as the active panel.</summary>
     public void TargetEqualSource()
     {
         _ = TargetEqualSourceAsync();
@@ -150,6 +170,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── File operations ──
 
+    /// <summary>Copies selected items to the inactive panel's directory, respecting overwrite settings.</summary>
     public void Copy()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -173,9 +194,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         CopyConfirmRequested?.Invoke(this, (files, ActivePanel.CurrentPath, destPath));
     }
 
+    /// <summary>Queues a copy operation with the given transfer options.</summary>
+    /// <param name="files">Items to copy.</param>
+    /// <param name="destPath">Destination directory path.</param>
+    /// <param name="options">Transfer behaviour flags (overwrite, timestamps, compression).</param>
     public void ExecuteCopy(IReadOnlyList<Models.FileSystemItem> files, string destPath, TransferOptions options)
         => StartTransfer(files, destPath, options, move: false);
 
+    /// <summary>Moves selected items to the inactive panel's directory, respecting overwrite settings.</summary>
     public void Move()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -200,6 +226,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         MoveConfirmRequested?.Invoke(this, (files, ActivePanel.CurrentPath, destPath));
     }
 
+    /// <summary>Queues a move operation with the given transfer options.</summary>
+    /// <param name="files">Items to move.</param>
+    /// <param name="destPath">Destination directory path.</param>
+    /// <param name="options">Transfer behaviour flags (overwrite, timestamps, compression).</param>
     public void ExecuteMove(IReadOnlyList<Models.FileSystemItem> files, string destPath, TransferOptions options)
         => StartTransfer(files, destPath, options, move: true);
 
@@ -314,6 +344,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return false;
     }
 
+    /// <summary>Deletes selected items, optionally using the Recycle Bin.</summary>
     public void Delete()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -329,6 +360,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ExecuteDelete(files);
     }
 
+    /// <summary>Queues a delete operation. Uses the Recycle Bin for local files.</summary>
+    /// <param name="files">Items to delete.</param>
     public void ExecuteDelete(IReadOnlyList<Models.FileSystemItem> files)
     {
         var fs = ActivePanel.CurrentFileSystem;
@@ -348,6 +381,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayDelete", files.Count));
     }
 
+    /// <summary>Securely wipes selected items (bypasses Recycle Bin). Not supported inside archives.</summary>
     public void Wipe()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -363,17 +397,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
     }
+    /// <summary>Raises <see cref="MakeDirRequested"/> so the UI can prompt for a new directory name.</summary>
     public void MakeDir()
     {
         MakeDirRequested?.Invoke(this, ActivePanel.CurrentPath);
     }
 
+    /// <summary>Raises <see cref="RenameRequested"/> for the currently selected item.</summary>
     public void Rename()
     {
         if (ActivePanel.SelectedItem != null && !ActivePanel.SelectedItem.IsParent)
             RenameRequested?.Invoke(this, ActivePanel.SelectedItem);
     }
 
+    /// <summary>Raises <see cref="ViewRequested"/> for the selected non-directory item.</summary>
     public Task ViewFileAsync()
     {
         var item = ActivePanel.SelectedItem;
@@ -382,6 +419,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>Raises <see cref="EditRequested"/> for the selected non-directory item.</summary>
     public Task EditFileAsync()
     {
         var item = ActivePanel.SelectedItem;
@@ -390,6 +428,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>Raises <see cref="PropertiesRequested"/> for the selected items.</summary>
     public void ShowProperties()
     {
         var items = ActivePanel.GetSelectedOrActive();
@@ -397,6 +436,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         PropertiesRequested?.Invoke(this, items);
     }
 
+    /// <summary>Raises <see cref="MultiRenameRequested"/> for the selected items.</summary>
     public void MultiRename()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -405,6 +445,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         MultiRenameRequested?.Invoke(this, (files, ActivePanel.CurrentPath));
     }
 
+    /// <summary>Navigates the active panel to the root of the current drive.</summary>
     public void GoToRoot()
     {
         _ = SafeExecuteAsync(async () =>
@@ -415,6 +456,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }, "GoToRoot");
     }
 
+    /// <summary>Navigates the active panel to the user's profile directory.</summary>
     public void GoToHome()
     {
         _ = SafeExecuteAsync(async () =>
@@ -424,26 +466,31 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }, "GoToHome");
     }
 
+    /// <summary>Raises <see cref="ChangeDirRequested"/> so the UI can prompt for a path.</summary>
     public void ChangeDir()
     {
         ChangeDirRequested?.Invoke(this, ActivePanel.CurrentPath);
     }
 
+    /// <summary>Raises <see cref="SelectGroupRequested"/> so the UI can prompt for a wildcard pattern.</summary>
     public void SelectGroup()
     {
         SelectGroupRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Raises <see cref="DeselectGroupRequested"/> so the UI can prompt for a wildcard pattern.</summary>
     public void DeselectGroup()
     {
         DeselectGroupRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Raises <see cref="SyncDirsRequested"/> with both panel paths.</summary>
     public void SyncDirs()
     {
         SyncDirsRequested?.Invoke(this, (LeftPanel.CurrentPath, RightPanel.CurrentPath));
     }
 
+    /// <summary>Raises <see cref="PackRequested"/> so the UI can prompt for archive options.</summary>
     public void PackFiles()
     {
         var files = ActivePanel.GetSelectedOrActive();
@@ -470,6 +517,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayPack", entries.Count, Path.GetFileName(archivePath)));
     }
 
+    /// <summary>Raises <see cref="UnpackRequested"/> for selected archive files.</summary>
     public void UnpackFiles()
     {
         var archives = ActivePanel.GetSelectedOrActive()
@@ -505,6 +553,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Saves the selected theme and notifies listeners to re-render.</summary>
+    /// <param name="theme">Theme name ("Dark" or "Light").</param>
     public void SetTheme(string theme)
     {
         var s = SettingsService.Load();
@@ -514,6 +564,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ThemeChanged?.Invoke(this, theme);
     }
 
+    /// <summary>Toggles whether file extensions are displayed in the name column and persists the setting.</summary>
     public void ToggleShowExtensionInName()
     {
         var s = SettingsService.Load();
@@ -524,8 +575,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     // ── Events for UI layer ──
 
+    /// <summary>Raised when the user requests the application to close.</summary>
     public event EventHandler? ExitRequested;
+    /// <summary>Raised when the user opens the About dialog.</summary>
     public event EventHandler? AboutRequested;
+    /// <summary>Raised when a delete needs user confirmation before proceeding.</summary>
     public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? DeleteConfirmRequested;
     /// <summary>
     /// Raised when the shell Recycle Bin failed for one or more files that still exist on disk and
@@ -533,29 +587,53 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// Invoked from a background thread - the handler is responsible for marshaling to the UI thread.
     /// </summary>
     public event EventHandler<ConfirmPermanentDeleteEventArgs>? ConfirmPermanentDeleteRequested;
+    /// <summary>Raised when a copy operation needs user confirmation before proceeding.</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath, string destPath)>? CopyConfirmRequested;
+    /// <summary>Raised when a move operation needs user confirmation before proceeding.</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath, string destPath)>? MoveConfirmRequested;
+    /// <summary>Raised when a new directory name is required.</summary>
     public event EventHandler<string>? MakeDirRequested;
+    /// <summary>Raised when a rename is requested for the given item.</summary>
     public event EventHandler<Models.FileSystemItem>? RenameRequested;
+    /// <summary>Raised when the user wants to view a file's contents.</summary>
     public event EventHandler<Models.FileSystemItem>? ViewRequested;
+    /// <summary>Raised when the user wants to edit a file.</summary>
     public event EventHandler<Models.FileSystemItem>? EditRequested;
+    /// <summary>Raised when file properties should be displayed.</summary>
     public event EventHandler<IReadOnlyList<FileSystemItem>>? PropertiesRequested;
+    /// <summary>Raised when multi-rename is requested for the given items.</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath)>? MultiRenameRequested;
+    /// <summary>Raised when the visual theme has changed.</summary>
     public event EventHandler<string>? ThemeChanged;
+    /// <summary>Raised when the "show extension in name" setting has been toggled.</summary>
     public event EventHandler<bool>? ShowExtensionInNameChanged;
+    /// <summary>Raised when a new operation starts so the UI can display a progress dialog.</summary>
     public event EventHandler<(IFileOperation operation, string displayName)>? OperationStarted;
+    /// <summary>Raised when the user requests navigating to a different directory by typing a path.</summary>
     public event EventHandler<string>? ChangeDirRequested;
+    /// <summary>Raised when the user wants to select a group of files by pattern.</summary>
     public event EventHandler? SelectGroupRequested;
+    /// <summary>Raised when the user wants to deselect a group of files by pattern.</summary>
     public event EventHandler? DeselectGroupRequested;
+    /// <summary>Raised when the user wants to create a new blank file in the editor.</summary>
     public event EventHandler? EditNewRequested;
+    /// <summary>Raised when the user wants to compute file checksums.</summary>
     public event EventHandler? ChecksumRequested;
+    /// <summary>Raised when the user toggles the embedded terminal panel.</summary>
     public event EventHandler? ToggleTerminalRequested;
+    /// <summary>Raised when the user requests a new terminal tab with default shell settings.</summary>
     public event EventHandler? CreateTerminalTabRequested;
+    /// <summary>Raised when the user requests closing the active terminal tab.</summary>
     public event EventHandler? CloseTerminalTabRequested;
+    /// <summary>Raised when the user switches to the next terminal tab.</summary>
     public event EventHandler? NextTerminalTabRequested;
+    /// <summary>Raised when the user switches to the previous terminal tab.</summary>
     public event EventHandler? PreviousTerminalTabRequested;
+    /// <summary>Raised when the user wants to synchronise the two panel directories.</summary>
     public event EventHandler<(string leftPath, string rightPath)>? SyncDirsRequested;
+    /// <summary>Raised when a pack operation needs UI input (archive path, format, compression).</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath, string destPath)>? PackRequested;
+    /// <summary>Raised when an unpack operation needs UI input (destination path).</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> archives, string destPath)>? UnpackRequested;
 
     /// <summary>Raised with a localization key when a requested transfer is not possible.</summary>
@@ -591,6 +669,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Refreshes the status bar text with the active panel's cursor info, selection and free space.</summary>
     public void UpdateStatus()
     {
         var panel = ActivePanel;
@@ -607,6 +686,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return $"{s:0.##} {u[i]}";
     }
 
+    /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>
     public void Dispose()
     {
         Operations.OperationChanged -= OnOperationChanged;
@@ -623,6 +703,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 /// <summary>Event args for <see cref="MainViewModel.ConfirmPermanentDeleteRequested"/>.</summary>
 public sealed class ConfirmPermanentDeleteEventArgs(IReadOnlyList<string> paths) : EventArgs
 {
+    /// <summary>Full paths of files that could not be recycled and require permanent deletion.</summary>
     public IReadOnlyList<string> Paths { get; } = paths;
+    /// <summary>Set to <c>true</c> by the handler to allow permanent deletion.</summary>
     public bool Proceed { get; set; }
 }

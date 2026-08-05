@@ -11,8 +11,13 @@ namespace CoderCommander.Archives;
 /// </summary>
 public static class ArchiveFileRetry
 {
+    /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.</summary>
     private static readonly int[] RetryDelaysMs = { 150, 300, 600 };
 
+    /// <summary>
+    /// Opens the archive at <paramref name="path"/> for shared reading. If the file is locked by another
+    /// process, retries up to <see cref="RetryDelaysMs"/> times before throwing <see cref="IOException"/>.
+    /// </summary>
     public static FileStream OpenReadWithRetry(string path)
     {
         try
@@ -26,6 +31,10 @@ public static class ArchiveFileRetry
         }
     }
 
+    /// <summary>
+    /// Opens the archive at <paramref name="path"/> for exclusive read-write access. If the file is locked
+    /// by another process, retries up to <see cref="RetryDelaysMs"/> times before throwing <see cref="IOException"/>.
+    /// </summary>
     public static FileStream OpenExclusiveWithRetry(string path)
     {
         try
@@ -39,6 +48,10 @@ public static class ArchiveFileRetry
         }
     }
 
+    /// <summary>
+    /// Retries the given <paramref name="attempt"/> action with exponential backoff, throwing
+    /// <see cref="IOException"/> with <paramref name="failureVerb"/> in the message if all retries fail.
+    /// </summary>
     private static FileStream Retry(string path, Exception firstError, Func<FileStream> attempt, string failureVerb)
     {
         LogService.Warning($"Archive locked by another process, retrying: {path}");

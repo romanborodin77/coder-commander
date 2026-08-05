@@ -15,6 +15,10 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
     private bool _hover;
     private bool _pressed;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedComboBox"/> class with theme-aware
+    /// colors, keyboard support, and a drop-down context menu.
+    /// </summary>
     public ThemedComboBox()
     {
         SetStyle(
@@ -41,6 +45,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => RefreshTheme();
 
     /// <summary>
@@ -56,6 +61,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         Invalidate();
     }
 
+    /// <summary>Unsubscribes from the theme event and disposes the drop-down menu.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -67,6 +73,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.Dispose(disposing);
     }
 
+    /// <summary>Clears and disposes all items in the drop-down menu, avoiding collection-modified exceptions.</summary>
     private void ClearMenuItems()
     {
         // Disposing a ToolStripItem removes it from its owner's Items collection, so disposing
@@ -78,8 +85,13 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
             item.Dispose();
     }
 
+    /// <summary>Gets the list of items displayed in this combo box.</summary>
     public IReadOnlyList<string> Items => _items;
 
+    /// <summary>
+    /// Gets or sets the index of the currently selected item.
+    /// Setting this value clamps to valid range and raises <see cref="SelectedIndexChanged"/>.
+    /// </summary>
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -93,11 +105,14 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         }
     }
 
+    /// <summary>Gets the currently selected item text, or <c>null</c> if nothing is selected.</summary>
     public string? SelectedItem =>
         _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : null;
 
+    /// <summary>Raised when the selected item changes.</summary>
     public event EventHandler? SelectedIndexChanged;
 
+    /// <summary>Adds a single item to the combo box. Auto-selects the first item added.</summary>
     public void AddItem(string item)
     {
         _items.Add(item);
@@ -115,12 +130,14 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
             AddItem(item);
     }
 
+    /// <summary>Adds multiple items from an enumerable collection.</summary>
     public void AddItems(IEnumerable<string> items)
     {
         foreach (var item in items)
             AddItem(item);
     }
 
+    /// <summary>Removes all items and resets the selection, raising <see cref="SelectedIndexChanged"/> if a selection was active.</summary>
     public void ClearItems()
     {
         var hadSelection = _selectedIndex >= 0;
@@ -147,12 +164,14 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
     private int ScaledRadius => Math.Max(2, Scale(Radius96));
     private int ScaledArrowWidth => Scale(ArrowWidth96);
 
+    /// <summary>Invalidates the control when the parent DPI changes.</summary>
     protected override void OnDpiChangedAfterParent(EventArgs e)
     {
         base.OnDpiChangedAfterParent(e);
         Invalidate();
     }
 
+    /// <summary>Treats arrow keys, Home, and End as input keys for direct navigation.</summary>
     protected override bool IsInputKey(Keys keyData)
     {
         switch (keyData)
@@ -169,6 +188,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         }
     }
 
+    /// <summary>Handles F4/Space/Alt+Down to open the drop-down, and arrow/Home/End for selection navigation.</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -201,6 +221,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         }
     }
 
+    /// <summary>Implements type-ahead: pressing a character jumps to the next matching item, wrapping around.</summary>
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
         base.OnKeyPress(e);
@@ -222,18 +243,21 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         e.Handled = true;
     }
 
+    /// <summary>Repaints the control when focus is gained.</summary>
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
         Invalidate();
     }
 
+    /// <summary>Repaints the control when focus is lost.</summary>
     protected override void OnLostFocus(EventArgs e)
     {
         base.OnLostFocus(e);
         Invalidate();
     }
 
+    /// <summary>Repaints when the parent changes to fix corner slivers against the new parent background.</summary>
     protected override void OnParentChanged(EventArgs e)
     {
         base.OnParentChanged(e);
@@ -242,6 +266,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         Invalidate();
     }
 
+    /// <summary>Sets the hover state and repaints.</summary>
     protected override void OnMouseEnter(EventArgs e)
     {
         _hover = true;
@@ -249,6 +274,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.OnMouseEnter(e);
     }
 
+    /// <summary>Clears hover and pressed states, then repaints.</summary>
     protected override void OnMouseLeave(EventArgs e)
     {
         _hover = false;
@@ -257,6 +283,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.OnMouseLeave(e);
     }
 
+    /// <summary>Sets the pressed state on left mouse button down.</summary>
     protected override void OnMouseDown(MouseEventArgs e)
     {
         if (e.Button == MouseButtons.Left)
@@ -267,6 +294,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.OnMouseDown(e); // Selectable=true -> base already calls Focus() here.
     }
 
+    /// <summary>Clears the pressed state and repaints.</summary>
     protected override void OnMouseUp(MouseEventArgs e)
     {
         _pressed = false;
@@ -274,12 +302,14 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.OnMouseUp(e);
     }
 
+    /// <summary>Opens the drop-down menu when the control is clicked.</summary>
     protected override void OnClick(EventArgs e)
     {
         base.OnClick(e);
         ShowDropDown();
     }
 
+    /// <summary>Builds and shows the drop-down context menu with all items and current selection state.</summary>
     private void ShowDropDown()
     {
         if (_items.Count == 0) return;
@@ -309,6 +339,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         _menu.Show(this, new Point(0, Height));
     }
 
+    /// <summary>Handles drop-down menu item clicks, resolving the selected index by stored Tag.</summary>
     private void OnMenuItemClicked(object? sender, ToolStripItemClickedEventArgs e)
     {
         // Resolved by index (Tag), not by matching mi.Text back against _items - two items with
@@ -319,6 +350,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
             SelectedIndex = idx;
     }
 
+    /// <summary>Owner-draws the combo box face with rounded rectangle, gradient, border, text, and drop arrow.</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;

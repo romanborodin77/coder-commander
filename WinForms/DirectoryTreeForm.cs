@@ -13,6 +13,7 @@ public class DirectoryTreeForm : ThemedForm
     /// <summary>Raised when a node is double-clicked (navigate to that folder).</summary>
     public event EventHandler<string>? NavigateRequested;
 
+    /// <param name="rootPath">The root directory to start the tree from.</param>
     public DirectoryTreeForm(string rootPath)
     {
         var L = LocalizationService.Current;
@@ -58,6 +59,7 @@ public class DirectoryTreeForm : ThemedForm
         Load += (_, _) => PopulateRoot(rootPath);
     }
 
+    /// <summary>Populates the tree with the root node and its immediate children.</summary>
     private void PopulateRoot(string rootPath)
     {
         _tree.Nodes.Clear();
@@ -69,6 +71,7 @@ public class DirectoryTreeForm : ThemedForm
         }
     }
 
+    /// <summary>Creates a <see cref="TreeNode"/> for a directory path, with lazy-loaded children.</summary>
     private static TreeNode? CreateNode(string path)
     {
         if (!Directory.Exists(path)) return null;
@@ -78,6 +81,7 @@ public class DirectoryTreeForm : ThemedForm
         return node;
     }
 
+    /// <summary>Loads immediate subdirectories as child nodes (excluding hidden directories).</summary>
     private static void LoadChildDirs(TreeNode parent, string path)
     {
         parent.Nodes.Clear();
@@ -99,6 +103,7 @@ public class DirectoryTreeForm : ThemedForm
         }
     }
 
+    /// <summary>Handles lazy-loading: replaces dummy "..." nodes with actual subdirectories on expand.</summary>
     private void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
     {
         if (e.Node?.Tag is string path && e.Node.Nodes.Count > 0 && e.Node.Nodes[0].Text == "...")

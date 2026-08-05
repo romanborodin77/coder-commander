@@ -152,6 +152,10 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         }
     }
 
+    /// <summary>
+    /// Initializes the overlay by creating themed vertical and horizontal scrollbars, a corner
+    /// fill control, and starting the sync timer to track the native scroll position.
+    /// </summary>
     public ListViewScrollbarOverlay(ListView listView)
     {
         _listView = listView;
@@ -218,6 +222,10 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         _corner.BringToFront();
     }
 
+    /// <summary>
+    /// Disposes all overlay controls, stops the sync timer, and unsubscribes from
+    /// ListView events.
+    /// </summary>
     public void Dispose()
     {
         _syncTimer.Stop();
@@ -236,10 +244,13 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         _corner.Dispose();
     }
 
+    /// <summary>Repositions the overlay when the ListView is resized.</summary>
     private void OnListViewResize(object? sender, EventArgs e) => PositionOverlay();
 
+    /// <summary>Repositions the overlay when the ListView handle is created.</summary>
     private void OnListViewHandleCreated(object? sender, EventArgs e) => PositionOverlay();
 
+    /// <summary>Starts or stops the sync timer based on ListView visibility.</summary>
     private void OnListViewVisibleChanged(object? sender, EventArgs e)
     {
         if (_listView.Visible) _syncTimer.Start();
@@ -279,6 +290,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         return (v, h);
     }
 
+    /// <summary>Positions the overlay controls to match the native scrollbar footprint.</summary>
     private void PositionOverlay()
     {
         if (_listView.Parent == null) return;
@@ -300,6 +312,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         }
     }
 
+    /// <summary>Sets bounds and visibility on a control, avoiding unnecessary updates.</summary>
     private static void ApplyBounds(Control control, bool visible, Rectangle bounds)
     {
         if (visible && (bounds.Width <= 0 || bounds.Height <= 0)) visible = false;
@@ -307,6 +320,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         if (control.Visible != visible) control.Visible = visible;
     }
 
+    /// <summary>Syncs the themed scrollbar position and range from the ListView's native scroll state.</summary>
     private void SyncFromListView(object? sender, EventArgs e)
     {
         if (!_listView.IsHandleCreated || !_listView.Visible) return;
@@ -355,6 +369,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         }
     }
 
+    /// <summary>Scrolls the ListView vertically when the vertical scrollbar value changes.</summary>
     private void OnScrollBarValueChanged(object? sender, EventArgs e)
     {
         if (_suppressSync || !_listView.IsHandleCreated) return;
@@ -369,6 +384,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         _suppressSync = false;
     }
 
+    /// <summary>Scrolls the ListView horizontally using LVM_SCROLL when the horizontal scrollbar value changes.</summary>
     private void OnHScrollBarValueChanged(object? sender, EventArgs e)
     {
         if (_suppressHSync || !_listView.IsHandleCreated) return;

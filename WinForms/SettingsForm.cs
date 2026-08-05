@@ -28,8 +28,10 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _showExtInNameCheck;
     private readonly ThemedComboBox _defaultShellCombo;
 
+    /// <summary>Raised after settings are saved and applied.</summary>
     public event EventHandler? SettingsSaved;
 
+    /// <summary>Initializes the settings dialog with current <see cref="AppSettings"/> values.</summary>
     public SettingsForm()
     {
         var L = LocalizationService.Current;
@@ -279,11 +281,13 @@ public class SettingsForm : ThemedForm
         CancelButton = cancelBtn;
     }
 
+    /// <summary>Returns the default <see cref="CompressionPreset"/> for a format, preferring Balanced.</summary>
     private static CompressionPreset DefaultPresetFor(IArchiveFormat format) =>
         format.SupportedPresets.Contains(CompressionPreset.Balanced) ? CompressionPreset.Balanced
         : format.SupportedPresets.Count > 0 ? format.SupportedPresets[0]
         : CompressionPreset.Balanced;
 
+    /// <summary>Rebuilds the compression preset combo box to match the currently selected format.</summary>
     private void LoadPresetComboForSelectedFormat()
     {
         if (_compressionFormatCombo.SelectedIndex < 0) return;
@@ -305,6 +309,7 @@ public class SettingsForm : ThemedForm
         _compressionPresetCombo.Enabled = format.SupportedPresets.Count > 1;
     }
 
+    /// <summary>Commits the currently selected preset combo value into the working compression dictionary.</summary>
     private void CommitSelectedPreset()
     {
         if (_compressionFormatCombo.SelectedIndex < 0) return;
@@ -316,6 +321,7 @@ public class SettingsForm : ThemedForm
             _workingCompression[format.Id] = format.SupportedPresets[presetIndex];
     }
 
+    /// <summary>Handles the Save button click: persists settings, applies theme and language.</summary>
     private void OnSave(object? sender, EventArgs e)
     {
         CommitSelectedPreset();

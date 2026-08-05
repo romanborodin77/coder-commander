@@ -15,6 +15,10 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
     private int _maximum = 100;
     private int _value;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedProgressBar"/> class with double buffering
+    /// and theme change tracking.
+    /// </summary>
     public ThemedProgressBar()
     {
         SetStyle(
@@ -29,18 +33,21 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Gets or sets the minimum value of the progress bar range.</summary>
     public int Minimum
     {
         get => _minimum;
         set { _minimum = value; Invalidate(); }
     }
 
+    /// <summary>Gets or sets the maximum value of the progress bar range.</summary>
     public int Maximum
     {
         get => _maximum;
         set { _maximum = value; Invalidate(); }
     }
 
+    /// <summary>Gets or sets the current progress value, clamped to the valid range.</summary>
     public int Value
     {
         get => _value;
@@ -53,6 +60,7 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
         }
     }
 
+    /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by invalidating the control.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => Invalidate();
 
     /// <summary>Required by <see cref="ISelfThemedControl"/> - nothing to re-theme beyond a
@@ -60,6 +68,7 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
     /// <see cref="OnPaint"/>.</summary>
     public void RefreshTheme() => Invalidate();
 
+    /// <summary>Unsubscribes from the theme change event.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -69,12 +78,14 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
 
     private int Scale(int px96) => (int)Math.Round(px96 * DeviceDpi / 96.0);
 
+    /// <summary>Repaints the control when the parent DPI changes.</summary>
     protected override void OnDpiChangedAfterParent(EventArgs e)
     {
         base.OnDpiChangedAfterParent(e);
         Invalidate();
     }
 
+    /// <summary>Owner-draws the progress bar with a rounded trough and accent-colored fill.</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;

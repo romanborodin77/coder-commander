@@ -4,8 +4,8 @@ using CoderCommander.Services;
 namespace CoderCommander.Operations;
 
 /// <summary>
-/// Move/rename operation: moves files and directories, falling back to copy+delete
-//// </summary>
+/// Move/rename operation: moves files and directories, falling back to copy+delete when needed.
+/// </summary>
 public sealed class MoveOperation : FileOperation
 {
     public override OperationType Type => OperationType.Move;
@@ -21,6 +21,7 @@ public sealed class MoveOperation : FileOperation
     private int _filesProcessed;
     private int _filesTotal;
 
+    /// <summary>Creates a move operation from <paramref name="sourceFs"/> to <paramref name="destFs"/>.</summary>
     public MoveOperation(
         IFileSystem sourceFs,
         IFileSystem destFs,
@@ -41,6 +42,7 @@ public sealed class MoveOperation : FileOperation
     private bool CanRenameInPlace => ReferenceEquals(_sourceFs, _destFs) ||
                                      (_sourceFs is LocalFileSystem && _destFs is LocalFileSystem);
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         _filesTotal = _files.Count;

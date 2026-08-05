@@ -20,8 +20,14 @@ public class SyncDirsForm : ThemedForm
     private readonly Button _closeBtn;
     private readonly List<SyncEntry> _entries = new();
 
+    /// <summary>Raised when the user initiates a copy operation. The event data contains the direction and file queue.</summary>
     public event EventHandler<SyncCopyRequest>? CopyRequested;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SyncDirsForm"/> class with the two directories to compare.
+    /// </summary>
+    /// <param name="leftPath">Path to the left (source) directory.</param>
+    /// <param name="rightPath">Path to the right (destination) directory.</param>
     public SyncDirsForm(string leftPath, string rightPath)
     {
         var L = LocalizationService.Current;
@@ -348,11 +354,27 @@ public class SyncDirsForm : ThemedForm
     }
 }
 
+/// <summary>Represents the comparison status of a single file or directory between left and right.</summary>
 public enum SyncStatus { Equal, SizeDiffers, TimeDiffers, TypeDiffers, LeftOnly, RightOnly }
+/// <summary>Indicates the direction of a copy operation requested by the user.</summary>
 public enum SyncDirection { LeftToRight, RightToLeft }
 
+/// <summary>Snapshot of a file or directory entry captured during directory comparison.</summary>
+/// <param name="FullPath">Absolute path on disk.</param>
+/// <param name="RelPath">Path relative to the comparison root.</param>
+/// <param name="IsDir"><c>true</c> if this entry is a directory.</param>
+/// <param name="Size">File size in bytes; zero for directories.</param>
+/// <param name="Modified">Last-write timestamp in UTC.</param>
 public sealed record FileSnapshot(string FullPath, string RelPath, bool IsDir, long Size, DateTime Modified);
 
+/// <summary>A single row in the sync-differences list, pairing the relative path with left/right snapshots and status.</summary>
+/// <param name="RelativePath">Path relative to the comparison root.</param>
+/// <param name="Left">Snapshot from the left directory, or <c>null</c> if absent.</param>
+/// <param name="Right">Snapshot from the right directory, or <c>null</c> if absent.</param>
+/// <param name="Status">Comparison result for this entry.</param>
 public sealed record SyncEntry(string RelativePath, FileSnapshot? Left, FileSnapshot? Right, SyncStatus Status);
 
+/// <summary>Event data for <see cref="SyncDirsForm.CopyRequested"/>, describing which files to copy and in which direction.</summary>
+/// <param name="Direction">Copy direction (left-to-right or right-to-left).</param>
+/// <param name="Items">Ordered list of (source, destination) path pairs.</param>
 public sealed record SyncCopyRequest(SyncDirection Direction, List<(string Source, string Destination)> Items);

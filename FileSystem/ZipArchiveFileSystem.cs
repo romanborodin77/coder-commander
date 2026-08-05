@@ -5,13 +5,20 @@ using System.Text.RegularExpressions;
 
 namespace CoderCommander.FileSystem;
 
+/// <summary>
+/// IFileSystem implementation backed by a ZIP archive file.
+/// </summary>
 public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSystem
 {
     private readonly string _archivePath;
 
+    /// <inheritdoc/>
     public string Name => "ZIP";
+
+    /// <summary>Path to the underlying ZIP archive file on disk.</summary>
     public string ArchivePath => _archivePath;
 
+    /// <summary>Opens a ZIP archive at <paramref name="archivePath"/> for browsing and modification.</summary>
     public ZipArchiveFileSystem(string archivePath)
     {
         _archivePath = archivePath;
@@ -42,24 +49,38 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// address an entry by position instead of by its (possibly mis-decoded) name.</summary>
     public sealed class ZipEntryRecord
     {
+        /// <summary>Ordinal position in the central directory, matching the index in <see cref="ZipArchive.Entries"/>.</summary>
         public int Index { get; init; }
+
+        /// <summary>Full path of the entry within the archive (normalized to forward slashes).</summary>
         public string FullName { get; init; } = "";
+
+        /// <summary>True when the entry represents a directory.</summary>
         public bool IsDirectory { get; init; }
+
+        /// <summary>Uncompressed size in bytes.</summary>
         public long Size { get; init; }
+
+        /// <summary>Compressed size in bytes.</summary>
         public long CompressedSize { get; init; }
+
+        /// <summary>Last modification time in UTC.</summary>
         public DateTime LastWriteTimeUtc { get; init; }
     }
 
     /// <summary>Immutable snapshot of an archive's central directory.</summary>
     public sealed class ZipDirectory
     {
+        /// <summary>Empty directory used as a safe default when the archive cannot be read.</summary>
         public static readonly ZipDirectory Empty = new(Array.Empty<ZipEntryRecord>(), false);
 
+        /// <summary>All entries in the central directory.</summary>
         public IReadOnlyList<ZipEntryRecord> Entries { get; }
 
         /// <summary>True when at least one name is stored in an OEM code page rather than UTF-8.</summary>
         public bool HasLegacyNames { get; }
 
+        /// <summary>Creates a new directory snapshot.</summary>
         public ZipDirectory(IReadOnlyList<ZipEntryRecord> entries, bool hasLegacyNames)
         {
             Entries = entries;
@@ -356,8 +377,10 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
     }
 
+    /// <summary>Invalidates the cached central directory for this archive.</summary>
     public void InvalidateCache() => Forget(_archivePath);
 
+    /// <inheritdoc/>
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -420,6 +443,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Task.FromResult<IReadOnlyList<FileEntry>>(result);
     }
 
+    /// <inheritdoc/>
     public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -455,6 +479,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Task.FromResult<IReadOnlyList<FileEntry>>(result);
     }
 
+    /// <inheritdoc/>
     public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -501,6 +526,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Task.FromResult<FileEntry?>(null);
     }
 
+    /// <inheritdoc/>
     public Task<bool> ExistsAsync(string path, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -529,6 +555,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Task.FromResult(false);
     }
 
+    /// <inheritdoc/>
     public async Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
     {
         var (_, srcInner) = SplitPath(source);
@@ -584,6 +611,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// </summary>
     private ZipArchiveEntry? FindEntry(ZipArchive zip, string name) => FindEntry(zip, _archivePath, name);
 
+    /// <summary>Finds a <see cref="ZipArchiveEntry"/> by its decoded name, using the cached central directory index for reliable matching.</summary>
     internal static ZipArchiveEntry? FindEntry(ZipArchive zip, string archivePath, string name)
     {
         if (zip.Mode == ZipArchiveMode.Create)
@@ -608,6 +636,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             string.Equals(candidate.Replace('\\', '/').Trim('/'), wanted, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <inheritdoc/>
     public async Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
     {
         await CopyFileAsync(source, destination, overwrite, ct).ConfigureAwait(false);
@@ -688,6 +717,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Cp866;
     }
 
+    /// <inheritdoc/>
     public Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -790,6 +820,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         await Task.CompletedTask;
     }
 
+    /// <inheritdoc/>
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -808,16 +839,19 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc/>
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default)
     {
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc/>
     public Task<(long free, long total)> GetDriveSpaceAsync(string path, CancellationToken ct = default)
     {
         return Task.FromResult((0L, 0L));
     }
 
+    /// <inheritdoc/>
     public async Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {
         var (_, innerPath) = SplitPath(path);
@@ -845,6 +879,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
     }
 
+    /// <inheritdoc/>
     public async Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default)
     {
         var innerPath = VfsPath.NormalizeInner(SplitPath(destinationPath).innerPath);
@@ -862,5 +897,6 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         InvalidateCache();
     }
 
+    /// <inheritdoc/>
     public string GetRootPath(string path) => MakePath(_archivePath, "");
 }

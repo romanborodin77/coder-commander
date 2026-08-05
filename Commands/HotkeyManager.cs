@@ -1,33 +1,47 @@
 namespace CoderCommander.Commands;
 
 /// <summary>
-/// Hotkey definition: keys + command + optional parameter.
-//// </summary>
+/// Defines a keyboard shortcut mapped to a command identifier with an optional parameter.
+/// </summary>
 public sealed class HotkeyDef
 {
+    /// <summary>The key combination that triggers this hotkey (e.g. <c>Keys.F5</c>, <c>Keys.Control | Keys.A</c>).</summary>
     public Keys Shortcut { get; init; }
+    /// <summary>The command identifier from <see cref="CommandIds"/> to execute.</summary>
     public string CommandId { get; init; } = "";
+    /// <summary>Optional parameter passed to the command handler.</summary>
     public string? Param { get; init; }
+    /// <summary>Human-readable description for display in hotkey configuration UIs.</summary>
     public string Description { get; init; } = "";
 }
 
 /// <summary>
-/// Manages hotkey registration and dispatch.
-//// </summary>
+/// Manages keyboard shortcut registration and dispatch to <see cref="CommandEngine"/>.
+/// </summary>
 public sealed class HotkeyManager
 {
     private readonly CommandEngine _engine;
     private readonly List<HotkeyDef> _hotkeys = new();
 
+    /// <summary>Initializes a new hotkey manager backed by the given command engine.</summary>
+    /// <param name="engine">The <see cref="CommandEngine"/> that will handle dispatched commands.</param>
     public HotkeyManager(CommandEngine engine)
     {
         _engine = engine;
     }
 
+    /// <summary>Returns all registered hotkey definitions.</summary>
     public IReadOnlyList<HotkeyDef> Hotkeys => _hotkeys;
 
+    /// <summary>Registers a hotkey definition.</summary>
+    /// <param name="def">The <see cref="HotkeyDef"/> to add.</param>
     public void Register(HotkeyDef def) => _hotkeys.Add(def);
 
+    /// <summary>Registers a hotkey by specifying its key combination, command, and optional parameters.</summary>
+    /// <param name="keys">The key combination (e.g. <c>Keys.F5</c>).</param>
+    /// <param name="commandId">The command identifier from <see cref="CommandIds"/>.</param>
+    /// <param name="param">Optional parameter string for the command.</param>
+    /// <param name="description">Human-readable description of the hotkey.</param>
     public void Register(Keys keys, string commandId, string? param = null, string description = "")
         => Register(new HotkeyDef { Shortcut = keys, CommandId = commandId, Param = param, Description = description });
 

@@ -42,6 +42,10 @@ public class ViewerForm : ThemedForm
         Image
     }
 
+    /// <summary>
+    /// Initializes the viewer form with toolbar, tab control (text/image), and status bar.
+    /// Loads the specified file in auto-detect mode.
+    /// </summary>
     public ViewerForm(string path, string? directory = null, List<string>? files = null, int currentIndex = 0)
     {
         _path = path;
@@ -76,6 +80,7 @@ public class ViewerForm : ThemedForm
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Re-applies the theme to text box and picture box on theme change.</summary>
     private void OnThemeChanged(object? sender, EventArgs e)
     {
         var p = ThemeService.Current;
@@ -85,6 +90,7 @@ public class ViewerForm : ThemedForm
         _pictureBox.BackColor = p.PanelBackground;
     }
 
+    /// <summary>Builds the toolbar with navigation, view mode, zoom, word wrap, and close buttons.</summary>
     private void BuildToolbar()
     {
         var L = LocalizationService.Current;
@@ -169,6 +175,7 @@ public class ViewerForm : ThemedForm
         Controls.Add(_toolStrip);
     }
 
+    /// <summary>Creates a toolbar button with localized text and icon.</summary>
     private ToolStripButton CreateToolButton(string textKey, string iconKey, EventHandler onClick)
     {
         var L = LocalizationService.Current;
@@ -181,6 +188,7 @@ public class ViewerForm : ThemedForm
         return btn;
     }
 
+    /// <summary>Builds the tab control with text/hex and image tabs.</summary>
     private void BuildTabControl()
     {
         var L = LocalizationService.Current;
@@ -232,6 +240,7 @@ public class ViewerForm : ThemedForm
         Controls.Add(_tabControl);
     }
 
+    /// <summary>Builds the status bar with file info, position, mode, and zoom labels.</summary>
     private void BuildStatusBar()
     {
         var L = LocalizationService.Current;
@@ -286,6 +295,7 @@ public class ViewerForm : ThemedForm
         Controls.Add(_statusStrip);
     }
 
+    /// <summary>Handles keyboard shortcuts: Escape (close), arrows (navigate), F5 (reload), Ctrl+/Ctrl- (zoom).</summary>
     private void OnViewerKeyDown(object? sender, KeyEventArgs e)
     {
         var L = LocalizationService.Current;
@@ -322,6 +332,7 @@ public class ViewerForm : ThemedForm
         }
     }
 
+    /// <summary>Navigates to the next or previous file in the file list (wrapping around).</summary>
     private void NavigateFile(int direction)
     {
         if (_files.Count == 0) return;
@@ -342,6 +353,7 @@ public class ViewerForm : ThemedForm
         LoadFile();
     }
 
+    /// <summary>Adjusts the image zoom level within the 10%-500% range and updates the zoom label.</summary>
     private void ChangeZoom(float delta)
     {
         _zoom = Math.Max(0.1f, Math.Min(5.0f, _zoom + delta));
@@ -358,6 +370,7 @@ public class ViewerForm : ThemedForm
         _lblZoom.Text = $"{(int)(_zoom * 100)}%";
     }
 
+    /// <summary>Switches between text and hex display modes and reloads the file.</summary>
     private void SwitchToMode(bool hex)
     {
         _hexMode = hex;
@@ -365,6 +378,7 @@ public class ViewerForm : ThemedForm
         LoadFile();
     }
 
+    /// <summary>Loads the current file in the appropriate mode (auto-detect, text, hex, or image).</summary>
     private void LoadFile()
     {
         var L = LocalizationService.Current;
@@ -411,11 +425,13 @@ public class ViewerForm : ThemedForm
         }
     }
 
+    /// <summary>Returns <c>true</c> if the file extension is a known image format.</summary>
     private bool IsImageFile(string ext)
     {
         return ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".ico" or ".svg" or ".webp" or ".tiff";
     }
 
+    /// <summary>Loads the image file into the picture box and resets zoom to 100%.</summary>
     private void LoadImage()
     {
         try
@@ -433,6 +449,7 @@ public class ViewerForm : ThemedForm
         }
     }
 
+    /// <summary>Loads the file as text with auto-detected encoding, respecting the 16 MB size limit.</summary>
     private void LoadText()
     {
         var L = LocalizationService.Current;
@@ -448,6 +465,7 @@ public class ViewerForm : ThemedForm
         _textBox.Text = encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
     }
 
+    /// <summary>Loads the file in hex dump format (offset, hex bytes, ASCII), truncated at 1 MB.</summary>
     private void LoadHex()
     {
         var L = LocalizationService.Current;
@@ -494,6 +512,7 @@ public class ViewerForm : ThemedForm
         _textBox.Text = sb.ToString();
     }
 
+    /// <summary>Updates the status bar labels with file name, size, mode, and extension.</summary>
     private void UpdateStatus(string mode)
     {
         var ext = FileSystem.FileEntry.GetExtension(_path).ToUpperInvariant().TrimStart('.');
@@ -502,6 +521,7 @@ public class ViewerForm : ThemedForm
         _lblPosition.Text = ext;
     }
 
+    /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
     private static string FormatSize(long bytes)
     {
         if (bytes < 0) return "—";
@@ -512,6 +532,7 @@ public class ViewerForm : ThemedForm
         return $"{s:0.##} {u[i]}";
     }
 
+    /// <summary>Unsubscribes from theme events and disposes the image on disposal.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)

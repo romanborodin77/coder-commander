@@ -17,6 +17,7 @@ public class AboutForm : ThemedForm
     private readonly LinkLabel _githubLink;
     private double _opacity = 0.0;
 
+    /// <summary>Initializes the about dialog with version info, links, and fade-in animation.</summary>
     public AboutForm()
     {
         var L = LocalizationService.Current;
@@ -264,6 +265,7 @@ public class AboutForm : ThemedForm
         _techLabel.ForeColor = p.Accent;
     }
 
+    /// <summary>Opens a URL in the default browser.</summary>
     private static void OpenUrl(string url)
     {
         try
@@ -276,6 +278,7 @@ public class AboutForm : ThemedForm
         }
     }
 
+    /// <summary>Creates a themed <see cref="LinkLabel"/> with hover color tracking.</summary>
     private static LinkLabel CreateLinkLabel(string text, Color color, Color hoverColor)
     {
         var p = ThemeService.Current;

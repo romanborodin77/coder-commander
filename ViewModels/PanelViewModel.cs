@@ -42,27 +42,40 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>All loaded items (before filtering).</summary>
     private List<FileSystemItem> _allItems = [];
 
+    /// <summary>File system provider used by this panel (may change when entering an archive).</summary>
     public IFileSystem CurrentFileSystem
     {
         get => _fs;
         set => _fs = value;
     }
 
+    /// <summary><c>true</c> when the current path points inside a ZIP archive.</summary>
     public bool IsInsideArchive => _fs is FileSystem.ZipArchiveFileSystem;
 
+    /// <summary><c>true</c> when there is at least one entry on the back-navigation stack.</summary>
     public bool CanGoBack => _back.Count > 0;
+    /// <summary><c>true</c> when there is at least one entry on the forward-navigation stack.</summary>
     public bool CanGoForward => _fwd.Count > 0;
 
+    /// <summary>Number of selected items in the panel (excluding the parent "…" entry).</summary>
     public int SelectedCount => Items.Count(i => i.IsSelected && !i.IsParent);
+    /// <summary>Total size in bytes of all selected non-directory items.</summary>
     public long SelectedBytes => Items.Where(i => i.IsSelected && !i.IsParent && !i.IsDirectory).Sum(i => i.Size);
+    /// <summary>Number of visible items excluding the parent entry.</summary>
     public int TotalCount => Items.Count(i => !i.IsParent);
 
+    /// <summary>Formatted string showing free and total disk space for the current drive.</summary>
     public string FreeSpaceDisplay { get; private set; } = "";
+    /// <summary>Text describing the item under the cursor or a generic item count.</summary>
     public string CursorInfo { get; private set; } = "";
 
+    /// <summary>Raised after the visible items list changes (after filtering or refresh).</summary>
     public event EventHandler? ItemsChanged;
+    /// <summary>Raised when the current directory path changes.</summary>
     public event EventHandler? PathChanged;
 
+    /// <summary>Initialises the panel with a file system provider and loads persisted sort/view settings.</summary>
+    /// <param name="fs">File system provider for this panel.</param>
     public PanelViewModel(IFileSystem fs)
     {
         _fs = fs;
@@ -204,6 +217,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Navigates back to the previous directory in the history stack.</summary>
     public async Task GoBackAsync()
     {
         if (_back.Count == 0) return;
@@ -216,6 +230,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanGoForward));
     }
 
+    /// <summary>Navigates forward to the next directory in the history stack.</summary>
     public async Task GoForwardAsync()
     {
         if (_fwd.Count == 0) return;
@@ -345,6 +360,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>Selects all visible items except the parent entry.</summary>
     public void SelectAll()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = true;
@@ -352,6 +368,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>Deselects all items.</summary>
     public void DeselectAll()
     {
         foreach (var i in Items) i.IsSelected = false;
@@ -359,6 +376,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>Toggles the selection state of every visible item (except the parent entry).</summary>
     public void InvertSelection()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = !i.IsSelected;
@@ -366,6 +384,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>Selects all items whose names match the given wildcard pattern (e.g. <c>*.txt</c>).</summary>
+    /// <param name="pattern">Wildcard pattern matched against item names.</param>
     public void SelectByPattern(string pattern)
     {
         foreach (var i in Items)
@@ -377,6 +397,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>Deselects all items whose names match the given wildcard pattern.</summary>
+    /// <param name="pattern">Wildcard pattern matched against item names.</param>
     public void DeselectByPattern(string pattern)
     {
         foreach (var i in Items)
@@ -499,6 +521,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             _ = RefreshAsync();
     }
 
+    /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.</summary>
     public void Dispose()
     {
         StopWatcher();
@@ -511,10 +534,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 }
 
 /// <summary>
-/// Comparer for file items (directories first, then by column).
+/// Compares file items by the configured sort column and direction, with directories-first support.
 /// </summary>
 sealed class FileComparer(bool dirsFirst, string column, bool descending) : IComparer<FileSystemItem>
 {
+    /// <summary>Compares two <see cref="FileSystemItem"/> instances according to the sort settings.</summary>
     public int Compare(FileSystemItem? x, FileSystemItem? y)
     {
         if (x == null || y == null) return 0;

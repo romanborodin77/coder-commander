@@ -22,10 +22,17 @@ public sealed class CodeEditorControl : Panel
     /// the modified flag instead of leaving it stuck on just because *something* happened since.</summary>
     private long _cleanStateId;
 
+    /// <summary>Raised when the text content changes (insert, delete, undo, redo).</summary>
     public new event EventHandler? TextChanged;
+    /// <summary>Raised when the caret position or selection changes.</summary>
     public event EventHandler? SelectionChanged;
+    /// <summary>Raised when the <see cref="Modified"/> flag changes value.</summary>
     public event EventHandler? ModifiedChanged;
 
+    /// <summary>
+    /// Gets or sets the modified flag. Setting to <c>false</c> resets the clean-state marker
+    /// so that undoing back to that state clears the flag automatically.
+    /// </summary>
     public bool Modified
     {
         get => _modified;
@@ -42,18 +49,21 @@ public sealed class CodeEditorControl : Panel
     /// <summary>Stored but not yet applied to layout — word wrap reflow isn't implemented (out of scope for this rewrite pass).</summary>
     public bool WordWrap { get; set; }
 
+    /// <summary>Gets or sets whether whitespace characters are rendered as visible glyphs.</summary>
     public bool ShowWhitespace
     {
         get => _canvas.ShowWhitespace;
         set { _canvas.ShowWhitespace = value; _canvas.Invalidate(); }
     }
 
+    /// <summary>Gets or sets the syntax highlighting language for the editor.</summary>
     public LanguageId Language
     {
         get => _canvas.Language;
         set => _canvas.SetLanguage(value);
     }
 
+    /// <summary>Gets or sets the full text content of the editor. Setting loads the text and resets the caret.</summary>
     public new string Text
     {
         get => _buffer.GetText();
@@ -63,6 +73,10 @@ public sealed class CodeEditorControl : Panel
     /// <summary>O(document) — only meant for occasional status-bar display, not a hot path.</summary>
     public int TextLength => _buffer.GetText().Length;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CodeEditorControl"/> class, wiring canvas, gutter,
+    /// find bar, and themed scrollbars.
+    /// </summary>
     public CodeEditorControl()
     {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
@@ -108,6 +122,11 @@ public sealed class CodeEditorControl : Panel
         SyncScrollBars();
     }
 
+    /// <summary>
+    /// Replaces the entire buffer content with <paramref name="text"/>, resets the caret, and
+    /// clears the modified flag.
+    /// </summary>
+    /// <param name="text">The new text content.</param>
     public void LoadText(string text)
     {
         _buffer.LoadText(text);
@@ -119,19 +138,33 @@ public sealed class CodeEditorControl : Panel
     /// <summary>1-based (line, column) — O(1), unlike the old RichTextBox-based implementation.</summary>
     public (int Line, int Column) GetCursorPosition() => (_canvas.Caret.Line + 1, _canvas.Caret.Column + 1);
 
+    /// <summary>Cuts the current selection to the clipboard.</summary>
     public void Cut() => _canvas.Cut();
+    /// <summary>Copies the current selection to the clipboard.</summary>
     public void Copy() => _canvas.Copy();
+    /// <summary>Pastes text from the clipboard at the caret.</summary>
     public void Paste() => _canvas.Paste();
+    /// <summary>Selects all text in the editor.</summary>
     public void SelectAll() => _canvas.SelectAll();
+    /// <summary>Undoes the last edit group.</summary>
     public void Undo() => _canvas.Undo();
+    /// <summary>Redoes the last undone edit group.</summary>
     public void Redo() => _canvas.Redo();
+    /// <summary>Gets whether the undo stack has entries available.</summary>
     public bool CanUndo => _canvas.CanUndo;
+    /// <summary>Gets whether the redo stack has entries available.</summary>
     public bool CanRedo => _canvas.CanRedo;
+    /// <summary>Shows the inline find/replace bar at the top of the editor.</summary>
+    /// <param name="withReplace">If <c>true</c>, the replace row is also displayed.</param>
     public void ShowFindBar(bool withReplace) => _findBar.ShowBar(withReplace);
+    /// <summary>Hides the inline find/replace bar and clears match highlights.</summary>
     public void HideFindBar() => _findBar.CloseBar();
 
+    /// <summary>Moves the caret to the specified 1-based line number, clamped to the document range.</summary>
+    /// <param name="line">1-based line number to navigate to.</param>
     public void GoToLine(int line) => _canvas.GoToLine(line);
 
+    /// <summary>Applies the current theme to the canvas, gutter, find bar, and scrollbar controls.</summary>
     public void ApplyTheme()
     {
         BackColor = ThemeService.Current.PanelBackground;

@@ -7,26 +7,35 @@ namespace CoderCommander.Operations;
 /// </summary>
 public sealed class QueuedOperation
 {
+    /// <summary>The underlying file operation.</summary>
     public IFileOperation Operation { get; }
+
+    /// <summary>Human-readable name shown in the progress UI.</summary>
     public string DisplayName { get; }
+
+    /// <summary>Time the operation started executing (set by <see cref="MarkStarted"/>).</summary>
     public DateTime StartTime { get; private set; }
+
+    /// <summary>Most recent progress report, or null if none received yet.</summary>
     public OperationProgress? LastProgress { get; set; }
 
     /// <summary>Lets a still-queued (not yet started) operation be pulled out of the queue immediately.</summary>
     internal CancellationTokenSource QueueWaitCts { get; } = new();
 
+    /// <summary>Creates a queued operation wrapping <paramref name="op"/>.</summary>
     public QueuedOperation(IFileOperation op, string displayName)
     {
         Operation = op;
         DisplayName = displayName;
     }
 
+    /// <summary>Sets <see cref="StartTime"/> to now.</summary>
     public void MarkStarted() => StartTime = DateTime.Now;
 }
 
 /// <summary>
 /// Manages running file operations with queue support.
-//// </summary>
+/// </summary>
 public sealed class OperationManager : IDisposable
 {
     private readonly ConcurrentDictionary<Guid, QueuedOperation> _operations = new();
@@ -45,8 +54,10 @@ public sealed class OperationManager : IDisposable
     /// <summary>All queued operations (snapshot).</summary>
     public IReadOnlyList<QueuedOperation> Operations => _operations.Values.ToList();
 
+    /// <summary>Number of operations currently in the queue.</summary>
     public int ActiveCount => _operations.Count;
 
+    /// <summary>Queues and executes an operation. Blocks if another operation is already running.</summary>
     public async Task RunAsync(IFileOperation operation, string displayName, CancellationToken externalCt = default)
     {
         var queued = new QueuedOperation(operation, displayName);
@@ -110,12 +121,14 @@ public sealed class OperationManager : IDisposable
         _ => OperationChangeType.Progress
     };
 
+    /// <summary>Cancels the operation with the given id.</summary>
     public void Cancel(Guid id)
     {
         if (_operations.TryGetValue(id, out var q))
             CancelQueued(q);
     }
 
+    /// <summary>Cancels all queued and running operations.</summary>
     public void CancelAll()
     {
         foreach (var q in _operations.Values)
@@ -130,6 +143,7 @@ public sealed class OperationManager : IDisposable
         catch (ObjectDisposedException) { /* already started running and cleaned up its queue wait */ }
     }
 
+    /// <summary>Immediately removes all completed, cancelled, or failed operations from the queue.</summary>
     public void RemoveCompleted()
     {
         foreach (var kv in _operations)
@@ -142,6 +156,7 @@ public sealed class OperationManager : IDisposable
         }
     }
 
+    /// <summary>Cancels all operations and releases resources.</summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -168,20 +183,40 @@ public sealed class OperationManager : IDisposable
     }
 }
 
+/// <summary>Indicates what changed about the operation queue.</summary>
 public enum OperationChangeType
 {
+    /// <summary>A new operation was added to the queue.</summary>
     Added,
+
+    /// <summary>An operation started executing.</summary>
     Started,
+
+    /// <summary>Progress was reported by an operation.</summary>
     Progress,
+
+    /// <summary>An operation completed successfully.</summary>
     Completed,
+
+    /// <summary>An operation was cancelled.</summary>
     Canceled,
+
+    /// <summary>An operation failed with an error.</summary>
     Failed,
+
+    /// <summary>An operation was removed from the queue.</summary>
     Removed
 }
 
+/// <summary>Event data for <see cref="OperationManager.OperationChanged"/>.</summary>
 public sealed class OperationManagerEventArgs(Guid id, QueuedOperation op, OperationChangeType change) : EventArgs
 {
+    /// <summary>Unique id of the operation.</summary>
     public Guid Id { get; } = id;
+
+    /// <summary>The queued operation this event pertains to.</summary>
     public QueuedOperation Operation { get; } = op;
+
+    /// <summary>What changed.</summary>
     public OperationChangeType Change { get; } = change;
 }

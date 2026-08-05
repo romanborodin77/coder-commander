@@ -28,6 +28,8 @@ public class MultiRenameForm : ThemedForm
     /// <summary>Results: pairs of (oldFullPath, newFullPath).</summary>
     public List<(string oldPath, string newPath)> Results { get; } = [];
 
+    /// <param name="items">Files to rename.</param>
+    /// <param name="sourcePath">Working directory containing the files.</param>
     public MultiRenameForm(IReadOnlyList<FileSystemItem> items, string sourcePath)
     {
         _items = items;
@@ -42,6 +44,7 @@ public class MultiRenameForm : ThemedForm
         BuildControls();
     }
 
+    /// <summary>Builds all UI controls for the rename dialog.</summary>
     private void BuildControls()
     {
         var L = LocalizationService.Current;
@@ -203,6 +206,7 @@ public class MultiRenameForm : ThemedForm
         UpdatePreview();
     }
 
+    /// <summary>Refreshes the preview list based on the current pattern and settings.</summary>
     private void UpdatePreview()
     {
         if (!IsHandleCreated) return;
@@ -242,6 +246,7 @@ public class MultiRenameForm : ThemedForm
         _previewList.EndUpdate();
     }
 
+    /// <summary>Applies the name and extension patterns to a single item, returning the new name components.</summary>
     private (string name, string ext) ApplyPattern(
         string pattern, string extPattern, FileSystemItem item,
         int index, int startValue, int step)
@@ -255,6 +260,7 @@ public class MultiRenameForm : ThemedForm
         return (name, ext);
     }
 
+    /// <summary>Replaces all recognized placeholders in a pattern string with their computed values.</summary>
     private static string ReplacePlaceholders(
         string pattern, string name, string ext, FileSystemItem item,
         int index, int startValue, int step)
@@ -284,6 +290,8 @@ public class MultiRenameForm : ThemedForm
         return result;
     }
 
+    /// <summary>Returns a substring of <paramref name="s"/> by count, safely handling short strings.
+    /// Positive count takes from the start; negative count takes from the end.</summary>
     private static string SubstringSafe(string s, int count)
     {
         if (count >= 0)
@@ -292,6 +300,7 @@ public class MultiRenameForm : ThemedForm
         return s.Length > abs ? s[^abs..] : s;
     }
 
+    /// <summary>Computes the counter value for the given index, with optional width and start parameters.</summary>
     private static string ComputeCounter(string? num1, string? num2, int startValue, int step, int index)
     {
         int width = 0;
@@ -314,6 +323,7 @@ public class MultiRenameForm : ThemedForm
             : value.ToString();
     }
 
+    /// <summary>Returns <c>true</c> if the name contains no invalid filename characters.</summary>
     private static bool IsValidFileName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;

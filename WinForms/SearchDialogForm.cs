@@ -25,6 +25,11 @@ public class SearchDialogForm : ThemedForm
     /// <summary>Raised when a result item is double-clicked (navigate to it).</summary>
     public event EventHandler<FileSystemItem>? ResultActivated;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchDialogForm"/> class, starting the
+    /// search from the specified directory.
+    /// </summary>
+    /// <param name="startPath">Root directory for the file search.</param>
     public SearchDialogForm(string startPath)
     {
         var L = LocalizationService.Current;

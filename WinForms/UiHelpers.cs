@@ -3,6 +3,10 @@ using System.Drawing.Drawing2D;
 
 namespace CoderCommander.WinForms;
 
+/// <summary>
+/// Fully owner-drawn button with rounded corners, gradient fill, focus ring, and shadow support.
+/// Supports primary/secondary/danger color roles via <see cref="Role"/>.
+/// </summary>
 public class RoundedButton : Button
 {
     private bool _hover;
@@ -10,17 +14,29 @@ public class RoundedButton : Button
     private bool _focused;
     private EventHandler? _themeChangedHandler;
 
+    /// <summary>Gets or sets the hover highlight color. Falls back to <see cref="ThemePalette.ToolbarHover"/> if empty.</summary>
     public Color HoverColor { get; set; } = Color.Empty;
+    /// <summary>Gets or sets the pressed state color. Falls back to <see cref="ThemePalette.ToolbarHover"/> if empty.</summary>
     public Color PressedColor { get; set; } = Color.Empty;
+    /// <summary>Gets or sets the border color. No border is drawn if empty.</summary>
     public Color BorderColor { get; set; } = Color.Empty;
+    /// <summary>Gets or sets the border width in pixels. No border is drawn if zero.</summary>
     public int BorderWidth { get; set; } = 0;
+    /// <summary>Gets or sets the corner radius for the rounded rectangle shape.</summary>
     public int CornerRadius { get; set; } = 4;
+    /// <summary>Gets or sets whether a vertical gradient is applied to the background.</summary>
     public bool UseGradient { get; set; } = true;
+    /// <summary>Gets or sets the custom gradient top color. Auto-generated if empty.</summary>
     public Color GradientTopColor { get; set; } = Color.Empty;
+    /// <summary>Gets or sets the custom gradient bottom color. Auto-generated if empty.</summary>
     public Color GradientBottomColor { get; set; } = Color.Empty;
+    /// <summary>Gets or sets whether a drop shadow is drawn beneath the button.</summary>
     public bool DrawShadow { get; set; } = false;
+    /// <summary>Gets or sets the shadow color (semi-transparent black by default).</summary>
     public Color ShadowColor { get; set; } = Color.FromArgb(48, 0, 0, 0);
+    /// <summary>Gets or sets the shadow offset in pixels.</summary>
     public int ShadowOffset { get; set; } = 2;
+    /// <summary>Gets or sets the shadow blur radius.</summary>
     public int ShadowBlur { get; set; } = 4;
 
     /// <summary>
@@ -35,6 +51,7 @@ public class RoundedButton : Button
     /// <summary>Fired on right mouse button down. Standard Click only fires for left button.</summary>
     public event MouseEventHandler? RightClick;
 
+    /// <summary>Initializes a new <see cref="RoundedButton"/> with flat style, transparent hover colors, and theme tracking.</summary>
     public RoundedButton()
     {
         FlatStyle = FlatStyle.Flat;
@@ -65,6 +82,7 @@ public class RoundedButton : Button
 
     protected override bool ShowFocusCues => false;
 
+    /// <summary>Unsubscribes from the theme change event on disposal.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing && _themeChangedHandler != null)
@@ -72,6 +90,7 @@ public class RoundedButton : Button
         base.Dispose(disposing);
     }
 
+    /// <summary>Owner-draws the button with rounded rectangle, gradient, border, highlight, focus ring, and text/image layout.</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -202,6 +221,7 @@ public sealed class ThemedCheckBox : Control
 
     public enum CheckState { Unchecked, Checked, Indeterminate }
 
+    /// <summary>Initializes a new <see cref="ThemedCheckBox"/> with double buffering and theme tracking.</summary>
     public ThemedCheckBox()
     {
         SetStyle(
@@ -215,8 +235,10 @@ public sealed class ThemedCheckBox : Control
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by invalidating the control.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => Invalidate();
 
+    /// <summary>Unsubscribes from the theme change event.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -227,18 +249,21 @@ public sealed class ThemedCheckBox : Control
     /// <summary>Enables a third (indeterminate) state; click cycles through all three.</summary>
     public bool ThreeState { get; set; }
 
+    /// <summary>Gets or sets whether the checkbox is checked (convenience wrapper around <see cref="State"/>).</summary>
     public bool Checked
     {
         get => _state == CheckState.Checked;
         set => SetState(value ? CheckState.Checked : CheckState.Unchecked);
     }
 
+    /// <summary>Gets or sets the check state (Unchecked, Checked, or Indeterminate).</summary>
     public CheckState State
     {
         get => _state;
         set => SetState(value);
     }
 
+    /// <summary>Sets the check state, invalidates, and raises <see cref="CheckedChanged"/>.</summary>
     private void SetState(CheckState value)
     {
         if (_state == value) return;
@@ -247,6 +272,7 @@ public sealed class ThemedCheckBox : Control
         CheckedChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Raised when the check state changes.</summary>
     public event EventHandler? CheckedChanged;
 
     /// <summary>
@@ -367,6 +393,7 @@ public sealed class ThemedCheckBox : Control
 /// </summary>
 public static class UiHelpers
 {
+    /// <summary>Creates a themed button via <see cref="ThemedForm.CreateThemedButton"/>.</summary>
     public static Button CreateButton(string text, bool accent = false)
     {
         // Delegate to the canonical themed button factory to keep theming consistent.
@@ -374,11 +401,13 @@ public static class UiHelpers
         return ThemedForm.CreateThemedButton(text, accent);
     }
 
+    /// <summary>No-op kept for backward compatibility; <see cref="RoundedButton"/> handles its own painting.</summary>
     internal static void ApplyRoundedRegion(Control c, int? radius = null)
     {
         // Kept for backward compat — RoundedButton handles its own painting
     }
 
+    /// <summary>Creates a themed label with optional bold font via <see cref="ThemeRole"/> tag.</summary>
     public static Label CreateLabel(string text, bool bold = false)
     {
         var p = ThemeService.Current;
@@ -397,6 +426,7 @@ public static class UiHelpers
         };
     }
 
+    /// <summary>Creates a themed text box with the current theme font and colors.</summary>
     public static TextBox CreateTextBox(string? value = null)
     {
         var p = ThemeService.Current;
@@ -410,6 +440,7 @@ public static class UiHelpers
         };
     }
 
+    /// <summary>Creates a themed detail-view ListView with the specified columns.</summary>
     public static ListView CreateListView(params (string name, int width)[] columns)
     {
         var p = ThemeService.Current;
@@ -428,6 +459,7 @@ public static class UiHelpers
         return lv;
     }
 
+    /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
     public static string FormatSize(long bytes)
     {
         if (bytes < 0) return "—";
@@ -438,6 +470,7 @@ public static class UiHelpers
         return $"{s:0.##} {u[i]}";
     }
 
+    /// <summary>Creates a themed checkbox with the specified text and initial state.</summary>
     public static ThemedCheckBox CreateCheckBox(string text, bool checked_ = false)
     {
         var p = ThemeService.Current;
@@ -473,6 +506,7 @@ public enum MsgBoxButtons { OK, OKCancel, YesNo, YesNoCancel }
 /// </summary>
 public static class StyledMessageBox
 {
+    /// <summary>Displays a themed message box with the specified text, caption, buttons, and icon.</summary>
     public static MsgBoxResult Show(string text, string caption, MsgBoxButtons buttons = MsgBoxButtons.OK, MsgBoxIcon icon = MsgBoxIcon.None, Form? owner = null)
     {
         using var form = new StyledMessageBoxForm(text, caption, buttons, icon, owner != null);
@@ -502,6 +536,10 @@ internal sealed class StyledMessageBoxForm : ThemedForm
     private readonly Label _iconLabel;
     private readonly MsgBoxIcon _icon;
 
+    /// <summary>
+    /// Initializes the message box form with icon, message, and button layout based on the
+    /// specified <see cref="MsgBoxButtons"/> and <see cref="MsgBoxIcon"/>.
+    /// </summary>
     public StyledMessageBoxForm(string text, string caption, MsgBoxButtons buttons, MsgBoxIcon icon, bool hasOwner)
     {
         var p = ThemeService.Current;
@@ -648,6 +686,7 @@ internal sealed class StyledMessageBoxForm : ThemedForm
         return panel;
     }
 
+    /// <summary>Applies the icon label's font and color based on the <see cref="MsgBoxIcon"/> kind.</summary>
     protected override void ApplyTheme()
     {
         base.ApplyTheme();

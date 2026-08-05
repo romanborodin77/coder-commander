@@ -9,14 +9,23 @@ namespace CoderCommander.Services;
 /// </summary>
 public sealed class SyntaxPalette
 {
+    /// <summary>Color for single-line and multi-line comments.</summary>
     public Color Comment { get; init; }
+    /// <summary>Color for numeric literals.</summary>
     public Color Number { get; init; }
+    /// <summary>Color for function and method names.</summary>
     public Color Function { get; init; }
+    /// <summary>Color for XML/HTML attributes and decorators.</summary>
     public Color Attribute { get; init; }
+    /// <summary>Color for XML/HTML tag names.</summary>
     public Color TagName { get; init; }
+    /// <summary>Color for XML/HTML tag attribute names and values.</summary>
     public Color TagAttribute { get; init; }
+    /// <summary>Color for CSS selectors.</summary>
     public Color Selector { get; init; }
+    /// <summary>Color for JSON object keys.</summary>
     public Color JsonKey { get; init; }
+    /// <summary>Color for SQL function and keyword names.</summary>
     public Color SqlFunction { get; init; }
 }
 
@@ -32,6 +41,12 @@ internal static class FontCache
 {
     private static readonly Dictionary<(string Name, float Size, FontStyle Style), Font> Cache = new();
 
+    /// <summary>Returns a cached <see cref="Font"/> for the specified family, size, and style,
+    /// creating and caching it on first access.</summary>
+    /// <param name="name">Font family name (e.g. <c>"Segoe UI"</c>).</param>
+    /// <param name="size">Font size in points.</param>
+    /// <param name="style">Font style (default: <see cref="FontStyle.Regular"/>).</param>
+    /// <returns>A shared <see cref="Font"/> instance that lives for the process lifetime.</returns>
     public static Font Get(string name, float size, FontStyle style = FontStyle.Regular)
     {
         var key = (name, size, style);
@@ -46,6 +61,8 @@ internal static class FontCache
         }
     }
 
+    /// <summary>Creates a new <see cref="Font"/>, falling back to Segoe UI if the requested
+    /// family is unavailable.</summary>
     private static Font CreateFont(string name, float size, FontStyle style)
     {
         try
@@ -67,71 +84,94 @@ internal static class FontCache
 /// </summary>
 public sealed class ThemePalette
 {
-    // Backgrounds — VSCode Dark+ (editor: #1e1e1e, sidebar: #252526)
+    /// <summary>Main editor and panel background color.</summary>
     public Color Background { get; init; } = Color.FromArgb(30, 30, 30);
+    /// <summary>Background color for side panels and secondary surfaces.</summary>
     public Color PanelBackground { get; init; } = Color.FromArgb(37, 37, 38);
+    /// <summary>Border color for the active/selected panel.</summary>
     public Color PanelActiveBorder { get; init; } = Color.FromArgb(0, 127, 212);
+    /// <summary>Border color for inactive panels.</summary>
     public Color PanelInactiveBorder { get; init; } = Color.FromArgb(60, 60, 60);
 
-    // Text — VSCode editor.foreground
+    /// <summary>Primary foreground (text) color.</summary>
     public Color Foreground { get; init; } = Color.FromArgb(212, 212, 212);
+    /// <summary>Dimmed foreground for secondary or disabled text.</summary>
     public Color DimForeground { get; init; } = Color.FromArgb(136, 136, 136);
 
-    // Selection — VSCode list colors
+    /// <summary>Background color for selected items in lists and grids.</summary>
     public Color Selection { get; init; } = Color.FromArgb(9, 71, 113);
+    /// <summary>Foreground color for selected items.</summary>
     public Color SelectionForeground { get; init; } = Color.White;
+    /// <summary>Background color for selected items that are not focused.</summary>
     public Color InactiveSelection { get; init; } = Color.FromArgb(55, 55, 61);
 
-    // Headers / toolbars — VSCode titleBar/activityBar
+    /// <summary>Background color for header areas and title bars.</summary>
     public Color HeaderBackground { get; init; } = Color.FromArgb(60, 60, 60);
+    /// <summary>Foreground color for header areas and title bars.</summary>
     public Color HeaderForeground { get; init; } = Color.FromArgb(204, 204, 204);
+    /// <summary>Background color for toolbars.</summary>
     public Color ToolbarBackground { get; init; } = Color.FromArgb(51, 51, 51);
-    // Must read lighter than ToolbarBackground, or hovering a toolbar button visually
-    // dims it instead of highlighting it.
+    /// <summary>Background color when hovering a toolbar button. Must be lighter than
+    /// <see cref="ToolbarBackground"/>, otherwise hovering visually dims the button.</summary>
     public Color ToolbarHover { get; init; } = Color.FromArgb(70, 73, 74);
 
-    // Grid — VSCode editorWidget.background
+    /// <summary>Color for grid lines in list views and data grids.</summary>
     public Color GridLine { get; init; } = Color.FromArgb(64, 64, 64);
+    /// <summary>Background color for alternating rows in list views.</summary>
     public Color AlternatingRow { get; init; } = Color.FromArgb(34, 34, 34);
 
-    // Accent — VSCode focusBorder / button.background
+    /// <summary>Primary accent color for links, focus borders, and active states.</summary>
     public Color Accent { get; init; } = Color.FromArgb(14, 99, 156);
+    /// <summary>Accent color when hovering interactive elements.</summary>
     public Color AccentHover { get; init; } = Color.FromArgb(17, 119, 187);
 
-    // File type colors — VSCode syntax highlighting
+    /// <summary>Color for directory/folder items in file lists.</summary>
     public Color DirectoryColor { get; init; } = Color.FromArgb(78, 201, 176);
+    /// <summary>Color for executable file items.</summary>
     public Color ExecutableColor { get; init; } = Color.FromArgb(197, 134, 192);
+    /// <summary>Color for hidden file items.</summary>
     public Color HiddenColor { get; init; } = Color.FromArgb(128, 128, 128);
+    /// <summary>Color for archive file items.</summary>
     public Color ArchiveColor { get; init; } = Color.FromArgb(206, 145, 120);
 
-    // Danger — VSCode errorForeground
+    /// <summary>Danger/error color for destructive actions and error indicators.</summary>
     public Color Danger { get; init; } = Color.FromArgb(244, 71, 71);
 
-    // Warning — used by StyledMessageBox and any warning iconography
+    /// <summary>Warning color for caution indicators and styled message boxes.</summary>
     public Color Warning { get; init; } = Color.FromArgb(255, 180, 0);
 
-    // Gloss overlay for the subtle highlight sheen on buttons/checkboxes. White in the
-    // dark theme, black in the light theme so the "light hits the top edge" effect still
-    // reads correctly instead of washing out a light background.
+    /// <summary>Semi-transparent gloss overlay for the subtle highlight sheen on buttons and
+    /// checkboxes. White in the dark theme, black in the light theme so the "light hits the
+    /// top edge" effect reads correctly instead of washing out the background.</summary>
     public Color GlossOverlay { get; init; } = Color.FromArgb(30, 255, 255, 255);
 
-    // Interactive — hover, focus, splitter
+    /// <summary>Background color when hovering a row in a list view.</summary>
     public Color RowHover { get; init; } = Color.FromArgb(44, 48, 50);
+    /// <summary>Color for splitter bars in their normal state.</summary>
     public Color SplitterNormal { get; init; } = Color.FromArgb(64, 64, 64);
+    /// <summary>Color for splitter bars when hovered.</summary>
     public Color SplitterHover { get; init; } = Color.FromArgb(14, 99, 156);
+    /// <summary>Color for focus rectangles and focus indicators.</summary>
     public Color FocusBorder { get; init; } = Color.FromArgb(14, 99, 156);
+    /// <summary>Gradient start color for column header backgrounds in list views.</summary>
     public Color ColumnHeaderGradient { get; init; } = Color.FromArgb(68, 68, 68);
 
-    // Scrollbar — VSCode Dark+ (semi-transparent simulation over #1e1e1e)
+    /// <summary>Background color of the scrollbar track.</summary>
     public Color ScrollbarTrack { get; init; } = Color.FromArgb(30, 30, 30);
+    /// <summary>Color of the scrollbar thumb (normal state).</summary>
     public Color ScrollbarThumb { get; init; } = Color.FromArgb(74, 74, 74);
+    /// <summary>Color of the scrollbar thumb when hovered.</summary>
     public Color ScrollbarThumbHover { get; init; } = Color.FromArgb(102, 102, 102);
+    /// <summary>Color of the scrollbar thumb when pressed.</summary>
     public Color ScrollbarThumbPressed { get; init; } = Color.FromArgb(135, 135, 135);
+    /// <summary>Color of scrollbar arrow buttons (normal state).</summary>
     public Color ScrollbarArrow { get; init; } = Color.FromArgb(135, 135, 135);
+    /// <summary>Color of scrollbar arrow buttons when hovered.</summary>
     public Color ScrollbarArrowHover { get; init; } = Color.FromArgb(180, 180, 180);
+    /// <summary>Color of the scrollbar border.</summary>
     public Color ScrollbarBorder { get; init; } = Color.FromArgb(30, 30, 30);
 
-    // Syntax highlighting (CodeEditorCanvas) — the only palette member not a flat Color.
+    /// <summary>Syntax highlighting colors for <see cref="WinForms.CodeEditorCanvas"/>.</summary>
     public SyntaxPalette Syntax { get; init; } = new()
     {
         Comment = Color.FromArgb(106, 153, 85),
@@ -145,23 +185,30 @@ public sealed class ThemePalette
         SqlFunction = Color.FromArgb(220, 220, 170)
     };
 
-    // Fonts — VSCode uses Segoe UI (Windows), Consolas for monospace. Sourced from the
-    // process-lifetime FontCache: Dark and Light share the same metrics, so no palette
-    // instance exclusively owns a Font it would need to dispose (see ApplyTheme).
+    /// <summary>Font used for file list grid cells.</summary>
     public Font GridFont { get; init; } = FontCache.Get("Segoe UI", 9F);
+    /// <summary>Bold font for file list grid cells (e.g. highlighted rows).</summary>
     public Font GridFontBold { get; init; } = FontCache.Get("Segoe UI", 9F, FontStyle.Bold);
+    /// <summary>Bold font for toolbar and menu headers.</summary>
     public Font HeaderFont { get; init; } = FontCache.Get("Segoe UI", 9F, FontStyle.Bold);
+    /// <summary>Font for the status bar text.</summary>
     public Font StatusBarFont { get; init; } = FontCache.Get("Segoe UI", 8.5F);
+    /// <summary>Font for panel captions and labels.</summary>
     public Font CaptionFont { get; init; } = FontCache.Get("Segoe UI", 9F);
+    /// <summary>Monospace font for code editors and terminal panels.</summary>
     public Font MonoFont { get; init; } = FontCache.Get("Consolas", 9.5F);
 
-    // Typography roles for dialog chrome — titles, section headers, hint text, glyph
-    // icons — so individual dialogs no longer construct their own ad-hoc `new Font(...)`.
+    /// <summary>Bold title font for dialog chrome (15pt).</summary>
     public Font TitleFont { get; init; } = FontCache.Get("Segoe UI", 15F, FontStyle.Bold);
+    /// <summary>Bold subtitle font for dialog chrome (13pt).</summary>
     public Font SubtitleFont { get; init; } = FontCache.Get("Segoe UI", 13F, FontStyle.Bold);
+    /// <summary>Bold section header font for dialog chrome (10pt).</summary>
     public Font SectionFont { get; init; } = FontCache.Get("Segoe UI", 10F, FontStyle.Bold);
+    /// <summary>Small font for hint text and secondary labels (8.5pt).</summary>
     public Font SmallFont { get; init; } = FontCache.Get("Segoe UI", 8.5F);
+    /// <summary>Italic font for emphasis or placeholder text.</summary>
     public Font ItalicFont { get; init; } = FontCache.Get("Segoe UI", 9F, FontStyle.Italic);
+    /// <summary>Large glyph font for icon placeholders in dialogs (24pt).</summary>
     public Font IconGlyphFont { get; init; } = FontCache.Get("Segoe UI", 24F);
 
     /// <summary>Bold glyph on a small square button (e.g. <c>EmbeddedTerminalPanel</c>'s "+" new-tab
@@ -179,10 +226,13 @@ public sealed class ThemePalette
 /// </summary>
 public static class ThemeService
 {
+    /// <summary>Currently active theme palette. Updated by <see cref="ApplyTheme"/>.</summary>
     public static ThemePalette Current { get; private set; } = CreateDark();
 
+    /// <summary>Creates a new instance of the VSCode Dark+ theme palette.</summary>
     public static ThemePalette CreateDark() => new();
 
+    /// <summary>Creates a new instance of the VSCode Light+ theme palette.</summary>
     public static ThemePalette CreateLight() => new()
     {
         // VSCode Light+ colors
@@ -236,6 +286,8 @@ public static class ThemeService
         }
     };
 
+    /// <summary>Raised after <see cref="ApplyTheme"/> swaps the active palette so that all
+    /// controls can re-read <see cref="Current"/> and repaint.</summary>
     public static event EventHandler? ThemeChanged;
 
     /// <summary>
@@ -245,6 +297,10 @@ public static class ThemeService
     /// </summary>
     public static bool IsDark => Current.Background.GetBrightness() < 0.5f;
 
+    /// <summary>Switches the active theme palette by name, clears icon caches, and raises
+    /// <see cref="ThemeChanged"/>.</summary>
+    /// <param name="themeName">Theme name: <c>"Dark"</c> or <c>"Light"</c>. Any other value
+    /// falls back to Dark.</param>
     public static void ApplyTheme(string themeName)
     {
         Current = themeName == "Light" ? CreateLight() : CreateDark();
@@ -253,6 +309,8 @@ public static class ThemeService
         ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>Applies current palette background, foreground, and font to a <see cref="Form"/>.</summary>
+    /// <param name="form">The form to style.</param>
     public static void StyleForm(Form form)
     {
         var p = Current;
@@ -261,6 +319,8 @@ public static class ThemeService
         form.Font = p.GridFont;
     }
 
+    /// <summary>Applies current palette colors and <see cref="ThemeRenderer"/> to a <see cref="ToolStrip"/>.</summary>
+    /// <param name="ts">The tool strip to style.</param>
     public static void StyleToolStrip(ToolStrip ts)
     {
         var p = Current;
@@ -269,6 +329,8 @@ public static class ThemeService
         ts.Renderer = new ThemeRenderer();
     }
 
+    /// <summary>Applies current palette colors and <see cref="ThemeRenderer"/> to a <see cref="MenuStrip"/>.</summary>
+    /// <param name="ms">The menu strip to style.</param>
     public static void StyleMenu(MenuStrip ms)
     {
         var p = Current;
@@ -278,6 +340,8 @@ public static class ThemeService
         ms.Padding = new Padding(2, 3, 0, 3);
     }
 
+    /// <summary>Applies current palette colors and <see cref="ThemeRenderer"/> to a <see cref="StatusStrip"/>.</summary>
+    /// <param name="ss">The status strip to style.</param>
     public static void StyleStatusStrip(StatusStrip ss)
     {
         var p = Current;
@@ -320,56 +384,106 @@ public static class ThemeService
 /// ProfessionalColorTable driven by the active ThemePalette.
 /// Provides dark-theme-aware colors for menu dropdowns, toolstrip buttons, separators.
 /// </summary>
+/// <summary>
+/// ProfessionalColorTable driven by the active <see cref="ThemePalette"/>.
+/// Provides dark/light-theme-aware colors for menu dropdowns, toolstrip buttons, and separators.
+/// </summary>
 public sealed class ThemeColorTable : ProfessionalColorTable
 {
+    /// <summary>Initializes a new instance using the current theme palette.</summary>
     public ThemeColorTable() : base() { }
 
     private static ThemePalette P => ThemeService.Current;
 
+    /// <summary>Start gradient color of the menu strip background.</summary>
     public override Color MenuStripGradientBegin => P.ToolbarBackground;
+    /// <summary>End gradient color of the menu strip background.</summary>
     public override Color MenuStripGradientEnd => P.ToolbarBackground;
+    /// <summary>Color of the menu border.</summary>
     public override Color MenuBorder => P.GridLine;
+    /// <summary>Border color around a selected menu item (transparent to avoid double-border effect).</summary>
     public override Color MenuItemBorder => Color.Transparent;
+    /// <summary>Start gradient when a menu item is pressed.</summary>
     public override Color MenuItemPressedGradientBegin => P.ToolbarBackground;
+    /// <summary>Middle gradient when a menu item is pressed.</summary>
     public override Color MenuItemPressedGradientMiddle => P.ToolbarBackground;
+    /// <summary>End gradient when a menu item is pressed.</summary>
     public override Color MenuItemPressedGradientEnd => P.ToolbarBackground;
+    /// <summary>Background color of a selected (highlighted) menu item.</summary>
     public override Color MenuItemSelected => P.ToolbarHover;
+    /// <summary>Start gradient of a selected menu item.</summary>
     public override Color MenuItemSelectedGradientBegin => P.ToolbarHover;
+    /// <summary>End gradient of a selected menu item.</summary>
     public override Color MenuItemSelectedGradientEnd => P.ToolbarHover;
+    /// <summary>Start gradient of the image margin area in menu items.</summary>
     public override Color ImageMarginGradientBegin => P.PanelBackground;
+    /// <summary>Middle gradient of the image margin area in menu items.</summary>
     public override Color ImageMarginGradientMiddle => P.PanelBackground;
+    /// <summary>End gradient of the image margin area in menu items.</summary>
     public override Color ImageMarginGradientEnd => P.PanelBackground;
+    /// <summary>Start gradient of the toolstrip background.</summary>
     public override Color ToolStripGradientBegin => P.ToolbarBackground;
+    /// <summary>Middle gradient of the toolstrip background.</summary>
     public override Color ToolStripGradientMiddle => P.ToolbarBackground;
+    /// <summary>End gradient of the toolstrip background.</summary>
     public override Color ToolStripGradientEnd => P.ToolbarBackground;
+    /// <summary>Color of the toolstrip border.</summary>
     public override Color ToolStripBorder => P.ToolbarBackground;
+    /// <summary>Background color of toolstrip dropdown menus.</summary>
     public override Color ToolStripDropDownBackground => P.PanelBackground;
+    /// <summary>Start gradient of the toolstrip content panel.</summary>
     public override Color ToolStripContentPanelGradientBegin => P.Background;
+    /// <summary>End gradient of the toolstrip content panel.</summary>
     public override Color ToolStripContentPanelGradientEnd => P.Background;
+    /// <summary>Start gradient of the toolstrip panel.</summary>
     public override Color ToolStripPanelGradientBegin => P.ToolbarBackground;
+    /// <summary>End gradient of the toolstrip panel.</summary>
     public override Color ToolStripPanelGradientEnd => P.ToolbarBackground;
+    /// <summary>Border color of a selected toolbar button.</summary>
     public override Color ButtonSelectedBorder => P.Accent;
+    /// <summary>Start gradient of a selected toolbar button.</summary>
     public override Color ButtonSelectedGradientBegin => P.ToolbarHover;
+    /// <summary>Middle gradient of a selected toolbar button.</summary>
     public override Color ButtonSelectedGradientMiddle => P.ToolbarHover;
+    /// <summary>End gradient of a selected toolbar button.</summary>
     public override Color ButtonSelectedGradientEnd => P.ToolbarHover;
+    /// <summary>Border color of a pressed toolbar button.</summary>
     public override Color ButtonPressedBorder => P.Accent;
+    /// <summary>Start gradient of a pressed toolbar button.</summary>
     public override Color ButtonPressedGradientBegin => P.ToolbarHover;
+    /// <summary>Middle gradient of a pressed toolbar button.</summary>
     public override Color ButtonPressedGradientMiddle => P.ToolbarHover;
+    /// <summary>End gradient of a pressed toolbar button.</summary>
     public override Color ButtonPressedGradientEnd => P.ToolbarHover;
+    /// <summary>Start gradient of a checked toolbar button.</summary>
     public override Color ButtonCheckedGradientBegin => P.ToolbarHover;
+    /// <summary>Middle gradient of a checked toolbar button.</summary>
     public override Color ButtonCheckedGradientMiddle => P.ToolbarHover;
+    /// <summary>End gradient of a checked toolbar button.</summary>
     public override Color ButtonCheckedGradientEnd => P.ToolbarHover;
+    /// <summary>Background color when a checked button is highlighted.</summary>
     public override Color ButtonCheckedHighlight => P.ToolbarHover;
+    /// <summary>Border color when a checked button is highlighted.</summary>
     public override Color ButtonCheckedHighlightBorder => P.Accent;
+    /// <summary>Dark color of a separator line.</summary>
     public override Color SeparatorDark => P.GridLine;
+    /// <summary>Light color of a separator line.</summary>
     public override Color SeparatorLight => P.GridLine;
+    /// <summary>Background of a check mark in a menu item.</summary>
     public override Color CheckBackground => P.Accent;
+    /// <summary>Background of a check mark when pressed.</summary>
     public override Color CheckPressedBackground => P.AccentHover;
+    /// <summary>Background of a check mark when the item is selected.</summary>
     public override Color CheckSelectedBackground => P.AccentHover;
+    /// <summary>Start gradient of the overflow (dropdown) button.</summary>
     public override Color OverflowButtonGradientBegin => P.ToolbarBackground;
+    /// <summary>Middle gradient of the overflow (dropdown) button.</summary>
     public override Color OverflowButtonGradientMiddle => P.ToolbarBackground;
+    /// <summary>End gradient of the overflow (dropdown) button.</summary>
     public override Color OverflowButtonGradientEnd => P.ToolbarBackground;
+    /// <summary>Start gradient of the status strip background.</summary>
     public override Color StatusStripGradientBegin => P.HeaderBackground;
+    /// <summary>End gradient of the status strip background.</summary>
     public override Color StatusStripGradientEnd => P.HeaderBackground;
 }
 
@@ -379,8 +493,10 @@ public sealed class ThemeColorTable : ProfessionalColorTable
 /// </summary>
 public sealed class ThemeRenderer : ToolStripProfessionalRenderer
 {
+    /// <summary>Initializes a new renderer using the active <see cref="ThemeColorTable"/>.</summary>
     public ThemeRenderer() : base(new ThemeColorTable()) { }
 
+    /// <summary>Renders the toolbar/statusstrip background with theme colors and a subtle top separator.</summary>
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
     {
         var p = ThemeService.Current;
@@ -401,8 +517,10 @@ public sealed class ThemeRenderer : ToolStripProfessionalRenderer
         }
     }
 
+    /// <summary>Suppresses the default toolstrip border rendering (theme handles it via backgrounds).</summary>
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e) { }
 
+    /// <summary>Renders a rounded gradient background for toolbar buttons (VSCode style).</summary>
     protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
     {
         var p = ThemeService.Current;
@@ -435,6 +553,7 @@ public sealed class ThemeRenderer : ToolStripProfessionalRenderer
         }
     }
 
+    /// <summary>Renders the hover background for menu items and top-level menu bar entries.</summary>
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
         var p = ThemeService.Current;
@@ -459,6 +578,7 @@ public sealed class ThemeRenderer : ToolStripProfessionalRenderer
         }
     }
 
+    /// <summary>Renders vertical and horizontal separators with theme-aware colors.</summary>
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         var p = ThemeService.Current;

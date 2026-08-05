@@ -13,15 +13,22 @@ public sealed class TerminalSessionManager : IDisposable
     private Guid? _activeTabId;
     private bool _disposed;
 
+    /// <summary>Gets or sets the maximum number of concurrent terminal sessions allowed.</summary>
     public int MaxConcurrentSessions { get; set; } = 10;
+    /// <summary>Gets a read-only view of all active tabs.</summary>
     public IReadOnlyList<TerminalTab> Tabs => _tabs.AsReadOnly();
+    /// <summary>Gets the currently active tab, or <c>null</c> if no tabs are open.</summary>
     public TerminalTab? ActiveTab => _activeTabId.HasValue
         ? _tabs.FirstOrDefault(t => t.Id == _activeTabId)
         : null;
 
+    /// <summary>Raised when a new tab is created. The event data is the tab's unique identifier.</summary>
     public event EventHandler<Guid>? TabCreated;
+    /// <summary>Raised when a tab is closed. The event data is the closed tab's unique identifier.</summary>
     public event EventHandler<Guid>? TabClosed;
+    /// <summary>Raised when the active tab changes. The event data is the newly activated tab's unique identifier.</summary>
     public event EventHandler<Guid>? TabActivated;
+    /// <summary>Raised when a tab is renamed. The event data contains the tab identifier and the new display name.</summary>
     public event EventHandler<(Guid TabId, string NewName)>? TabRenamed;
 
     /// <summary>Create a new terminal tab.</summary>
@@ -145,6 +152,7 @@ public sealed class TerminalSessionManager : IDisposable
             CloseTab(id);
     }
 
+    /// <summary>Closes all tabs and releases resources.</summary>
     public void Dispose()
     {
         if (_disposed)

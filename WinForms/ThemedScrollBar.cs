@@ -31,26 +31,34 @@ public sealed class ThemedScrollBar : Control
     private bool _repeatPrimed;
     private Point _trackClickPoint;
 
+    /// <summary>Raised when the <see cref="Value"/> property changes.</summary>
     public event EventHandler? ValueChanged;
 
+    /// <summary>Gets or sets the scroll orientation (vertical or horizontal).</summary>
     public Orientation Orientation
     {
         get => _orientation;
         set { _orientation = value; Invalidate(); }
     }
 
+    /// <summary>Gets or sets the minimum scroll value.</summary>
     public int Minimum
     {
         get => _minimum;
         set { _minimum = value; Invalidate(); }
     }
 
+    /// <summary>Gets or sets the maximum scroll value.</summary>
     public int Maximum
     {
         get => _maximum;
         set { _maximum = value; Invalidate(); }
     }
 
+    /// <summary>
+    /// Gets or sets the current scroll position. The value is clamped to
+    /// [<see cref="Minimum"/>, <see cref="Maximum"/> - <see cref="LargeChange"/>].
+    /// </summary>
     public int Value
     {
         get => _value;
@@ -64,18 +72,24 @@ public sealed class ThemedScrollBar : Control
         }
     }
 
+    /// <summary>Gets or sets the large change (page) increment for scroll operations.</summary>
     public int LargeChange
     {
         get => _largeChange;
         set { _largeChange = value; Invalidate(); }
     }
 
+    /// <summary>Gets or sets the small change (arrow click) increment.</summary>
     public int SmallChange
     {
         get => _smallChange;
         set { _smallChange = value; }
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThemedScrollBar"/> class with double buffering,
+    /// non-selectable style, and an auto-repeat timer for track clicks.
+    /// </summary>
     public ThemedScrollBar()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer |
@@ -93,6 +107,7 @@ public sealed class ThemedScrollBar : Control
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
+    /// <summary>Stops the auto-repeat timer and unsubscribes from the theme change event.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -104,8 +119,10 @@ public sealed class ThemedScrollBar : Control
         base.Dispose(disposing);
     }
 
+    /// <summary>Invalidates the scrollbar when the theme changes.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => Invalidate();
 
+    /// <summary>Repaints the scrollbar when the parent DPI changes.</summary>
     protected override void OnDpiChangedAfterParent(EventArgs e)
     {
         base.OnDpiChangedAfterParent(e);
@@ -121,6 +138,7 @@ public sealed class ThemedScrollBar : Control
     private int ScaledThumbThickness => Scale(ThumbThickness);
     private int ScaledRadius => Math.Max(2, Scale(4));
 
+    /// <summary>Owner-draws the scrollbar track and rounded thumb with hover/pressed states.</summary>
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -193,6 +211,7 @@ public sealed class ThemedScrollBar : Control
             : new Rectangle(pos, inset, thumbSize, thumbThickness);
     }
 
+    /// <summary>Handles thumb dragging or track click (page up/down) with auto-repeat.</summary>
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
@@ -240,6 +259,7 @@ public sealed class ThemedScrollBar : Control
         }
     }
 
+    /// <summary>Updates thumb position during drag and hover state when not dragging.</summary>
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
@@ -267,6 +287,7 @@ public sealed class ThemedScrollBar : Control
         }
     }
 
+    /// <summary>Ends thumb drag and stops auto-repeat on mouse button release.</summary>
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
@@ -279,6 +300,7 @@ public sealed class ThemedScrollBar : Control
         }
     }
 
+    /// <summary>Handles lost mouse capture by releasing the pressed state and stopping auto-repeat.</summary>
     protected override void OnMouseCaptureChanged(EventArgs e)
     {
         base.OnMouseCaptureChanged(e);
@@ -294,6 +316,7 @@ public sealed class ThemedScrollBar : Control
         }
     }
 
+    /// <summary>Clears the thumb hover state and repaints.</summary>
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
@@ -301,6 +324,7 @@ public sealed class ThemedScrollBar : Control
         Invalidate();
     }
 
+    /// <summary>Handles mouse wheel scrolling using system scroll line/page settings.</summary>
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
@@ -313,6 +337,7 @@ public sealed class ThemedScrollBar : Control
         Value -= steps * step;
     }
 
+    /// <summary>Handles auto-repeat timer ticks for track clicks, with initial delay and repeat acceleration.</summary>
     private void OnScrollTimerTick(object? sender, EventArgs e)
     {
         if (!_repeatPrimed)
@@ -336,6 +361,7 @@ public sealed class ThemedScrollBar : Control
         if (_value == before) StopAutoRepeat(); // hit an end - nothing left to repeat
     }
 
+    /// <summary>Stops the auto-repeat timer and resets all track-click state.</summary>
     private void StopAutoRepeat()
     {
         _scrollTimer.Stop();

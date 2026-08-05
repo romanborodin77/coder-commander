@@ -9,6 +9,10 @@ namespace CoderCommander.WinForms;
 /// </summary>
 internal static class GraphicsHelpers
 {
+    /// <summary>
+    /// Creates a <see cref="GraphicsPath"/> representing a rounded rectangle with the specified
+    /// corner radius. Returns an empty path if the rectangle has non-positive dimensions.
+    /// </summary>
     public static GraphicsPath GetRoundedRect(Rectangle rect, int radius)
     {
         var path = new GraphicsPath();

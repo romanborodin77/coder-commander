@@ -16,6 +16,11 @@ public class DifferForm : ThemedForm
     private readonly TextBox _leftPathBox;
     private readonly TextBox _rightPathBox;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DifferForm"/> class, optionally pre-filling both file paths.
+    /// </summary>
+    /// <param name="leftPath">Path to the left-side file, or <c>null</c> for an empty field.</param>
+    /// <param name="rightPath">Path to the right-side file, or <c>null</c> for an empty field.</param>
     public DifferForm(string? leftPath = null, string? rightPath = null)
     {
         var L = LocalizationService.Current;

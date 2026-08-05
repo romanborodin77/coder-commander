@@ -41,6 +41,8 @@ public sealed class MainForm : Form
     // Menu items that need re-localization
     private readonly List<Action> _relocalizeActions = new();
 
+    /// <summary>Creates the main application window with all menus, toolbars, panels and terminal.</summary>
+    /// <param name="vm">Application ViewModel that owns both panels, commands and operations.</param>
     public MainForm(MainViewModel vm)
     {
         _vm = vm ?? throw new ArgumentNullException(nameof(vm));
@@ -104,6 +106,7 @@ public sealed class MainForm : Form
             BeginInvoke(ApplyTheme);
     }
 
+    /// <summary>Unsubscribes from global theme-changed events.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -111,6 +114,7 @@ public sealed class MainForm : Form
         base.Dispose(disposing);
     }
 
+    /// <summary>Applies the dark title bar theme after the native window handle is created.</summary>
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -327,6 +331,7 @@ public sealed class MainForm : Form
         return (int)Math.Round(16 * scale);
     }
 
+    /// <summary>Regenerates toolbar icons at the new DPI scale and repositions scrollbar overlays.</summary>
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
         base.OnDpiChanged(e);
@@ -1688,6 +1693,7 @@ public sealed class MainForm : Form
     /// <summary>
     /// Initialize panels with saved or default paths.
     /// </summary>
+    /// <summary>Loads saved paths and restores terminal tabs after the window is shown.</summary>
     public async Task InitializeAsync()
     {
         var s = SettingsService.Load();

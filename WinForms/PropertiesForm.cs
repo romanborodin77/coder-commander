@@ -47,6 +47,11 @@ public class PropertiesForm : ThemedForm
     private DateTime _origCreated;
     private DateTime _origAccessed;
 
+    /// <summary>
+    /// Initializes the properties dialog for one or more selected files/directories.
+    /// Shows read-only info, editable attributes, and (for single items) editable timestamps.
+    /// </summary>
+    /// <param name="items">Selected filesystem items to display/edit properties for.</param>
     public PropertiesForm(IReadOnlyList<FileSystemItem> items)
     {
         _items = items ?? throw new ArgumentNullException(nameof(items));
@@ -172,6 +177,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Header (large icon + name + type) ──────────────────────────────
 
+    /// <summary>Builds the header section with large icon, name, and type label.</summary>
     private void BuildHeader(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
@@ -258,6 +264,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Read-only info section ─────────────────────────────────────────
 
+    /// <summary>Builds the read-only info section (name, path, size, type, dates, directory stats).</summary>
     private void BuildInfoSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
@@ -359,6 +366,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Attributes editor (three-state per checkbox) ───────────────────
 
+    /// <summary>Builds the three-state attribute editor (ReadOnly, Hidden, System, Archive).</summary>
     private void BuildAttributesSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
@@ -460,6 +468,7 @@ public class PropertiesForm : ThemedForm
         AddSpacer(root, 8);
     }
 
+    /// <summary>Adds the "Apply recursively" checkbox for directory items.</summary>
     private void BuildRecursiveCheckbox(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
@@ -483,6 +492,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Timestamp editor (single item) ────────────────────────────────
 
+    /// <summary>Builds the timestamp editor section with checkboxes and DateTimePickers (single item only).</summary>
     private void BuildTimestampSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
@@ -586,6 +596,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Helpers ────────────────────────────────────────────────────────
 
+    /// <summary>Returns the localization key for the attribute at index <paramref name="i"/>.</summary>
     private static string AttrKey(int i) => i switch
     {
         0 => "Props.ReadOnly",
@@ -595,6 +606,7 @@ public class PropertiesForm : ThemedForm
         _ => ""
     };
 
+    /// <summary>Returns the localized status text for a three-state checkbox value.</summary>
     private string StatusTextForState(ThemedCheckBox.CheckState s)
     {
         var L = LocalizationService.Current;
@@ -606,11 +618,13 @@ public class PropertiesForm : ThemedForm
         };
     }
 
+    /// <summary>Returns the local LastAccessTime, falling back to Created if unavailable.</summary>
     private static DateTime LocalAccessed(FileSystemItem item)
         => item.Entry.LastAccessTimeUtc != DateTime.MinValue
             ? item.Entry.LastAccessTimeUtc.ToLocalTime()
             : item.Created;
 
+    /// <summary>Clamps a <see cref="DateTime"/> to the valid range of <see cref="DateTimePicker"/>.</summary>
     private static DateTime ClampDateTime(DateTime value)
     {
         if (value < DateTimePicker.MinimumDateTime)
@@ -620,12 +634,14 @@ public class PropertiesForm : ThemedForm
         return value;
     }
 
+    /// <summary>Truncates a path from the left with an ellipsis when it exceeds <paramref name="max"/> characters.</summary>
     private static string TrimPath(string path, int max)
     {
         if (string.IsNullOrEmpty(path)) return path;
         return path.Length <= max ? path : "…" + path[^max..];
     }
 
+    /// <summary>Formats file attributes into a compact string like "RHSA DE".</summary>
     private static string FormatAttributes(FileAttributes attr)
     {
         var sb = new System.Text.StringBuilder();
@@ -638,6 +654,7 @@ public class PropertiesForm : ThemedForm
         return sb.ToString();
     }
 
+    /// <summary>Adds a vertical spacer row of the given height.</summary>
     private void AddSpacer(TableLayoutPanel root, int h)
     {
         var sp = new Panel
@@ -651,6 +668,7 @@ public class PropertiesForm : ThemedForm
         root.Controls.Add(sp, 0, root.RowCount - 1);
     }
 
+    /// <summary>Updates the bottom status label text.</summary>
     private void SetStatus(string text)
     {
         if (_statusLabel != null) _statusLabel.Text = text;
@@ -658,6 +676,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Async directory scan (single folder only) ──────────────────────
 
+    /// <summary>Asynchronously scans a directory tree for file count, subdirectory count, and total size.</summary>
     private void BeginScanDirectory(string path)
     {
         _cts = new CancellationTokenSource();
@@ -706,6 +725,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Apply / Reset ──────────────────────────────────────────────────
 
+    /// <summary>Applies the edited attributes and timestamps to all selected items.</summary>
     private void ApplyChanges()
     {
         var L = LocalizationService.Current;
@@ -790,6 +810,7 @@ public class PropertiesForm : ThemedForm
             SetStatus(string.Format(L.GetString("Props.ApplyToAll"), success));
     }
 
+    /// <summary>Builds a new attribute mask by applying three-state checkbox states to the original attributes.</summary>
     private FileAttributes BuildAttributeMask(FileAttributes original)
     {
         var result = original;
@@ -806,6 +827,7 @@ public class PropertiesForm : ThemedForm
         return result;
     }
 
+    /// <summary>Applies a computed attribute mask to a filesystem path, preserving non-editable bits.</summary>
     private static void ApplyAttributeToPath(string path, FileAttributes newAttr, FileAttributes original)
     {
         // Preserve any non-editable bits the OS may not allow changing directly.
@@ -816,6 +838,7 @@ public class PropertiesForm : ThemedForm
         File.SetAttributes(path, newAttr);
     }
 
+    /// <summary>Sets a timestamp (modified/created/accessed) on a file, optionally recursing into directories.</summary>
     private static void ApplyTimestamp(string path, int which, DateTime value, bool recursive)
     {
         switch (which)
@@ -851,6 +874,7 @@ public class PropertiesForm : ThemedForm
         }
     }
 
+    /// <summary>Resets all attribute checkboxes and timestamp pickers to their original values.</summary>
     private void ResetToOriginal()
     {
         for (int i = 0; i < 4; i++)
@@ -895,6 +919,7 @@ public class PropertiesForm : ThemedForm
 
     // ── Height tuning ───────────────────────────────────────────────────
 
+    /// <summary>Calculates the optimal <see cref="Form.ClientSize"/> based on visible sections.</summary>
     private void ComputeClientHeight()
     {
         int h = 18 + 60;        // padding + header

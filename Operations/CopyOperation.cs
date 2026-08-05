@@ -9,12 +9,25 @@ namespace CoderCommander.Operations;
 /// </summary>
 public enum OverwriteAction
 {
+    /// <summary>Prompt the user for a decision.</summary>
     Ask,
+
+    /// <summary>Overwrite the existing file.</summary>
     Overwrite,
+
+    /// <summary>Skip the conflicting file.</summary>
     Skip,
+
+    /// <summary>Overwrite only if the source is newer.</summary>
     OverwriteOlder,
+
+    /// <summary>Overwrite all conflicts without further prompts.</summary>
     OverwriteAll,
+
+    /// <summary>Skip all conflicts without further prompts.</summary>
     SkipAll,
+
+    /// <summary>Rename the incoming file to avoid collision.</summary>
     Rename
 }
 
@@ -29,9 +42,16 @@ public delegate OverwriteAction OverwriteResolveHandler(string source, string de
 /// </summary>
 public sealed class TransferOptions
 {
+    /// <summary>When true, overwrite existing files without prompting.</summary>
     public bool Overwrite { get; set; }
+
+    /// <summary>When true, copy file-system attributes (ReadOnly, Hidden, etc.).</summary>
     public bool CopyAttributes { get; set; } = true;
+
+    /// <summary>When true, preserve creation and last-write timestamps.</summary>
     public bool CopyTimestamps { get; set; } = true;
+
+    /// <summary>Optional callback for resolving overwrite conflicts interactively.</summary>
     public OverwriteResolveHandler? OverwriteResolver { get; set; }
 
     /// <summary>Compression to use for archive operations; null lets <see cref="PackOperation"/>
@@ -49,7 +69,7 @@ public sealed class TransferOptions
 
 /// <summary>
 /// Copy operation: copies files and directories from source to destination.
-//// </summary>
+/// </summary>
 public sealed class CopyOperation : FileOperation
 {
     public override OperationType Type => OperationType.Copy;
@@ -67,6 +87,7 @@ public sealed class CopyOperation : FileOperation
     private long _bytesProcessed;
     private long _bytesTotal;
 
+    /// <summary>Creates a copy operation from <paramref name="sourceFs"/> to <paramref name="destFs"/>.</summary>
     public CopyOperation(
         IFileSystem sourceFs,
         IFileSystem destFs,
@@ -83,6 +104,7 @@ public sealed class CopyOperation : FileOperation
         _options = options ?? new TransferOptions();
     }
 
+    /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct).ConfigureAwait(false);

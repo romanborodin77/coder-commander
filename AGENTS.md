@@ -88,6 +88,11 @@ Models/FileSystemItem.cs — обёртка FileEntry + выделение
 | `Services/SettingsService.cs` | JSON-настройки (AppData), включая `ShowExtensionInName` |
 | `Services/LocalizationService.cs` | Локализация (lang/*.lng) |
 
+## XML-документация WinForms
+- Все публичные/внутренние классы, конструкторы, методы, свойства и события в `WinForms/` имеют `/// <summary>` комментарии
+- Теги: `/// <param name="..."/>`, `/// <see cref="..."/>`, `/// <c>...</c>`
+- Файлы с полной документацией: `EmbeddedTerminalPanel.cs`, `CopyMoveDialogForm.cs`, `OverwriteDialogForm.cs`, `OperationDialogForm.cs`, `OperationQueueForm.cs`, `PackDialogForm.cs`, `InputDialogForm.cs`, `SettingsForm.cs`, `AboutForm.cs`, `PropertiesForm.cs`, `MultiRenameForm.cs`, `DirectoryTreeForm.cs`, `BookmarksForm.cs`
+
 ## Команды (CommandIds)
 | Группа | Команды |
 |---|---|

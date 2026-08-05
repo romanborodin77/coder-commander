@@ -19,8 +19,10 @@ public sealed class PackDialogForm : ThemedForm
     private readonly List<IArchiveFormat> _formats;
     private readonly string _destDir;
 
+    /// <summary>The <see cref="IArchiveFormat"/> selected in the format combo.</summary>
     public IArchiveFormat SelectedFormat => _formats[Math.Max(0, _formatCombo.SelectedIndex)];
 
+    /// <summary>The compression preset selected for <see cref="SelectedFormat"/>.</summary>
     public ArchiveCompressionSpec SelectedCompression
     {
         get
@@ -31,6 +33,7 @@ public sealed class PackDialogForm : ThemedForm
         }
     }
 
+    /// <summary>Whether to delete source files after archiving (move semantics).</summary>
     public bool MoveOriginals => _moveCheck.Checked;
 
     /// <summary>Destination combined with the typed name; the selected format's default extension
