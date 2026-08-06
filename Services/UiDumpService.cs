@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CoderCommander.WinForms;
 
 namespace CoderCommander.Services;
 
@@ -44,7 +45,13 @@ public static class UiDumpService
 
     private static Dictionary<string, object?> DumpControl(Control control)
     {
-        var role = control.GetRole();
+        // RoundedButton stores its role in its own Role property (WinForms/UiHelpers.cs),
+        // not Control.Tag - ThemeRoleExtensions.SetRole/GetRole is the Tag-based mechanism
+        // used by every OTHER control type (Label, Panel, ...). Checking only control.GetRole()
+        // reported every correctly-themed RoundedButton in the app (CreateThemedButton always
+        // sets .Role, never Tag) as missing_theme_role - a false positive that showed up on
+        // essentially every RoundedButton check_layout() looked at in practice.
+        var role = control is RoundedButton rb ? rb.Role : control.GetRole();
         var screenLocation = control.Parent != null ? control.PointToScreen(Point.Empty) : control.Location;
 
         var node = new Dictionary<string, object?>
@@ -91,7 +98,7 @@ public static class UiDumpService
             ["back_color_transparent"] = control.BackColor.A == 0,
         };
 
-        if (control is Button or Label or LinkLabel && control.Tag is not ThemeRole)
+        if (control is Button or Label or LinkLabel && role is null)
             node["untagged_style_prone"] = true;
 
         var children = new List<Dictionary<string, object?>>();
