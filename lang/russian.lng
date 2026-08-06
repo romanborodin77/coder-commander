@@ -53,6 +53,7 @@ Menu.Commands.Terminal=&Терминал
 Menu.Commands.DirTree=Дерево &каталогов
 Menu.Commands.DiskInfo=Информация о &диске
 Menu.Commands.OpQueue=&Очередь операций
+Menu.Commands.CalculateFolderSize=Размер &папки
 Menu.View=&Вид
 Menu.View.Hidden=Показывать &скрытые
 Menu.View.Refresh=&Обновить
@@ -444,6 +445,7 @@ Archive.ExitArchive=Выйти из архива
 Archive.SameArchiveTransfer=Копирование внутри одного архива не поддерживается. Сначала распакуйте файлы.
 Transfer.SourceEqualsDestination=Источник и назначение совпадают. Выберите другую папку назначения.
 Archive.WipeUnsupported=Безопасное затирание недоступно для элементов архива. Используйте удаление.
+Archive.CalculateSizeUnsupported=Подсчёт размера папки недоступен для элементов архива.
 Archive.NestedUnsupported=Архив внутри архива нельзя открыть напрямую. Сначала распакуйте «{0}».
 
 # ═══ Синхронизация каталогов ═══

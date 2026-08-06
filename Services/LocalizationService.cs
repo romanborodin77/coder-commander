@@ -175,6 +175,7 @@ public sealed class LocalizationService
         _strings["Menu.Commands.DirTree"] = "Directory &Tree";
         _strings["Menu.Commands.DiskInfo"] = "Disk &Info";
         _strings["Menu.Commands.OpQueue"] = "Operation &Queue";
+        _strings["Menu.Commands.CalculateFolderSize"] = "Calculate &Folder Size";
 
         _strings["Menu.View"] = "&View";
         _strings["Menu.View.Hidden"] = "Show &Hidden";
@@ -547,6 +548,7 @@ public sealed class LocalizationService
         _strings["Archive.SameArchiveTransfer"] = "Copying inside the same archive is not supported. Unpack the files first.";
         _strings["Transfer.SourceEqualsDestination"] = "Source and destination are the same. Choose a different destination folder.";
         _strings["Archive.WipeUnsupported"] = "Secure wipe is not available for archive entries. Use Delete instead.";
+        _strings["Archive.CalculateSizeUnsupported"] = "Folder size calculation is not available for archive entries.";
         _strings["Archive.NestedUnsupported"] = "Archives inside archives cannot be opened directly. Unpack \"{0}\" first.";
 
         // ═══ SyncDirs ═══

@@ -148,6 +148,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.Exit, _ => ExitRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.About, _ => AboutRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ShowProperties, _ => ShowProperties());
+        Commands.Register(CommandIds.CalculateFolderSize, _ => CalculateFolderSize());
         Commands.Register(CommandIds.MultiRename, _ => MultiRename());
         Commands.Register(CommandIds.GoToRoot, _ => GoToRoot());
         Commands.Register(CommandIds.GoToHome, _ => GoToHome());
@@ -405,6 +406,69 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var entries = files.Select(f => f.Entry).ToList();
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
+    }
+
+    /// <summary>
+    /// Recursively computes and displays the total size of the selected directories (or the one
+    /// under the cursor) in the active panel - each runs on the thread pool and updates its own
+    /// <see cref="Models.FileSystemItem.CalculatedSize"/> independently, without re-reading the
+    /// directory listing itself. Local filesystem only - a ZIP-backed panel has no real paths to
+    /// walk with <see cref="DirectoryInfo"/>.
+    /// </summary>
+    public void CalculateFolderSize()
+    {
+        if (ActivePanel.IsInsideArchive)
+        {
+            OperationRejected?.Invoke(this, "Archive.CalculateSizeUnsupported");
+            return;
+        }
+
+        var panel = ActivePanel;
+        var dirs = panel.GetSelectedOrActive().Where(i => i.IsDirectory && !i.IsParent).ToList();
+        foreach (var dir in dirs)
+            _ = CalculateFolderSizeAsync(panel, dir);
+    }
+
+    private static async Task CalculateFolderSizeAsync(PanelViewModel panel, Models.FileSystemItem item)
+    {
+        if (item.IsCalculatingSize) return;
+        item.IsCalculatingSize = true;
+        panel.RefreshDisplay();
+
+        try
+        {
+            var size = await Task.Run(() => ComputeDirectorySize(item.FullPath));
+            item.CalculatedSize = size;
+        }
+        catch (Exception ex)
+        {
+            Services.LogService.Warning($"CalculateFolderSize failed for {item.FullPath}: {ex.Message}");
+        }
+        finally
+        {
+            item.IsCalculatingSize = false;
+            panel.RefreshDisplay();
+        }
+    }
+
+    private static long ComputeDirectorySize(string path)
+    {
+        long total = 0;
+        var options = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
+        try
+        {
+            foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", options))
+            {
+                try { total += file.Length; }
+                catch { /* vanished or became inaccessible mid-scan */ }
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // Root itself inaccessible - report whatever was tallied before the failure (0 if it
+            // failed immediately) rather than throwing and leaving the item stuck showing "…".
+        }
+        return total;
     }
     /// <summary>Raises <see cref="MakeDirRequested"/> so the UI can prompt for a new directory name.</summary>
     public void MakeDir()

@@ -444,6 +444,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SelectedBytes));
     }
 
+    /// <summary>
+    /// Re-raises <see cref="ItemsChanged"/> to make the panel redraw its rows from the
+    /// already-loaded <see cref="Items"/>, without touching the file system - for an out-of-band
+    /// mutation of an existing item (e.g. a background folder-size calculation completing) that
+    /// needs the display refreshed but doesn't warrant a full <see cref="RefreshAsync"/>.
+    /// </summary>
+    public void RefreshDisplay() => ItemsChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Selects all visible items except the parent entry.</summary>
     public void SelectAll()
     {

@@ -99,6 +99,8 @@ public static class CommandIds
     public const string RenameTerminalTab = "cm_RenameTerminalTab";
     /// <summary>Show file/folder properties dialog (Alt+Enter).</summary>
     public const string ShowProperties = "cm_ShowProperties";
+    /// <summary>Recursively compute and display the total size of selected directories.</summary>
+    public const string CalculateFolderSize = "cm_CalculateFolderSize";
     /// <summary>Show the About dialog.</summary>
     public const string About = "cm_About";
 }

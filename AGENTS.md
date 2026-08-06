@@ -103,7 +103,7 @@ Models/FileSystemItem.cs — обёртка FileEntry + выделение
 | Панель | SwapPanels, TargetEqualSource, ToggleHidden, ToggleFlatView |
 | Вид | SetTheme, SetSortColumn, SetSortDescending, SetDirectoriesFirst, ToggleShowExtensionInName |
 | Терминал | ToggleTerminal |
-| Прочее | Exit, ShowProperties, About |
+| Прочее | Exit, ShowProperties, CalculateFolderSize, About |
 
 ## Настройки (AppSettings)
 | Свойство | Тип | По умолчанию | Описание |

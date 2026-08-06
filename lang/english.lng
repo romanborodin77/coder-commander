@@ -53,6 +53,7 @@ Menu.Commands.Terminal=&Terminal
 Menu.Commands.DirTree=Directory &Tree
 Menu.Commands.DiskInfo=Disk &Info
 Menu.Commands.OpQueue=&Operation Queue…
+Menu.Commands.CalculateFolderSize=Calculate &Folder Size
 Menu.Commands.Checksum=Check&sum…
 Menu.Commands.Differ=Compare &Files…
 Menu.Commands.ChangeDir=&Change Directory…
@@ -423,6 +424,7 @@ Archive.ExitArchive=Exit Archive
 Archive.SameArchiveTransfer=Copying within the same archive is not supported. Extract files first.
 Transfer.SourceEqualsDestination=Source and destination are the same. Choose a different destination folder.
 Archive.WipeUnsupported=Secure wipe is not available for archive entries. Use delete instead.
+Archive.CalculateSizeUnsupported=Folder size calculation is not available for archive entries.
 Archive.NestedUnsupported=Cannot open an archive inside an archive. Extract "{0}" first.
 
 # ═══ Sync Dirs ═══
