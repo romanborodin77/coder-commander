@@ -18,7 +18,11 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     private readonly string _stagingPath;
     private readonly FileStream _stagingStream;
     private readonly ISequentialArchiveWriter _stagingWriter;
-    private readonly HashSet<string> _touchedNames = new(StringComparer.OrdinalIgnoreCase);
+    // Keyed by (name, isDirectory) rather than just name: an archive can pathologically contain
+    // both a file "foo" and a directory "foo/" at once, and normalizing away the trailing slash
+    // used to collapse them into the same key, so deleting/touching one could make CopySurvivorsAsync
+    // skip the other too.
+    private readonly HashSet<(string Name, bool IsDirectory)> _touchedNames = new();
     private FileStream? _lock;
     private bool _committed;
     private bool _disposed;
@@ -48,7 +52,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
 
     public void CreateDirectoryEntry(string entryName, DateTime lastWriteTimeUtc)
     {
-        _touchedNames.Add(Normalize(entryName));
+        _touchedNames.Add(Key(entryName, isDirectory: true));
         _stagingWriter.WriteDirectory(entryName, lastWriteTimeUtc);
     }
 
@@ -60,7 +64,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         ArchiveCompressionSpec compression,
         CancellationToken ct = default)
     {
-        _touchedNames.Add(Normalize(entryName));
+        _touchedNames.Add(Key(entryName, isDirectory: false));
         await _stagingWriter.WriteFileAsync(entryName, content, size, lastWriteTimeUtc, compression, ct).ConfigureAwait(false);
     }
 
@@ -69,7 +73,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     /// original until then.</summary>
     public bool TryDeleteEntry(ArchiveEntryRecord entry)
     {
-        _touchedNames.Add(Normalize(entry.FullName));
+        _touchedNames.Add(Key(entry.FullName, entry.IsDirectory));
         return true;
     }
 
@@ -128,7 +132,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         await foreach (var item in originalReader.ScanAsync(ct).ConfigureAwait(false))
         {
             using var content = item.Content;
-            if (_touchedNames.Contains(Normalize(item.Entry.FullName)))
+            if (_touchedNames.Contains(Key(item.Entry.FullName, item.Entry.IsDirectory)))
                 continue;
 
             if (item.Entry.IsDirectory)
@@ -139,7 +143,8 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         }
     }
 
-    private static string Normalize(string name) => name.Replace('\\', '/').Trim('/');
+    private static (string Name, bool IsDirectory) Key(string name, bool isDirectory) =>
+        (name.Replace('\\', '/').Trim('/').ToUpperInvariant(), isDirectory);
 
     private static void TryDeleteFile(string path)
     {

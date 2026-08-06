@@ -394,6 +394,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Unlike Delete, always confirmed - Wipe is irreversible and (per ExecuteWipe's caveat)
+        // doesn't even guarantee what it promises on an SSD, so skipping confirmation isn't offered.
+        WipeConfirmRequested?.Invoke(this, files);
+    }
+
+    /// <summary>Queues a secure-wipe operation once the user has confirmed it.</summary>
+    public void ExecuteWipe(IReadOnlyList<Models.FileSystemItem> files)
+    {
         var entries = files.Select(f => f.Entry).ToList();
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
@@ -582,6 +590,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? AboutRequested;
     /// <summary>Raised when a delete needs user confirmation before proceeding.</summary>
     public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? DeleteConfirmRequested;
+    /// <summary>Raised when a wipe operation needs user confirmation before proceeding.</summary>
+    public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? WipeConfirmRequested;
     /// <summary>
     /// Raised when the shell Recycle Bin failed for one or more files that still exist on disk and
     /// permanently deleting them is the only remaining option. Handler must set <see cref="ConfirmPermanentDeleteEventArgs.Proceed"/>.

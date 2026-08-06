@@ -116,6 +116,12 @@ public static class FileIcons
         g.ScaleTransform(scale, scale);
 
         var p = ThemeService.Current;
+        // Deliberate exception to the "no hardcoded colors" rule (see CLAUDE.md's Theming section):
+        // these are brand/format accent colors (PDF red, Word blue, JS yellow, folder/file-type
+        // tints, etc.) that are meant to stay recognizable and identical in both Dark and Light
+        // theme, the same way a real OS file icon doesn't recolor itself when the system theme
+        // changes. Only p.Accent/p.Foreground/p.DimForeground (the theme-following bits) come from
+        // ThemePalette; everything else here is intentionally theme-invariant.
         switch (type)
         {
             case FileIconType.Folder: DrawFolder(g, p.Accent, p.Foreground); break;

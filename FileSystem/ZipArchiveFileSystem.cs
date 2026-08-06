@@ -982,13 +982,14 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             }
             else
             {
-                var entry = FindEntry(zip, innerPath);
-                if (entry != null)
-                {
-                    var idx = Array.IndexOf(zip.Entries.ToArray(), entry);
-                    if (idx >= 0)
-                        toDelete.Add(idx);
-                }
+                // Look up the index directly from the cached record instead of finding the
+                // ZipArchiveEntry first and then Array.IndexOf-ing zip.Entries.ToArray() for it -
+                // that materialized a fresh array and did an O(m) scan per path on top of this
+                // already-O(n) lookup.
+                var record = GetEntries().FirstOrDefault(e =>
+                    string.Equals(e.FullName.Replace('\\', '/').Trim('/'), innerPath, StringComparison.OrdinalIgnoreCase));
+                if (record != null && record.Index < zip.Entries.Count)
+                    toDelete.Add(record.Index);
             }
         }
 

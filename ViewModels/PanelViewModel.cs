@@ -61,12 +61,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary><c>true</c> when there is at least one entry on the forward-navigation stack.</summary>
     public bool CanGoForward => _fwd.Count > 0;
 
+    // Cached rather than computed on every access: these three are read repeatedly per user
+    // action (status bar, cursor info, toolbar state), and each used to be its own O(n) LINQ pass
+    // over Items. Recomputed together in RecomputeSelectionStats(), called from ApplyFilter() (the
+    // only place Items itself changes) and NotifySelectionChanged() (the single choke point every
+    // selection mutation - bulk or ad-hoc - already funnels through).
+    private int _selectedCount;
+    private long _selectedBytes;
+    private int _totalCount;
+
     /// <summary>Number of selected items in the panel (excluding the parent "…" entry).</summary>
-    public int SelectedCount => Items.Count(i => i.IsSelected && !i.IsParent);
+    public int SelectedCount => _selectedCount;
     /// <summary>Total size in bytes of all selected non-directory items.</summary>
-    public long SelectedBytes => Items.Where(i => i.IsSelected && !i.IsParent && !i.IsDirectory).Sum(i => i.Size);
+    public long SelectedBytes => _selectedBytes;
     /// <summary>Number of visible items excluding the parent entry.</summary>
-    public int TotalCount => Items.Count(i => !i.IsParent);
+    public int TotalCount => _totalCount;
 
     /// <summary>Formatted string showing free and total disk space for the current drive.</summary>
     public string FreeSpaceDisplay { get; private set; } = "";
@@ -350,7 +359,25 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private void SortAllItems()
     {
-        _allItems = [.. _allItems.OrderBy(i => i, new FileComparer(DirectoriesFirst, SortColumn, SortDescending))];
+        _allItems.Sort(new FileComparer(DirectoriesFirst, SortColumn, SortDescending));
+    }
+
+    private void RecomputeSelectionStats()
+    {
+        var selectedCount = 0;
+        long selectedBytes = 0;
+        var totalCount = 0;
+        foreach (var i in Items)
+        {
+            if (i.IsParent) continue;
+            totalCount++;
+            if (!i.IsSelected) continue;
+            selectedCount++;
+            if (!i.IsDirectory) selectedBytes += i.Size;
+        }
+        _selectedCount = selectedCount;
+        _selectedBytes = selectedBytes;
+        _totalCount = totalCount;
     }
 
     private void ApplyFilter()
@@ -364,6 +391,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 Items.Add(item);
             }
         }
+        RecomputeSelectionStats();
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedBytes));
         UpdateCursorInfo();
         ItemsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -409,6 +439,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     public void NotifySelectionChanged()
     {
+        RecomputeSelectionStats();
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedBytes));
     }

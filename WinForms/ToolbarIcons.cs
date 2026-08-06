@@ -247,7 +247,8 @@ public static class ToolbarIcons
     {
         using var pen = new Pen(c, 1f);
         g.DrawArc(pen, 3, 3, 10, 10, 30, 280);
-        g.FillPolygon(new SolidBrush(c), new Point[] { new(12, 3), new(14, 6), new(10, 6) });
+        using var brush = new SolidBrush(c);
+        g.FillPolygon(brush, new Point[] { new(12, 3), new(14, 6), new(10, 6) });
     }
 
     private static void DrawSearch(Graphics g, Color c)
@@ -399,7 +400,8 @@ public static class ToolbarIcons
         using var pen = new Pen(c, 1f);
         g.DrawEllipse(pen, 2, 2, 12, 12);
         g.DrawLine(pen, 8, 7, 8, 11);
-        g.FillEllipse(new SolidBrush(c), 7, 5, 2, 2);
+        using var brush = new SolidBrush(c);
+        g.FillEllipse(brush, 7, 5, 2, 2);
     }
 
     private static void DrawDrive(Graphics g, Color c)

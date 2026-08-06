@@ -815,6 +815,7 @@ public sealed class MainForm : Form
     {
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.DeleteConfirmRequested += OnDeleteConfirm;
+        _vm.WipeConfirmRequested += OnWipeConfirm;
         _vm.ConfirmPermanentDeleteRequested += OnConfirmPermanentDelete;
         _vm.CopyConfirmRequested += OnCopyConfirm;
         _vm.MoveConfirmRequested += OnMoveConfirm;
@@ -965,6 +966,21 @@ public sealed class MainForm : Form
 
         if (result == MsgBoxResult.Yes)
             _vm.ExecuteDelete(files);
+    }
+
+    private void OnWipeConfirm(object? sender, IReadOnlyList<FileSystemItem> files)
+    {
+        var L = LocalizationService.Current;
+        var names = string.Join("\n", files.Take(10).Select(f => f.Name));
+        if (files.Count > 10) names += $"\n... {files.Count - 10}";
+
+        var result = StyledMessageBox.Show(
+            L.GetString("Confirm.WipeItems", files.Count, names),
+            L.GetString("Confirm.Wipe", files.Count),
+            MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this);
+
+        if (result == MsgBoxResult.Yes)
+            _vm.ExecuteWipe(files);
     }
 
     /// <summary>

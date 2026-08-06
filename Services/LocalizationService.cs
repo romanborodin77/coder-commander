@@ -421,7 +421,8 @@ public sealed class LocalizationService
         _strings["Confirm.Delete"] = "Delete {0} item(s)?";
         _strings["Confirm.DeleteItems"] = "Delete {0} item(s)?\n\n{1}";
         _strings["Confirm.RecycleBinFailedPermanent"] = "The Recycle Bin could not be used for {0} item(s). Permanently delete them instead? This cannot be undone.\n\n{1}";
-        _strings["Confirm.Wipe"] = "Wipe {0} item(s)? This cannot be undone.";
+        _strings["Confirm.Wipe"] = "Wipe {0} item(s)?";
+        _strings["Confirm.WipeItems"] = "Wipe {0} item(s)? This cannot be undone.\n\nNote: on SSDs, a single-pass overwrite does not guarantee the data is unrecoverable - wear-leveling can leave copies on other physical cells.\n\n{1}";
 
         // ═══ Context menu ═══
         _strings["Ctx.View"] = "View";

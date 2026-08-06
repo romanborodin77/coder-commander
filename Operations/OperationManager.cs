@@ -22,6 +22,12 @@ public sealed class QueuedOperation
     /// <summary>Lets a still-queued (not yet started) operation be pulled out of the queue immediately.</summary>
     internal CancellationTokenSource QueueWaitCts { get; } = new();
 
+    /// <summary>Guards <see cref="QueueWaitCts"/>'s Cancel() and Dispose() calls against each other -
+    /// CancellationTokenSource documents that calling Cancel() concurrently with Dispose() from
+    /// another thread isn't guaranteed safe, and RunAsync/CancelQueued can genuinely race on it
+    /// (a user cancelling right as the operation finishes running).</summary>
+    internal readonly object CtsLock = new();
+
     /// <summary>Creates a queued operation wrapping <paramref name="op"/>.</summary>
     public QueuedOperation(IFileOperation op, string displayName)
     {
@@ -95,7 +101,7 @@ public sealed class OperationManager : IDisposable
         {
             _operations.TryRemove(id, out var _);
             OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
-            queued.QueueWaitCts.Dispose();
+            lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
             throw;
         }
 
@@ -108,7 +114,7 @@ public sealed class OperationManager : IDisposable
         finally
         {
             _queueLock.Release();
-            queued.QueueWaitCts.Dispose();
+            lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
         }
     }
 
@@ -139,8 +145,11 @@ public sealed class OperationManager : IDisposable
     private static void CancelQueued(QueuedOperation q)
     {
         q.Operation.Cancel();
-        try { q.QueueWaitCts.Cancel(); }
-        catch (ObjectDisposedException) { /* already started running and cleaned up its queue wait */ }
+        lock (q.CtsLock)
+        {
+            try { q.QueueWaitCts.Cancel(); }
+            catch (ObjectDisposedException) { /* already started running and cleaned up its queue wait */ }
+        }
     }
 
     /// <summary>Immediately removes all completed, cancelled, or failed operations from the queue.</summary>
