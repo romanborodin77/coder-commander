@@ -1081,6 +1081,13 @@ public sealed class FilePanelUserControl : UserControl
     {
         if (item == null) return ThemeService.Current.Foreground;
         if (item.IsParent) return ThemeService.Current.DimForeground;
+
+        // Git status takes priority over the normal type-based coloring below (same convention
+        // as VS Code's file explorer) - the per-row icon still shows file vs. folder, so this
+        // doesn't lose that distinction, just repurposes the text color to surface what changed.
+        var gitColor = GetGitStatusColor(item.GitStatus);
+        if (gitColor is { } gc) return gc;
+
         if (item.IsDirectory) return ThemeService.Current.DirectoryColor;
         if (item.IsHidden) return ThemeService.Current.HiddenColor;
 
@@ -1089,6 +1096,14 @@ public sealed class FilePanelUserControl : UserControl
         if (iconType is FileIconType.Archive or FileIconType.DiskImage) return ThemeService.Current.ArchiveColor;
         return ThemeService.Current.Foreground;
     }
+
+    private static Color? GetGitStatusColor(GitFileStatus status) => status switch
+    {
+        GitFileStatus.Untracked or GitFileStatus.Added => ThemeService.Current.GitAddedColor,
+        GitFileStatus.Modified or GitFileStatus.Renamed => ThemeService.Current.GitModifiedColor,
+        GitFileStatus.Deleted or GitFileStatus.Conflicted => ThemeService.Current.Danger,
+        _ => null
+    };
 
     private void RefreshItemColors()
     {

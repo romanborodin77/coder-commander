@@ -64,6 +64,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RightPanel.PathChanged += OnPanelPathChanged;
         LeftPanel.PropertyChanged += OnPanelPropertyChanged;
         RightPanel.PropertyChanged += OnPanelPropertyChanged;
+        LeftPanel.ItemsChanged += OnPanelItemsChanged;
+        RightPanel.ItemsChanged += OnPanelItemsChanged;
 
         // Wire operation manager events
         Operations.OperationChanged += OnOperationChanged;
@@ -721,6 +723,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
+    private readonly Dictionary<PanelViewModel, string> _lastGitStatusPath = new();
+
+    /// <summary>
+    /// Kicks off a background git-status refresh exactly once per navigation, not on every
+    /// ItemsChanged - RefreshDisplay() (used by this same refresh to repaint once results are in)
+    /// and sort/filter changes also raise ItemsChanged for the same CurrentPath, and re-running
+    /// git status for those would be both wasteful and a feedback loop.
+    /// </summary>
+    private void OnPanelItemsChanged(object? sender, EventArgs e)
+    {
+        if (sender is not PanelViewModel panel) return;
+        if (_lastGitStatusPath.TryGetValue(panel, out var last) && last == panel.CurrentPath) return;
+        _lastGitStatusPath[panel] = panel.CurrentPath;
+        _ = RefreshGitStatusAsync(panel);
+    }
+
+    /// <summary>
+    /// Computes git status for the panel's current directory on the thread pool and applies it to
+    /// the already-listed items by relative path, then repaints via <see cref="PanelViewModel.RefreshDisplay"/> -
+    /// mirrors <see cref="CalculateFolderSizeAsync"/>'s "background work, then update the existing
+    /// items and repaint" shape. A no-op outside a local, non-archive directory, or when the
+    /// directory isn't inside a git repository (or git isn't installed) - <see cref="GitStatusService.GetStatus"/>
+    /// simply returns null for all of those.
+    /// </summary>
+    private static async Task RefreshGitStatusAsync(PanelViewModel panel)
+    {
+        if (panel.CurrentFileSystem is not LocalFileSystem)
+            return;
+
+        var path = panel.CurrentPath;
+        var snapshot = await Task.Run(() => GitStatusService.GetStatus(path));
+
+        if (panel.CurrentPath != path)
+            return; // navigated away while this was computing
+
+        foreach (var item in panel.Items)
+            item.GitStatus = item.IsParent || snapshot == null
+                ? GitFileStatus.None
+                : snapshot.Resolve(item.FullPath, item.IsDirectory);
+
+        panel.RefreshDisplay();
+    }
+
     private void OnPanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(PanelViewModel.SelectedCount) or nameof(PanelViewModel.SelectedBytes) or nameof(PanelViewModel.CursorInfo))
@@ -760,6 +805,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RightPanel.PathChanged -= OnPanelPathChanged;
         LeftPanel.PropertyChanged -= OnPanelPropertyChanged;
         RightPanel.PropertyChanged -= OnPanelPropertyChanged;
+        LeftPanel.ItemsChanged -= OnPanelItemsChanged;
+        RightPanel.ItemsChanged -= OnPanelItemsChanged;
         LeftPanel.Dispose();
         RightPanel.Dispose();
         Operations.Dispose();

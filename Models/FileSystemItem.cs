@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -110,6 +111,24 @@ public sealed class FileSystemItem : INotifyPropertyChanged
 
     /// <summary>Custom display name (for Flat View — relative path).</summary>
     public string? DisplayName { get; init; }
+
+    private GitFileStatus _gitStatus = GitFileStatus.None;
+
+    /// <summary>
+    /// Git working-tree status, set by <c>MainViewModel</c>'s background git-status refresh after
+    /// confirming the containing directory is inside a git repository. Stays <see cref="GitFileStatus.None"/>
+    /// otherwise (including for every item until that refresh completes).
+    /// </summary>
+    public GitFileStatus GitStatus
+    {
+        get => _gitStatus;
+        set
+        {
+            if (_gitStatus == value) return;
+            _gitStatus = value;
+            OnPropertyChanged();
+        }
+    }
 
     private bool _isSelected;
 
