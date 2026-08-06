@@ -134,6 +134,12 @@ public sealed class ThemePalette
     /// <summary>Color for archive file items.</summary>
     public Color ArchiveColor { get; init; } = Color.FromArgb(206, 145, 120);
 
+    /// <summary>Color for modified/renamed git-tracked items in file lists (overrides <see cref="DirectoryColor"/>/
+    /// extension-based coloring - see <c>FilePanelUserControl.GetItemForeColor</c>).</summary>
+    public Color GitModifiedColor { get; init; } = Color.FromArgb(226, 192, 141);
+    /// <summary>Color for new/untracked git items in file lists.</summary>
+    public Color GitAddedColor { get; init; } = Color.FromArgb(115, 201, 145);
+
     /// <summary>Danger/error color for destructive actions and error indicators.</summary>
     public Color Danger { get; init; } = Color.FromArgb(244, 71, 71);
 
@@ -257,6 +263,8 @@ public static class ThemeService
         ExecutableColor = Color.FromArgb(130, 80, 160),
         HiddenColor = Color.FromArgb(128, 128, 128),
         ArchiveColor = Color.FromArgb(180, 100, 40),
+        GitModifiedColor = Color.FromArgb(137, 85, 3),
+        GitAddedColor = Color.FromArgb(41, 111, 15),
         Danger = Color.FromArgb(205, 49, 49),
         Warning = Color.FromArgb(255, 180, 0),
         GlossOverlay = Color.FromArgb(30, 0, 0, 0), // Black in light theme

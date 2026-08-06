@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -25,8 +26,43 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     /// <summary>True when this item represents the ".." parent directory entry.</summary>
     public bool IsParent { get; }
 
-    /// <summary>Size in bytes (0 for directories).</summary>
-    public long Size => Entry.Size;
+    /// <summary>Size in bytes (0 for directories, unless <see cref="CalculatedSize"/> has been set).</summary>
+    public long Size => CalculatedSize ?? Entry.Size;
+
+    private long? _calculatedSize;
+
+    /// <summary>
+    /// Set once a background "calculate folder size" scan (see <c>MainViewModel.CalculateFolderSize</c>)
+    /// finishes for this directory item - overrides the default 0-byte directory size in both
+    /// <see cref="Size"/> and <see cref="SizeDisplay"/> until this item is replaced by a fresh listing.
+    /// </summary>
+    public long? CalculatedSize
+    {
+        get => _calculatedSize;
+        set
+        {
+            if (_calculatedSize == value) return;
+            _calculatedSize = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Size));
+            OnPropertyChanged(nameof(SizeDisplay));
+        }
+    }
+
+    private bool _isCalculatingSize;
+
+    /// <summary>True while a background size calculation for this directory is in progress.</summary>
+    public bool IsCalculatingSize
+    {
+        get => _isCalculatingSize;
+        set
+        {
+            if (_isCalculatingSize == value) return;
+            _isCalculatingSize = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SizeDisplay));
+        }
+    }
 
     /// <summary>Last write time in local time.</summary>
     public DateTime Modified => Entry.LastWriteTime;
@@ -50,7 +86,16 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     public bool IsReadOnly => Entry.IsReadOnly;
 
     /// <summary>Human-readable size string (e.g. "1.5 KB", "&lt;DIR&gt;").</summary>
-    public string SizeDisplay { get; }
+    public string SizeDisplay
+    {
+        get
+        {
+            if (IsParent) return "";
+            if (!IsDirectory) return FormatUtils.FormatSize(Entry.Size);
+            if (IsCalculatingSize) return "…";
+            return CalculatedSize is { } sz ? FormatUtils.FormatSize(sz) : "<DIR>";
+        }
+    }
 
     /// <summary>Last write time formatted as "yyyy-MM-dd HH:mm".</summary>
     public string ModifiedDisplay { get; }
@@ -67,6 +112,24 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     /// <summary>Custom display name (for Flat View — relative path).</summary>
     public string? DisplayName { get; init; }
 
+    private GitFileStatus _gitStatus = GitFileStatus.None;
+
+    /// <summary>
+    /// Git working-tree status, set by <c>MainViewModel</c>'s background git-status refresh after
+    /// confirming the containing directory is inside a git repository. Stays <see cref="GitFileStatus.None"/>
+    /// otherwise (including for every item until that refresh completes).
+    /// </summary>
+    public GitFileStatus GitStatus
+    {
+        get => _gitStatus;
+        set
+        {
+            if (_gitStatus == value) return;
+            _gitStatus = value;
+            OnPropertyChanged();
+        }
+    }
+
     private bool _isSelected;
 
     /// <summary>Whether the item is currently selected in the UI.</summary>
@@ -81,7 +144,6 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     {
         Entry = entry;
         IsParent = isParent;
-        SizeDisplay = isParent ? "" : (entry.IsDirectory ? "<DIR>" : FormatUtils.FormatSize(entry.Size));
         ModifiedDisplay = isParent ? "" : entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
         AttributesDisplay = isParent ? "" : FormatAttributes(entry.Attributes);
         if (isParent)

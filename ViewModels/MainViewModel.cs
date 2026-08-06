@@ -64,6 +64,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RightPanel.PathChanged += OnPanelPathChanged;
         LeftPanel.PropertyChanged += OnPanelPropertyChanged;
         RightPanel.PropertyChanged += OnPanelPropertyChanged;
+        LeftPanel.ItemsChanged += OnPanelItemsChanged;
+        RightPanel.ItemsChanged += OnPanelItemsChanged;
 
         // Wire operation manager events
         Operations.OperationChanged += OnOperationChanged;
@@ -148,6 +150,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.Exit, _ => ExitRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.About, _ => AboutRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ShowProperties, _ => ShowProperties());
+        Commands.Register(CommandIds.CalculateFolderSize, _ => CalculateFolderSize());
         Commands.Register(CommandIds.MultiRename, _ => MultiRename());
         Commands.Register(CommandIds.GoToRoot, _ => GoToRoot());
         Commands.Register(CommandIds.GoToHome, _ => GoToHome());
@@ -406,6 +409,69 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
     }
+
+    /// <summary>
+    /// Recursively computes and displays the total size of the selected directories (or the one
+    /// under the cursor) in the active panel - each runs on the thread pool and updates its own
+    /// <see cref="Models.FileSystemItem.CalculatedSize"/> independently, without re-reading the
+    /// directory listing itself. Local filesystem only - a ZIP-backed panel has no real paths to
+    /// walk with <see cref="DirectoryInfo"/>.
+    /// </summary>
+    public void CalculateFolderSize()
+    {
+        if (ActivePanel.IsInsideArchive)
+        {
+            OperationRejected?.Invoke(this, "Archive.CalculateSizeUnsupported");
+            return;
+        }
+
+        var panel = ActivePanel;
+        var dirs = panel.GetSelectedOrActive().Where(i => i.IsDirectory && !i.IsParent).ToList();
+        foreach (var dir in dirs)
+            _ = CalculateFolderSizeAsync(panel, dir);
+    }
+
+    private static async Task CalculateFolderSizeAsync(PanelViewModel panel, Models.FileSystemItem item)
+    {
+        if (item.IsCalculatingSize) return;
+        item.IsCalculatingSize = true;
+        panel.RefreshDisplay();
+
+        try
+        {
+            var size = await Task.Run(() => ComputeDirectorySize(item.FullPath));
+            item.CalculatedSize = size;
+        }
+        catch (Exception ex)
+        {
+            Services.LogService.Warning($"CalculateFolderSize failed for {item.FullPath}: {ex.Message}");
+        }
+        finally
+        {
+            item.IsCalculatingSize = false;
+            panel.RefreshDisplay();
+        }
+    }
+
+    private static long ComputeDirectorySize(string path)
+    {
+        long total = 0;
+        var options = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
+        try
+        {
+            foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", options))
+            {
+                try { total += file.Length; }
+                catch { /* vanished or became inaccessible mid-scan */ }
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // Root itself inaccessible - report whatever was tallied before the failure (0 if it
+            // failed immediately) rather than throwing and leaving the item stuck showing "…".
+        }
+        return total;
+    }
     /// <summary>Raises <see cref="MakeDirRequested"/> so the UI can prompt for a new directory name.</summary>
     public void MakeDir()
     {
@@ -657,6 +723,49 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
+    private readonly Dictionary<PanelViewModel, string> _lastGitStatusPath = new();
+
+    /// <summary>
+    /// Kicks off a background git-status refresh exactly once per navigation, not on every
+    /// ItemsChanged - RefreshDisplay() (used by this same refresh to repaint once results are in)
+    /// and sort/filter changes also raise ItemsChanged for the same CurrentPath, and re-running
+    /// git status for those would be both wasteful and a feedback loop.
+    /// </summary>
+    private void OnPanelItemsChanged(object? sender, EventArgs e)
+    {
+        if (sender is not PanelViewModel panel) return;
+        if (_lastGitStatusPath.TryGetValue(panel, out var last) && last == panel.CurrentPath) return;
+        _lastGitStatusPath[panel] = panel.CurrentPath;
+        _ = RefreshGitStatusAsync(panel);
+    }
+
+    /// <summary>
+    /// Computes git status for the panel's current directory on the thread pool and applies it to
+    /// the already-listed items by relative path, then repaints via <see cref="PanelViewModel.RefreshDisplay"/> -
+    /// mirrors <see cref="CalculateFolderSizeAsync"/>'s "background work, then update the existing
+    /// items and repaint" shape. A no-op outside a local, non-archive directory, or when the
+    /// directory isn't inside a git repository (or git isn't installed) - <see cref="GitStatusService.GetStatus"/>
+    /// simply returns null for all of those.
+    /// </summary>
+    private static async Task RefreshGitStatusAsync(PanelViewModel panel)
+    {
+        if (panel.CurrentFileSystem is not LocalFileSystem)
+            return;
+
+        var path = panel.CurrentPath;
+        var snapshot = await Task.Run(() => GitStatusService.GetStatus(path));
+
+        if (panel.CurrentPath != path)
+            return; // navigated away while this was computing
+
+        foreach (var item in panel.Items)
+            item.GitStatus = item.IsParent || snapshot == null
+                ? GitFileStatus.None
+                : snapshot.Resolve(item.FullPath, item.IsDirectory);
+
+        panel.RefreshDisplay();
+    }
+
     private void OnPanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(PanelViewModel.SelectedCount) or nameof(PanelViewModel.SelectedBytes) or nameof(PanelViewModel.CursorInfo))
@@ -696,6 +805,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RightPanel.PathChanged -= OnPanelPathChanged;
         LeftPanel.PropertyChanged -= OnPanelPropertyChanged;
         RightPanel.PropertyChanged -= OnPanelPropertyChanged;
+        LeftPanel.ItemsChanged -= OnPanelItemsChanged;
+        RightPanel.ItemsChanged -= OnPanelItemsChanged;
         LeftPanel.Dispose();
         RightPanel.Dispose();
         Operations.Dispose();

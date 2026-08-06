@@ -106,6 +106,7 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.OemPeriod, CommandIds.ToggleHidden); // Ctrl+.
         Register(Keys.Control | Keys.P, CommandIds.ToggleFlatView); // Ctrl+P placeholder
         Register(Keys.Alt | Keys.Enter, CommandIds.ShowProperties);
+        Register(Keys.Control | Keys.Alt | Keys.Space, CommandIds.CalculateFolderSize);
 
         // Batch operations
         Register(Keys.Control | Keys.M, CommandIds.MultiRename);
