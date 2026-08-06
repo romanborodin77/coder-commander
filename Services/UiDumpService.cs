@@ -81,9 +81,14 @@ public static class UiDumpService
             // A control whose BackColor/ForeColor was never explicitly set still reports the
             // inherited default (Control.DefaultBackColor/DefaultForeColor) rather than a
             // flag - comparing against those defaults is how the Python-side checker infers
-            // "probably never themed" for a control with no ThemeRole tag.
+            // "probably never themed" for a control with no ThemeRole tag. BackColor.A == 0
+            // (Color.Transparent, common for a Label left to show its parent panel through)
+            // is a second, distinct case of "not a real background" - flagged separately so
+            // the contrast checker walks up to the parent instead of comparing against a
+            // fully see-through color.
             ["is_default_back_color"] = control.BackColor == Control.DefaultBackColor,
             ["is_default_fore_color"] = control.ForeColor == Control.DefaultForeColor,
+            ["back_color_transparent"] = control.BackColor.A == 0,
         };
 
         if (control is Button or Label or LinkLabel && control.Tag is not ThemeRole)
@@ -98,7 +103,16 @@ public static class UiDumpService
         return node;
     }
 
-    private static string ColorHex(Color c) => $"#{c.R:x2}{c.G:x2}{c.B:x2}";
+    // 8-digit #AARRGGBB when not fully opaque, so a transparent color (A=0, e.g.
+    // Color.Transparent - R=G=B=255 but invisible) doesn't get silently truncated into
+    // "#ffffff", indistinguishable from a genuinely opaque white. This was a real bug: the
+    // 6-digit-only version made a Label deliberately left BackColor=Transparent (showing its
+    // dark parent panel through) look like it had a solid white background, producing a false
+    // low-contrast finding in check_layout() - caught by cross-checking against a live
+    // get_pixel() sample of the actually rendered pixel, which is never affected by this.
+    private static string ColorHex(Color c) => c.A < 255
+        ? $"#{c.A:x2}{c.R:x2}{c.G:x2}{c.B:x2}"
+        : $"#{c.R:x2}{c.G:x2}{c.B:x2}";
 
     private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "...";
 }
