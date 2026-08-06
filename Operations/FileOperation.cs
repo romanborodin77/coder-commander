@@ -81,6 +81,19 @@ public abstract class FileOperation : IFileOperation, IDisposable
     /// <summary>Raises <see cref="ProgressChanged"/> with the given progress report.</summary>
     protected void Report(OperationProgress p) => ProgressChanged?.Invoke(this, p);
 
+    private long _lastReportTicks;
+
+    /// <summary>Invokes <paramref name="report"/> at most once every 250ms - shared by
+    /// operations (Pack/Unpack) whose per-chunk progress callback would otherwise flood the UI
+    /// with updates while a large file streams.</summary>
+    protected void ReportThrottled(Action report)
+    {
+        var now = Environment.TickCount64;
+        if (now - _lastReportTicks < 250) return;
+        _lastReportTicks = now;
+        report();
+    }
+
     /// <summary>Updates <see cref="State"/> and raises <see cref="StateChanged"/>.</summary>
     protected void SetState(OperationState s)
     {

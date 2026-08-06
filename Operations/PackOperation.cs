@@ -162,6 +162,7 @@ public sealed class PackOperation : FileOperation
 
             foreach (var child in children)
             {
+                ct.ThrowIfCancellationRequested();
                 var childName = Join(target, VfsPath.GetRelative(file.FullPath, child.FullPath));
                 if (childName.Length == 0)
                     continue;
@@ -216,7 +217,7 @@ public sealed class PackOperation : FileOperation
         using (var counting = new ProgressStream(src, chunk =>
         {
             _bytesProcessed += chunk;
-            ReportThrottled(source.Name);
+            ReportThrottled(() => ReportProgress(source.Name));
         }))
         {
             await writer.WriteFileAsync(entryName, counting, source.Size, source.LastWriteTimeUtc, compression, ct).ConfigureAwait(false);
@@ -328,17 +329,6 @@ public sealed class PackOperation : FileOperation
         var normalizedTail = VfsPath.NormalizeInner(tail);
         if (normalizedTail.Length == 0) return head;
         return head.Length == 0 ? normalizedTail : head + "/" + normalizedTail;
-    }
-
-    private long _lastReportTicks;
-
-    /// <summary>Keeps the UI responsive without flooding it while a large file streams.</summary>
-    private void ReportThrottled(string currentFile)
-    {
-        var now = Environment.TickCount64;
-        if (now - _lastReportTicks < 250) return;
-        _lastReportTicks = now;
-        ReportProgress(currentFile);
     }
 
     private void ReportProgress(string currentFile)

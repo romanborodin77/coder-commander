@@ -546,15 +546,7 @@ public class ViewerForm : ThemedForm
     }
 
     /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 0) return "—";
-        if (bytes == 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
-    }
+    private static string FormatSize(long bytes) => CoderCommander.Utils.FormatUtils.FormatSize(bytes);
 
     /// <summary>Unsubscribes from theme events and disposes the image on disposal.</summary>
     protected override void Dispose(bool disposing)

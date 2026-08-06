@@ -1,6 +1,7 @@
 using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 
@@ -22,6 +23,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private FileSystemWatcher? _watcher;
     private System.Windows.Forms.Timer? _refreshDebounce;
     private const int DebounceMs = 300;
+
+    private System.Windows.Forms.Timer? _settingsSaveDebounce;
+    private const int SettingsSaveDebounceMs = 400;
 
     [ObservableProperty] private string _currentPath = "";
     [ObservableProperty] private FileSystemItem? _selectedItem;
@@ -145,13 +149,43 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         ApplyFilter();
     }
 
+    /// <summary>
+    /// Debounces the actual settings.json write: clicking a column header used to synchronously
+    /// run File.WriteAllText+File.Move (under SettingsService's lock) directly in the property-
+    /// changed handler, on the UI thread, on every single click. This coalesces rapid clicks into
+    /// one write and moves the write itself off the UI thread.
+    /// </summary>
     private void SaveSortSettings()
     {
-        var s = SettingsService.Load();
-        s.SortColumn = SortColumn;
-        s.SortDescending = SortDescending;
-        s.DirectoriesFirst = DirectoriesFirst;
-        SettingsService.Save(s);
+        _settingsSaveDebounce ??= CreateSettingsSaveDebounceTimer();
+        _settingsSaveDebounce.Stop();
+        _settingsSaveDebounce.Start();
+    }
+
+    private System.Windows.Forms.Timer CreateSettingsSaveDebounceTimer()
+    {
+        var timer = new System.Windows.Forms.Timer { Interval = SettingsSaveDebounceMs };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            SaveSortSettingsNow();
+        };
+        return timer;
+    }
+
+    private void SaveSortSettingsNow()
+    {
+        var column = SortColumn;
+        var descending = SortDescending;
+        var dirsFirst = DirectoriesFirst;
+        _ = Task.Run(() =>
+        {
+            var s = SettingsService.Load();
+            s.SortColumn = column;
+            s.SortDescending = descending;
+            s.DirectoriesFirst = dirsFirst;
+            SettingsService.Save(s);
+        });
     }
 
     /// <summary>
@@ -345,7 +379,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         {
             // No ConfigureAwait(false): OnPropertyChanged below is observed by UI-bound controls.
             var (free, total) = await _fs.GetDriveSpaceAsync(path);
-            FreeSpaceDisplay = total > 0 ? $"{FormatSize(free)} / {FormatSize(total)}" : "";
+            FreeSpaceDisplay = total > 0 ? $"{FormatUtils.FormatSize(free)} / {FormatUtils.FormatSize(total)}" : "";
         }
         catch (Exception ex)
         {
@@ -383,24 +417,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public void SelectAll()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = true;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Deselects all items.</summary>
     public void DeselectAll()
     {
         foreach (var i in Items) i.IsSelected = false;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Toggles the selection state of every visible item (except the parent entry).</summary>
     public void InvertSelection()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = !i.IsSelected;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Selects all items whose names match the given wildcard pattern (e.g. <c>*.txt</c>).</summary>
@@ -412,8 +443,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (i.IsParent) continue;
             i.IsSelected = MatchesPattern(i.Name, pattern);
         }
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Deselects all items whose names match the given wildcard pattern.</summary>
@@ -426,8 +456,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (MatchesPattern(i.Name, pattern))
                 i.IsSelected = false;
         }
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>
@@ -448,15 +477,6 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
             .Replace("\\*", ".*").Replace("\\?", ".") + "$";
         return System.Text.RegularExpressions.Regex.IsMatch(name, regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes <= 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
     }
 
     // ── FileSystemWatcher ──
@@ -544,6 +564,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         StopWatcher();
+
+        if (_settingsSaveDebounce is { Enabled: true })
+        {
+            _settingsSaveDebounce.Stop();
+            SaveSortSettingsNow(); // flush a pending debounced save rather than lose it on close
+        }
+        _settingsSaveDebounce?.Dispose();
+        _settingsSaveDebounce = null;
+
         var cts = _navCts;
         _navCts = null;
         try { cts?.Cancel(); } catch (ObjectDisposedException) { }

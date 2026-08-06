@@ -4,6 +4,7 @@ using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Operations;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CoderCommander.ViewModels;
@@ -674,16 +675,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var panel = ActivePanel;
         var L = LocalizationService.Current;
-        StatusText = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatSize(panel.SelectedBytes)})  |  {panel.FreeSpaceDisplay}";
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes <= 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
+        StatusText = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatUtils.FormatSize(panel.SelectedBytes)})  |  {panel.FreeSpaceDisplay}";
     }
 
     /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>

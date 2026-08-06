@@ -51,13 +51,13 @@ public sealed class DeleteOperation : FileOperation
                 // The shell call failed for at least one file. Anything it did manage to move is
                 // already gone from disk; only files that still exist need a decision - falling
                 // back to permanent deletion of the whole batch would silently destroy files the
-                // user only asked to move to the Recycle Bin.
-                var remaining = new List<FileEntry>();
-                foreach (var file in _files)
-                {
-                    if (await _fs.ExistsAsync(file.FullPath, ct).ConfigureAwait(false))
-                        remaining.Add(file);
-                }
+                // user only asked to move to the Recycle Bin. SHFileOperationW (used by
+                // RecycleBinHelper) doesn't report per-file results - only the newer IFileOperation
+                // COM API does, which would be a much larger rewrite - so an existence check is the
+                // only way to tell which files survived; at least run the N checks concurrently
+                // instead of one at a time.
+                var existsChecks = await Task.WhenAll(_files.Select(f => _fs.ExistsAsync(f.FullPath, ct))).ConfigureAwait(false);
+                var remaining = _files.Where((_, i) => existsChecks[i]).ToList();
 
                 _filesProcessed = _filesTotal - remaining.Count;
 

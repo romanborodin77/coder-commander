@@ -460,15 +460,7 @@ public static class UiHelpers
     }
 
     /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
-    public static string FormatSize(long bytes)
-    {
-        if (bytes < 0) return "—";
-        if (bytes == 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB", "PB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
-    }
+    public static string FormatSize(long bytes) => CoderCommander.Utils.FormatUtils.FormatSize(bytes);
 
     /// <summary>Creates a themed checkbox with the specified text and initial state.</summary>
     public static ThemedCheckBox CreateCheckBox(string text, bool checked_ = false)

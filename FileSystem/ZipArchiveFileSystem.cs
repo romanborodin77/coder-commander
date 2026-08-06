@@ -263,6 +263,16 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             reader.ReadUInt32(); // external attrs
             reader.ReadUInt32(); // local header offset
 
+            // A truncated/corrupted file can claim lengths that run past EOF; without this check
+            // that throws an EndOfStreamException from ReadBytes below, which the caller's retry
+            // logic (meant for a transiently locked file) would misinterpret as "still locked" and
+            // retry three times for nothing before giving up.
+            if (filenameLen + extraLen + commentLen > fileSize - fs.Position)
+            {
+                LogService.Warning($"Archive {archivePath}: truncated/corrupt central directory record at entry {i} - stopping scan early.");
+                break;
+            }
+
             var filenameBytes = reader.ReadBytes(filenameLen);
             var extraBytes = reader.ReadBytes(extraLen);
             reader.ReadBytes(commentLen);
@@ -466,8 +476,17 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <summary>Invalidates the cached central directory for this archive.</summary>
     public void InvalidateCache() => Forget(_archivePath);
 
+    // EnumerateAsync/EnumerateDeepAsync/GetFileInfoAsync/ExistsAsync below all run their body via
+    // Task.Run rather than the plain Task.FromResult a "GetEntries() is already cached" reading
+    // would suggest: GetEntries() -> ReadDirectory can retry with a blocking Thread.Sleep for
+    // seconds if the archive is transiently locked (AV/indexer scanning a just-written file), and
+    // PanelViewModel's navigation path no longer forces a hop off the calling thread itself (see
+    // its NavigateAsync/RefreshAsync comments) - without Task.Run here, that retry would freeze
+    // the UI thread directly instead of just delaying the panel refresh.
+
     /// <inheritdoc/>
-    public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default)
+    public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
         var (_, innerPath) = SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
@@ -526,11 +545,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             }
         }
 
-        return Task.FromResult<IReadOnlyList<FileEntry>>(result);
-    }
+        return result;
+    }, ct);
 
     /// <inheritdoc/>
-    public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default)
+    public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
         var (_, innerPath) = SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
@@ -562,11 +582,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                     lastWriteTimeUtc: entry.LastWriteTimeUtc));
         }
 
-        return Task.FromResult<IReadOnlyList<FileEntry>>(result);
-    }
+        return result;
+    }, ct);
 
     /// <inheritdoc/>
-    public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default)
+    public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
+        Task.Run<FileEntry?>(() =>
     {
         var (_, innerPath) = SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
@@ -574,7 +595,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (string.IsNullOrEmpty(innerPath))
         {
             var rootPath = MakePath(_archivePath, "");
-            return Task.FromResult<FileEntry?>(new FileEntry(rootPath, true));
+            return new FileEntry(rootPath, true);
         }
 
         var entries = GetEntries();
@@ -590,9 +611,9 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             {
                 var fullPath = MakePath(_archivePath, name);
                 var isDir = entry.FullName.EndsWith('/');
-                return Task.FromResult<FileEntry?>(new FileEntry(
+                return new FileEntry(
                     fullPath, isDir, true, entry.Size,
-                    lastWriteTimeUtc: entry.LastWriteTimeUtc));
+                    lastWriteTimeUtc: entry.LastWriteTimeUtc);
             }
         }
 
@@ -605,21 +626,22 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
                 var fullPath = MakePath(_archivePath, innerPath);
-                return Task.FromResult<FileEntry?>(new FileEntry(fullPath, true));
+                return new FileEntry(fullPath, true);
             }
         }
 
-        return Task.FromResult<FileEntry?>(null);
-    }
+        return null;
+    }, ct);
 
     /// <inheritdoc/>
-    public Task<bool> ExistsAsync(string path, CancellationToken ct = default)
+    public Task<bool> ExistsAsync(string path, CancellationToken ct = default) =>
+        Task.Run(() =>
     {
         var (_, innerPath) = SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
-            return Task.FromResult(true);
+            return true;
 
         var entries = GetEntries();
 
@@ -627,7 +649,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         {
             var name = entry.FullName.Replace('\\', '/').Trim('/');
             if (string.Equals(name, innerPath, StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(true);
+                return true;
         }
 
         var prefix = innerPath + "/";
@@ -635,11 +657,11 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         {
             var name = entry.FullName.Replace('\\', '/');
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(true);
+                return true;
         }
 
-        return Task.FromResult(false);
-    }
+        return false;
+    }, ct);
 
     /// <inheritdoc/>
     public async Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default)

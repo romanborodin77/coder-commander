@@ -12,6 +12,10 @@ public static class LogService
 
     private static readonly object _lock = new();
 
+    /// <summary>app.log is rotated to app.log.old once it passes this size, instead of growing
+    /// without bound for the lifetime of the AppData folder.</summary>
+    private const long MaxLogSizeBytes = 5 * 1024 * 1024; // 5 MB
+
     /// <summary>Returns the full path to the application log file.</summary>
     /// <returns>Absolute path to <c>app.log</c> in the user's AppData directory.</returns>
     public static string GetLogPath() => LogPath;
@@ -126,6 +130,8 @@ public static class LogService
                 if (!string.IsNullOrEmpty(dir))
                     Directory.CreateDirectory(dir);
 
+                RotateIfTooLarge();
+
                 var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{level}]";
                 if (!string.IsNullOrEmpty(category))
                     line += $" [{category}]";
@@ -137,5 +143,23 @@ public static class LogService
             }
         }
         catch { }
+    }
+
+    /// <summary>Rotates app.log to app.log.old (overwriting any previous one) once it passes
+    /// <see cref="MaxLogSizeBytes"/>. Must be called with <see cref="_lock"/> already held.</summary>
+    private static void RotateIfTooLarge()
+    {
+        try
+        {
+            var info = new FileInfo(LogPath);
+            if (!info.Exists || info.Length < MaxLogSizeBytes)
+                return;
+
+            var oldPath = LogPath + ".old";
+            if (File.Exists(oldPath))
+                File.Delete(oldPath);
+            File.Move(LogPath, oldPath);
+        }
+        catch { /* best effort - a failed rotation shouldn't stop logging */ }
     }
 }

@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 namespace CoderCommander.FileSystem;
 
@@ -186,9 +187,10 @@ public sealed class LocalFileSystem : IFileSystem
         var tempPath = destinationPath + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
+            var bufferSize = source.CanSeek ? BufferSizing.ForSize(source.Length) : 81920;
             using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
             {
-                await source.CopyToAsync(fs, 81920, ct).ConfigureAwait(false);
+                await source.CopyToAsync(fs, bufferSize, ct).ConfigureAwait(false);
             }
             File.Move(tempPath, destinationPath, overwrite: true);
         }

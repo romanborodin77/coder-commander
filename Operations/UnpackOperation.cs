@@ -1,6 +1,7 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Operations;
 
@@ -30,7 +31,6 @@ public sealed class UnpackOperation : FileOperation
     private int _filesTotal;
     private long _bytesProcessed;
     private long _bytesTotal;
-    private long _lastReportTicks;
 
     /// <summary>Creates an unpack operation that extracts entries from an archive.</summary>
     /// <param name="items">Entries to extract; empty means the whole archive.</param>
@@ -235,16 +235,7 @@ public sealed class UnpackOperation : FileOperation
 
         if (_bytesTotal > freeBytes)
             throw new IOException(
-                $"Unpacking would need {FormatSize(_bytesTotal)} but only {FormatSize(freeBytes)} is free at the destination.");
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB", "TB"];
-        double size = bytes;
-        var i = 0;
-        while (size >= 1024 && i < units.Length - 1) { size /= 1024; i++; }
-        return $"{size:0.##} {units[i]}";
+                $"Unpacking would need {FormatUtils.FormatSize(_bytesTotal)} but only {FormatUtils.FormatSize(freeBytes)} is free at the destination.");
     }
 
     private async Task<bool> ExtractAsync(
@@ -257,40 +248,21 @@ public sealed class UnpackOperation : FileOperation
         if (!string.IsNullOrEmpty(parent))
             await _destFs.CreateDirectoryAsync(parent, ct).ConfigureAwait(false);
 
-        var actualTarget = target;
+        var sourceInfo = new FileEntry(
+            ArchivePath.MakePath(_archivePath, record.FullName),
+            false, true, record.Size, lastWriteTimeUtc: record.LastWriteTimeUtc);
 
-        if (await _destFs.ExistsAsync(target, ct).ConfigureAwait(false))
-        {
-            var sourceInfo = new FileEntry(
-                ArchivePath.MakePath(_archivePath, record.FullName),
-                false, true, record.Size, lastWriteTimeUtc: record.LastWriteTimeUtc);
-
-            var action = OverwriteAction.Skip;
-            string? newName = null;
-
-            if (_options.OverwriteResolver != null)
-            {
-                var destInfo = await _destFs.GetFileInfoAsync(target, ct).ConfigureAwait(false);
-                action = _options.OverwriteResolver(sourceInfo.FullPath, target, sourceInfo, destInfo, out newName);
-            }
-            else if (_options.Overwrite)
-            {
-                action = OverwriteAction.Overwrite;
-            }
-
-            if (action is OverwriteAction.Skip or OverwriteAction.SkipAll)
-                return false;
-
-            if (action == OverwriteAction.Rename && !string.IsNullOrEmpty(newName))
-                actualTarget = VfsPath.ChangeName(target, newName);
-        }
+        var resolution = await ConflictResolver.ResolveAsync(_destFs, sourceInfo.FullPath, target, sourceInfo, _options, ct).ConfigureAwait(false);
+        if (!resolution.Proceed)
+            return false;
+        var actualTarget = resolution.TargetPath;
 
         try
         {
             using (var counting = new ProgressStream(content, chunk =>
             {
                 _bytesProcessed += chunk;
-                ReportThrottled(record.FullName);
+                ReportThrottled(() => ReportProgress(record.FullName));
             }))
             {
                 await _destFs.CopyFromStreamAsync(actualTarget, counting, ct).ConfigureAwait(false);
@@ -331,14 +303,6 @@ public sealed class UnpackOperation : FileOperation
             throw new IOException(
                 $"Unpacked successfully, but the extracted entries could not be removed from the archive (move left copies in both places): {ex.Message}", ex);
         }
-    }
-
-    private void ReportThrottled(string currentFile)
-    {
-        var now = Environment.TickCount64;
-        if (now - _lastReportTicks < 250) return;
-        _lastReportTicks = now;
-        ReportProgress(currentFile);
     }
 
     private void ReportProgress(string currentFile)

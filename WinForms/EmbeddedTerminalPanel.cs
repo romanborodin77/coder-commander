@@ -231,9 +231,16 @@ public sealed class EmbeddedTerminalPanel : Panel
     {
         if (_processes.TryGetValue(tabId, out var process))
         {
-            process.Terminate();
-            process.Dispose();
             _processes.Remove(tabId);
+
+            // Terminate()/Dispose() kills the process tree and blocks up to ~1s waiting for it to
+            // exit; run it in the background so closing a single tab doesn't freeze the window -
+            // the same reasoning already applied to closing the whole panel below, in Dispose(bool).
+            _ = Task.Run(() =>
+            {
+                process.Terminate();
+                process.Dispose();
+            });
         }
 
         if (_outputBuffers.TryGetValue(tabId, out _))

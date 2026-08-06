@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using CoderCommander.FileSystem;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Archives.Zip;
 
@@ -45,7 +46,7 @@ public sealed class ZipArchiveWriter : IArchiveWriter
         var entry = _zip.CreateEntry(name, ToCompressionLevel(compression));
         entry.LastWriteTime = ToEntryTimestamp(lastWriteTimeUtc);
 
-        var bufferSize = size > 104857600 ? 4194304 : 1048576; // 4MB for >100MB, 1MB otherwise
+        var bufferSize = BufferSizing.ForSize(size);
         using var dst = entry.Open();
         await content.CopyToAsync(dst, bufferSize, ct).ConfigureAwait(false);
     }
