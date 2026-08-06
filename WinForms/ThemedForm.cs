@@ -170,6 +170,15 @@ public class ThemedForm : Form
         {
             Dock = DockStyle.Bottom,
             Height = 50,
+            // Margin defaults to WinForms' built-in 3px on every side. Harmless for a control
+            // added directly to a Form, but when this panel ends up inside a TableLayoutPanel
+            // cell (as in CopyMoveDialogForm's mainLayout, RowStyle Absolute 50), the layout
+            // engine subtracts Margin from the allocated row height - Height=50 rendered as
+            // 44px, 6px short, which cascaded through Padding into the button FlowLayoutPanel
+            // ending up 4px shorter than the 32px buttons it holds (check_layout() caught this
+            // as OK/Cancel "extends outside its parent FlowLayoutPanel's bounds" - confirmed
+            // via the exact Bounds numbers, not just the finding, before attributing it here).
+            Margin = new Padding(0),
             BackColor = p.HeaderBackground,
             Tag = ThemeRole.HeaderBackground,
             Padding = new Padding(16, 8, 16, 8)
