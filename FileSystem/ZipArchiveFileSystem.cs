@@ -225,14 +225,22 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         reader.ReadUInt16(); // disk number
         reader.ReadUInt16(); // disk with CD
         reader.ReadUInt16(); // entries on this disk
-        var totalEntries = reader.ReadUInt16();
+        long totalEntries = reader.ReadUInt16();
         reader.ReadUInt32(); // central directory size
-        var cdOffset = reader.ReadUInt32();
+        long cdOffset = reader.ReadUInt32();
+
+        // ZIP64: a 0xFFFF/0xFFFFFFFF sentinel in the standard EOCD means the real values live in
+        // the ZIP64 EOCD record, reached via a fixed 20-byte locator immediately preceding the
+        // standard EOCD. Without this, archives over 4 GB or with more than 65535 entries get a
+        // truncated cdOffset/totalEntries here, silently desyncing our index from what
+        // System.IO.Compression.ZipArchive (used for actual content/writes) sees.
+        if (totalEntries == 0xFFFF || cdOffset == 0xFFFFFFFF)
+            TryReadZip64Eocd(fs, reader, eocdOffset, ref totalEntries, ref cdOffset);
 
         // Read Central Directory
         fs.Position = cdOffset;
         int entryIndex = 0;
-        for (int i = 0; i < totalEntries; i++)
+        for (long i = 0; i < totalEntries; i++)
         {
             var sig = reader.ReadUInt32();
             if (sig != 0x02014b50) break; // CD file header signature
@@ -244,8 +252,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             var modTime = reader.ReadUInt16();
             var modDate = reader.ReadUInt16();
             reader.ReadUInt32(); // crc32
-            var compressedSize = reader.ReadUInt32();
-            var uncompressedSize = reader.ReadUInt32();
+            long compressedSize = reader.ReadUInt32();
+            long uncompressedSize = reader.ReadUInt32();
             var filenameLen = reader.ReadUInt16();
             var extraLen = reader.ReadUInt16();
             var commentLen = reader.ReadUInt16();
@@ -255,8 +263,11 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             reader.ReadUInt32(); // local header offset
 
             var filenameBytes = reader.ReadBytes(filenameLen);
-            reader.ReadBytes(extraLen);
+            var extraBytes = reader.ReadBytes(extraLen);
             reader.ReadBytes(commentLen);
+
+            if (compressedSize == 0xFFFFFFFF || uncompressedSize == 0xFFFFFFFF)
+                ReadZip64Sizes(extraBytes, ref uncompressedSize, ref compressedSize);
 
             var filename = DecodeEntryName(filenameBytes, flags, out var isLegacyName);
             legacyNames |= isLegacyName;
@@ -278,6 +289,80 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
 
         return new ZipDirectory(records, legacyNames);
+    }
+
+    /// <summary>
+    /// Locates and reads the ZIP64 End Of Central Directory record via its 20-byte locator
+    /// (immediately before the standard EOCD), overwriting <paramref name="totalEntries"/>/
+    /// <paramref name="cdOffset"/> with the real 64-bit values. Leaves both untouched (falling
+    /// back to the already-truncated 32-bit values) if the locator/record isn't where expected -
+    /// a best-effort archive is preferable to throwing on a merely unusual layout.
+    /// </summary>
+    private static void TryReadZip64Eocd(FileStream fs, BinaryReader reader, long eocdOffset, ref long totalEntries, ref long cdOffset)
+    {
+        var locatorOffset = eocdOffset - 20;
+        if (locatorOffset < 0)
+            return;
+
+        fs.Position = locatorOffset;
+        if (reader.ReadUInt32() != 0x07064b50) // ZIP64 EOCD locator signature
+            return;
+
+        reader.ReadUInt32(); // disk number holding the ZIP64 EOCD
+        var zip64EocdOffset = (long)reader.ReadUInt64();
+        // total number of disks (4 bytes) intentionally unread - irrelevant for single-disk archives
+
+        fs.Position = zip64EocdOffset;
+        if (reader.ReadUInt32() != 0x06064b50) // ZIP64 EOCD record signature
+            return;
+
+        reader.ReadUInt64(); // size of this record
+        reader.ReadUInt16(); // version made by
+        reader.ReadUInt16(); // version needed
+        reader.ReadUInt32(); // number of this disk
+        reader.ReadUInt32(); // disk with start of central directory
+        reader.ReadUInt64(); // entries on this disk
+        totalEntries = (long)reader.ReadUInt64();
+        reader.ReadUInt64(); // size of central directory
+        cdOffset = (long)reader.ReadUInt64();
+    }
+
+    /// <summary>
+    /// Parses the ZIP64 extended-information extra field (header ID 0x0001) for a single central
+    /// directory entry. Fields appear only for those that were 0xFFFFFFFF sentinels in the main
+    /// 32-bit record, in a fixed order (uncompressed size, then compressed size, then others this
+    /// caller doesn't need) - so only sentinel-valued <c>ref</c> parameters are overwritten.
+    /// </summary>
+    private static void ReadZip64Sizes(byte[] extra, ref long uncompressedSize, ref long compressedSize)
+    {
+        var needUncompressed = uncompressedSize == 0xFFFFFFFF;
+        var needCompressed = compressedSize == 0xFFFFFFFF;
+
+        var pos = 0;
+        while (pos + 4 <= extra.Length)
+        {
+            var headerId = BitConverter.ToUInt16(extra, pos);
+            var dataSize = BitConverter.ToUInt16(extra, pos + 2);
+            var dataStart = pos + 4;
+            if (dataStart + dataSize > extra.Length)
+                break;
+
+            if (headerId == 0x0001)
+            {
+                var fieldPos = dataStart;
+                var fieldEnd = dataStart + dataSize;
+                if (needUncompressed && fieldPos + 8 <= fieldEnd)
+                {
+                    uncompressedSize = (long)BitConverter.ToUInt64(extra, fieldPos);
+                    fieldPos += 8;
+                }
+                if (needCompressed && fieldPos + 8 <= fieldEnd)
+                    compressedSize = (long)BitConverter.ToUInt64(extra, fieldPos);
+                return;
+            }
+
+            pos = dataStart + dataSize;
+        }
     }
 
     /// <summary>
@@ -581,7 +666,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 if (dstInner.Length == 0)
                     throw new IOException("Cannot write to the archive root without an entry name.");
 
-                using var zip = OpenForUpdate(dstArchive, new[] { dstInner });
+                using var session = OpenForUpdate(dstArchive, new[] { dstInner });
+                var zip = session.Archive;
                 if (overwrite)
                     FindEntry(zip, dstArchive, dstInner)?.Delete();
 
@@ -648,52 +734,127 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// is handed to <see cref="ZipArchive"/> so that rewriting the central directory does not
     /// mangle those names into their mis-decoded form.
     /// </summary>
-    public static ZipArchive OpenForUpdate(string archivePath, IEnumerable<string>? newEntryNames = null)
-    {
-        var stream = OpenExclusiveWithRetry(archivePath);
-        var mode = stream.Length > 0 ? ZipArchiveMode.Update : ZipArchiveMode.Create;
-        try
-        {
-            return new ZipArchive(stream, mode, leaveOpen: false, PickWriteEncoding(archivePath, newEntryNames));
-        }
-        catch
-        {
-            stream.Dispose();
-            throw;
-        }
-    }
+    /// <remarks>
+    /// Returns a <see cref="ZipUpdateSession"/> rather than a bare <see cref="ZipArchive"/>: the
+    /// archive is opened against a private temporary copy, and only <see cref="ZipUpdateSession.Dispose"/>
+    /// atomically replaces the real file - see its doc comment for why. Callers keep using
+    /// <c>session.Archive</c> exactly like the old return value.
+    /// </remarks>
+    public static ZipUpdateSession OpenForUpdate(string archivePath, IEnumerable<string>? newEntryNames = null) =>
+        ZipUpdateSession.Open(archivePath, newEntryNames);
 
     /// <summary>
-    /// Opens the archive file exclusively, retrying like <see cref="ReadDirectory"/> does: another
-    /// panel reading the same archive (or an AV/indexer scan of a just-written one) can hold a
-    /// transient lock, and failing immediately turns routine concurrent access into a hard error.
+    /// Wraps a <see cref="ZipArchive"/> opened in Update/Create mode against a private temporary
+    /// copy of the archive, so a crash, thrown exception, or I/O failure while flushing the
+    /// central directory can never corrupt or truncate the file the user actually has.
+    /// <see cref="ZipArchive"/>'s Update mode writes the modified central directory directly into
+    /// whatever stream it was given - previously that was the real archive file itself, so a
+    /// failure mid-write (process killed, disk full) destroyed the entire original archive, not
+    /// just the new entry. <see cref="Dispose"/> flushes to the temp copy first and only then
+    /// swaps it in via <see cref="File.Move(string, string, bool)"/>, mirroring the temp-file +
+    /// atomic-replace pattern <see cref="RewritingArchiveWriter"/> already uses for TAR/TAR.GZ.
     /// </summary>
-    private static FileStream OpenExclusiveWithRetry(string archivePath)
+    public sealed class ZipUpdateSession : IDisposable
     {
-        try
-        {
-            return File.Open(archivePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        }
-        catch (IOException ex) when (ex.Message.Contains("being used by another process"))
-        {
-            LogService.Warning($"Archive locked by another process, retrying: {archivePath}");
+        private readonly string _archivePath;
+        private readonly string _tempPath;
+        private bool _disposed;
 
-            ReadOnlySpan<int> retryDelaysMs = [150, 300, 600];
-            Exception lastError = ex;
-            foreach (var delayMs in retryDelaysMs)
+        /// <summary>The archive, opened against a private temporary copy - never the real file.</summary>
+        public ZipArchive Archive { get; }
+
+        private ZipUpdateSession(string archivePath, string tempPath, ZipArchive archive)
+        {
+            _archivePath = archivePath;
+            _tempPath = tempPath;
+            Archive = archive;
+        }
+
+        internal static ZipUpdateSession Open(string archivePath, IEnumerable<string>? newEntryNames)
+        {
+            var tempPath = archivePath + ".update-" + Guid.NewGuid().ToString("N") + ".tmp";
+            try
             {
-                Thread.Sleep(delayMs);
+                if (File.Exists(archivePath))
+                    CopyWithRetry(archivePath, tempPath);
+
+                var stream = new FileStream(tempPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                var mode = stream.Length > 0 ? ZipArchiveMode.Update : ZipArchiveMode.Create;
+                ZipArchive archive;
                 try
                 {
-                    return File.Open(archivePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    archive = new ZipArchive(stream, mode, leaveOpen: false, PickWriteEncoding(archivePath, newEntryNames));
                 }
-                catch (Exception ex2)
+                catch
                 {
-                    lastError = ex2;
+                    stream.Dispose();
+                    throw;
                 }
+                return new ZipUpdateSession(archivePath, tempPath, archive);
             }
+            catch
+            {
+                TryDeleteFile(tempPath);
+                throw;
+            }
+        }
 
-            throw new IOException($"Cannot open archive for update after {retryDelaysMs.Length} retries: {archivePath}", lastError);
+        /// <summary>Flushes the central directory to the temp copy, then atomically replaces the
+        /// original. If this throws (or is never reached because an earlier step in the calling
+        /// method threw first), the original file is left completely untouched and the temp file
+        /// is discarded.</summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            try
+            {
+                Archive.Dispose();
+                File.Move(_tempPath, _archivePath, overwrite: true);
+            }
+            finally
+            {
+                TryDeleteFile(_tempPath);
+            }
+        }
+
+        /// <summary>Retries like <see cref="ReadDirectory"/> does: another panel reading the same
+        /// archive (or an AV/indexer scan of a just-written one) can hold a transient lock, and
+        /// failing immediately turns routine concurrent access into a hard error.</summary>
+        private static void CopyWithRetry(string sourcePath, string destPath)
+        {
+            try
+            {
+                File.Copy(sourcePath, destPath, overwrite: true);
+            }
+            catch (IOException ex) when (ex.Message.Contains("being used by another process"))
+            {
+                LogService.Warning($"Archive locked by another process, retrying: {sourcePath}");
+
+                ReadOnlySpan<int> retryDelaysMs = [150, 300, 600];
+                Exception lastError = ex;
+                foreach (var delayMs in retryDelaysMs)
+                {
+                    Thread.Sleep(delayMs);
+                    try
+                    {
+                        File.Copy(sourcePath, destPath, overwrite: true);
+                        return;
+                    }
+                    catch (Exception ex2)
+                    {
+                        lastError = ex2;
+                    }
+                }
+
+                throw new IOException($"Cannot open archive for update after {retryDelaysMs.Length} retries: {sourcePath}", lastError);
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* best effort cleanup */ }
         }
     }
 
@@ -726,7 +887,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (string.IsNullOrEmpty(innerPath))
             return Task.CompletedTask;
 
-        using var zip = OpenForUpdate(_archivePath);
+        using var session = OpenForUpdate(_archivePath);
+        var zip = session.Archive;
 
         var toDelete = new List<ZipArchiveEntry>();
 
@@ -768,7 +930,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (paths.Count == 0)
             return;
 
-        using var zip = OpenForUpdate(_archivePath);
+        using var session = OpenForUpdate(_archivePath);
+        var zip = session.Archive;
 
         var toDelete = new HashSet<int>();
 
@@ -829,7 +992,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (string.IsNullOrEmpty(innerPath))
             return Task.CompletedTask;
 
-        using var zip = OpenForUpdate(_archivePath, new[] { innerPath + "/" });
+        using var session = OpenForUpdate(_archivePath, new[] { innerPath + "/" });
+        var zip = session.Archive;
 
         if (FindEntry(zip, innerPath + "/") != null)
             return Task.CompletedTask;
@@ -886,7 +1050,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (innerPath.Length == 0)
             throw new IOException("Cannot write to the archive root without an entry name.");
 
-        using var zip = OpenForUpdate(_archivePath, new[] { innerPath });
+        using var session = OpenForUpdate(_archivePath, new[] { innerPath });
+        var zip = session.Archive;
 
         FindEntry(zip, innerPath)?.Delete();
 

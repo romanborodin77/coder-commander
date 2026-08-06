@@ -155,7 +155,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!isArchivePath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
-        if (!await _fs.ExistsAsync(path).ConfigureAwait(false))
+        // Deliberately no ConfigureAwait(false): the rest of this method (and RefreshAsync below)
+        // sets CurrentPath and mutates the ObservableCollection Items, both of which need to run
+        // back on the UI thread that called NavigateAsync - StartWatcher (triggered by the
+        // CurrentPath setter) creates a System.Windows.Forms.Timer, which only fires its Tick
+        // event on the thread that created it, and ObservableCollection isn't thread-safe.
+        if (!await _fs.ExistsAsync(path))
         {
             LogService.Warning($"Path does not exist: {path}");
             return;
@@ -255,12 +260,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (string.IsNullOrEmpty(path))
             return;
 
-        await _refreshLock.WaitAsync(ct).ConfigureAwait(false);
+        // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything
+        // from _allItems.Clear() down through ApplyFilter()'s ObservableCollection mutation must
+        // stay on the UI thread this method was called from.
+        await _refreshLock.WaitAsync(ct);
         try
         {
             var entries = IsFlatView
-                ? await _fs.EnumerateDeepAsync(path, ShowHidden, ct).ConfigureAwait(false)
-                : await _fs.EnumerateAsync(path, ShowHidden, ct).ConfigureAwait(false);
+                ? await _fs.EnumerateDeepAsync(path, ShowHidden, ct)
+                : await _fs.EnumerateAsync(path, ShowHidden, ct);
 
             _allItems.Clear();
 
@@ -325,7 +333,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var (free, total) = await _fs.GetDriveSpaceAsync(path).ConfigureAwait(false);
+            // No ConfigureAwait(false): OnPropertyChanged below is observed by UI-bound controls.
+            var (free, total) = await _fs.GetDriveSpaceAsync(path);
             FreeSpaceDisplay = total > 0 ? $"{FormatSize(free)} / {FormatSize(total)}" : "";
         }
         catch (Exception ex)

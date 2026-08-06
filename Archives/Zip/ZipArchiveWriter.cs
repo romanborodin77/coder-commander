@@ -12,12 +12,13 @@ namespace CoderCommander.Archives.Zip;
 public sealed class ZipArchiveWriter : IArchiveWriter
 {
     private readonly string _archivePath;
-    private readonly ZipArchive _zip;
+    private readonly ZipArchiveFileSystem.ZipUpdateSession _session;
+    private ZipArchive _zip => _session.Archive;
 
     public ZipArchiveWriter(string archivePath, ArchiveWriteOptions options)
     {
         _archivePath = archivePath;
-        _zip = ZipArchiveFileSystem.OpenForUpdate(archivePath, options.PlannedEntryNames);
+        _session = ZipArchiveFileSystem.OpenForUpdate(archivePath, options.PlannedEntryNames);
     }
 
     public ArchiveWriteMode Mode => ArchiveWriteMode.UpdateInPlace;
@@ -80,7 +81,7 @@ public sealed class ZipArchiveWriter : IArchiveWriter
 
     public void Dispose()
     {
-        _zip.Dispose();
+        _session.Dispose(); // flushes to the temp copy, then atomically replaces the original
         ZipArchiveFileSystem.Forget(_archivePath);
     }
 
