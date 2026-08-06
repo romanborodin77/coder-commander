@@ -54,7 +54,10 @@ public sealed class LocalizationService
         {
             "en" => "english",
             "ru" => "russian",
-            _ => code
+            // code round-trips through settings.json - sanitize before it becomes a path. Without
+            // this, a code like "..\..\..\some\file" would make File.Exists/LoadFromFile below
+            // read and display an arbitrary file's contents as UI strings.
+            _ => SanitizeLanguageFileStem(code)
         };
         var path = Path.Combine(AppContext.BaseDirectory, "lang", $"{fileName}.lng");
         if (File.Exists(path))
@@ -86,6 +89,21 @@ public sealed class LocalizationService
             }
         }
         return list;
+    }
+
+    /// <summary>Strips any directory traversal a language code might contain (e.g. from a hand-edited
+    /// or tampered settings.json), so it can only ever name a file directly inside lang/.</summary>
+    private static string SanitizeLanguageFileStem(string code)
+    {
+        try
+        {
+            var name = Path.GetFileName(code);
+            return string.IsNullOrEmpty(name) ? "invalid" : name;
+        }
+        catch (ArgumentException)
+        {
+            return "invalid";
+        }
     }
 
     private void LoadFromFile(string path)
@@ -403,7 +421,8 @@ public sealed class LocalizationService
         _strings["Confirm.Delete"] = "Delete {0} item(s)?";
         _strings["Confirm.DeleteItems"] = "Delete {0} item(s)?\n\n{1}";
         _strings["Confirm.RecycleBinFailedPermanent"] = "The Recycle Bin could not be used for {0} item(s). Permanently delete them instead? This cannot be undone.\n\n{1}";
-        _strings["Confirm.Wipe"] = "Wipe {0} item(s)? This cannot be undone.";
+        _strings["Confirm.Wipe"] = "Wipe {0} item(s)?";
+        _strings["Confirm.WipeItems"] = "Wipe {0} item(s)? This cannot be undone.\n\nNote: on SSDs, a single-pass overwrite does not guarantee the data is unrecoverable - wear-leveling can leave copies on other physical cells.\n\n{1}";
 
         // ═══ Context menu ═══
         _strings["Ctx.View"] = "View";

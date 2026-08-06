@@ -109,9 +109,24 @@ public static class VfsPath
         return string.IsNullOrEmpty(name) ? path : name;
     }
 
-    /// <summary>Replaces the last path component with <paramref name="newName"/>.</summary>
+    /// <summary>
+    /// Replaces the last path component with <paramref name="newName"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="newName"/> contains a path separator or is <c>.</c>/<c>..</c>. This is the
+    /// one place every overwrite-conflict "rename" flow (Copy/Move/Pack/Unpack) funnels through,
+    /// so it's the single choke point that stops a caller-supplied name (e.g. from an
+    /// <see cref="Operations.OverwriteResolveHandler"/>) from escaping the target directory -
+    /// callers were otherwise trusting the UI layer never to hand back something like
+    /// <c>..\..\evil.exe</c>, with no check at the operation level itself.
+    /// </exception>
     public static string ChangeName(string path, string newName)
     {
+        if (string.IsNullOrEmpty(newName) ||
+            newName.IndexOfAny(['/', '\\']) >= 0 ||
+            newName is "." or "..")
+            throw new ArgumentException($"Invalid entry name: \"{newName}\"", nameof(newName));
+
         var parent = GetParent(path);
         return string.IsNullOrEmpty(parent) ? newName : Combine(parent, newName);
     }

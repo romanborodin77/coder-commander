@@ -215,6 +215,15 @@ public sealed class TerminalProcessWrapper : IDisposable
         }
     }
 
+    // Characters cmd.exe's line parser can act on even when they appear inside a double-quoted
+    // argument (a well-documented cmd quirk - e.g. `cd "A & B"` still runs "B" as a separate
+    // command). All of these are legal in Windows folder names, so a crafted folder entered via
+    // the file panel could otherwise inject a command into the terminal with no keystroke from
+    // the user - SetWorkingDirectory is called automatically whenever the active panel's path
+    // changes. Rather than trying to escape them exactly right, skip the automatic "cd" for a
+    // path containing any of them.
+    private static readonly char[] CmdUnsafeChars = ['&', '|', '^', '%', '<', '>', '`', '!'];
+
     /// <summary>Change the working directory.</summary>
     public bool SetWorkingDirectory(string path)
     {
@@ -225,14 +234,35 @@ public sealed class TerminalProcessWrapper : IDisposable
 
         if (IsRunning)
         {
-            // For cmd.exe use /d flag, for PowerShell use Set-Location
-            string command = ShellType == ShellType.Cmd
-                ? $"cd /d \"{path}\""
-                : $"Set-Location \"{path}\"";
-
-            ExecuteCommand(command);
+            if (TryBuildChangeDirectoryCommand(path, out var command))
+                ExecuteCommand(command);
+            else
+                LogService.Warning($"Skipped terminal cwd sync: path contains characters unsafe for {ShellType.GetExecutableName()}: {path}");
         }
 
+        return true;
+    }
+
+    private bool TryBuildChangeDirectoryCommand(string path, out string command)
+    {
+        if (ShellType == ShellType.PowerShell)
+        {
+            // A single-quoted PowerShell string is fully literal: no $(...) subexpression
+            // expansion, no $variable interpolation, no backtick escapes - unlike the double
+            // quotes used here previously, which do NOT stop PowerShell from expanding $(...) in
+            // the string. -LiteralPath additionally disables wildcard interpretation of the path
+            // itself. The only character that needs escaping is the quote delimiter.
+            command = $"Set-Location -LiteralPath '{path.Replace("'", "''")}'";
+            return true;
+        }
+
+        if (path.IndexOfAny(CmdUnsafeChars) >= 0)
+        {
+            command = "";
+            return false;
+        }
+
+        command = $"cd /d \"{path}\"";
         return true;
     }
 

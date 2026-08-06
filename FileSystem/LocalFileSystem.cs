@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 namespace CoderCommander.FileSystem;
 
@@ -178,8 +179,26 @@ public sealed class LocalFileSystem : IFileSystem
         var dir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
-        using var fs = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
-        await source.CopyToAsync(fs, 81920, ct).ConfigureAwait(false);
+
+        // Write to a temp file and rename into place only once the copy fully succeeds - writing
+        // directly into destinationPath with FileMode.Create truncates it immediately, so a
+        // cancelled/failed copy while overwriting an existing file used to destroy the original
+        // before any of the new content had actually landed.
+        var tempPath = destinationPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var bufferSize = source.CanSeek ? BufferSizing.ForSize(source.Length) : 81920;
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+            {
+                await source.CopyToAsync(fs, bufferSize, ct).ConfigureAwait(false);
+            }
+            File.Move(tempPath, destinationPath, overwrite: true);
+        }
+        catch
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort cleanup */ }
+            throw;
+        }
     }
 
     public string GetRootPath(string path) => Path.GetPathRoot(path) ?? path;

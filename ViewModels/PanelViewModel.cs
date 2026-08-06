@@ -1,6 +1,7 @@
 using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 
@@ -22,6 +23,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private FileSystemWatcher? _watcher;
     private System.Windows.Forms.Timer? _refreshDebounce;
     private const int DebounceMs = 300;
+
+    private System.Windows.Forms.Timer? _settingsSaveDebounce;
+    private const int SettingsSaveDebounceMs = 400;
 
     [ObservableProperty] private string _currentPath = "";
     [ObservableProperty] private FileSystemItem? _selectedItem;
@@ -57,12 +61,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary><c>true</c> when there is at least one entry on the forward-navigation stack.</summary>
     public bool CanGoForward => _fwd.Count > 0;
 
+    // Cached rather than computed on every access: these three are read repeatedly per user
+    // action (status bar, cursor info, toolbar state), and each used to be its own O(n) LINQ pass
+    // over Items. Recomputed together in RecomputeSelectionStats(), called from ApplyFilter() (the
+    // only place Items itself changes) and NotifySelectionChanged() (the single choke point every
+    // selection mutation - bulk or ad-hoc - already funnels through).
+    private int _selectedCount;
+    private long _selectedBytes;
+    private int _totalCount;
+
     /// <summary>Number of selected items in the panel (excluding the parent "…" entry).</summary>
-    public int SelectedCount => Items.Count(i => i.IsSelected && !i.IsParent);
+    public int SelectedCount => _selectedCount;
     /// <summary>Total size in bytes of all selected non-directory items.</summary>
-    public long SelectedBytes => Items.Where(i => i.IsSelected && !i.IsParent && !i.IsDirectory).Sum(i => i.Size);
+    public long SelectedBytes => _selectedBytes;
     /// <summary>Number of visible items excluding the parent entry.</summary>
-    public int TotalCount => Items.Count(i => !i.IsParent);
+    public int TotalCount => _totalCount;
 
     /// <summary>Formatted string showing free and total disk space for the current drive.</summary>
     public string FreeSpaceDisplay { get; private set; } = "";
@@ -117,31 +130,71 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     partial void OnSortColumnChanged(string value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnSortDescendingChanged(bool value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnDirectoriesFirstChanged(bool value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Re-sorts the already-loaded item list and reapplies the current filter, without
+    /// touching the file system - sort/directories-first changes used to call RefreshAsync(),
+    /// which re-enumerated the whole directory (or archive, or network share) just to reorder
+    /// items already in memory.</summary>
+    private void ResortAndReapply()
+    {
+        SortAllItems();
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// Debounces the actual settings.json write: clicking a column header used to synchronously
+    /// run File.WriteAllText+File.Move (under SettingsService's lock) directly in the property-
+    /// changed handler, on the UI thread, on every single click. This coalesces rapid clicks into
+    /// one write and moves the write itself off the UI thread.
+    /// </summary>
     private void SaveSortSettings()
     {
-        var s = SettingsService.Load();
-        s.SortColumn = SortColumn;
-        s.SortDescending = SortDescending;
-        s.DirectoriesFirst = DirectoriesFirst;
-        SettingsService.Save(s);
+        _settingsSaveDebounce ??= CreateSettingsSaveDebounceTimer();
+        _settingsSaveDebounce.Stop();
+        _settingsSaveDebounce.Start();
+    }
+
+    private System.Windows.Forms.Timer CreateSettingsSaveDebounceTimer()
+    {
+        var timer = new System.Windows.Forms.Timer { Interval = SettingsSaveDebounceMs };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            SaveSortSettingsNow();
+        };
+        return timer;
+    }
+
+    private void SaveSortSettingsNow()
+    {
+        var column = SortColumn;
+        var descending = SortDescending;
+        var dirsFirst = DirectoriesFirst;
+        _ = Task.Run(() =>
+        {
+            var s = SettingsService.Load();
+            s.SortColumn = column;
+            s.SortDescending = descending;
+            s.DirectoriesFirst = dirsFirst;
+            SettingsService.Save(s);
+        });
     }
 
     /// <summary>
@@ -155,7 +208,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!isArchivePath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
-        if (!await _fs.ExistsAsync(path).ConfigureAwait(false))
+        // Deliberately no ConfigureAwait(false): the rest of this method (and RefreshAsync below)
+        // sets CurrentPath and mutates the ObservableCollection Items, both of which need to run
+        // back on the UI thread that called NavigateAsync - StartWatcher (triggered by the
+        // CurrentPath setter) creates a System.Windows.Forms.Timer, which only fires its Tick
+        // event on the thread that created it, and ObservableCollection isn't thread-safe.
+        if (!await _fs.ExistsAsync(path))
         {
             LogService.Warning($"Path does not exist: {path}");
             return;
@@ -255,12 +313,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (string.IsNullOrEmpty(path))
             return;
 
-        await _refreshLock.WaitAsync(ct).ConfigureAwait(false);
+        // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything
+        // from _allItems.Clear() down through ApplyFilter()'s ObservableCollection mutation must
+        // stay on the UI thread this method was called from.
+        await _refreshLock.WaitAsync(ct);
         try
         {
             var entries = IsFlatView
-                ? await _fs.EnumerateDeepAsync(path, ShowHidden, ct).ConfigureAwait(false)
-                : await _fs.EnumerateAsync(path, ShowHidden, ct).ConfigureAwait(false);
+                ? await _fs.EnumerateDeepAsync(path, ShowHidden, ct)
+                : await _fs.EnumerateAsync(path, ShowHidden, ct);
 
             _allItems.Clear();
 
@@ -298,7 +359,25 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private void SortAllItems()
     {
-        _allItems = [.. _allItems.OrderBy(i => i, new FileComparer(DirectoriesFirst, SortColumn, SortDescending))];
+        _allItems.Sort(new FileComparer(DirectoriesFirst, SortColumn, SortDescending));
+    }
+
+    private void RecomputeSelectionStats()
+    {
+        var selectedCount = 0;
+        long selectedBytes = 0;
+        var totalCount = 0;
+        foreach (var i in Items)
+        {
+            if (i.IsParent) continue;
+            totalCount++;
+            if (!i.IsSelected) continue;
+            selectedCount++;
+            if (!i.IsDirectory) selectedBytes += i.Size;
+        }
+        _selectedCount = selectedCount;
+        _selectedBytes = selectedBytes;
+        _totalCount = totalCount;
     }
 
     private void ApplyFilter()
@@ -312,6 +391,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 Items.Add(item);
             }
         }
+        RecomputeSelectionStats();
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedBytes));
         UpdateCursorInfo();
         ItemsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -325,8 +407,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var (free, total) = await _fs.GetDriveSpaceAsync(path).ConfigureAwait(false);
-            FreeSpaceDisplay = total > 0 ? $"{FormatSize(free)} / {FormatSize(total)}" : "";
+            // No ConfigureAwait(false): OnPropertyChanged below is observed by UI-bound controls.
+            var (free, total) = await _fs.GetDriveSpaceAsync(path);
+            FreeSpaceDisplay = total > 0 ? $"{FormatUtils.FormatSize(free)} / {FormatUtils.FormatSize(total)}" : "";
         }
         catch (Exception ex)
         {
@@ -356,6 +439,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     public void NotifySelectionChanged()
     {
+        RecomputeSelectionStats();
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedBytes));
     }
@@ -364,24 +448,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public void SelectAll()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = true;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Deselects all items.</summary>
     public void DeselectAll()
     {
         foreach (var i in Items) i.IsSelected = false;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Toggles the selection state of every visible item (except the parent entry).</summary>
     public void InvertSelection()
     {
         foreach (var i in Items) if (!i.IsParent) i.IsSelected = !i.IsSelected;
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Selects all items whose names match the given wildcard pattern (e.g. <c>*.txt</c>).</summary>
@@ -393,8 +474,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (i.IsParent) continue;
             i.IsSelected = MatchesPattern(i.Name, pattern);
         }
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>Deselects all items whose names match the given wildcard pattern.</summary>
@@ -407,8 +487,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (MatchesPattern(i.Name, pattern))
                 i.IsSelected = false;
         }
-        OnPropertyChanged(nameof(SelectedCount));
-        OnPropertyChanged(nameof(SelectedBytes));
+        NotifySelectionChanged();
     }
 
     /// <summary>
@@ -429,15 +508,6 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
             .Replace("\\*", ".*").Replace("\\?", ".") + "$";
         return System.Text.RegularExpressions.Regex.IsMatch(name, regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes <= 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
     }
 
     // ── FileSystemWatcher ──
@@ -525,6 +595,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         StopWatcher();
+
+        if (_settingsSaveDebounce is { Enabled: true })
+        {
+            _settingsSaveDebounce.Stop();
+            SaveSortSettingsNow(); // flush a pending debounced save rather than lose it on close
+        }
+        _settingsSaveDebounce?.Dispose();
+        _settingsSaveDebounce = null;
+
         var cts = _navCts;
         _navCts = null;
         try { cts?.Cancel(); } catch (ObjectDisposedException) { }

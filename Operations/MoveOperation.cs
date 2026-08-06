@@ -110,39 +110,12 @@ public sealed class MoveOperation : FileOperation
 
     private async Task MoveEntryWithResolver(FileEntry file, string destFullPath, CancellationToken ct)
     {
-        var actualDest = destFullPath;
-        var overwrite = _options.Overwrite;
+        var resolution = await ConflictResolver.ResolveAsync(_destFs, file.FullPath, destFullPath, file, _options, ct).ConfigureAwait(false);
+        if (!resolution.Proceed)
+            return;
+        var actualDest = resolution.TargetPath;
 
-        if (await _destFs.ExistsAsync(destFullPath, ct).ConfigureAwait(false))
-        {
-            var action = OverwriteAction.Skip;
-            string? newName = null;
-
-            if (_options.OverwriteResolver != null)
-            {
-                var destInfo = await _destFs.GetFileInfoAsync(destFullPath, ct).ConfigureAwait(false);
-                action = _options.OverwriteResolver(file.FullPath, destFullPath, file, destInfo, out newName);
-            }
-            else if (_options.Overwrite)
-            {
-                action = OverwriteAction.Overwrite;
-            }
-
-            if (action is OverwriteAction.Skip or OverwriteAction.SkipAll)
-                return;
-
-            // Resolver decision overrides the static flag.
-            if (action is OverwriteAction.Overwrite or OverwriteAction.OverwriteAll or OverwriteAction.OverwriteOlder)
-                overwrite = true;
-
-            if (action == OverwriteAction.Rename && !string.IsNullOrEmpty(newName))
-            {
-                actualDest = VfsPath.ChangeName(destFullPath, newName);
-                overwrite = false;
-            }
-        }
-
-        await _sourceFs.MoveAsync(file.FullPath, actualDest, overwrite, ct).ConfigureAwait(false);
+        await _sourceFs.MoveAsync(file.FullPath, actualDest, resolution.Overwrite, ct).ConfigureAwait(false);
 
         if (_options.CopyAttributes && file.Attributes != default)
         {

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using CoderCommander.FileSystem;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Archives.Zip;
 
@@ -12,12 +13,13 @@ namespace CoderCommander.Archives.Zip;
 public sealed class ZipArchiveWriter : IArchiveWriter
 {
     private readonly string _archivePath;
-    private readonly ZipArchive _zip;
+    private readonly ZipArchiveFileSystem.ZipUpdateSession _session;
+    private ZipArchive _zip => _session.Archive;
 
     public ZipArchiveWriter(string archivePath, ArchiveWriteOptions options)
     {
         _archivePath = archivePath;
-        _zip = ZipArchiveFileSystem.OpenForUpdate(archivePath, options.PlannedEntryNames);
+        _session = ZipArchiveFileSystem.OpenForUpdate(archivePath, options.PlannedEntryNames);
     }
 
     public ArchiveWriteMode Mode => ArchiveWriteMode.UpdateInPlace;
@@ -44,7 +46,7 @@ public sealed class ZipArchiveWriter : IArchiveWriter
         var entry = _zip.CreateEntry(name, ToCompressionLevel(compression));
         entry.LastWriteTime = ToEntryTimestamp(lastWriteTimeUtc);
 
-        var bufferSize = size > 104857600 ? 4194304 : 1048576; // 4MB for >100MB, 1MB otherwise
+        var bufferSize = BufferSizing.ForSize(size);
         using var dst = entry.Open();
         await content.CopyToAsync(dst, bufferSize, ct).ConfigureAwait(false);
     }
@@ -80,7 +82,7 @@ public sealed class ZipArchiveWriter : IArchiveWriter
 
     public void Dispose()
     {
-        _zip.Dispose();
+        _session.Dispose(); // flushes to the temp copy, then atomically replaces the original
         ZipArchiveFileSystem.Forget(_archivePath);
     }
 

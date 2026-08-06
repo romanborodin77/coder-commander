@@ -1,6 +1,7 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Operations;
 
@@ -30,7 +31,6 @@ public sealed class UnpackOperation : FileOperation
     private int _filesTotal;
     private long _bytesProcessed;
     private long _bytesTotal;
-    private long _lastReportTicks;
 
     /// <summary>Creates an unpack operation that extracts entries from an archive.</summary>
     /// <param name="items">Entries to extract; empty means the whole archive.</param>
@@ -71,6 +71,8 @@ public sealed class UnpackOperation : FileOperation
 
             _filesTotal = selected.Count;
             _bytesTotal = selected.Where(r => !r.IsDirectory).Sum(r => r.Size);
+
+            await RejectIfWouldExhaustDisk(ct).ConfigureAwait(false);
 
             await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
 
@@ -133,6 +135,16 @@ public sealed class UnpackOperation : FileOperation
             // than let the reader throw a raw crypto exception the moment its stream is touched,
             // skip the entry cleanly and let the rest of the archive extract normally.
             LogService.Warning($"Unpack: skipping encrypted entry {record.FullName}");
+            _filesProcessed++;
+            return;
+        }
+
+        if (record.IsLink)
+        {
+            // No reader materializes a link's target as real content (see IArchiveReader.ScanAsync
+            // implementations) - writing a 0-byte file in its place would silently look like real,
+            // if empty, data. Skip it visibly instead.
+            LogService.Warning($"Unpack: skipping symlink/hardlink entry {record.FullName}");
             _filesProcessed++;
             return;
         }
@@ -204,6 +216,28 @@ public sealed class UnpackOperation : FileOperation
         return cut < 0 ? name : name[(cut + 1)..];
     }
 
+    /// <summary>
+    /// Refuses to start extraction when the archive's own declared uncompressed size already
+    /// exceeds the free space at the destination - the defining trait of a decompression bomb
+    /// (a small compressed file whose metadata honestly advertises a huge uncompressed payload,
+    /// e.g. the classic "42.zip"). <see cref="_bytesTotal"/> comes straight from the entries'
+    /// declared <see cref="ArchiveEntryRecord.Size"/>, computed before a single byte is written,
+    /// so this catches the bomb without needing to actually inflate anything first.
+    /// </summary>
+    private async Task RejectIfWouldExhaustDisk(CancellationToken ct)
+    {
+        if (_bytesTotal <= 0)
+            return;
+
+        var (freeBytes, _) = await _destFs.GetDriveSpaceAsync(_destPath, ct).ConfigureAwait(false);
+        if (freeBytes <= 0)
+            return; // destination doesn't report free space (e.g. writing into another archive) - can't check
+
+        if (_bytesTotal > freeBytes)
+            throw new IOException(
+                $"Unpacking would need {FormatUtils.FormatSize(_bytesTotal)} but only {FormatUtils.FormatSize(freeBytes)} is free at the destination.");
+    }
+
     private async Task<bool> ExtractAsync(
         ArchiveEntryRecord record,
         Stream content,
@@ -214,40 +248,21 @@ public sealed class UnpackOperation : FileOperation
         if (!string.IsNullOrEmpty(parent))
             await _destFs.CreateDirectoryAsync(parent, ct).ConfigureAwait(false);
 
-        var actualTarget = target;
+        var sourceInfo = new FileEntry(
+            ArchivePath.MakePath(_archivePath, record.FullName),
+            false, true, record.Size, lastWriteTimeUtc: record.LastWriteTimeUtc);
 
-        if (await _destFs.ExistsAsync(target, ct).ConfigureAwait(false))
-        {
-            var sourceInfo = new FileEntry(
-                ArchivePath.MakePath(_archivePath, record.FullName),
-                false, true, record.Size, lastWriteTimeUtc: record.LastWriteTimeUtc);
-
-            var action = OverwriteAction.Skip;
-            string? newName = null;
-
-            if (_options.OverwriteResolver != null)
-            {
-                var destInfo = await _destFs.GetFileInfoAsync(target, ct).ConfigureAwait(false);
-                action = _options.OverwriteResolver(sourceInfo.FullPath, target, sourceInfo, destInfo, out newName);
-            }
-            else if (_options.Overwrite)
-            {
-                action = OverwriteAction.Overwrite;
-            }
-
-            if (action is OverwriteAction.Skip or OverwriteAction.SkipAll)
-                return false;
-
-            if (action == OverwriteAction.Rename && !string.IsNullOrEmpty(newName))
-                actualTarget = VfsPath.ChangeName(target, newName);
-        }
+        var resolution = await ConflictResolver.ResolveAsync(_destFs, sourceInfo.FullPath, target, sourceInfo, _options, ct).ConfigureAwait(false);
+        if (!resolution.Proceed)
+            return false;
+        var actualTarget = resolution.TargetPath;
 
         try
         {
             using (var counting = new ProgressStream(content, chunk =>
             {
                 _bytesProcessed += chunk;
-                ReportThrottled(record.FullName);
+                ReportThrottled(() => ReportProgress(record.FullName));
             }))
             {
                 await _destFs.CopyFromStreamAsync(actualTarget, counting, ct).ConfigureAwait(false);
@@ -282,15 +297,12 @@ public sealed class UnpackOperation : FileOperation
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogService.Error($"Unpack: cannot remove entries from {_archivePath}: {ex.Message}", ex);
+            // Rethrow rather than swallow: silently reporting this operation as Completed when
+            // "move" left the entries behind in the archive (as well as extracted to disk) would
+            // be worse than a clearly worded failure.
+            throw new IOException(
+                $"Unpacked successfully, but the extracted entries could not be removed from the archive (move left copies in both places): {ex.Message}", ex);
         }
-    }
-
-    private void ReportThrottled(string currentFile)
-    {
-        var now = Environment.TickCount64;
-        if (now - _lastReportTicks < 250) return;
-        _lastReportTicks = now;
-        ReportProgress(currentFile);
     }
 
     private void ReportProgress(string currentFile)

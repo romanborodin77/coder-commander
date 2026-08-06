@@ -166,7 +166,10 @@ public sealed class CopyOperation : FileOperation
             }
 
             foreach (var child in children.OrderBy(c => c.FullPath, StringComparer.OrdinalIgnoreCase))
+            {
+                ct.ThrowIfCancellationRequested();
                 plan.Add((child, VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath))));
+            }
         }
 
         return plan;
@@ -178,28 +181,10 @@ public sealed class CopyOperation : FileOperation
         if (!string.IsNullOrEmpty(destDir))
             await _destFs.CreateDirectoryAsync(destDir, ct).ConfigureAwait(false);
 
-        var actualDestPath = destPath;
-
-        if (await _destFs.ExistsAsync(destPath, ct).ConfigureAwait(false))
-        {
-            var action = OverwriteAction.Skip;
-            string? newName = null;
-            if (_options.OverwriteResolver != null)
-            {
-                var destInfo = await _destFs.GetFileInfoAsync(destPath, ct).ConfigureAwait(false);
-                action = _options.OverwriteResolver(file.FullPath, destPath, file, destInfo, out newName);
-            }
-            else if (_options.Overwrite)
-            {
-                action = OverwriteAction.Overwrite;
-            }
-
-            if (action is OverwriteAction.Skip or OverwriteAction.SkipAll)
-                return;
-
-            if (action == OverwriteAction.Rename && !string.IsNullOrEmpty(newName))
-                actualDestPath = VfsPath.ChangeName(destPath, newName);
-        }
+        var resolution = await ConflictResolver.ResolveAsync(_destFs, file.FullPath, destPath, file, _options, ct).ConfigureAwait(false);
+        if (!resolution.Proceed)
+            return;
+        var actualDestPath = resolution.TargetPath;
 
         using (var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false))
         {

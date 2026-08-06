@@ -162,6 +162,7 @@ public sealed class PackOperation : FileOperation
 
             foreach (var child in children)
             {
+                ct.ThrowIfCancellationRequested();
                 var childName = Join(target, VfsPath.GetRelative(file.FullPath, child.FullPath));
                 if (childName.Length == 0)
                     continue;
@@ -216,7 +217,7 @@ public sealed class PackOperation : FileOperation
         using (var counting = new ProgressStream(src, chunk =>
         {
             _bytesProcessed += chunk;
-            ReportThrottled(source.Name);
+            ReportThrottled(() => ReportProgress(source.Name));
         }))
         {
             await writer.WriteFileAsync(entryName, counting, source.Size, source.LastWriteTimeUtc, compression, ct).ConfigureAwait(false);
@@ -266,6 +267,12 @@ public sealed class PackOperation : FileOperation
     /// </summary>
     private async Task RemoveSourcesAsync(List<PackItem> plan, HashSet<string> writtenPaths, CancellationToken ct)
     {
+        // Best-effort per file (a lock on one source shouldn't stop the rest from being cleaned
+        // up), but failures are collected rather than only logged: silently reporting this
+        // operation as Completed when "move" left copies behind in both places would be worse
+        // than a clearly worded failure - see the throw below.
+        var failures = new List<string>();
+
         for (var idx = 0; idx < _files.Count; idx++)
         {
             var file = _files[idx];
@@ -299,14 +306,22 @@ public sealed class PackOperation : FileOperation
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         LogService.Warning($"Pack: cannot remove source {d.Source!.FullPath}: {ex.Message}");
+                        failures.Add(d.Source!.FullPath);
                     }
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogService.Warning($"Pack: cannot remove source {file.FullPath}: {ex.Message}");
+                failures.Add(file.FullPath);
             }
         }
+
+        if (failures.Count > 0)
+            throw new IOException(
+                $"Packed successfully, but {failures.Count} source item(s) could not be removed " +
+                $"(move left copies in both places): {string.Join(", ", failures.Take(5))}" +
+                (failures.Count > 5 ? $" and {failures.Count - 5} more" : ""));
     }
 
     private static string Join(string head, string tail)
@@ -314,17 +329,6 @@ public sealed class PackOperation : FileOperation
         var normalizedTail = VfsPath.NormalizeInner(tail);
         if (normalizedTail.Length == 0) return head;
         return head.Length == 0 ? normalizedTail : head + "/" + normalizedTail;
-    }
-
-    private long _lastReportTicks;
-
-    /// <summary>Keeps the UI responsive without flooding it while a large file streams.</summary>
-    private void ReportThrottled(string currentFile)
-    {
-        var now = Environment.TickCount64;
-        if (now - _lastReportTicks < 250) return;
-        _lastReportTicks = now;
-        ReportProgress(currentFile);
     }
 
     private void ReportProgress(string currentFile)

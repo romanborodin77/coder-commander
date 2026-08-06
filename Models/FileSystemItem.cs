@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Utils;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -80,7 +81,7 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     {
         Entry = entry;
         IsParent = isParent;
-        SizeDisplay = isParent ? "" : (entry.IsDirectory ? "<DIR>" : FormatSize(entry.Size));
+        SizeDisplay = isParent ? "" : (entry.IsDirectory ? "<DIR>" : FormatUtils.FormatSize(entry.Size));
         ModifiedDisplay = isParent ? "" : entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
         AttributesDisplay = isParent ? "" : FormatAttributes(entry.Attributes);
         if (isParent)
@@ -124,16 +125,6 @@ public sealed class FileSystemItem : INotifyPropertyChanged
         }
         var entry = new FileEntry(parent, true);
         return new FileSystemItem(entry, isParent: true) { DisplayName = ".." };
-    }
-
-    /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 KB").</summary>
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 0) return "--";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
     }
 
     /// <summary>Formats file attributes into a short string (e.g. "RHA").</summary>

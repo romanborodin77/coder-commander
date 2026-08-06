@@ -18,7 +18,12 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     private readonly string _stagingPath;
     private readonly FileStream _stagingStream;
     private readonly ISequentialArchiveWriter _stagingWriter;
-    private readonly HashSet<string> _touchedNames = new(StringComparer.OrdinalIgnoreCase);
+    // Keyed by (name, isDirectory) rather than just name: an archive can pathologically contain
+    // both a file "foo" and a directory "foo/" at once, and normalizing away the trailing slash
+    // used to collapse them into the same key, so deleting/touching one could make CopySurvivorsAsync
+    // skip the other too.
+    private readonly HashSet<(string Name, bool IsDirectory)> _touchedNames = new();
+    private FileStream? _lock;
     private bool _committed;
     private bool _disposed;
 
@@ -28,6 +33,17 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _format = format;
         _createWriter = createWriter;
         _stagingPath = archivePath + ".stage-" + Guid.NewGuid().ToString("N") + ".tmp";
+
+        // Hold an exclusive lock on the real archive for this writer's entire lifetime, not just
+        // while CommitAsync reads it: CommitAsync reads survivors through the format's own
+        // shared-read helper (FileShare.ReadWrite), so without a lock held from construction, a
+        // second writer session for the same archive could commit its own changes in the gap
+        // between "this session decided what to add/delete" and "this session's commit reads the
+        // original" - whichever commits last would silently discard the other's changes via its
+        // final File.Move. Only archives that already exist need this; a brand-new archive has
+        // nothing to race over yet.
+        _lock = File.Exists(archivePath) ? ArchiveFileRetry.OpenExclusiveWithRetry(archivePath) : null;
+
         _stagingStream = new FileStream(_stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
         _stagingWriter = createWriter(_stagingStream);
     }
@@ -36,7 +52,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
 
     public void CreateDirectoryEntry(string entryName, DateTime lastWriteTimeUtc)
     {
-        _touchedNames.Add(Normalize(entryName));
+        _touchedNames.Add(Key(entryName, isDirectory: true));
         _stagingWriter.WriteDirectory(entryName, lastWriteTimeUtc);
     }
 
@@ -48,7 +64,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         ArchiveCompressionSpec compression,
         CancellationToken ct = default)
     {
-        _touchedNames.Add(Normalize(entryName));
+        _touchedNames.Add(Key(entryName, isDirectory: false));
         await _stagingWriter.WriteFileAsync(entryName, content, size, lastWriteTimeUtc, compression, ct).ConfigureAwait(false);
     }
 
@@ -57,7 +73,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     /// original until then.</summary>
     public bool TryDeleteEntry(ArchiveEntryRecord entry)
     {
-        _touchedNames.Add(Normalize(entry.FullName));
+        _touchedNames.Add(Key(entry.FullName, entry.IsDirectory));
         return true;
     }
 
@@ -95,6 +111,13 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                 }
             }
 
+            // Release the exclusive lock only now, immediately before the replace - Windows won't
+            // let File.Move overwrite a file this same process still has open without
+            // FileShare.Delete. This leaves only the instant between releasing the lock and the
+            // move actually completing unprotected, versus the entire session beforehand.
+            _lock?.Dispose();
+            _lock = null;
+
             File.Move(finalPath, _archivePath, overwrite: true);
         }
         finally
@@ -109,7 +132,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         await foreach (var item in originalReader.ScanAsync(ct).ConfigureAwait(false))
         {
             using var content = item.Content;
-            if (_touchedNames.Contains(Normalize(item.Entry.FullName)))
+            if (_touchedNames.Contains(Key(item.Entry.FullName, item.Entry.IsDirectory)))
                 continue;
 
             if (item.Entry.IsDirectory)
@@ -120,7 +143,8 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         }
     }
 
-    private static string Normalize(string name) => name.Replace('\\', '/').Trim('/');
+    private static (string Name, bool IsDirectory) Key(string name, bool isDirectory) =>
+        (name.Replace('\\', '/').Trim('/').ToUpperInvariant(), isDirectory);
 
     private static void TryDeleteFile(string path)
     {
@@ -138,6 +162,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
             try { _stagingStream.Dispose(); } catch { /* best effort */ }
         }
 
+        try { _lock?.Dispose(); } catch { /* best effort */ }
         TryDeleteFile(_stagingPath);
     }
 

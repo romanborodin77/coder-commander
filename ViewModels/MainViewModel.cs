@@ -4,6 +4,7 @@ using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Operations;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CoderCommander.ViewModels;
@@ -393,6 +394,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Unlike Delete, always confirmed - Wipe is irreversible and (per ExecuteWipe's caveat)
+        // doesn't even guarantee what it promises on an SSD, so skipping confirmation isn't offered.
+        WipeConfirmRequested?.Invoke(this, files);
+    }
+
+    /// <summary>Queues a secure-wipe operation once the user has confirmed it.</summary>
+    public void ExecuteWipe(IReadOnlyList<Models.FileSystemItem> files)
+    {
         var entries = files.Select(f => f.Entry).ToList();
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
@@ -581,6 +590,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? AboutRequested;
     /// <summary>Raised when a delete needs user confirmation before proceeding.</summary>
     public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? DeleteConfirmRequested;
+    /// <summary>Raised when a wipe operation needs user confirmation before proceeding.</summary>
+    public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? WipeConfirmRequested;
     /// <summary>
     /// Raised when the shell Recycle Bin failed for one or more files that still exist on disk and
     /// permanently deleting them is the only remaining option. Handler must set <see cref="ConfirmPermanentDeleteEventArgs.Proceed"/>.
@@ -674,16 +685,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var panel = ActivePanel;
         var L = LocalizationService.Current;
-        StatusText = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatSize(panel.SelectedBytes)})  |  {panel.FreeSpaceDisplay}";
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        if (bytes <= 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
+        StatusText = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatUtils.FormatSize(panel.SelectedBytes)})  |  {panel.FreeSpaceDisplay}";
     }
 
     /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>

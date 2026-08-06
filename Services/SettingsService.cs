@@ -128,7 +128,37 @@ public static class SettingsService
         if (s.TerminalHeight < 0) s.TerminalHeight = defaults.TerminalHeight;
 
         MigrateLegacyCompressionLevel(s);
+        CleanArchiveCompression(s);
+        CleanAlreadyCompressedExtensions(s);
     }
+
+    /// <summary>Mirrors <see cref="CoderCommander.Archives.CompressionPreset"/>'s member names as
+    /// plain strings rather than referencing the enum itself, matching <see cref="AppSettings.ArchiveCompression"/>'s
+    /// own "no dependency on the Archives namespace" design (see its doc comment) - Archives
+    /// already depends on Services (LogService), so the reverse reference would be circular.</summary>
+    private static readonly string[] KnownCompressionPresets = { "Store", "Fastest", "Balanced", "Maximum" };
+
+    /// <summary>Drops entries whose value isn't a recognized preset name. The point of use
+    /// (PackDialogForm/SettingsForm) already falls back gracefully via Enum.TryParse for an
+    /// unrecognized value, but a hand-edited or stale settings.json would otherwise carry a dead
+    /// entry around forever instead of it ever getting cleaned up.</summary>
+    private static void CleanArchiveCompression(AppSettings s)
+    {
+        if (s.ArchiveCompression.Count == 0) return;
+
+        var invalidKeys = s.ArchiveCompression
+            .Where(kv => Array.IndexOf(KnownCompressionPresets, kv.Value) < 0)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        foreach (var key in invalidKeys)
+            s.ArchiveCompression.Remove(key);
+    }
+
+    /// <summary>Drops entries that can't be a real extension (blank, or missing the leading dot
+    /// every other extension list in the app uses).</summary>
+    private static void CleanAlreadyCompressedExtensions(AppSettings s) =>
+        s.AlreadyCompressedExtensions.RemoveAll(ext => string.IsNullOrWhiteSpace(ext) || !ext.StartsWith('.'));
 
     /// <summary>
     /// Folds the old global 0/1/2 compression level into the new per-format

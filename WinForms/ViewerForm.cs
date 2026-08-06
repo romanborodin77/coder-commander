@@ -437,6 +437,10 @@ public class ViewerForm : ThemedForm
         try
         {
             var image = Image.FromFile(_path);
+            // Dispose the previously loaded image before replacing it - without this, paging
+            // through a folder of photos with the ◀/▶ toolbar buttons accumulated one live
+            // Bitmap/GDI handle per image for the lifetime of the viewer window.
+            _pictureBox.Image?.Dispose();
             _pictureBox.Image = image;
             _zoom = 1.0f;
             _lblZoom.Text = "100%";
@@ -477,8 +481,12 @@ public class ViewerForm : ThemedForm
             sb.AppendLine();
         }
 
-        var bytes = File.ReadAllBytes(_path);
-        var limit = (int)Math.Min(bytes.Length, HexMaxBytes);
+        // Bounded read: only the first HexMaxBytes are ever displayed, so only read that much off
+        // disk - File.ReadAllBytes here used to load an entire multi-GB ISO/video/dump into
+        // memory (freezing the UI thread and risking OutOfMemoryException) just to show its first
+        // megabyte.
+        var bytes = ReadBoundedBytes(_path, HexMaxBytes);
+        var limit = bytes.Length;
 
         for (int i = 0; i < limit; i += HexBytesPerRow)
         {
@@ -506,10 +514,26 @@ public class ViewerForm : ThemedForm
             sb.AppendLine();
         }
 
-        if (bytes.Length > HexMaxBytes)
-            sb.AppendLine($"... ({FormatSize(bytes.Length - HexMaxBytes)} more)");
+        if (_fileSize > HexMaxBytes)
+            sb.AppendLine($"... ({FormatSize(_fileSize - HexMaxBytes)} more)");
 
         _textBox.Text = sb.ToString();
+    }
+
+    /// <summary>Reads at most <paramref name="maxBytes"/> bytes from the start of the file.</summary>
+    private static byte[] ReadBoundedBytes(string path, int maxBytes)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var toRead = (int)Math.Min(fs.Length, maxBytes);
+        var buffer = new byte[toRead];
+        var read = 0;
+        while (read < toRead)
+        {
+            var n = fs.Read(buffer, read, toRead - read);
+            if (n == 0) break; // unexpected EOF - keep whatever was actually read
+            read += n;
+        }
+        return read == toRead ? buffer : buffer[..read];
     }
 
     /// <summary>Updates the status bar labels with file name, size, mode, and extension.</summary>
@@ -522,15 +546,7 @@ public class ViewerForm : ThemedForm
     }
 
     /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
-    private static string FormatSize(long bytes)
-    {
-        if (bytes < 0) return "—";
-        if (bytes == 0) return "0 B";
-        string[] u = ["B", "KB", "MB", "GB", "TB"];
-        double s = bytes; int i = 0;
-        while (s >= 1024 && i < u.Length - 1) { s /= 1024; i++; }
-        return $"{s:0.##} {u[i]}";
-    }
+    private static string FormatSize(long bytes) => CoderCommander.Utils.FormatUtils.FormatSize(bytes);
 
     /// <summary>Unsubscribes from theme events and disposes the image on disposal.</summary>
     protected override void Dispose(bool disposing)
