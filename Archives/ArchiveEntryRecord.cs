@@ -22,6 +22,12 @@ public sealed record ArchiveEntryRecord
     public int Index { get; init; }
 
     public bool IsEncrypted { get; init; }
+
+    /// <summary>True for a symbolic or hard link entry. Readers that can't materialize the link
+    /// target as real file content (all of them, currently) leave <see cref="IArchiveReader.ScanAsync"/>'s
+    /// content stream empty for these - extraction skips them explicitly instead of silently
+    /// writing a 0-byte file in the link's place.</summary>
+    public bool IsLink { get; init; }
 }
 
 /// <summary>Immutable snapshot of an archive's directory listing.</summary>

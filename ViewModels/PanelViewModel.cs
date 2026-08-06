@@ -117,22 +117,32 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     partial void OnSortColumnChanged(string value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnSortDescendingChanged(bool value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
     }
 
     partial void OnDirectoriesFirstChanged(bool value)
     {
         SaveSortSettings();
-        _ = RefreshAsync();
+        ResortAndReapply();
         SortChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Re-sorts the already-loaded item list and reapplies the current filter, without
+    /// touching the file system - sort/directories-first changes used to call RefreshAsync(),
+    /// which re-enumerated the whole directory (or archive, or network share) just to reorder
+    /// items already in memory.</summary>
+    private void ResortAndReapply()
+    {
+        SortAllItems();
+        ApplyFilter();
     }
 
     private void SaveSortSettings()

@@ -92,6 +92,7 @@ public sealed class TarArchiveReader : IArchiveReader
             name = name[2..];
 
         var isDirectory = entry.EntryType == TarEntryType.Directory || name.EndsWith('/');
+        var isLink = entry.EntryType is TarEntryType.SymbolicLink or TarEntryType.HardLink;
 
         return new ArchiveEntryRecord
         {
@@ -100,7 +101,8 @@ public sealed class TarArchiveReader : IArchiveReader
             Size = isDirectory ? 0 : entry.Length,
             PackedSize = 0,
             LastWriteTimeUtc = entry.ModificationTime.UtcDateTime,
-            Index = index
+            Index = index,
+            IsLink = isLink
         };
     }
 }

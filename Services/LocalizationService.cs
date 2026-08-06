@@ -54,7 +54,10 @@ public sealed class LocalizationService
         {
             "en" => "english",
             "ru" => "russian",
-            _ => code
+            // code round-trips through settings.json - sanitize before it becomes a path. Without
+            // this, a code like "..\..\..\some\file" would make File.Exists/LoadFromFile below
+            // read and display an arbitrary file's contents as UI strings.
+            _ => SanitizeLanguageFileStem(code)
         };
         var path = Path.Combine(AppContext.BaseDirectory, "lang", $"{fileName}.lng");
         if (File.Exists(path))
@@ -86,6 +89,21 @@ public sealed class LocalizationService
             }
         }
         return list;
+    }
+
+    /// <summary>Strips any directory traversal a language code might contain (e.g. from a hand-edited
+    /// or tampered settings.json), so it can only ever name a file directly inside lang/.</summary>
+    private static string SanitizeLanguageFileStem(string code)
+    {
+        try
+        {
+            var name = Path.GetFileName(code);
+            return string.IsNullOrEmpty(name) ? "invalid" : name;
+        }
+        catch (ArgumentException)
+        {
+            return "invalid";
+        }
     }
 
     private void LoadFromFile(string path)

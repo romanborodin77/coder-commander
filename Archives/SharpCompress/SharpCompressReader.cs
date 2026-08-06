@@ -113,9 +113,10 @@ public sealed class SharpCompressReader : IArchiveReader
 
                 var record = ToRecord(reader.Entry, index++);
                 // Encrypted entries fail with a raw crypto exception the moment their stream is
-                // touched; skip opening it here so extraction sees IsEncrypted and can reject
+                // touched; links have no real file content to stream at all (only a target path).
+                // Skip opening either here so extraction sees IsEncrypted/IsLink and can reject
                 // cleanly instead (see UnpackOperation.ProcessRecordAsync).
-                var content = record.IsDirectory || record.IsEncrypted
+                var content = record.IsDirectory || record.IsEncrypted || record.IsLink
                     ? Stream.Null
                     : new NonDisposingStream(reader.OpenEntryStream());
 
@@ -178,7 +179,10 @@ public sealed class SharpCompressReader : IArchiveReader
             PackedSize = entry.CompressedSize,
             LastWriteTimeUtc = entry.LastModifiedTime?.ToUniversalTime() ?? default,
             Index = index,
-            IsEncrypted = entry.IsEncrypted
+            IsEncrypted = entry.IsEncrypted,
+            // LinkTarget is non-null for symbolic/hard link entries (SharpCompress's one signal
+            // for this across formats - there's no separate IsSymLink/IsHardLink flag).
+            IsLink = !entry.IsDirectory && entry.LinkTarget != null
         };
     }
 }

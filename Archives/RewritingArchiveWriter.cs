@@ -19,6 +19,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     private readonly FileStream _stagingStream;
     private readonly ISequentialArchiveWriter _stagingWriter;
     private readonly HashSet<string> _touchedNames = new(StringComparer.OrdinalIgnoreCase);
+    private FileStream? _lock;
     private bool _committed;
     private bool _disposed;
 
@@ -28,6 +29,17 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _format = format;
         _createWriter = createWriter;
         _stagingPath = archivePath + ".stage-" + Guid.NewGuid().ToString("N") + ".tmp";
+
+        // Hold an exclusive lock on the real archive for this writer's entire lifetime, not just
+        // while CommitAsync reads it: CommitAsync reads survivors through the format's own
+        // shared-read helper (FileShare.ReadWrite), so without a lock held from construction, a
+        // second writer session for the same archive could commit its own changes in the gap
+        // between "this session decided what to add/delete" and "this session's commit reads the
+        // original" - whichever commits last would silently discard the other's changes via its
+        // final File.Move. Only archives that already exist need this; a brand-new archive has
+        // nothing to race over yet.
+        _lock = File.Exists(archivePath) ? ArchiveFileRetry.OpenExclusiveWithRetry(archivePath) : null;
+
         _stagingStream = new FileStream(_stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
         _stagingWriter = createWriter(_stagingStream);
     }
@@ -95,6 +107,13 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                 }
             }
 
+            // Release the exclusive lock only now, immediately before the replace - Windows won't
+            // let File.Move overwrite a file this same process still has open without
+            // FileShare.Delete. This leaves only the instant between releasing the lock and the
+            // move actually completing unprotected, versus the entire session beforehand.
+            _lock?.Dispose();
+            _lock = null;
+
             File.Move(finalPath, _archivePath, overwrite: true);
         }
         finally
@@ -138,6 +157,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
             try { _stagingStream.Dispose(); } catch { /* best effort */ }
         }
 
+        try { _lock?.Dispose(); } catch { /* best effort */ }
         TryDeleteFile(_stagingPath);
     }
 

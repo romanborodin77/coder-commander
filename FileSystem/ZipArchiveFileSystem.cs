@@ -1,3 +1,4 @@
+using CoderCommander.Archives;
 using CoderCommander.Services;
 using System.IO.Compression;
 using System.Text;
@@ -758,25 +759,38 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     {
         private readonly string _archivePath;
         private readonly string _tempPath;
+        private FileStream? _lock;
         private bool _disposed;
 
         /// <summary>The archive, opened against a private temporary copy - never the real file.</summary>
         public ZipArchive Archive { get; }
 
-        private ZipUpdateSession(string archivePath, string tempPath, ZipArchive archive)
+        private ZipUpdateSession(string archivePath, string tempPath, ZipArchive archive, FileStream? @lock)
         {
             _archivePath = archivePath;
             _tempPath = tempPath;
             Archive = archive;
+            _lock = @lock;
         }
 
         internal static ZipUpdateSession Open(string archivePath, IEnumerable<string>? newEntryNames)
         {
             var tempPath = archivePath + ".update-" + Guid.NewGuid().ToString("N") + ".tmp";
+            FileStream? @lock = null;
             try
             {
+                // Exclusive lock on the real archive for this session's entire lifetime, not just
+                // the final replace: without it, two concurrent sessions for the same archive
+                // (e.g. a Pack operation racing a panel-level rename/delete inside the same ZIP)
+                // would each copy the same starting point, mutate independently, and whichever
+                // finishes last would silently discard the other's changes via its own File.Move.
+                // ArchiveFileRetry.OpenExclusiveWithRetry already backs off if another process
+                // (AV/indexer) is transiently scanning a just-written archive.
                 if (File.Exists(archivePath))
-                    CopyWithRetry(archivePath, tempPath);
+                {
+                    @lock = ArchiveFileRetry.OpenExclusiveWithRetry(archivePath);
+                    CopyLockedFile(@lock, tempPath);
+                }
 
                 var stream = new FileStream(tempPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 var mode = stream.Length > 0 ? ZipArchiveMode.Update : ZipArchiveMode.Create;
@@ -790,10 +804,11 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                     stream.Dispose();
                     throw;
                 }
-                return new ZipUpdateSession(archivePath, tempPath, archive);
+                return new ZipUpdateSession(archivePath, tempPath, archive, @lock);
             }
             catch
             {
+                @lock?.Dispose();
                 TryDeleteFile(tempPath);
                 throw;
             }
@@ -811,45 +826,28 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             try
             {
                 Archive.Dispose();
+
+                // Release the exclusive lock only now, immediately before the replace - Windows
+                // won't let File.Move overwrite a file this same process still has open without
+                // FileShare.Delete. This leaves only the instant between releasing the lock and
+                // the move actually completing unprotected, versus the entire session beforehand.
+                _lock?.Dispose();
+                _lock = null;
+
                 File.Move(_tempPath, _archivePath, overwrite: true);
             }
             finally
             {
+                _lock?.Dispose();
                 TryDeleteFile(_tempPath);
             }
         }
 
-        /// <summary>Retries like <see cref="ReadDirectory"/> does: another panel reading the same
-        /// archive (or an AV/indexer scan of a just-written one) can hold a transient lock, and
-        /// failing immediately turns routine concurrent access into a hard error.</summary>
-        private static void CopyWithRetry(string sourcePath, string destPath)
+        private static void CopyLockedFile(FileStream source, string destPath)
         {
-            try
-            {
-                File.Copy(sourcePath, destPath, overwrite: true);
-            }
-            catch (IOException ex) when (ex.Message.Contains("being used by another process"))
-            {
-                LogService.Warning($"Archive locked by another process, retrying: {sourcePath}");
-
-                ReadOnlySpan<int> retryDelaysMs = [150, 300, 600];
-                Exception lastError = ex;
-                foreach (var delayMs in retryDelaysMs)
-                {
-                    Thread.Sleep(delayMs);
-                    try
-                    {
-                        File.Copy(sourcePath, destPath, overwrite: true);
-                        return;
-                    }
-                    catch (Exception ex2)
-                    {
-                        lastError = ex2;
-                    }
-                }
-
-                throw new IOException($"Cannot open archive for update after {retryDelaysMs.Length} retries: {sourcePath}", lastError);
-            }
+            source.Position = 0;
+            using var dest = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            source.CopyTo(dest);
         }
 
         private static void TryDeleteFile(string path)

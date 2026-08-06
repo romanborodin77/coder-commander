@@ -72,6 +72,8 @@ public sealed class UnpackOperation : FileOperation
             _filesTotal = selected.Count;
             _bytesTotal = selected.Where(r => !r.IsDirectory).Sum(r => r.Size);
 
+            await RejectIfWouldExhaustDisk(ct).ConfigureAwait(false);
+
             await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
 
             if (reader.SupportsRandomAccess)
@@ -133,6 +135,16 @@ public sealed class UnpackOperation : FileOperation
             // than let the reader throw a raw crypto exception the moment its stream is touched,
             // skip the entry cleanly and let the rest of the archive extract normally.
             LogService.Warning($"Unpack: skipping encrypted entry {record.FullName}");
+            _filesProcessed++;
+            return;
+        }
+
+        if (record.IsLink)
+        {
+            // No reader materializes a link's target as real content (see IArchiveReader.ScanAsync
+            // implementations) - writing a 0-byte file in its place would silently look like real,
+            // if empty, data. Skip it visibly instead.
+            LogService.Warning($"Unpack: skipping symlink/hardlink entry {record.FullName}");
             _filesProcessed++;
             return;
         }
@@ -202,6 +214,37 @@ public sealed class UnpackOperation : FileOperation
 
         var cut = name.LastIndexOf('/');
         return cut < 0 ? name : name[(cut + 1)..];
+    }
+
+    /// <summary>
+    /// Refuses to start extraction when the archive's own declared uncompressed size already
+    /// exceeds the free space at the destination - the defining trait of a decompression bomb
+    /// (a small compressed file whose metadata honestly advertises a huge uncompressed payload,
+    /// e.g. the classic "42.zip"). <see cref="_bytesTotal"/> comes straight from the entries'
+    /// declared <see cref="ArchiveEntryRecord.Size"/>, computed before a single byte is written,
+    /// so this catches the bomb without needing to actually inflate anything first.
+    /// </summary>
+    private async Task RejectIfWouldExhaustDisk(CancellationToken ct)
+    {
+        if (_bytesTotal <= 0)
+            return;
+
+        var (freeBytes, _) = await _destFs.GetDriveSpaceAsync(_destPath, ct).ConfigureAwait(false);
+        if (freeBytes <= 0)
+            return; // destination doesn't report free space (e.g. writing into another archive) - can't check
+
+        if (_bytesTotal > freeBytes)
+            throw new IOException(
+                $"Unpacking would need {FormatSize(_bytesTotal)} but only {FormatSize(freeBytes)} is free at the destination.");
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes;
+        var i = 0;
+        while (size >= 1024 && i < units.Length - 1) { size /= 1024; i++; }
+        return $"{size:0.##} {units[i]}";
     }
 
     private async Task<bool> ExtractAsync(
@@ -282,6 +325,11 @@ public sealed class UnpackOperation : FileOperation
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogService.Error($"Unpack: cannot remove entries from {_archivePath}: {ex.Message}", ex);
+            // Rethrow rather than swallow: silently reporting this operation as Completed when
+            // "move" left the entries behind in the archive (as well as extracted to disk) would
+            // be worse than a clearly worded failure.
+            throw new IOException(
+                $"Unpacked successfully, but the extracted entries could not be removed from the archive (move left copies in both places): {ex.Message}", ex);
         }
     }
 
