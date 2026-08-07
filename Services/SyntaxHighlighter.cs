@@ -828,6 +828,10 @@ public static class SyntaxHighlighter
         return tokens;
     }
 
+    /// <summary>Line-length cap for the O(n^2) inline bold/italic/code/link scan in
+    /// <see cref="TokenizeMarkdown"/> - see the comment at its call site.</summary>
+    private const int MaxInlineScanLineLength = 2000;
+
     private static List<SyntaxToken> TokenizeMarkdown(string text)
     {
         var tokens = new List<SyntaxToken>();
@@ -866,7 +870,19 @@ public static class SyntaxHighlighter
                 continue;
             }
 
-            // Bold and italic
+            // Bold and italic. The scan below re-runs 4 regexes over the full remaining suffix
+            // on every match found, giving O(n^2) time for a line with many short matches - a
+            // single line near SyncTokenizeCharThreshold built from a repeating short pattern
+            // (e.g. "*a*a*a*..." ) would freeze the UI thread, since CodeEditorCanvas tokenizes
+            // synchronously there. Cap the line length this scan runs on; longer lines (well
+            // beyond any real Markdown prose line) fall through to a single Plain token instead.
+            if (line.Length > MaxInlineScanLineLength)
+            {
+                tokens.Add(new SyntaxToken(pos, line.Length, TokenType.Plain, line));
+                pos += line.Length + 1;
+                continue;
+            }
+
             var remaining = line;
             var linePos = pos;
             while (remaining.Length > 0)
