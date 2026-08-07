@@ -98,6 +98,6 @@ public class ZipArchiveRetryTests
         using var zip = ZipArchiveFileSystem.OpenForUpdate(_zipPath);
         releaseThread.Join(TimeSpan.FromSeconds(2));
 
-        Assert.That(zip.Entries.Count, Is.EqualTo(1));
+        Assert.That(zip.Archive.Entries.Count, Is.EqualTo(1));
     }
 }
