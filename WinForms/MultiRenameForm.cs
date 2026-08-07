@@ -331,10 +331,14 @@ public class MultiRenameForm : ThemedForm
             : value.ToString();
     }
 
-    /// <summary>Returns <c>true</c> if the name contains no invalid filename characters.</summary>
+    /// <summary>Returns <c>true</c> if the name contains no invalid filename characters and
+    /// isn't the reserved "." or ".." (which <see cref="Path.GetInvalidFileNameChars"/> alone
+    /// doesn't reject) - a pattern that evaluates to exactly ".." would otherwise resolve to the
+    /// parent directory via <c>Path.Combine(dir, "..")</c>.</summary>
     private static bool IsValidFileName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
+        if (name is "." or "..") return false;
         var invalid = Path.GetInvalidFileNameChars();
         return !name.Any(c => invalid.Contains(c));
     }

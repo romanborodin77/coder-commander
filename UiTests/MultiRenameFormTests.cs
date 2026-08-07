@@ -20,6 +20,33 @@ public class MultiRenameFormTests
     private static readonly MethodInfo ReplacePlaceholders = typeof(MultiRenameForm)
         .GetMethod("ReplacePlaceholders", BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly MethodInfo IsValidFileName = typeof(MultiRenameForm)
+        .GetMethod("IsValidFileName", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    [Test]
+    public void IsValidFileName_LiteralDotDot_IsRejected()
+    {
+        // A Name pattern that evaluates to exactly ".." would otherwise resolve to the parent
+        // directory via Path.Combine(dir, ".."), since Path.GetInvalidFileNameChars() alone
+        // doesn't reject the string "..".
+        var result = (bool)IsValidFileName.Invoke(null, new object?[] { ".." })!;
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void IsValidFileName_LiteralDot_IsRejected()
+    {
+        var result = (bool)IsValidFileName.Invoke(null, new object?[] { "." })!;
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void IsValidFileName_OrdinaryName_IsAccepted()
+    {
+        var result = (bool)IsValidFileName.Invoke(null, new object?[] { "report.txt" })!;
+        Assert.That(result, Is.True);
+    }
+
     [Test]
     public void ReplacePlaceholders_OversizedCounterDigits_DoesNotThrowOverflow()
     {
