@@ -918,7 +918,22 @@ public sealed class MainForm : Form
 
     private async void OnFormLoad(object? sender, EventArgs e)
     {
-        await InitializeAsync();
+        // async void: an exception here doesn't go through Program.cs's crash handling
+        // (AppDomain.UnhandledException/TaskScheduler.UnobservedTaskException don't see it -
+        // WinForms routes exceptions raised while processing queued continuations through
+        // Application.ThreadException instead, which isn't hooked either) - without this
+        // try/catch, a bad settings.json or a failed initial NavigateAsync would surface as
+        // WinForms' own raw unhandled-exception dialog instead of the app's own error UX.
+        try
+        {
+            await InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("MainForm initialization failed", ex);
+            StyledMessageBox.Show(ex.Message, LocalizationService.Current.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
+
         CenterSplitter();
     }
 
