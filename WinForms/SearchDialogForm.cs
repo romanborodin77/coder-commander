@@ -74,7 +74,12 @@ public class SearchDialogForm : ThemedForm
                 _pathBox.Text = dlg.SelectedPath;
         };
         browseWrap.Controls.Add(browseBtn);
-        var pathPanel = new Panel { Dock = DockStyle.Fill };
+        // Margin = 0: pathPanel sits directly in criteriaPanel's TableLayoutPanel cell
+        // (RowStyle Absolute 32) - the default 3px-per-side Control.Margin would shrink its
+        // rendered height to 26px, 6px short of browseBtn's 32px CreateThemedButton height
+        // (same trap as CreateBottomPanel/CopyMoveDialogForm's destPanel - confirmed via
+        // check_layout()'s inconsistent_button_size finding + the exact Bounds numbers).
+        var pathPanel = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
         _pathBox.Dock = DockStyle.Fill;
         // Fill added first (docks last, gets whatever's left after browseWrap's Right claim) -
         // added in the opposite order, browseWrap's Right dock would be processed after Fill had
@@ -107,10 +112,14 @@ public class SearchDialogForm : ThemedForm
         _regexCheck = UiHelpers.CreateCheckBox(L.GetString("Search.UseRegex"));
         _regexCheck.Width = 140;
         _regexCheck.Margin = new Padding(0);
+        // Margin = 0: same TableLayoutPanel-cell trap as pathPanel above - without it, this
+        // panel's coded Height=32 rendered as 26px, shorter than _caseCheck/_regexCheck's own
+        // height, so the checkboxes extended past their parent's reported bounds.
         var checkPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             Height = 32,
+            Margin = new Padding(0),
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             BackColor = Color.Transparent

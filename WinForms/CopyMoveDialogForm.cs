@@ -170,7 +170,12 @@ public class CopyMoveDialogForm : ThemedForm
         destLabel.TextAlign = ContentAlignment.MiddleLeft;
         optionsPanel.Controls.Add(destLabel, 0, row);
 
-        var destPanel = new Panel { Dock = DockStyle.Fill };
+        // Margin = 0: same TableLayoutPanel-cell trap as CreateBottomPanel (see ThemedForm.cs) -
+        // this row is RowStyle(Absolute, 32), and the default 3px Control.Margin would shrink
+        // the cell's usable height to 26px, 6px short of browseBtn's 32px CreateThemedButton
+        // height (confirmed via check_layout()'s inconsistent_button_size finding + the exact
+        // Bounds numbers from the internal dump before attributing the cause).
+        var destPanel = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0) };
         _destBox = UiHelpers.CreateTextBox(defaultDest);
         _destBox.Dock = DockStyle.Fill;
         var browseBtn = ThemedForm.CreateThemedButton("...");
@@ -183,8 +188,13 @@ public class CopyMoveDialogForm : ThemedForm
             if (dlg.ShowDialog() == DialogResult.OK)
                 _destBox.Text = dlg.SelectedPath;
         };
-        destPanel.Controls.Add(browseBtn);
+        // Dock=Fill must be added before any Dock=Top/Bottom/Left/Right sibling - WinForms
+        // lays out docked children from the last-added index down to the first, so adding
+        // browseBtn (Dock=Right) before _destBox (Dock=Fill) let Fill claim the whole panel
+        // first and be laid out last (painted last / on top potentially, and can affect the
+        // Right-docked sibling's measured size) - see CLAUDE.md's "Docking order pitfall".
         destPanel.Controls.Add(_destBox);
+        destPanel.Controls.Add(browseBtn);
         optionsPanel.Controls.Add(destPanel, 1, row);
         row++;
 

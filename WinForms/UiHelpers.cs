@@ -558,6 +558,12 @@ internal sealed class StyledMessageBoxForm : ThemedForm
         contentGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         contentGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
+        // ForeColor was never set here before - the glyph fell back to Label's plain default
+        // (SystemColors.ControlText), rendering as a flat, unthemed gray regardless of icon
+        // severity instead of the Warning/Danger/Accent color a message box icon normally
+        // conveys (found via the dotnet-debugger MCP server's check_layout(), then confirmed
+        // with a live get_pixel() sample against the actually rendered glyph before fixing).
+        // Actual coloring happens in ApplyTheme() below, not here - see its doc comment for why.
         _iconLabel = new Label
         {
             Dock = DockStyle.Fill,
@@ -692,6 +698,13 @@ internal sealed class StyledMessageBoxForm : ThemedForm
             MsgBoxIcon.Information => p.Accent,
             MsgBoxIcon.Warning => p.Warning,
             MsgBoxIcon.Error => p.Danger,
+            // Question fell into the DimForeground default below before this case existed -
+            // check_layout() found it (as missing_theme_role on the icon Label) and a live
+            // get_pixel() sample confirmed the "?" glyph rendered notably duller than every
+            // other icon kind, e.g. the Delete-confirmation dialog's icon. Grouped with
+            // Information (both are neutral/informational, not a severity signal like
+            // Warning/Error) rather than left in the DimForeground fallback below.
+            MsgBoxIcon.Question => p.Accent,
             _ => p.DimForeground
         };
     }

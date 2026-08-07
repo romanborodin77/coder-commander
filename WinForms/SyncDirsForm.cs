@@ -55,8 +55,12 @@ public class SyncDirsForm : ThemedForm
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         // Wide enough for the localized "Browse…" text - CreateThemedButton's own auto-sizing
         // would give it ~100px, and this used to be 80 (RoundedButton's EndEllipsis then silently
-        // truncated it to "Brows...").
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+        // truncated it to "Brows..."). 100 wasn't enough once this same column started also
+        // holding _compareBtn ("Compare" - longer than "Browse…"), which silently truncated to
+        // "Comp..." the same way (found via the dotnet-debugger MCP server's check_layout(),
+        // confirmed by looking at the actual screenshot - text truncation isn't something a
+        // Bounds-based checker catches on its own).
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         for (int i = 0; i < 4; i++) top.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
 
         top.Controls.Add(UiHelpers.CreateLabel(L.GetString("SyncDirs.Left")), 0, 0);
@@ -94,6 +98,10 @@ public class SyncDirsForm : ThemedForm
 
         _compareBtn = ThemedForm.CreateThemedButton(L.GetString("SyncDirs.Compare"), accent: true);
         _compareBtn.Dock = DockStyle.Fill;
+        // Margin = 0: this cell's RowStyle is Absolute 32 - the default 3px-per-side
+        // Control.Margin would shrink the button's rendered height to 26px (same trap as every
+        // other Dock=Fill-in-a-TableLayoutPanel-cell control fixed elsewhere in this pass).
+        _compareBtn.Margin = new Padding(0);
         // Row 3, not row 2 - _ignoreTimeCheck above already spans columns 2-3 on row 2, so placing
         // this in the same cell fought it for space and squeezed the button down to "Com...".
         top.Controls.Add(_compareBtn, 3, 3);
