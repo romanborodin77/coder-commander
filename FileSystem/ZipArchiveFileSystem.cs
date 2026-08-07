@@ -38,6 +38,18 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     private static readonly Encoding Utf8 = Encoding.UTF8;
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, throwOnInvalidBytes: true);
 
+    /// <summary>HRESULT for Win32 ERROR_SHARING_VIOLATION (0x20), which FileStream surfaces as an
+    /// IOException when the file is locked by another process. Checking this instead of the
+    /// exception's Message text (as this retry used to) works regardless of the OS/CLR display
+    /// language - IOException.Message is localized, so a substring match silently stops matching
+    /// (and the retry that exists specifically to survive AV/indexer locks goes dead) on any
+    /// non-English Windows install.</summary>
+    private const int ErrorSharingViolationHResult = unchecked((int)0x80070020);
+
+    /// <summary>True if <paramref name="ex"/> represents the file being locked by another process
+    /// (Win32 ERROR_SHARING_VIOLATION) - locale-independent, unlike matching its Message text.</summary>
+    private static bool IsSharingViolation(IOException ex) => ex.HResult == ErrorSharingViolationHResult;
+
     /// <summary>
     /// Packers that cannot store a character in the chosen OEM code page often fall back to a
     /// textual escape such as <c>%U0306</c>. Such sequences must be turned back into real characters.
@@ -124,7 +136,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         {
             parsed = ParseCentralDirectory(archivePath);
         }
-        catch (IOException ex) when (ex.Message.Contains("being used by another process"))
+        catch (IOException ex) when (IsSharingViolation(ex))
         {
             LogService.Warning($"Archive locked by another process, retrying: {archivePath}");
 
