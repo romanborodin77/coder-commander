@@ -290,6 +290,18 @@ public class SyncDirsForm : ThemedForm
         _ => "?"
     };
 
+    /// <summary>Whether a checked row with the given status should actually be queued for a copy
+    /// in the given direction. SyncStatus.Equal is included on purpose: the list's checkboxes
+    /// are enabled on every row with no restriction, so a user can deliberately check an "="
+    /// row (e.g. to force a re-copy despite matching size/timestamp, if they suspect bit-rot) -
+    /// excluding it here silently dropped that row from the queue with no error, even though the
+    /// checkbox the user sees stays checked. Both sides exist by definition for an Equal entry,
+    /// so including it is safe regardless of copy direction.</summary>
+    private static bool ShouldInclude(SyncStatus status, SyncDirection dir) =>
+        dir == SyncDirection.LeftToRight
+            ? status is SyncStatus.LeftOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers or SyncStatus.Equal
+            : status is SyncStatus.RightOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers or SyncStatus.Equal;
+
     private void IssueCopy(SyncDirection dir)
     {
         var left = _leftBox.Text.Trim();
@@ -303,11 +315,7 @@ public class SyncDirsForm : ThemedForm
             if (!lvi.Checked) continue;
             if (lvi.Tag is not SyncEntry entry) continue;
 
-            var include = dir == SyncDirection.LeftToRight
-                ? entry.Status is SyncStatus.LeftOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers
-                : entry.Status is SyncStatus.RightOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers;
-
-            if (!include) continue;
+            if (!ShouldInclude(entry.Status, dir)) continue;
 
             var source = Path.Combine(sourceRoot, entry.RelativePath);
             var dest = Path.Combine(destRoot, entry.RelativePath);
