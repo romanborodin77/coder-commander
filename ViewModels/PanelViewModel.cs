@@ -16,6 +16,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private CancellationTokenSource? _navCts;
     private readonly object _navLock = new();
+    // Bumped at the start of every NavigateAsync/GoBackAsync/GoForwardAsync call, before any
+    // await - lets NavigateAsync tell, after its own ExistsAsync await resumes, whether a newer
+    // navigation call has since started (see NavigateAsync's own comment for the race this
+    // closes: two fast navigations resolving out of order used to let whichever one's await
+    // happened to finish last clobber CurrentPath, regardless of which was actually clicked last).
+    private long _navSeq;
 
     private readonly Stack<(IFileSystem fs, string path)> _back = new();
     private readonly Stack<(IFileSystem fs, string path)> _fwd = new();
@@ -208,6 +214,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!isArchivePath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
+        // Claim "newest navigation" before the await below, not after: two overlapping
+        // NavigateAsync calls (fast double-click into folder A then quickly into folder B, or a
+        // slow network path racing a fast local one) used to resolve ExistsAsync in whichever
+        // order the I/O happened to finish, and the one that finished LAST always won -
+        // regardless of which was actually clicked last. Capturing mySeq up front and checking it
+        // after the await makes the one that STARTED last win instead, matching user intent.
+        var mySeq = Interlocked.Increment(ref _navSeq);
+
         // Deliberately no ConfigureAwait(false): the rest of this method (and RefreshAsync below)
         // sets CurrentPath and mutates the ObservableCollection Items, both of which need to run
         // back on the UI thread that called NavigateAsync - StartWatcher (triggered by the
@@ -219,12 +233,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
-        lock (_navLock)
-        {
-            _navCts?.Cancel();
-            _navCts?.Dispose();
-            _navCts = new CancellationTokenSource();
-        }
+        // A newer NavigateAsync/GoBackAsync/GoForwardAsync call may have already started (and
+        // possibly finished) while we were awaiting ExistsAsync above - if so, committing our own
+        // (now stale) path would clobber whatever that newer call already settled on.
+        if (Interlocked.Read(ref _navSeq) != mySeq) return;
+
+        var ct = BeginNavigation();
 
         if (!string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase))
         {
@@ -237,7 +251,22 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
         CurrentPath = path;
         LogService.LogNavigation(path);
-        await RefreshAsync(_navCts.Token);
+        await RefreshAsync(ct);
+    }
+
+    /// <summary>Cancels any in-flight navigation's own RefreshAsync and starts tracking a new
+    /// one, returning the token this navigation's RefreshAsync should use so a later navigation
+    /// can in turn cancel it. Shared by NavigateAsync/GoBackAsync/GoForwardAsync so none of them
+    /// can leave a superseded refresh running against what's now the wrong CurrentPath.</summary>
+    private CancellationToken BeginNavigation()
+    {
+        lock (_navLock)
+        {
+            _navCts?.Cancel();
+            _navCts?.Dispose();
+            _navCts = new CancellationTokenSource();
+            return _navCts.Token;
+        }
     }
 
     /// <summary>
@@ -279,11 +308,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task GoBackAsync()
     {
         if (_back.Count == 0) return;
+        Interlocked.Increment(ref _navSeq);
+        var ct = BeginNavigation();
         var (fs, path) = _back.Pop();
         _fwd.Push((_fs, CurrentPath));
         _fs = fs;
         CurrentPath = path;
-        await RefreshAsync();
+        await RefreshAsync(ct);
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
     }
@@ -292,11 +323,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task GoForwardAsync()
     {
         if (_fwd.Count == 0) return;
+        Interlocked.Increment(ref _navSeq);
+        var ct = BeginNavigation();
         var (fs, path) = _fwd.Pop();
         _back.Push((_fs, CurrentPath));
         _fs = fs;
         CurrentPath = path;
-        await RefreshAsync();
+        await RefreshAsync(ct);
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
     }
