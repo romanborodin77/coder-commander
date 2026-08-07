@@ -78,8 +78,14 @@ internal static class ConflictResolver
         }
 
         var originalName = VfsPath.GetName(destPath);
-        var ext = FileEntry.GetExtension(originalName);
-        var baseName = ext.Length > 0 ? originalName[..^ext.Length] : originalName;
+        // Not FileEntry.GetExtension: it lowercases on purpose (it's meant for extension
+        // comparisons), which would silently rewrite e.g. "Report.PDF" to "Report (1).pdf" here -
+        // a different filename on any case-sensitive destination (TAR, a case-sensitive local
+        // FS). Same dotfile rule (a leading dot with no other dot, e.g. ".gitignore", isn't an
+        // extension separator) via the same lastDot > 0 check, just without the case-folding.
+        var lastDot = originalName.LastIndexOf('.');
+        var baseName = lastDot > 0 ? originalName[..lastDot] : originalName;
+        var ext = lastDot > 0 ? originalName[lastDot..] : "";
 
         for (var counter = 1; ; counter++)
         {
