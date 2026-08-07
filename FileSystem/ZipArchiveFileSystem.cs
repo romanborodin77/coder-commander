@@ -698,6 +698,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 using var ts = File.OpenRead(tempFile);
                 using var es = dstEntry.Open();
                 await ts.CopyToAsync(es, ct);
+                session.Commit();
                 Forget(dstArchive);
             }
             else
@@ -776,6 +777,15 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// just the new entry. <see cref="Dispose"/> flushes to the temp copy first and only then
     /// swaps it in via <see cref="File.Move(string, string, bool)"/>, mirroring the temp-file +
     /// atomic-replace pattern <see cref="RewritingArchiveWriter"/> already uses for TAR/TAR.GZ.
+    /// <para>
+    /// <see cref="Commit"/> must be called explicitly once the caller's own writes/deletes have
+    /// all succeeded; <see cref="Dispose"/> only replaces the real file if that happened. Before
+    /// this guard existed, <see cref="Dispose"/> committed unconditionally - including when it
+    /// ran because an exception unwound the caller's <c>using</c> block partway through a write,
+    /// which replaced the user's original archive with a truncated/partial one instead of leaving
+    /// it untouched. Mirrors the explicit-commit pattern <see cref="RewritingArchiveWriter"/>
+    /// already uses, and for the same reason (see its own doc comment).
+    /// </para>
     /// </summary>
     public sealed class ZipUpdateSession : IDisposable
     {
@@ -783,6 +793,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         private readonly string _tempPath;
         private FileStream? _lock;
         private bool _disposed;
+        private bool _committed;
 
         /// <summary>The archive, opened against a private temporary copy - never the real file.</summary>
         public ZipArchive Archive { get; }
@@ -794,6 +805,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             Archive = archive;
             _lock = @lock;
         }
+
+        /// <summary>Marks this session's changes as ready to replace the real archive on
+        /// <see cref="Dispose"/>. Call only after every write/delete this session was going to make
+        /// has actually succeeded - never speculatively, and never from a catch/finally that might
+        /// run after a partial failure.</summary>
+        public void Commit() => _committed = true;
 
         internal static ZipUpdateSession Open(string archivePath, IEnumerable<string>? newEntryNames)
         {
@@ -836,10 +853,13 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             }
         }
 
-        /// <summary>Flushes the central directory to the temp copy, then atomically replaces the
-        /// original. If this throws (or is never reached because an earlier step in the calling
-        /// method threw first), the original file is left completely untouched and the temp file
-        /// is discarded.</summary>
+        /// <summary>If <see cref="Commit"/> was called, flushes the central directory to the temp
+        /// copy and atomically replaces the original. Otherwise (abandoned session: the caller's
+        /// own write/delete threw, or simply never called Commit) discards the temp copy and
+        /// leaves the original completely untouched - same "no Commit means no corruption" contract
+        /// <see cref="RewritingArchiveWriter.Dispose"/> already has. If the flush itself throws (or
+        /// is never reached because an earlier step in the calling method threw first), the
+        /// original file is likewise left untouched and the temp file is discarded.</summary>
         public void Dispose()
         {
             if (_disposed) return;
@@ -847,16 +867,19 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
             try
             {
-                Archive.Dispose();
+                Archive.Dispose(); // flushes to the temp copy's stream only - never the real file
 
-                // Release the exclusive lock only now, immediately before the replace - Windows
-                // won't let File.Move overwrite a file this same process still has open without
-                // FileShare.Delete. This leaves only the instant between releasing the lock and
-                // the move actually completing unprotected, versus the entire session beforehand.
-                _lock?.Dispose();
-                _lock = null;
+                if (_committed)
+                {
+                    // Release the exclusive lock only now, immediately before the replace - Windows
+                    // won't let File.Move overwrite a file this same process still has open without
+                    // FileShare.Delete. This leaves only the instant between releasing the lock and
+                    // the move actually completing unprotected, versus the entire session beforehand.
+                    _lock?.Dispose();
+                    _lock = null;
 
-                File.Move(_tempPath, _archivePath, overwrite: true);
+                    File.Move(_tempPath, _archivePath, overwrite: true);
+                }
             }
             finally
             {
@@ -938,6 +961,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             entry.Delete();
 
         InvalidateCache();
+        session.Commit();
         return Task.CompletedTask;
     }
 
@@ -1001,6 +1025,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
 
         InvalidateCache();
+        session.Commit();
         await Task.CompletedTask;
     }
 
@@ -1021,6 +1046,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         zip.CreateEntry(innerPath + "/");
         InvalidateCache();
+        session.Commit();
         return Task.CompletedTask;
     }
 
@@ -1081,6 +1107,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         await source.CopyToAsync(es, 81920, ct).ConfigureAwait(false);
 
         InvalidateCache();
+        session.Commit();
     }
 
     /// <inheritdoc/>

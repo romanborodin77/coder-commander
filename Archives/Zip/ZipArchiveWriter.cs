@@ -7,8 +7,11 @@ namespace CoderCommander.Archives.Zip;
 /// <summary>
 /// Adapts <see cref="ZipArchiveFileSystem.OpenForUpdate"/> (which already handles exclusive-open
 /// retry and legacy code-page write-back) to <see cref="IArchiveWriter"/>. ZIP's central directory
-/// supports true in-place add/delete, so <see cref="Mode"/> is <see cref="ArchiveWriteMode.UpdateInPlace"/>
-/// and <see cref="CommitAsync"/> has nothing to do beyond what <see cref="Dispose"/> already does.
+/// supports true in-place add/delete, so <see cref="Mode"/> is <see cref="ArchiveWriteMode.UpdateInPlace"/> -
+/// but <see cref="CommitAsync"/> still matters: it's what tells the underlying
+/// <see cref="ZipArchiveFileSystem.ZipUpdateSession"/> to actually replace the real archive on
+/// <see cref="Dispose"/>, rather than discarding the staged changes (see the session's own doc
+/// comment for why that distinction exists).
 /// </summary>
 public sealed class ZipArchiveWriter : IArchiveWriter
 {
@@ -61,7 +64,16 @@ public sealed class ZipArchiveWriter : IArchiveWriter
         return true;
     }
 
-    public Task CommitAsync(CancellationToken ct = default) => Task.CompletedTask;
+    /// <summary>Marks the session ready to replace the real archive on <see cref="Dispose"/> -
+    /// without this, an exception unwinding the caller's `await using (var writer = ...)` block
+    /// partway through a write used to still commit whatever had been staged so far, silently
+    /// replacing the user's original archive with a truncated one (see
+    /// <see cref="ZipArchiveFileSystem.ZipUpdateSession.Commit"/>'s doc comment).</summary>
+    public Task CommitAsync(CancellationToken ct = default)
+    {
+        _session.Commit();
+        return Task.CompletedTask;
+    }
 
     private static CompressionLevel ToCompressionLevel(ArchiveCompressionSpec spec) => spec.Preset switch
     {
