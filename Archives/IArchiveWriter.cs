@@ -37,7 +37,12 @@ public interface IArchiveWriter : IAsyncDisposable, IDisposable
         ArchiveCompressionSpec compression,
         CancellationToken ct = default);
 
-    /// <summary>Attempts to remove an entry. Returns false if the entry no longer exists.</summary>
+    /// <summary>Attempts to remove an entry. Returns false if the entry no longer exists, for
+    /// writers that can check immediately (e.g. <see cref="Zip.ZipArchiveWriter"/>). A
+    /// stage-then-rewrite writer like <see cref="RewritingArchiveWriter"/> defers existence
+    /// verification to <see cref="CommitAsync"/> and always returns true here - no current caller
+    /// depends on this return value, but don't assume false is a reliable "not found" signal
+    /// across every implementation.</summary>
     bool TryDeleteEntry(ArchiveEntryRecord entry);
 
     /// <summary>Flushes/finalizes all pending changes. Must be called before disposal for
