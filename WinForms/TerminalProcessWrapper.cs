@@ -155,7 +155,21 @@ public sealed class TerminalProcessWrapper : IDisposable
             var monitoredProcess = _process;
             _ = Task.Run(async () =>
             {
-                await Task.Run(() => monitoredProcess.WaitForExit());
+                try
+                {
+                    await Task.Run(() => monitoredProcess.WaitForExit());
+                }
+                catch (Exception ex)
+                {
+                    // Racing Dispose()/Terminate() disposing the same Process while this is
+                    // blocked in WaitForExit() can throw (e.g. ObjectDisposedException/
+                    // InvalidOperationException) - unguarded, that would only surface via the
+                    // global TaskScheduler.UnobservedTaskException handler as a generic
+                    // "UNOBSERVED TASK" crash-log entry with no indication it came from here.
+                    LogService.Error("Error monitoring terminal process exit", ex);
+                    return;
+                }
+
                 if (_disposed) return;
                 ProcessExited?.Invoke(this, EventArgs.Empty);
             });
