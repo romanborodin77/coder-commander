@@ -234,6 +234,21 @@ public sealed class ArchiveFileSystem : IFileSystem
         if (innerPath.Length == 0)
             throw new IOException("Cannot write to the archive root without an entry name.");
 
+        var existing = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+        var clash = ArchiveTree.FindEntry(existing.Entries, innerPath);
+
+        // A directory occupying this exact name - explicitly (a real directory-marker entry) or
+        // implicitly (child entries like "name/file.txt" with no marker of their own, which many
+        // ZIP tools never write) - must reject the write, the same way LocalFileSystem's
+        // File.Move fails loud when the destination is an existing directory. Without this,
+        // FindEntry finds no exact clash to delete in the implicit case (nothing is named
+        // exactly "name"), and a brand-new file entry gets written right alongside the
+        // directory's own children - the same path ends up used as both a file and a directory
+        // at once, a structurally inconsistent archive with no error shown to the user.
+        if ((clash != null && clash.IsDirectory) ||
+            (clash == null && ArchiveTree.HasDescendants(existing.Entries, innerPath)))
+            throw new IOException($"Cannot overwrite \"{innerPath}\": a directory with that name already exists in the archive.");
+
         var tempFile = Path.GetTempFileName();
         try
         {
@@ -241,8 +256,6 @@ public sealed class ArchiveFileSystem : IFileSystem
                 await source.CopyToAsync(tempStream, ct).ConfigureAwait(false);
 
             var size = new FileInfo(tempFile).Length;
-            var existing = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-            var clash = ArchiveTree.FindEntry(existing.Entries, innerPath);
 
             await using (var writer = _format.OpenWrite(_archivePath, new ArchiveWriteOptions()))
             {
