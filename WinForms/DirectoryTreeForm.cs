@@ -103,10 +103,14 @@ public class DirectoryTreeForm : ThemedForm
         }
     }
 
-    /// <summary>Handles lazy-loading: replaces dummy "..." nodes with actual subdirectories on expand.</summary>
+    /// <summary>Refreshes a node's children from disk on every expand - not just the first time
+    /// (when the only child is still the dummy "..." placeholder). Re-scanning unconditionally
+    /// means a folder created/deleted outside the app while this dialog is open shows up the next
+    /// time its parent is re-expanded, instead of staying stuck on whatever was there the first
+    /// time the node was ever opened for the rest of the dialog's lifetime.</summary>
     private void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
     {
-        if (e.Node?.Tag is string path && e.Node.Nodes.Count > 0 && e.Node.Nodes[0].Text == "...")
+        if (e.Node?.Tag is string path)
         {
             LoadChildDirs(e.Node, path);
         }
