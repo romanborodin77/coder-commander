@@ -11,8 +11,15 @@ namespace CoderCommander.Archives;
 /// </summary>
 public static class ArchiveFileRetry
 {
-    /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.</summary>
-    private static readonly int[] RetryDelaysMs = { 150, 300, 600 };
+    /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.
+    /// Widened from {150, 300, 600} (~1.05s total) after UiTests showed real, reproducible failures under
+    /// this budget - Commit_AddingToExistingArchive_PreservesPriorEntries and its siblings would
+    /// occasionally exhaust all 3 retries against a lock that cleared shortly after (almost certainly
+    /// Windows Defender's real-time scan of a just-written temp archive; the same failure mode also hit
+    /// PackOperation silently, since FileOperation.ExecuteAsync catches and reports it as State=Failed
+    /// rather than throwing - see PackOperation callers for why checking State matters). ~4.7s total
+    /// budget across 5 attempts comfortably covers scans that used to occasionally outlast ~1s.</summary>
+    private static readonly int[] RetryDelaysMs = { 150, 300, 600, 1200, 2400 };
 
     /// <summary>
     /// Opens the archive at <paramref name="path"/> for shared reading. If the file is locked by another

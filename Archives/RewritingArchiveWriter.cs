@@ -34,14 +34,13 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _createWriter = createWriter;
         _stagingPath = archivePath + ".stage-" + Guid.NewGuid().ToString("N") + ".tmp";
 
-        // Hold an exclusive lock on the real archive for this writer's entire lifetime, not just
-        // while CommitAsync reads it: CommitAsync reads survivors through the format's own
-        // shared-read helper (FileShare.ReadWrite), so without a lock held from construction, a
-        // second writer session for the same archive could commit its own changes in the gap
-        // between "this session decided what to add/delete" and "this session's commit reads the
-        // original" - whichever commits last would silently discard the other's changes via its
-        // final File.Move. Only archives that already exist need this; a brand-new archive has
-        // nothing to race over yet.
+        // Hold an exclusive lock on the real archive from construction through the start of
+        // CommitAsync (released there, before reading survivors - see CommitAsync for why):
+        // without it, a second writer session for the same archive could commit its own changes
+        // in the gap between "this session decided what to add/delete" (WriteFileAsync/
+        // TryDeleteEntry calls) and "this session's commit reads the original" - whichever
+        // commits last would silently discard the other's changes via its final File.Move. Only
+        // archives that already exist need this; a brand-new archive has nothing to race over yet.
         _lock = File.Exists(archivePath) ? ArchiveFileRetry.OpenExclusiveWithRetry(archivePath) : null;
 
         _stagingStream = new FileStream(_stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -85,6 +84,20 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _stagingWriter.Dispose();
         await _stagingStream.DisposeAsync().ConfigureAwait(false);
 
+        // Release the exclusive lock before reading survivors, not after: _lock was opened with
+        // FileShare.None, so _format.OpenRead(_archivePath) below - a SECOND handle to the same
+        // path, from this same process - would otherwise deadlock against our own lock every
+        // single time an archive already exists (verified: 5/5 reproductions, not a transient
+        // flake - see ArchiveFileRetry.OpenReadWithRetry exhausting all retries against a lock
+        // that was never actually going to release itself mid-CommitAsync). The lock's purpose
+        // (block a second writer session from deciding what to add/delete while this session is
+        // mid-decision, then silently losing that race via File.Move) is still served in full up
+        // to this point; only the read-and-rewrite phase below is now unprotected, a narrower
+        // version of the "instant between releasing the lock and the move completing" gap the
+        // final File.Move already had to accept.
+        _lock?.Dispose();
+        _lock = null;
+
         var finalPath = _archivePath + ".rewrite-" + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
@@ -110,13 +123,6 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                     }
                 }
             }
-
-            // Release the exclusive lock only now, immediately before the replace - Windows won't
-            // let File.Move overwrite a file this same process still has open without
-            // FileShare.Delete. This leaves only the instant between releasing the lock and the
-            // move actually completing unprotected, versus the entire session beforehand.
-            _lock?.Dispose();
-            _lock = null;
 
             File.Move(finalPath, _archivePath, overwrite: true);
         }
