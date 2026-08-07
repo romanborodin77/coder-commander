@@ -573,7 +573,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (ActivePanel.IsInsideArchive)
         {
-            OperationRejected?.Invoke(this, "Archive.SameArchiveTransfer");
+            OperationRejected?.Invoke(this, "Archive.PackUnsupported");
             return;
         }
 

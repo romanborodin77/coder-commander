@@ -425,6 +425,7 @@ Archive.SameArchiveTransfer=Copying within the same archive is not supported. Ex
 Transfer.SourceEqualsDestination=Source and destination are the same. Choose a different destination folder.
 Archive.WipeUnsupported=Secure wipe is not available for archive entries. Use delete instead.
 Archive.CalculateSizeUnsupported=Folder size calculation is not available for archive entries.
+Archive.PackUnsupported=Packing is not available for archive entries. Extract files first.
 Archive.NestedUnsupported=Cannot open an archive inside an archive. Extract "{0}" first.
 
 # ═══ Sync Dirs ═══

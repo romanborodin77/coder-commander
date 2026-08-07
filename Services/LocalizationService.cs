@@ -568,6 +568,7 @@ public sealed class LocalizationService
         _strings["Transfer.SourceEqualsDestination"] = "Source and destination are the same. Choose a different destination folder.";
         _strings["Archive.WipeUnsupported"] = "Secure wipe is not available for archive entries. Use Delete instead.";
         _strings["Archive.CalculateSizeUnsupported"] = "Folder size calculation is not available for archive entries.";
+        _strings["Archive.PackUnsupported"] = "Packing is not available for archive entries. Unpack the files first.";
         _strings["Archive.NestedUnsupported"] = "Archives inside archives cannot be opened directly. Unpack \"{0}\" first.";
 
         // ═══ SyncDirs ═══
