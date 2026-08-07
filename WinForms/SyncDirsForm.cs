@@ -343,7 +343,12 @@ public class SyncDirsForm : ThemedForm
                     if (!subdirs) continue;
                     var rel = Path.GetRelativePath(root, sub.FullName);
                     map[rel] = new FileSnapshot(sub.FullName, rel, true, 0, sub.LastWriteTimeUtc);
-                    stack.Push(sub);
+                    // A junction/symlink can point back at an ancestor (e.g. a self-referencing
+                    // directory junction) - pushing it onto the stack unconditionally would walk
+                    // the same tree forever, growing map/stack without bound. List the reparse
+                    // point itself (above) but don't descend through it.
+                    if ((sub.Attributes & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(sub);
                 }
                 foreach (var f in dir.EnumerateFiles())
                 {
