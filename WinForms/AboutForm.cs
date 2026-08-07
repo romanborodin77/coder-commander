@@ -178,13 +178,18 @@ public class AboutForm : ThemedForm
         _licenseLink.Click += (_, _) => OpenUrl("https://opensource.org/licenses/MIT");
         linksPanel.Controls.Add(_licenseLink);
 
+        // Without a role, ControlThemer's untagged-Label fallback (ApplyLabelRole's default
+        // case) resets ForeColor to the bright p.Foreground on the next live theme switch -
+        // this bullet separator would flip from muted to prominent instead of staying muted
+        // (found via the dotnet-debugger MCP server's check_layout()).
         var separator1 = new Label
         {
             Text = "\u2022",
             ForeColor = p.DimForeground,
             Font = p.GridFont,
             AutoSize = true,
-            Margin = new Padding(14, 4, 14, 0)
+            Margin = new Padding(14, 4, 14, 0),
+            Tag = ThemeRole.Muted
         };
         linksPanel.Controls.Add(separator1);
 
