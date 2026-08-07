@@ -239,7 +239,11 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != quote)
                 {
-                    if (text[i] == '\\') i++;
+                    // Guard i+1 < text.Length: an unterminated string literal whose last
+                    // character (right at EOF) is this escaping backslash would otherwise push i
+                    // to text.Length + 1 via this bump plus the unconditional one below, and the
+                    // text[start..i] slice past the loop throws ArgumentOutOfRangeException.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
@@ -436,7 +440,11 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != quote)
                 {
-                    if (text[i] == '\\') i++;
+                    // Guard i+1 < text.Length: an unterminated string literal whose last
+                    // character (right at EOF) is this escaping backslash would otherwise push i
+                    // to text.Length + 1 via this bump plus the unconditional one below, and the
+                    // text[start..i] slice past the loop throws ArgumentOutOfRangeException.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
@@ -684,7 +692,10 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != '"')
                 {
-                    if (text[i] == '\\') i++;
+                    // See the identical guard in TokenizeCLike/TokenizePython: without the
+                    // i+1 < text.Length check, an unterminated string ending in a trailing
+                    // backslash at EOF pushes i one past text.Length and the later slice throws.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
