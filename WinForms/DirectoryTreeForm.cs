@@ -81,17 +81,46 @@ public class DirectoryTreeForm : ThemedForm
         return node;
     }
 
-    /// <summary>Loads immediate subdirectories as child nodes (excluding hidden directories).</summary>
+    /// <summary>Reconciles a node's children against disk (excluding hidden directories): adds
+    /// folders that are new, removes ones that no longer exist, and leaves nodes for folders that
+    /// still exist - along with any descendants the user had already expanded under them -
+    /// completely untouched. Deliberately not a Nodes.Clear()-and-rebuild: that reads identically
+    /// for a freshly-created, still-empty parent (the common case, from <see cref="CreateNode"/>),
+    /// but on a re-expand it would destroy the whole previously-expanded subtree underneath,
+    /// since <see cref="TreeNodeCollection.Clear"/> removes descendants along with their parent -
+    /// collapsing e.g. A\B\C\D back to just "A → B" on every re-expand of A.</summary>
     private static void LoadChildDirs(TreeNode parent, string path)
     {
-        parent.Nodes.Clear();
         try
         {
+            var onDisk = new List<(string Dir, string Name)>();
+            var onDiskPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var dir in Directory.GetDirectories(path))
             {
                 var di = new DirectoryInfo(dir);
                 if ((di.Attributes & FileAttributes.Hidden) != 0) continue;
-                var child = new TreeNode(di.Name) { Tag = dir };
+                onDisk.Add((dir, di.Name));
+                onDiskPaths.Add(dir);
+            }
+
+            for (var i = parent.Nodes.Count - 1; i >= 0; i--)
+            {
+                // Keep only nodes that still exist on disk. This also removes the dummy "..."
+                // placeholder (Tag is null, so it never matches the "still exists" check) - it
+                // must go too, or it would linger alongside the real children added below.
+                if (parent.Nodes[i].Tag is string existingPath && onDiskPaths.Contains(existingPath))
+                    continue;
+                parent.Nodes.RemoveAt(i);
+            }
+
+            var existingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (TreeNode node in parent.Nodes)
+                if (node.Tag is string p) existingPaths.Add(p);
+
+            foreach (var (dir, name) in onDisk)
+            {
+                if (existingPaths.Contains(dir)) continue;
+                var child = new TreeNode(name) { Tag = dir };
                 // Add a dummy node so the + appears
                 child.Nodes.Add(new TreeNode("..."));
                 parent.Nodes.Add(child);
@@ -103,10 +132,15 @@ public class DirectoryTreeForm : ThemedForm
         }
     }
 
-    /// <summary>Handles lazy-loading: replaces dummy "..." nodes with actual subdirectories on expand.</summary>
+    /// <summary>Reconciles a node's children against disk on every expand - not just the first
+    /// time (when the only child is still the dummy "..." placeholder). Re-scanning
+    /// unconditionally means a folder created/deleted outside the app while this dialog is open
+    /// shows up the next time its parent is re-expanded, instead of staying stuck on whatever was
+    /// there the first time the node was ever opened for the rest of the dialog's lifetime -
+    /// without losing the user's already-expanded descendants (see <see cref="LoadChildDirs"/>).</summary>
     private void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
     {
-        if (e.Node?.Tag is string path && e.Node.Nodes.Count > 0 && e.Node.Nodes[0].Text == "...")
+        if (e.Node?.Tag is string path)
         {
             LoadChildDirs(e.Node, path);
         }

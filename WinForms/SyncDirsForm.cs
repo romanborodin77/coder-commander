@@ -215,7 +215,7 @@ public class SyncDirsForm : ThemedForm
             var rightMap = await Task.Run(() => BuildMap(right, subdirs));
             if (IsDisposed || !IsHandleCreated) return;
 
-            var paths = leftMap.Keys.Union(rightMap.Keys).OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
+            var paths = CombinePathKeys(leftMap, rightMap);
 
             int leftOnly = 0, rightOnly = 0, diff = 0, equal = 0;
 
@@ -290,6 +290,18 @@ public class SyncDirsForm : ThemedForm
         _ => "?"
     };
 
+    /// <summary>Whether a checked row with the given status should actually be queued for a copy
+    /// in the given direction. SyncStatus.Equal is included on purpose: the list's checkboxes
+    /// are enabled on every row with no restriction, so a user can deliberately check an "="
+    /// row (e.g. to force a re-copy despite matching size/timestamp, if they suspect bit-rot) -
+    /// excluding it here silently dropped that row from the queue with no error, even though the
+    /// checkbox the user sees stays checked. Both sides exist by definition for an Equal entry,
+    /// so including it is safe regardless of copy direction.</summary>
+    private static bool ShouldInclude(SyncStatus status, SyncDirection dir) =>
+        dir == SyncDirection.LeftToRight
+            ? status is SyncStatus.LeftOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers or SyncStatus.Equal
+            : status is SyncStatus.RightOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers or SyncStatus.Equal;
+
     private void IssueCopy(SyncDirection dir)
     {
         var left = _leftBox.Text.Trim();
@@ -303,11 +315,7 @@ public class SyncDirsForm : ThemedForm
             if (!lvi.Checked) continue;
             if (lvi.Tag is not SyncEntry entry) continue;
 
-            var include = dir == SyncDirection.LeftToRight
-                ? entry.Status is SyncStatus.LeftOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers
-                : entry.Status is SyncStatus.RightOnly or SyncStatus.SizeDiffers or SyncStatus.TimeDiffers or SyncStatus.TypeDiffers;
-
-            if (!include) continue;
+            if (!ShouldInclude(entry.Status, dir)) continue;
 
             var source = Path.Combine(sourceRoot, entry.RelativePath);
             var dest = Path.Combine(destRoot, entry.RelativePath);
@@ -326,6 +334,19 @@ public class SyncDirsForm : ThemedForm
         Close();
     }
 
+    /// <summary>Combines both sides' relative paths into one ordered, deduplicated sequence.
+    /// Must use OrdinalIgnoreCase explicitly - leftMap/rightMap are themselves
+    /// OrdinalIgnoreCase-keyed, but the default Union overload compares with ordinal
+    /// (case-sensitive) equality instead, so a path existing on both sides but differing only by
+    /// case (plausible whenever the two trees were populated independently) used to produce two
+    /// distinct strings here. Each then looked up the very same entry in both dictionaries
+    /// (whose own lookups ARE case-insensitive), so the same file ended up in the diff list -
+    /// and counted in the summary - twice.</summary>
+    private static IEnumerable<string> CombinePathKeys(
+        Dictionary<string, FileSnapshot> leftMap, Dictionary<string, FileSnapshot> rightMap) =>
+        leftMap.Keys.Union(rightMap.Keys, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
+
     private static Dictionary<string, FileSnapshot> BuildMap(string root, bool subdirs)
     {
         var map = new Dictionary<string, FileSnapshot>(StringComparer.OrdinalIgnoreCase);
@@ -343,7 +364,12 @@ public class SyncDirsForm : ThemedForm
                     if (!subdirs) continue;
                     var rel = Path.GetRelativePath(root, sub.FullName);
                     map[rel] = new FileSnapshot(sub.FullName, rel, true, 0, sub.LastWriteTimeUtc);
-                    stack.Push(sub);
+                    // A junction/symlink can point back at an ancestor (e.g. a self-referencing
+                    // directory junction) - pushing it onto the stack unconditionally would walk
+                    // the same tree forever, growing map/stack without bound. List the reparse
+                    // point itself (above) but don't descend through it.
+                    if ((sub.Attributes & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(sub);
                 }
                 foreach (var f in dir.EnumerateFiles())
                 {

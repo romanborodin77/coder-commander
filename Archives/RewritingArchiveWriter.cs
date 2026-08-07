@@ -149,8 +149,13 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         }
     }
 
+    // Case-sensitive on purpose: TAR (and TAR.GZ/TAR.BZ2, the only formats routed through this
+    // writer) can legitimately contain both "README.txt" and "readme.txt" as distinct entries -
+    // folding case here (as this used to do via ToUpperInvariant()) collapsed both onto the same
+    // key, so touching/deleting one made CopySurvivorsAsync skip the OTHER, untouched one too,
+    // silently dropping it from the rewritten archive.
     private static (string Name, bool IsDirectory) Key(string name, bool isDirectory) =>
-        (name.Replace('\\', '/').Trim('/').ToUpperInvariant(), isDirectory);
+        (name.Replace('\\', '/').Trim('/'), isDirectory);
 
     private static void TryDeleteFile(string path)
     {
