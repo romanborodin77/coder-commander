@@ -11,8 +11,27 @@ namespace CoderCommander.Archives;
 /// </summary>
 public static class ArchiveFileRetry
 {
-    /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.</summary>
-    private static readonly int[] RetryDelaysMs = { 150, 300, 600 };
+    /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.
+    /// Widened from {150, 300, 600} (~1.05s total) after UiTests showed real, reproducible failures under
+    /// this budget - Commit_AddingToExistingArchive_PreservesPriorEntries and its siblings would
+    /// occasionally exhaust all 3 retries against a lock that cleared shortly after (almost certainly
+    /// Windows Defender's real-time scan of a just-written temp archive; the same failure mode also hit
+    /// PackOperation silently, since FileOperation.ExecuteAsync catches and reports it as State=Failed
+    /// rather than throwing - see PackOperation callers for why checking State matters). ~4.7s total
+    /// budget across 5 attempts comfortably covers scans that used to occasionally outlast ~1s.</summary>
+    private static readonly int[] RetryDelaysMs = { 150, 300, 600, 1200, 2400 };
+
+    /// <summary>HRESULT for Win32 ERROR_SHARING_VIOLATION (0x20), which FileStream surfaces as an
+    /// IOException when the file is locked by another process. Checking this instead of the
+    /// exception's Message text (as this retry used to) works regardless of the OS/CLR display
+    /// language - IOException.Message is localized, so a substring match silently stops matching
+    /// (and this retry - which exists specifically to survive AV/indexer locks - goes dead) on
+    /// any non-English Windows install.</summary>
+    private const int ErrorSharingViolationHResult = unchecked((int)0x80070020);
+
+    /// <summary>True if <paramref name="ex"/> represents the file being locked by another process
+    /// (Win32 ERROR_SHARING_VIOLATION) - locale-independent, unlike matching its Message text.</summary>
+    private static bool IsSharingViolation(IOException ex) => ex.HResult == ErrorSharingViolationHResult;
 
     /// <summary>
     /// Opens the archive at <paramref name="path"/> for shared reading. If the file is locked by another
@@ -24,7 +43,7 @@ public static class ArchiveFileRetry
         {
             return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         }
-        catch (IOException ex) when (ex.Message.Contains("being used by another process"))
+        catch (IOException ex) when (IsSharingViolation(ex))
         {
             return Retry(path, ex, () => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite),
                 "Cannot open archive");
@@ -41,7 +60,7 @@ public static class ArchiveFileRetry
         {
             return File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         }
-        catch (IOException ex) when (ex.Message.Contains("being used by another process"))
+        catch (IOException ex) when (IsSharingViolation(ex))
         {
             return Retry(path, ex, () => File.Open(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None),
                 "Cannot open archive for update");

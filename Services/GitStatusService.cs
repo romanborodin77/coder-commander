@@ -175,8 +175,23 @@ public static class GitStatusService
         };
 
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start git");
-        var stdout = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(10_000);
-        return stdout;
+
+        // Read stdout and stderr concurrently. Blocking on ReadToEnd() for one stream while the
+        // other pipe's OS buffer fills deadlocks forever: the child blocks writing to the full
+        // pipe, waiting for a reader that never comes because we're still stuck reading the other
+        // one - classic .NET Process I/O deadlock. Both were redirected but stderr was never read
+        // at all, so any git warning (e.g. "detected dubious ownership") large enough to fill its
+        // pipe buffer would hang here, and WaitForExit(10_000) would never even get a chance to run.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+
+        if (!process.WaitForExit(10_000))
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+            throw new TimeoutException($"git {arguments} timed out after 10s");
+        }
+
+        Task.WaitAll(stdoutTask, stderrTask);
+        return stdoutTask.Result;
     }
 }

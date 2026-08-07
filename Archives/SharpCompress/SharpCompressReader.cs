@@ -102,7 +102,19 @@ public sealed class SharpCompressReader : IArchiveReader
     public async IAsyncEnumerable<ArchiveEntryStream> ScanAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
-        var reader = OpenReader(fileStream, out var archive);
+        IReader reader;
+        IDisposable? archive;
+        try
+        {
+            reader = OpenReader(fileStream, out archive);
+        }
+        catch
+        {
+            // OpenReader failed before returning anything to dispose in the finally below (e.g. a
+            // corrupt or misdetected 7z/RAR) - without this, fileStream leaks on every such failure.
+            fileStream.Dispose();
+            throw;
+        }
 
         try
         {

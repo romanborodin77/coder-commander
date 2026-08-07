@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Services;
 
 namespace CoderCommander.Operations;
 
@@ -160,20 +161,36 @@ public sealed class WipeOperation : FileOperation
     {
         _filesTotal = _files.Count;
 
+        // Wipe's entire point is guaranteeing the overwritten content is unrecoverable - deleting
+        // a file whose overwrite pass actually failed (locked, permission denied, disk error)
+        // would silently downgrade it to an ordinary, recoverable delete with no visible sign
+        // anything went wrong. Failures are collected and left on disk unwiped-but-intact rather
+        // than deleted, then reported as a clear operation failure at the end - the same pattern
+        // PackOperation.RemoveSourcesAsync already uses for its own best-effort-with-a-loud-failure case.
+        var failures = new List<string>();
+
         foreach (var file in _files)
         {
             ct.ThrowIfCancellationRequested();
 
             if (file.IsDirectory)
             {
-                await WipeDirectory(file.FullPath, ct);
+                var directoryOk = await WipeDirectory(file.FullPath, ct, failures);
+                if (directoryOk)
+                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
             }
             else if (await _fs.ExistsAsync(file.FullPath, ct))
             {
-                await WipeFile(file.FullPath, ct);
+                if (await WipeFile(file.FullPath, ct))
+                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
+                else
+                    failures.Add(file.FullPath);
+            }
+            else
+            {
+                await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
             }
 
-            await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
             _filesProcessed++;
             Report(new OperationProgress
             {
@@ -183,13 +200,23 @@ public sealed class WipeOperation : FileOperation
                 FilesTotal = _filesTotal
             });
         }
+
+        if (failures.Count > 0)
+            throw new IOException(
+                $"Secure overwrite failed for {failures.Count} file(s) - left on disk unwiped " +
+                $"rather than deleting them without one: {string.Join(", ", failures.Take(5))}" +
+                (failures.Count > 5 ? $" and {failures.Count - 5} more" : ""));
     }
 
-    private async Task WipeDirectory(string path, CancellationToken ct)
+    /// <summary>Wipes every file under <paramref name="path"/>. Returns false (and appends every
+    /// failed file's path to <paramref name="failures"/>) if any file's overwrite failed - the
+    /// directory itself is then left in place by the caller instead of being deleted, since
+    /// deleting it would remove the still-unwiped files along with the successfully wiped ones.</summary>
+    private async Task<bool> WipeDirectory(string path, CancellationToken ct, List<string> failures)
     {
         var dir = new DirectoryInfo(path);
         if (!dir.Exists)
-            return;
+            return true;
 
         var options = new EnumerationOptions
         {
@@ -197,20 +224,30 @@ public sealed class WipeOperation : FileOperation
             RecurseSubdirectories = true
         };
 
+        var allOk = true;
         foreach (var file in dir.EnumerateFiles("*", options))
         {
             ct.ThrowIfCancellationRequested();
-            await WipeFile(file.FullName, ct);
+            if (!await WipeFile(file.FullName, ct))
+            {
+                failures.Add(file.FullName);
+                allOk = false;
+            }
         }
+        return allOk;
     }
 
-    private static async Task WipeFile(string path, CancellationToken ct)
+    /// <summary>Overwrites the file's content with zeros. Returns false (never throws, except
+    /// for cancellation) if the overwrite failed for any reason - a locked file, a permission
+    /// error, a disk I/O failure - so the caller can leave the file undeleted instead of quietly
+    /// treating a failed wipe the same as a successful one.</summary>
+    private static async Task<bool> WipeFile(string path, CancellationToken ct)
     {
         try
         {
             var fi = new FileInfo(path);
             if (!fi.Exists)
-                return;
+                return true;
 
             if ((fi.Attributes & FileAttributes.ReadOnly) != 0)
                 fi.Attributes = FileAttributes.Normal;
@@ -228,13 +265,16 @@ public sealed class WipeOperation : FileOperation
                 written += toWrite;
             }
             fs.Flush();
+            return true;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            LogService.Warning($"Wipe: overwrite failed for {path}: {ex.Message}", "FileOp");
+            return false;
         }
     }
 }
