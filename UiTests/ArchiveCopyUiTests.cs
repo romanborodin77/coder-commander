@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using CoderCommander.Archives;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
@@ -201,9 +202,14 @@ public class ArchiveCopyUiTests : UiTestBase
 
         PressF5AndConfirm();
 
+        // ArchiveFileRetry.OpenReadWithRetry, not a raw File.OpenRead: the archive can be
+        // transiently locked (Windows Defender's real-time scan of the just-written temp file is
+        // the usual cause - the same failure mode ArchiveFileRetry exists to absorb everywhere
+        // else). A raw File.OpenRead throwing IOException inside this lambda would abort
+        // Retry.WhileFalse's polling outright instead of letting it try again.
         Retry.WhileFalse(() =>
         {
-            using var fileStream = File.OpenRead(archivePath);
+            using var fileStream = ArchiveFileRetry.OpenReadWithRetry(archivePath);
             using var tarReader = new TarReader(fileStream);
             TarEntry? e;
             while ((e = tarReader.GetNextEntry()) != null)
@@ -212,7 +218,7 @@ public class ArchiveCopyUiTests : UiTestBase
         }, TimeSpan.FromSeconds(10));
         AssertAlive("copy real file into tar");
 
-        using var finalStream = File.OpenRead(archivePath);
+        using var finalStream = ArchiveFileRetry.OpenReadWithRetry(archivePath);
         using var finalReader = new TarReader(finalStream);
         var names = new List<string>();
         TarEntry? entry;

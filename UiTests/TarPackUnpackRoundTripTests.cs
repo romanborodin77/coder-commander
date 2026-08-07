@@ -152,15 +152,25 @@ public class TarPackUnpackRoundTripTests
     {
         var files = await GetTopLevelEntriesAsync(_sourceDir);
         using (var pack = new PackOperation(_fs, files, _sourceDir, _archivePath))
+        {
             await pack.ExecuteAsync();
+            Assert.That(pack.State, Is.EqualTo(OperationState.Completed), $"First pack failed: {pack.LastError}");
+        }
 
         var extraDir = Path.Combine(_root, "extra");
         Directory.CreateDirectory(extraDir);
         File.WriteAllText(Path.Combine(extraDir, "added-later.txt"), "added in a second pack");
         var extraFiles = await GetTopLevelEntriesAsync(extraDir);
 
+        // Asserting State here (rather than only checking the archive's final contents below) is
+        // what turns a transient lock failure (FileOperation.ExecuteAsync catches and reports it
+        // as State=Failed instead of throwing - see FileOperation.cs) into a clear "Second pack
+        // failed: <IOException>" message instead of a confusing "added-later.txt not found".
         using (var pack2 = new PackOperation(_fs, extraFiles, extraDir, _archivePath))
+        {
             await pack2.ExecuteAsync();
+            Assert.That(pack2.State, Is.EqualTo(OperationState.Completed), $"Second pack failed: {pack2.LastError}");
+        }
 
         var format = ArchiveFormatRegistry.Detect(_archivePath)!;
         using var reader = format.OpenRead(_archivePath);
