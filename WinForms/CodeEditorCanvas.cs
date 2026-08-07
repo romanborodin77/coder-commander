@@ -181,6 +181,7 @@ internal sealed class CodeEditorCanvas : Control
             _highlightTimer.Stop();
             _highlightTimer.Dispose();
             _highlightCts?.Cancel();
+            _highlightCts?.Dispose();
             _ownedFont?.Dispose();
         }
         base.Dispose(disposing);
@@ -316,6 +317,7 @@ internal sealed class CodeEditorCanvas : Control
         if (lineCount <= SyncTokenizeLineThreshold && text.Length <= SyncTokenizeCharThreshold)
         {
             _highlightCts?.Cancel();
+            _highlightCts?.Dispose();
             _highlightCts = null;
             List<SyntaxToken> tokens;
             try { tokens = SyntaxHighlighter.Tokenize(text, _language); }
@@ -335,6 +337,7 @@ internal sealed class CodeEditorCanvas : Control
         }
 
         _highlightCts?.Cancel();
+        _highlightCts?.Dispose();
         var cts = new CancellationTokenSource();
         _highlightCts = cts;
         _tokenizeInFlight = true;

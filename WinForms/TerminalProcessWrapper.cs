@@ -143,6 +143,10 @@ public sealed class TerminalProcessWrapper : IDisposable
                 AutoFlush = false  // We'll flush manually after each command
             };
 
+            // Start() can be called again after a prior Terminate() on the same wrapper (session
+            // restart), so the field can already hold a CTS from a previous run - dispose it
+            // before replacing rather than only ever disposing the very last one in Dispose().
+            _readCts.Dispose();
             _readCts = new CancellationTokenSource();
 
             // Start reading output streams asynchronously
