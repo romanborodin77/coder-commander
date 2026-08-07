@@ -268,6 +268,7 @@ public class OperationDialogForm : ThemedForm
         FormClosing += (_, _) =>
         {
             _timer.Stop();
+            _timer.Dispose();
             _operation.StateChanged -= OnOperationStateChanged;
         };
     }
