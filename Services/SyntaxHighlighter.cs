@@ -239,7 +239,11 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != quote)
                 {
-                    if (text[i] == '\\') i++;
+                    // Guard i+1 < text.Length: an unterminated string literal whose last
+                    // character (right at EOF) is this escaping backslash would otherwise push i
+                    // to text.Length + 1 via this bump plus the unconditional one below, and the
+                    // text[start..i] slice past the loop throws ArgumentOutOfRangeException.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
@@ -436,7 +440,11 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != quote)
                 {
-                    if (text[i] == '\\') i++;
+                    // Guard i+1 < text.Length: an unterminated string literal whose last
+                    // character (right at EOF) is this escaping backslash would otherwise push i
+                    // to text.Length + 1 via this bump plus the unconditional one below, and the
+                    // text[start..i] slice past the loop throws ArgumentOutOfRangeException.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
@@ -684,7 +692,10 @@ public static class SyntaxHighlighter
                 i++;
                 while (i < text.Length && text[i] != '"')
                 {
-                    if (text[i] == '\\') i++;
+                    // See the identical guard in TokenizeCLike/TokenizePython: without the
+                    // i+1 < text.Length check, an unterminated string ending in a trailing
+                    // backslash at EOF pushes i one past text.Length and the later slice throws.
+                    if (text[i] == '\\' && i + 1 < text.Length) i++;
                     i++;
                 }
                 if (i < text.Length) i++;
@@ -828,6 +839,10 @@ public static class SyntaxHighlighter
         return tokens;
     }
 
+    /// <summary>Line-length cap for the O(n^2) inline bold/italic/code/link scan in
+    /// <see cref="TokenizeMarkdown"/> - see the comment at its call site.</summary>
+    private const int MaxInlineScanLineLength = 2000;
+
     private static List<SyntaxToken> TokenizeMarkdown(string text)
     {
         var tokens = new List<SyntaxToken>();
@@ -866,7 +881,19 @@ public static class SyntaxHighlighter
                 continue;
             }
 
-            // Bold and italic
+            // Bold and italic. The scan below re-runs 4 regexes over the full remaining suffix
+            // on every match found, giving O(n^2) time for a line with many short matches - a
+            // single line near SyncTokenizeCharThreshold built from a repeating short pattern
+            // (e.g. "*a*a*a*..." ) would freeze the UI thread, since CodeEditorCanvas tokenizes
+            // synchronously there. Cap the line length this scan runs on; longer lines (well
+            // beyond any real Markdown prose line) fall through to a single Plain token instead.
+            if (line.Length > MaxInlineScanLineLength)
+            {
+                tokens.Add(new SyntaxToken(pos, line.Length, TokenType.Plain, line));
+                pos += line.Length + 1;
+                continue;
+            }
+
             var remaining = line;
             var linePos = pos;
             while (remaining.Length > 0)

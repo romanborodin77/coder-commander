@@ -181,6 +181,7 @@ internal sealed class CodeEditorCanvas : Control
             _highlightTimer.Stop();
             _highlightTimer.Dispose();
             _highlightCts?.Cancel();
+            _highlightCts?.Dispose();
             _ownedFont?.Dispose();
         }
         base.Dispose(disposing);
@@ -316,6 +317,7 @@ internal sealed class CodeEditorCanvas : Control
         if (lineCount <= SyncTokenizeLineThreshold && text.Length <= SyncTokenizeCharThreshold)
         {
             _highlightCts?.Cancel();
+            _highlightCts?.Dispose();
             _highlightCts = null;
             List<SyntaxToken> tokens;
             try { tokens = SyntaxHighlighter.Tokenize(text, _language); }
@@ -335,6 +337,7 @@ internal sealed class CodeEditorCanvas : Control
         }
 
         _highlightCts?.Cancel();
+        _highlightCts?.Dispose();
         var cts = new CancellationTokenSource();
         _highlightCts = cts;
         _tokenizeInFlight = true;
@@ -347,14 +350,20 @@ internal sealed class CodeEditorCanvas : Control
 
             if (cts.Token.IsCancellationRequested || !IsHandleCreated)
             {
-                _tokenizeInFlight = false;
+                // Only clear the flag if no newer tokenize has since started (SetLanguage
+                // cancels this task's cts but can't stop the Tokenize() call already in
+                // progress - see the comment there). Without this identity check, this branch
+                // ran on the thread pool with no marshaling and could stomp on _tokenizeInFlight
+                // right after a newer background tokenize set it back to true, making the next
+                // keystroke spawn a duplicate pass on top of the one still genuinely running.
+                if (ReferenceEquals(_highlightCts, cts)) _tokenizeInFlight = false;
                 return;
             }
             try
             {
                 BeginInvoke(() =>
                 {
-                    _tokenizeInFlight = false;
+                    if (ReferenceEquals(_highlightCts, cts)) _tokenizeInFlight = false;
                     if (!cts.Token.IsCancellationRequested && tokens != null)
                         ApplyTokens(tokens);
                     if (_tokenizePending)
@@ -364,7 +373,10 @@ internal sealed class CodeEditorCanvas : Control
                     }
                 });
             }
-            catch (ObjectDisposedException) { _tokenizeInFlight = false; /* canvas closed while tokenizing */ }
+            catch (ObjectDisposedException)
+            {
+                if (ReferenceEquals(_highlightCts, cts)) _tokenizeInFlight = false; // canvas closed while tokenizing
+            }
         }, cts.Token);
     }
 

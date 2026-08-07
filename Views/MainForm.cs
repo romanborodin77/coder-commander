@@ -1240,6 +1240,8 @@ public sealed class MainForm : Form
         using var dlg = new MultiRenameForm(e.files, e.sourcePath);
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
+        var failures = new List<string>();
+
         foreach (var (oldPath, newPath) in dlg.Results)
         {
             try
@@ -1252,10 +1254,21 @@ public sealed class MainForm : Form
             catch (Exception ex)
             {
                 LogService.Error($"Multi-rename failed: {oldPath} -> {newPath}: {ex.Message}", ex);
+                failures.Add($"{Path.GetFileName(oldPath)}: {ex.Message}");
             }
         }
 
         _ = _vm.ActivePanel.RefreshAsync();
+
+        // Unlike single Rename (OnRename below), a batch has multiple independent outcomes - a
+        // silent per-file catch here would leave the user with no indication that some renames
+        // never applied (e.g. a pattern collision with a file outside the selection).
+        if (failures.Count > 0)
+        {
+            var L = LocalizationService.Current;
+            StyledMessageBox.Show(string.Join("\n", failures), L.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
     }
 
     private void OnChangeDir(object? sender, string currentPath)

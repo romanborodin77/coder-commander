@@ -189,6 +189,7 @@ public class SearchDialogForm : ThemedForm
     {
         var L = LocalizationService.Current;
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
 
         _searchBtn.Text = L.GetString("Search.Stop");

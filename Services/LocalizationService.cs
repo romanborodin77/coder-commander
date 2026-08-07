@@ -13,6 +13,14 @@ public sealed class LocalizationService
     private readonly Dictionary<string, string> _strings = new(StringComparer.OrdinalIgnoreCase);
     private string _currentLanguage = "en";
 
+    // Report(...) calls made from a running file operation (Operations/FileOperation.cs uses
+    // ConfigureAwait(false) throughout, so progress/state callbacks run on a thread-pool thread,
+    // not the UI thread) reach GetString via MainViewModel.OnOperationChanged concurrently with
+    // whatever thread is mid-LoadLanguage - switching the UI language while a copy/move is
+    // running races a read against Clear()+repopulate on the same plain Dictionary. Guards every
+    // access to _strings.
+    private readonly object _lock = new();
+
     public string CurrentLanguage => _currentLanguage;
 
     public event EventHandler? LanguageChanged;
@@ -25,16 +33,20 @@ public sealed class LocalizationService
     /// <summary>Gets a localized string, formatting with optional args.</summary>
     public string GetString(string key, params object[] args)
     {
-        if (_strings.TryGetValue(key, out var value))
+        string? value;
+        lock (_lock)
         {
-            if (args.Length > 0)
-            {
-                try { return string.Format(value, args); }
-                catch { return value; }
-            }
-            return value;
+            _strings.TryGetValue(key, out value);
         }
-        return key;
+
+        if (value == null) return key;
+
+        if (args.Length > 0)
+        {
+            try { return string.Format(value, args); }
+            catch { return value; }
+        }
+        return value;
     }
 
     /// <summary>Shortcut: L(key, args).</summary>
@@ -44,8 +56,6 @@ public sealed class LocalizationService
     public void LoadLanguage(string code)
     {
         _currentLanguage = code;
-        _strings.Clear();
-        LoadDefaults();
 
         // LoadDefaults() is the fail-safe fallback (baked into the binary) for every language,
         // English included - lang/english.lng is loaded on top of it just like russian.lng is for
@@ -60,8 +70,17 @@ public sealed class LocalizationService
             _ => SanitizeLanguageFileStem(code)
         };
         var path = Path.Combine(AppContext.BaseDirectory, "lang", $"{fileName}.lng");
-        if (File.Exists(path))
-            LoadFromFile(path);
+
+        // Clear+repopulate must be atomic from GetString's point of view - a reader landing
+        // between Clear() and the end of LoadFromFile() would see a partially (or not at all)
+        // populated dictionary instead of either the old or the new language.
+        lock (_lock)
+        {
+            _strings.Clear();
+            LoadDefaults();
+            if (File.Exists(path))
+                LoadFromFile(path);
+        }
 
         LanguageChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -549,6 +568,7 @@ public sealed class LocalizationService
         _strings["Transfer.SourceEqualsDestination"] = "Source and destination are the same. Choose a different destination folder.";
         _strings["Archive.WipeUnsupported"] = "Secure wipe is not available for archive entries. Use Delete instead.";
         _strings["Archive.CalculateSizeUnsupported"] = "Folder size calculation is not available for archive entries.";
+        _strings["Archive.PackUnsupported"] = "Packing is not available for archive entries. Unpack the files first.";
         _strings["Archive.NestedUnsupported"] = "Archives inside archives cannot be opened directly. Unpack \"{0}\" first.";
 
         // ═══ SyncDirs ═══

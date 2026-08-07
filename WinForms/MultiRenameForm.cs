@@ -276,7 +276,7 @@ public class MultiRenameForm : ThemedForm
             return tag switch
             {
                 'N' => num1Str != null
-                    ? SubstringSafe(name, int.Parse(num1Str))
+                    ? SubstringSafe(name, ParseIntSafe(num1Str))
                     : name,
                 'E' => ext,
                 'P' => Path.GetFileName(Path.GetDirectoryName(item.FullPath)) ?? "",
@@ -300,6 +300,14 @@ public class MultiRenameForm : ThemedForm
         return s.Length > abs ? s[^abs..] : s;
     }
 
+    /// <summary>Parses a placeholder's digit-run capture (e.g. from <c>[N12]</c>/<c>[C2:10]</c>)
+    /// into an int, falling back to 0 instead of throwing. The capturing regex group allows a
+    /// digit run of unbounded length, so a value typed directly into the pattern textbox (e.g.
+    /// <c>[C99999999999]</c>) can exceed <see cref="int.MaxValue"/> - previously this reached a bare
+    /// <see cref="int.Parse(string)"/> with no try/catch anywhere on the path from
+    /// <c>TextChanged</c>, crashing the app on an ordinary typo.</summary>
+    private static int ParseIntSafe(string s) => int.TryParse(s, out var n) ? n : 0;
+
     /// <summary>Computes the counter value for the given index, with optional width and start parameters.</summary>
     private static string ComputeCounter(string? num1, string? num2, int startValue, int step, int index)
     {
@@ -308,12 +316,12 @@ public class MultiRenameForm : ThemedForm
 
         if (num1 != null && num2 != null)
         {
-            width = int.Parse(num1);
-            start = int.Parse(num2);
+            width = ParseIntSafe(num1);
+            start = ParseIntSafe(num2);
         }
         else if (num1 != null)
         {
-            start = int.Parse(num1);
+            start = ParseIntSafe(num1);
         }
 
         var value = start + index * step;
@@ -323,10 +331,14 @@ public class MultiRenameForm : ThemedForm
             : value.ToString();
     }
 
-    /// <summary>Returns <c>true</c> if the name contains no invalid filename characters.</summary>
+    /// <summary>Returns <c>true</c> if the name contains no invalid filename characters and
+    /// isn't the reserved "." or ".." (which <see cref="Path.GetInvalidFileNameChars"/> alone
+    /// doesn't reject) - a pattern that evaluates to exactly ".." would otherwise resolve to the
+    /// parent directory via <c>Path.Combine(dir, "..")</c>.</summary>
     private static bool IsValidFileName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
+        if (name is "." or "..") return false;
         var invalid = Path.GetInvalidFileNameChars();
         return !name.Any(c => invalid.Contains(c));
     }
