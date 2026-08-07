@@ -148,6 +148,38 @@ public class RewritingArchiveWriterTests
         Assert.That(afterFailure, Is.EqualTo(originalBytes));
     }
 
+    /// <summary>Regression test for the case-folding bug in RewritingArchiveWriter's internal
+    /// Key(): TAR is case-sensitive and can legitimately contain both "README.txt" and
+    /// "readme.txt" as distinct entries - deleting one must not affect the other, even though
+    /// their names differ only by case.</summary>
+    [Test]
+    public async Task Commit_DeletingOneEntry_DoesNotDropAnUntouchedCaseDifferingSibling()
+    {
+        var format = TarArchiveFormat.Instance;
+
+        await using (var writer = format.OpenWrite(_archivePath, new ArchiveWriteOptions()))
+        {
+            await WriteTextEntryAsync(writer, "README.txt", "uppercase content");
+            await WriteTextEntryAsync(writer, "readme.txt", "lowercase content");
+            await writer.CommitAsync();
+        }
+
+        using (var reader = format.OpenRead(_archivePath))
+        {
+            var directory = await reader.ReadDirectoryAsync();
+            var toRemove = directory.Entries.Single(e => e.FullName.TrimEnd('/') == "README.txt");
+
+            await using var writer = format.OpenWrite(_archivePath, new ArchiveWriteOptions());
+            writer.TryDeleteEntry(toRemove);
+            await writer.CommitAsync();
+        }
+
+        var names = await ReadEntryNamesAsync();
+        Assert.That(names, Does.Not.Contain("README.txt"));
+        Assert.That(names, Does.Contain("readme.txt"),
+            "Deleting README.txt must not also drop the untouched, case-differing readme.txt");
+    }
+
     [Test]
     public void OpenWrite_NewArchive_ReportsRewriteThroughMode()
     {
