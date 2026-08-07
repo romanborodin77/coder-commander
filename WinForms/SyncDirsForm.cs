@@ -215,7 +215,7 @@ public class SyncDirsForm : ThemedForm
             var rightMap = await Task.Run(() => BuildMap(right, subdirs));
             if (IsDisposed || !IsHandleCreated) return;
 
-            var paths = leftMap.Keys.Union(rightMap.Keys).OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
+            var paths = CombinePathKeys(leftMap, rightMap);
 
             int leftOnly = 0, rightOnly = 0, diff = 0, equal = 0;
 
@@ -325,6 +325,19 @@ public class SyncDirsForm : ThemedForm
         CopyRequested?.Invoke(this, new SyncCopyRequest(dir, queue));
         Close();
     }
+
+    /// <summary>Combines both sides' relative paths into one ordered, deduplicated sequence.
+    /// Must use OrdinalIgnoreCase explicitly - leftMap/rightMap are themselves
+    /// OrdinalIgnoreCase-keyed, but the default Union overload compares with ordinal
+    /// (case-sensitive) equality instead, so a path existing on both sides but differing only by
+    /// case (plausible whenever the two trees were populated independently) used to produce two
+    /// distinct strings here. Each then looked up the very same entry in both dictionaries
+    /// (whose own lookups ARE case-insensitive), so the same file ended up in the diff list -
+    /// and counted in the summary - twice.</summary>
+    private static IEnumerable<string> CombinePathKeys(
+        Dictionary<string, FileSnapshot> leftMap, Dictionary<string, FileSnapshot> rightMap) =>
+        leftMap.Keys.Union(rightMap.Keys, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
 
     private static Dictionary<string, FileSnapshot> BuildMap(string root, bool subdirs)
     {
