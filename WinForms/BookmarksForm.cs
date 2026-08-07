@@ -35,9 +35,18 @@ public sealed class BookmarkStore
     public void Add(string name, string path)
     {
         if (Items.Any(b => b.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
-        Items.Add(new BookmarkEntry { Name = name, Path = path, Created = DateTime.Now });
+        Items.Add(new BookmarkEntry { Name = SanitizeName(name), Path = path, Created = DateTime.Now });
         Save();
     }
+
+    /// <summary>Strips characters that would corrupt the pipe-delimited persistence format
+    /// (<c>Save</c>/<c>Load</c> below) - an embedded <c>|</c> shifts <c>Load</c>'s
+    /// <c>Split('|', 2)</c> so the tail of the name is read back as part of the path, and an
+    /// embedded newline fragments one bookmark into multiple malformed lines in the file.
+    /// <see cref="BookmarkEntry.Path"/> needs no equivalent sanitizing: it's only ever set to a
+    /// real, <c>Directory.Exists</c>-validated filesystem path, which can't contain either
+    /// character on Windows.</summary>
+    private static string SanitizeName(string name) => name.Replace('|', '_').Replace('\r', ' ').Replace('\n', ' ');
 
     /// <summary>Removes the given bookmark entry and persists the change.</summary>
     public void Remove(BookmarkEntry entry)
