@@ -152,13 +152,22 @@ public sealed class CopyOperation : FileOperation
         CancellationToken ct)
     {
         var plan = new List<(FileEntry, string)>();
+        // Guards against double-copying: Flat View lets the user select both a folder and a
+        // file already inside it (e.g. Ctrl-click a folder, then Ctrl-click a file nested under
+        // it). Without this, that file's destination path is planned once as part of the
+        // folder's own recursive walk and again as its own selection root - the second write
+        // then collides with the one the first write just made, tripping a spurious "already
+        // exists" conflict and inflating the reported file/byte totals. Mirrors
+        // PackOperation.BuildPlanAsync's identical `seen` dedup.
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var root in roots)
         {
             ct.ThrowIfCancellationRequested();
 
             var rootDest = VfsPath.Combine(destPath, VfsPath.GetRelative(sourceBasePath, root.FullPath));
-            plan.Add((root, rootDest));
+            if (seen.Add(rootDest))
+                plan.Add((root, rootDest));
 
             if (!root.IsDirectory)
                 continue;
@@ -177,7 +186,9 @@ public sealed class CopyOperation : FileOperation
             foreach (var child in children.OrderBy(c => c.FullPath, StringComparer.OrdinalIgnoreCase))
             {
                 ct.ThrowIfCancellationRequested();
-                plan.Add((child, VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath))));
+                var childDest = VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath));
+                if (seen.Add(childDest))
+                    plan.Add((child, childDest));
             }
         }
 
