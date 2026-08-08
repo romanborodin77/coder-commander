@@ -97,6 +97,13 @@ public sealed class TextBuffer
     /// </summary>
     public string GetTextForTokenizing() => string.Join('\n', _lines);
 
+    /// <summary>
+    /// Joined with <see cref="LineEnding"/> (not a bare '\n') so text lifted out of a CRLF
+    /// document - Copy/Cut via <see cref="WinForms.CodeEditorCanvas"/>'s clipboard calls - pastes
+    /// into another application as the same number of real lines instead of one line glued
+    /// together with invisible '\n's that only this editor's own paste path (which re-splits on
+    /// any of \r\n/\r/\n, see <see cref="SplitLines"/>) can already read back correctly.
+    /// </summary>
     public string GetTextInRange(TextPosition start, TextPosition end)
     {
         (start, end) = OrderPositions(start, end);
@@ -109,10 +116,10 @@ public sealed class TextBuffer
         sb.Append(_lines[start.Line].AsSpan(start.Column));
         for (var i = start.Line + 1; i < end.Line; i++)
         {
-            sb.Append('\n');
+            sb.Append(LineEnding);
             sb.Append(_lines[i]);
         }
-        sb.Append('\n');
+        sb.Append(LineEnding);
         sb.Append(_lines[end.Line].AsSpan(0, end.Column));
         return sb.ToString();
     }
