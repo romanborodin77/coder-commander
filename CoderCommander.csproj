@@ -12,6 +12,13 @@
     <NoWarn>$(NoWarn);CA1416</NoWarn>
     <AssemblyName>CoderCommander</AssemblyName>
     <RootNamespace>CoderCommander</RootNamespace>
+    <!-- Required by the source-generated [LibraryImport] marshalling code used throughout
+         Terminal/Native/ (ConPTY P/Invoke) - the generator emits pointer/fixed-buffer code for
+         several parameter shapes (out SafeHandle, ref struct, MarshalAs(Bool) on a blittable
+         signature) that the compiler only allows under /unsafe. This does not relax safety
+         checks anywhere else in the app; every unsafe construct is inside the generated
+         marshalling stubs, not in hand-written code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Was unset, which makes ApplicationConfiguration.Initialize() (Program.cs) fall back to
          the SDK default of SystemAware - under that mode DeviceDpi is fixed at the primary
          monitor's startup DPI and Windows bitmap-stretches the window on any other monitor,
