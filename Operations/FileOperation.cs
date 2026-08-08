@@ -104,6 +104,26 @@ public abstract class FileOperation : IFileOperation, IDisposable
         StateChanged?.Invoke(this, s);
     }
 
+    /// <summary>
+    /// Marks a still-queued operation as Canceled without it ever running - used by
+    /// <see cref="OperationManager"/> when a queued operation is cancelled before its turn comes
+    /// up, so <see cref="ExecuteAsync"/> is never even called and the normal
+    /// "catch OperationCanceledException -&gt; SetState(Canceled)" path inside it never runs
+    /// either. Without this, such an operation's <see cref="State"/> stayed <see
+    /// cref="OperationState.NotStarted"/> forever - indistinguishable, to anything observing
+    /// State, from an operation that was simply never touched. A no-op if <see cref="ExecuteAsync"/>
+    /// has already started (State is no longer NotStarted) - that path owns its own transition.
+    /// </summary>
+    internal void MarkCanceledWithoutRunning()
+    {
+        lock (_stateLock)
+        {
+            if (_state != OperationState.NotStarted) return;
+            _state = OperationState.Canceled;
+        }
+        StateChanged?.Invoke(this, OperationState.Canceled);
+    }
+
     /// <summary>Disposes the internal cancellation token source.</summary>
     public void Dispose()
     {

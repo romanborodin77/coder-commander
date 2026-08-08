@@ -121,6 +121,8 @@ public sealed class OperationManager : IDisposable
             _operations.TryRemove(id, out var _);
             OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
             lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
+            if (operation is FileOperation fo)
+                fo.MarkCanceledWithoutRunning();
             throw;
         }
 
