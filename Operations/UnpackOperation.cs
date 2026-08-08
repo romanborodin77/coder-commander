@@ -32,6 +32,11 @@ public sealed class UnpackOperation : FileOperation
     private long _bytesProcessed;
     private long _bytesTotal;
 
+    // Populated when ExtractAsync catches a real I/O failure for an entry (locked/inaccessible
+    // destination file, disk error, ...) - deliberately separate from encrypted/link entries,
+    // which are an intentional, already-logged skip, not a failure.
+    private readonly List<string> _extractFailures = new();
+
     /// <summary>Creates an unpack operation that extracts entries from an archive.</summary>
     /// <param name="items">Entries to extract; empty means the whole archive.</param>
     /// <param name="innerBasePath">Folder inside the archive the paths are relative to.</param>
@@ -109,6 +114,17 @@ public sealed class UnpackOperation : FileOperation
 
         if (_removeSource && extracted.Count > 0)
             await RemoveExtractedAsync(format, extracted, ct).ConfigureAwait(false);
+
+        // Extract everything that could be extracted (above) before reporting the failure,
+        // rather than aborting the whole operation the instant one entry can't be written - but
+        // still fail loudly at the end instead of silently completing with fewer files than the
+        // archive actually contained (the same WipeOperation/PackOperation.RemoveSourcesAsync
+        // precedent: collect failures, still do the achievable work, then throw a clear summary).
+        if (_extractFailures.Count > 0)
+            throw new IOException(
+                $"Unpacked successfully, but {_extractFailures.Count} entry(ies) could not be extracted: " +
+                $"{string.Join(", ", _extractFailures.Take(5))}" +
+                (_extractFailures.Count > 5 ? $" and {_extractFailures.Count - 5} more" : ""));
     }
 
     private async Task ProcessRecordAsync(ArchiveEntryRecord record, Stream? content, List<ArchiveEntryRecord> extracted, CancellationToken ct)
@@ -160,7 +176,7 @@ public sealed class UnpackOperation : FileOperation
             return;
         }
 
-        if (content != null && await ExtractAsync(record, content, target, ct).ConfigureAwait(false))
+        if (content != null && await ExtractAsync(record, content, target, relative, ct).ConfigureAwait(false))
             extracted.Add(record);
 
         _filesProcessed++;
@@ -242,9 +258,19 @@ public sealed class UnpackOperation : FileOperation
         ArchiveEntryRecord record,
         Stream content,
         string target,
+        string relative,
         CancellationToken ct)
     {
-        var parent = VfsPath.GetParent(target);
+        // Deliberately not VfsPath.GetParent(target): target is _destPath with the archive
+        // entry's relative name folded in, and a legal archive entry name may itself contain
+        // '|' (ZIP/TAR impose no such restriction). VfsPath.IsArchive uses a bare '|'-substring
+        // check to spot VFS-flavored paths, so once that character reaches a real disk path it
+        // gets misread as an archive path and mis-split on the wrong character entirely. relative
+        // is always '/'-normalized archive-inner text (see Relativize), never itself VFS-flavored,
+        // so split it directly instead of routing it back through IsArchive's ambiguous sniff.
+        var cut = relative.LastIndexOf('/');
+        var relDir = cut < 0 ? "" : relative[..cut];
+        var parent = relDir.Length == 0 ? _destPath : VfsPath.Combine(_destPath, relDir);
         if (!string.IsNullOrEmpty(parent))
             await _destFs.CreateDirectoryAsync(parent, ct).ConfigureAwait(false);
 
@@ -271,6 +297,7 @@ public sealed class UnpackOperation : FileOperation
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogService.Warning($"Unpack failed for {record.FullName}: {ex.Message}");
+            _extractFailures.Add(record.FullName);
             return false;
         }
 

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 
@@ -10,6 +11,13 @@ public sealed class LocalFileSystem : IFileSystem
 {
     /// <inheritdoc/>
     public string Name => "Local";
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool GetDiskFreeSpaceEx(
+        string lpDirectoryName,
+        out ulong lpFreeBytesAvailable,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
 
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<FileEntry>>(() =>
@@ -180,10 +188,54 @@ public sealed class LocalFileSystem : IFileSystem
             ct.ThrowIfCancellationRequested();
 
             if (Directory.Exists(path))
+            {
+                // File.Delete/Directory.Delete throw UnauthorizedAccessException on a read-only
+                // entry. Without this, a recursive delete over hundreds of files aborts the
+                // instant it reaches the first read-only one - since .NET's traversal order is
+                // unspecified, that leaves an unpredictable subset of the tree destroyed and no
+                // way to tell what survived. Clearing ReadOnly first (same policy Explorer/Shift+Del
+                // applies) lets the whole tree go in one pass instead.
+                if (recursive)
+                    ClearReadOnlyRecursive(path);
                 Directory.Delete(path, recursive);
+            }
             else if (File.Exists(path))
+            {
+                ClearReadOnlyIfSet(path);
                 File.Delete(path);
+            }
         }, ct);
+
+    /// <summary>Best-effort: a file whose attributes can't even be read/set (e.g. permission
+    /// denied, not just read-only) is left alone here and surfaces its real error from the
+    /// subsequent delete instead.</summary>
+    private static void ClearReadOnlyIfSet(string path)
+    {
+        try
+        {
+            var attrs = File.GetAttributes(path);
+            if ((attrs & FileAttributes.ReadOnly) != 0)
+                File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Leave it - Directory.Delete's own exception for this entry is the real signal.
+        }
+    }
+
+    private static void ClearReadOnlyRecursive(string root)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                ClearReadOnlyIfSet(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Enumeration itself failed partway (e.g. an inaccessible subdirectory) - the
+            // subsequent Directory.Delete still runs and surfaces whatever it hits.
+        }
+    }
 
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
@@ -199,17 +251,29 @@ public sealed class LocalFileSystem : IFileSystem
             File.SetAttributes(path, attributes);
         }, ct);
 
+    /// <summary>
+    /// Free/total bytes at <paramref name="path"/>'s volume. Goes through
+    /// <c>GetDiskFreeSpaceExW</c> rather than <see cref="DriveInfo"/> because DriveInfo only
+    /// enumerates lettered drives - a UNC destination (<c>\\server\share\...</c>) never matches
+    /// any of them, so the old lookup silently fell through to (0,0) for every network
+    /// destination. <see cref="Operations.UnpackOperation.RejectIfWouldExhaustDisk"/> treats
+    /// freeBytes &lt;= 0 as "couldn't determine, skip the check" - so that fallback was quietly
+    /// disabling the decompression-bomb guard for network destinations rather than reporting it
+    /// as unknown. GetDiskFreeSpaceExW handles UNC paths directly and needs no drive-letter lookup.
+    /// </summary>
     public Task<(long free, long total)> GetDriveSpaceAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                var root = Path.GetPathRoot(path);
-                if (!string.IsNullOrEmpty(root) && DriveInfo.GetDrives().Any(d => string.Equals(d.Name, root, StringComparison.OrdinalIgnoreCase)))
+                // GetDiskFreeSpaceExW needs an existing directory - walk up to the nearest
+                // ancestor that exists (the destination itself may not have been created yet).
+                var existing = FindExistingAncestor(path);
+                if (existing != null &&
+                    GetDiskFreeSpaceEx(existing, out var freeAvailable, out var total, out _))
                 {
-                    var drive = new DriveInfo(root);
-                    return (drive.AvailableFreeSpace, drive.TotalSize);
+                    return ((long)freeAvailable, (long)total);
                 }
             }
             catch (Exception ex)
@@ -218,6 +282,14 @@ public sealed class LocalFileSystem : IFileSystem
             }
             return (0L, 0L);
         }, ct);
+
+    private static string? FindExistingAncestor(string path)
+    {
+        var current = path;
+        while (!string.IsNullOrEmpty(current) && !Directory.Exists(current))
+            current = Path.GetDirectoryName(current);
+        return string.IsNullOrEmpty(current) ? null : current;
+    }
 
     public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {

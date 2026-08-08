@@ -12,7 +12,12 @@ public static class RecycleBinHelper
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern uint SHFileOperationW(ref SHFILEOPSTRUCTW lpFileOp);
 
-    [DllImport("shell32.dll")]
+    // Without CharSet.Unicode, the marshaller sends pszRootPath as an ANSI (narrow) string to a
+    // function whose "W" suffix and wchar_t* signature both promise wide characters - silently
+    // truncating/mangling any rootPath with non-ANSI characters. Currently dead code (nothing
+    // calls Empty()), but exactly the kind of interop mismatch that's easy to miss once something
+    // does.
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern uint SHEmptyRecycleBinW(IntPtr hwnd, string? pszRootPath, uint dwFlags);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

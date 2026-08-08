@@ -124,6 +124,13 @@ public sealed class CopyOperation : FileOperation
 
         await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
 
+        // A single locked/inaccessible file used to abort the ENTIRE copy - nothing caught an
+        // exception from CopyFileWithProgress, so it propagated straight out of ExecuteCoreAsync
+        // and every remaining planned file (potentially thousands) was never even attempted.
+        // Unlike Pack/Unpack (which already tolerate this), Copy had zero partial-failure
+        // tolerance. Collected here and reported together with any enumeration failures below.
+        var copyFailures = new List<string>();
+
         foreach (var (entry, destFullPath) in plan)
         {
             ct.ThrowIfCancellationRequested();
@@ -134,22 +141,31 @@ public sealed class CopyOperation : FileOperation
                 continue;
             }
 
-            await CopyFileWithProgress(entry, destFullPath, ct).ConfigureAwait(false);
+            try
+            {
+                await CopyFileWithProgress(entry, destFullPath, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
+                copyFailures.Add(entry.FullPath);
+            }
 
             _filesProcessed++;
             ReportProgress(entry.Name);
         }
 
         // Copy everything that could be read (above) before reporting the failure, rather than
-        // aborting the whole operation the instant one subtree can't be enumerated - but still
-        // fail loudly at the end instead of silently completing with less content than the user
-        // selected (the WipeOperation/PackOperation.RemoveSourcesAsync precedent: collect
+        // aborting the whole operation the instant one file/subtree can't be copied/enumerated -
+        // but still fail loudly at the end instead of silently completing with less content than
+        // the user selected (the WipeOperation/PackOperation.RemoveSourcesAsync precedent: collect
         // failures, still do the achievable work, then throw a clear summary).
-        if (enumerationFailures.Count > 0)
+        var allFailures = enumerationFailures.Concat(copyFailures).ToList();
+        if (allFailures.Count > 0)
             throw new IOException(
-                $"Copied successfully, but {enumerationFailures.Count} folder(s) could not be fully read and were skipped: " +
-                $"{string.Join(", ", enumerationFailures.Take(5))}" +
-                (enumerationFailures.Count > 5 ? $" and {enumerationFailures.Count - 5} more" : ""));
+                $"Copied successfully, but {allFailures.Count} item(s) could not be copied: " +
+                $"{string.Join(", ", allFailures.Take(5))}" +
+                (allFailures.Count > 5 ? $" and {allFailures.Count - 5} more" : ""));
     }
 
     /// <summary>
