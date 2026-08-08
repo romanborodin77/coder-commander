@@ -416,14 +416,32 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void ApplyFilter()
     {
         Items.Clear();
+        var visible = new HashSet<FileSystemItem>();
         foreach (var item in _allItems)
         {
             if (string.IsNullOrEmpty(Filter) || item.IsParent ||
                 item.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase))
             {
                 Items.Add(item);
+                visible.Add(item);
             }
         }
+
+        // A filter must never leave something checkbox-selected, or the cursor item, hidden from
+        // view: GetSelectedOrActive falls back to SelectedItem when nothing is checkbox-selected
+        // (an operation could then silently target a file the filter is hiding), and the bulk
+        // Select All/Deselect All/Invert commands only ever touch the currently-visible Items -
+        // so a checkbox-selected item that becomes hidden here would otherwise survive untouched
+        // by those commands and resurface, still selected, the moment the filter is cleared or
+        // widened, with the selection count shown while filtered not even including it.
+        foreach (var item in _allItems)
+        {
+            if (!visible.Contains(item))
+                item.IsSelected = false;
+        }
+        if (SelectedItem != null && !visible.Contains(SelectedItem))
+            SelectedItem = null;
+
         RecomputeSelectionStats();
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedBytes));
