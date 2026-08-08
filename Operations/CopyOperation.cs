@@ -116,7 +116,8 @@ public sealed class CopyOperation : FileOperation
     /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
-        var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct).ConfigureAwait(false);
+        var enumerationFailures = new List<string>();
+        var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct, enumerationFailures).ConfigureAwait(false);
 
         _filesTotal = plan.Count(p => !p.Entry.IsDirectory);
         _bytesTotal = plan.Where(p => !p.Entry.IsDirectory).Sum(p => p.Entry.Size);
@@ -138,18 +139,33 @@ public sealed class CopyOperation : FileOperation
             _filesProcessed++;
             ReportProgress(entry.Name);
         }
+
+        // Copy everything that could be read (above) before reporting the failure, rather than
+        // aborting the whole operation the instant one subtree can't be enumerated - but still
+        // fail loudly at the end instead of silently completing with less content than the user
+        // selected (the WipeOperation/PackOperation.RemoveSourcesAsync precedent: collect
+        // failures, still do the achievable work, then throw a clear summary).
+        if (enumerationFailures.Count > 0)
+            throw new IOException(
+                $"Copied successfully, but {enumerationFailures.Count} folder(s) could not be fully read and were skipped: " +
+                $"{string.Join(", ", enumerationFailures.Take(5))}" +
+                (enumerationFailures.Count > 5 ? $" and {enumerationFailures.Count - 5} more" : ""));
     }
 
     /// <summary>
     /// Expands the selection into every entry that has to be created, keeping folders ahead of
-    /// their content so that the destination tree is always built top-down.
+    /// their content so that the destination tree is always built top-down. A root whose subtree
+    /// can't be enumerated is reported via <paramref name="enumerationFailures"/> (when supplied)
+    /// and excluded from the plan entirely, rather than silently producing an empty destination
+    /// folder that looks like a successful (if content-less) copy.
     /// </summary>
     internal static async Task<List<(FileEntry Entry, string Destination)>> FlattenAsync(
         IFileSystem sourceFs,
         IReadOnlyList<FileEntry> roots,
         string sourceBasePath,
         string destPath,
-        CancellationToken ct)
+        CancellationToken ct,
+        List<string>? enumerationFailures = null)
     {
         var plan = new List<(FileEntry, string)>();
         // Guards against double-copying: Flat View lets the user select both a folder and a
@@ -166,7 +182,8 @@ public sealed class CopyOperation : FileOperation
             ct.ThrowIfCancellationRequested();
 
             var rootDest = VfsPath.Combine(destPath, VfsPath.GetRelative(sourceBasePath, root.FullPath));
-            if (seen.Add(rootDest))
+            var rootAdded = seen.Add(rootDest);
+            if (rootAdded)
                 plan.Add((root, rootDest));
 
             if (!root.IsDirectory)
@@ -180,6 +197,14 @@ public sealed class CopyOperation : FileOperation
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogService.Warning($"Copy: cannot enumerate {root.FullPath}: {ex.Message}");
+                // Don't leave a "planned but silently empty" destination folder for a subtree
+                // that couldn't actually be read.
+                if (rootAdded)
+                {
+                    plan.RemoveAt(plan.Count - 1);
+                    seen.Remove(rootDest);
+                }
+                enumerationFailures?.Add(root.FullPath);
                 continue;
             }
 
