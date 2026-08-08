@@ -700,6 +700,14 @@ sealed class FileComparer(bool dirsFirst, string column, bool descending) : ICom
             _ => string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase)
         };
 
-        return descending ? -result : result;
+        if (result != 0)
+            return descending ? -result : result;
+
+        // Tie-breaker: List<T>.Sort (introsort) isn't stable, so two entries with an equal
+        // primary-column key (e.g. same Size, same Modified) can swap position on every re-sort
+        // with no visible cause - toggling DirectoriesFirst, a FileSystemWatcher-triggered
+        // RefreshAsync, etc. Always ascending by name regardless of `descending`, so ties settle
+        // into one consistent order no matter which direction the primary sort runs.
+        return column == "Name" ? 0 : string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);
     }
 }
