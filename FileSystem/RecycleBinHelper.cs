@@ -61,6 +61,19 @@ public static class RecycleBinHelper
     {
         if (paths.Count == 0) return false;
 
+        // The Recycle Bin doesn't exist for network locations at all. FOF_ALLOWUNDO below is a
+        // request, not a guarantee: when the shell can't recycle an item (a UNC path is the most
+        // common case; an oversized file or a disabled bin on a local drive are rarer ones this
+        // check doesn't catch), it silently falls back to permanent deletion instead of failing -
+        // and FOF_NOCONFIRMATION (needed because this runs off a thread pool thread with no
+        // message pump, so we can't safely show FOF_WANTNUKEWARNING's confirmation dialog either)
+        // suppresses the one warning that would otherwise say so. Without this check, a delete
+        // the user expected to be recoverable via the Recycle Bin was actually permanent, with
+        // this method still reporting success. Rejecting up front routes to DeleteOperation's
+        // existing "Recycle Bin failed - confirm permanent delete?" fallback instead.
+        if (paths.Any(p => p.StartsWith(@"\\", StringComparison.Ordinal)))
+            return false;
+
         // Shell API requires double-null terminated string
         var sb = new StringBuilder();
         foreach (var p in paths)
