@@ -68,7 +68,16 @@ public static class VfsPath
         try
         {
             var rel = Path.GetRelativePath(basePath, fullPath);
-            return rel.StartsWith("..", StringComparison.Ordinal) ? GetName(fullPath) : rel;
+            // Path.GetRelativePath signals "unrelated trees" two different ways depending on
+            // *how* unrelated the paths are: a "../" prefix when they share a root but diverge
+            // partway down, or - for a pair on different drives entirely (e.g. "C:\a" vs
+            // "D:\b\c.txt") - the second path returned completely unchanged, rooted, with no
+            // "../" at all. Only checking the first form let a cross-volume fullPath leak through
+            // as a full rooted path instead of falling back to the bare name like every other
+            // "unrelated trees" case here.
+            return rel.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(rel)
+                ? GetName(fullPath)
+                : rel;
         }
         catch (ArgumentException)
         {

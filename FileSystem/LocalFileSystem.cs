@@ -314,6 +314,10 @@ public sealed class LocalFileSystem : IFileSystem
             var bufferSize = source.CanSeek ? BufferSizing.ForSize(source.Length) : 81920;
             using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
             {
+                // Hidden, not just oddly-named: without this, a large in-progress copy showed a
+                // ".tmp-<32 hex chars>" entry sitting right next to the real files in the
+                // destination folder for as long as the transfer took.
+                try { File.SetAttributes(tempPath, FileAttributes.Hidden); } catch { /* cosmetic only */ }
                 await source.CopyToAsync(fs, bufferSize, ct).ConfigureAwait(false);
             }
             File.Move(tempPath, destinationPath, overwrite: true);

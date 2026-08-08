@@ -356,6 +356,16 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 ? await _fs.EnumerateDeepAsync(path, ShowHidden, ct)
                 : await _fs.EnumerateAsync(path, ShowHidden, ct);
 
+            // Every entry becomes a brand-new FileSystemItem below, so IsSelected/SelectedItem
+            // would otherwise silently reset on every refresh - including one the user never
+            // asked for (a FileSystemWatcher debounce firing because an antivirus/sync client
+            // touched the folder). Carried across by FullPath, the one thing that still
+            // identifies "the same entry" once the old objects are discarded.
+            var selectedPaths = new HashSet<string>(
+                _allItems.Where(i => !i.IsParent && i.IsSelected).Select(i => i.FullPath),
+                StringComparer.OrdinalIgnoreCase);
+            var selectedItemPath = SelectedItem is { IsParent: false } si ? si.FullPath : null;
+
             _allItems.Clear();
 
             var root = _fs.GetRootPath(path);
@@ -371,11 +381,20 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 var item = IsFlatView
                     ? new FileSystemItem(e) { DisplayName = Path.GetRelativePath(path, e.FullPath) }
                     : new FileSystemItem(e);
+                if (selectedPaths.Contains(item.FullPath))
+                    item.IsSelected = true;
                 _allItems.Add(item);
             }
 
             SortAllItems();
             ApplyFilter();
+
+            // Restored after ApplyFilter (which nulls SelectedItem if its old, now-stale object
+            // reference isn't among the new items) so the newly-created item with a matching
+            // FullPath - rather than the discarded old one - becomes the cursor.
+            if (selectedItemPath != null)
+                SelectedItem = _allItems.FirstOrDefault(i =>
+                    !i.IsParent && string.Equals(i.FullPath, selectedItemPath, StringComparison.OrdinalIgnoreCase));
 
             UpdateFreeSpace(path);
         }
@@ -700,6 +719,14 @@ sealed class FileComparer(bool dirsFirst, string column, bool descending) : ICom
             _ => string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase)
         };
 
-        return descending ? -result : result;
+        if (result != 0)
+            return descending ? -result : result;
+
+        // Tie-breaker: List<T>.Sort (introsort) isn't stable, so two entries with an equal
+        // primary-column key (e.g. same Size, same Modified) can swap position on every re-sort
+        // with no visible cause - toggling DirectoriesFirst, a FileSystemWatcher-triggered
+        // RefreshAsync, etc. Always ascending by name regardless of `descending`, so ties settle
+        // into one consistent order no matter which direction the primary sort runs.
+        return column == "Name" ? 0 : string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);
     }
 }
