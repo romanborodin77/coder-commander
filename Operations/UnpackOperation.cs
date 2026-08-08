@@ -176,7 +176,7 @@ public sealed class UnpackOperation : FileOperation
             return;
         }
 
-        if (content != null && await ExtractAsync(record, content, target, ct).ConfigureAwait(false))
+        if (content != null && await ExtractAsync(record, content, target, relative, ct).ConfigureAwait(false))
             extracted.Add(record);
 
         _filesProcessed++;
@@ -258,9 +258,19 @@ public sealed class UnpackOperation : FileOperation
         ArchiveEntryRecord record,
         Stream content,
         string target,
+        string relative,
         CancellationToken ct)
     {
-        var parent = VfsPath.GetParent(target);
+        // Deliberately not VfsPath.GetParent(target): target is _destPath with the archive
+        // entry's relative name folded in, and a legal archive entry name may itself contain
+        // '|' (ZIP/TAR impose no such restriction). VfsPath.IsArchive uses a bare '|'-substring
+        // check to spot VFS-flavored paths, so once that character reaches a real disk path it
+        // gets misread as an archive path and mis-split on the wrong character entirely. relative
+        // is always '/'-normalized archive-inner text (see Relativize), never itself VFS-flavored,
+        // so split it directly instead of routing it back through IsArchive's ambiguous sniff.
+        var cut = relative.LastIndexOf('/');
+        var relDir = cut < 0 ? "" : relative[..cut];
+        var parent = relDir.Length == 0 ? _destPath : VfsPath.Combine(_destPath, relDir);
         if (!string.IsNullOrEmpty(parent))
             await _destFs.CreateDirectoryAsync(parent, ct).ConfigureAwait(false);
 
