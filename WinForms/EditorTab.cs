@@ -47,12 +47,18 @@ public sealed class EditorTab : IDisposable
     {
         try
         {
+            var bytes = File.ReadAllBytes(path);
+            var encoding = TextEncodingDetector.Detect(bytes, out var preambleLength);
+            var text = encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
+
+            // Only commit path/language/encoding once the read+decode above has actually
+            // succeeded - assigning FilePath up front left a tab pointing at a file whose load
+            // failed (locked, permission denied, huge enough to throw OutOfMemoryException) with
+            // an empty buffer still showing. A subsequent Ctrl+S on that tab would silently
+            // truncate the real file on disk to nothing.
             FilePath = path;
             Language = LanguageDetector.Detect(path);
-
-            var bytes = File.ReadAllBytes(path);
-            Encoding = TextEncodingDetector.Detect(bytes, out var preambleLength);
-            var text = Encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
+            Encoding = encoding;
 
             Editor.LoadText(text);
             Editor.Language = Language;
