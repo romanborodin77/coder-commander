@@ -180,10 +180,54 @@ public sealed class LocalFileSystem : IFileSystem
             ct.ThrowIfCancellationRequested();
 
             if (Directory.Exists(path))
+            {
+                // File.Delete/Directory.Delete throw UnauthorizedAccessException on a read-only
+                // entry. Without this, a recursive delete over hundreds of files aborts the
+                // instant it reaches the first read-only one - since .NET's traversal order is
+                // unspecified, that leaves an unpredictable subset of the tree destroyed and no
+                // way to tell what survived. Clearing ReadOnly first (same policy Explorer/Shift+Del
+                // applies) lets the whole tree go in one pass instead.
+                if (recursive)
+                    ClearReadOnlyRecursive(path);
                 Directory.Delete(path, recursive);
+            }
             else if (File.Exists(path))
+            {
+                ClearReadOnlyIfSet(path);
                 File.Delete(path);
+            }
         }, ct);
+
+    /// <summary>Best-effort: a file whose attributes can't even be read/set (e.g. permission
+    /// denied, not just read-only) is left alone here and surfaces its real error from the
+    /// subsequent delete instead.</summary>
+    private static void ClearReadOnlyIfSet(string path)
+    {
+        try
+        {
+            var attrs = File.GetAttributes(path);
+            if ((attrs & FileAttributes.ReadOnly) != 0)
+                File.SetAttributes(path, attrs & ~FileAttributes.ReadOnly);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Leave it - Directory.Delete's own exception for this entry is the real signal.
+        }
+    }
+
+    private static void ClearReadOnlyRecursive(string root)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                ClearReadOnlyIfSet(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Enumeration itself failed partway (e.g. an inaccessible subdirectory) - the
+            // subsequent Directory.Delete still runs and surfaces whatever it hits.
+        }
+    }
 
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
