@@ -277,6 +277,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (intoArchive)
         {
+            // Guards against packing a folder into an archive file that physically lives inside
+            // that same folder (destArchive is the archive's real path, not a VFS path - safe to
+            // reuse the same real-disk containment check the plain-filesystem branch below uses).
+            // Only relevant when the source is real files (fromArchive == false): packing FROM
+            // inside an archive can't have this containment relationship with a destination
+            // archive on real disk, and the same-archive case above already handles archive-to-
+            // archive. Without this, packing/moving a folder into an archive inside it lets
+            // PackOperation write the archive into itself, then (on Move)
+            // PackOperation.RemoveSourcesAsync deletes the whole source folder afterward -
+            // including the archive it just finished writing.
+            if (!fromArchive && IsDestinationInsideSource(sourceBase, destArchive, entries))
+            {
+                OperationRejected?.Invoke(this, "Transfer.SourceEqualsDestination");
+                return;
+            }
+
             op = new PackOperation(sourceFs, entries, sourceBase, destArchive,
                 VfsPath.GetInner(destPath), options, removeSource: move);
         }
