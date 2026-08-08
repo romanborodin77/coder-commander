@@ -953,6 +953,13 @@ public sealed class MainForm : Form
                 or Keys.F5 or Keys.F6 or Keys.F7 or Keys.F8 or Keys.F9 or Keys.F10))
                 return;
         }
+        else if (focused is IKeyboardGreedyControl greedy && !greedy.AllowsAppHotkey(e.KeyCode))
+        {
+            // e.g. TerminalCanvas: wants almost every key for itself (typing Ctrl+A/Ctrl+D/etc.
+            // must reach the shell, not this app's SelectAll/other hotkeys). Its own ProcessCmdKey
+            // override is the primary gate; this is a defense-in-depth backstop.
+            return;
+        }
 
         if (_vm.Hotkeys.HandleKey(e))
             return;
@@ -1692,7 +1699,7 @@ public sealed class MainForm : Form
         // control directly without notifying app code).
         s.TerminalHeight = _terminalPanel.Height > 0 ? _terminalPanel.Height : s.TerminalHeight;
         s.OpenTerminalTabs = _terminalPanel.SessionManager?.Tabs
-            .Select(t => $"{t.ShellType.ToSerializableString()}|{t.CurrentPath}")
+            .Select(t => $"{t.Shell.Id}|{t.CurrentPath}")
             .ToList() ?? new List<string>();
         s.LastTerminalPath = _terminalPanel.SessionManager?.ActiveTab?.CurrentPath;
 
@@ -1759,8 +1766,8 @@ public sealed class MainForm : Form
             var tabs = s.OpenTerminalTabs
                 .Select(entry => entry.Split('|', 2))
                 .Where(parts => parts.Length == 2 && Directory.Exists(parts[1]))
-                .Select(parts => (ShellTypeExtensions.Parse(parts[0]), parts[1]));
-            _terminalPanel.RestoreTabs(tabs);
+                .Select(parts => (ShellId: parts[0], Path: parts[1]));
+            await _terminalPanel.RestoreTabsAsync(tabs);
         }
     }
 }

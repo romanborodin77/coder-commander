@@ -500,8 +500,12 @@ Menu.Commands.Differ=Сравнить &файлы…
 
 # ═══ Терминал ═══
 Terminal.SelectType=Выберите тип терминала
-Terminal.Cmd=Командная строка (cmd.exe)
-Terminal.PowerShell=PowerShell (powershell.exe)
+Terminal.Shell.Cmd=Командная строка (cmd.exe)
+Terminal.Shell.WindowsPowerShell=Windows PowerShell
+Terminal.Shell.PowerShellCore=PowerShell 7
+Terminal.Shell.GitBash=Git Bash
+Terminal.Shell.Wsl=WSL: {0}
+Terminal.UnsupportedOs=Встроенному терминалу требуется Windows 10 версии 1809 (сборка 17763) или новее.
 Terminal.NewTab=Новая вкладка терминала
 Terminal.CloseTab=Закрыть вкладку
 Terminal.NextTab=Следующая вкладка

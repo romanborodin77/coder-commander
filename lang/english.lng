@@ -502,8 +502,12 @@ Props.CountFilesDirs={0} files, {1} folders
 
 # ═══ Terminal ═══
 Terminal.SelectType=Select Terminal Type
-Terminal.Cmd=Command Prompt (cmd.exe)
-Terminal.PowerShell=PowerShell (powershell.exe)
+Terminal.Shell.Cmd=Command Prompt (cmd.exe)
+Terminal.Shell.WindowsPowerShell=Windows PowerShell
+Terminal.Shell.PowerShellCore=PowerShell 7
+Terminal.Shell.GitBash=Git Bash
+Terminal.Shell.Wsl=WSL: {0}
+Terminal.UnsupportedOs=The embedded terminal needs Windows 10 version 1809 (build 17763) or later.
 Terminal.NewTab=New Terminal Tab
 Terminal.CloseTab=Close Tab
 Terminal.NextTab=Next Tab

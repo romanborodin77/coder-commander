@@ -63,7 +63,13 @@ public sealed class AppSettings
     // Terminal settings
     public bool TerminalVisible { get; set; } = false;
     public int TerminalHeight { get; set; } = 250;
-    public string DefaultShellType { get; set; } = "Cmd";
+
+    /// <summary>A <c>Terminal.Shells.ShellDescriptor.Id</c> ("cmd", "powershell", "pwsh", "gitbash",
+    /// "wsl:&lt;distro&gt;"). <see cref="SettingsService.Validate"/> migrates the pre-rewrite
+    /// "Cmd"/"PowerShell" tokens the first time a settings file written by an older version loads.</summary>
+    public string DefaultShellType { get; set; } = "cmd";
+
+    /// <summary>Restored tabs as <c>"{ShellId}|{Path}"</c> entries.</summary>
     public List<string> OpenTerminalTabs { get; set; } = new();
     public string? LastTerminalPath { get; set; }
 }
@@ -130,7 +136,35 @@ public static class SettingsService
         MigrateLegacyCompressionLevel(s);
         CleanArchiveCompression(s);
         CleanAlreadyCompressedExtensions(s);
+        MigrateLegacyShellTokens(s);
     }
+
+    /// <summary>Maps both legacy shell-token vocabularies onto the new stable
+    /// <c>ShellDescriptor.Id</c> values ("cmd"/"powershell" - mirrored here as literals rather than
+    /// referencing <c>Terminal.Shells.ShellIds</c>, matching <see cref="KnownCompressionPresets"/>'s
+    /// own "no dependency on a higher-level namespace" reasoning, since Terminal already depends on
+    /// Services). <see cref="AppSettings.DefaultShellType"/> used to store "Cmd"/"PowerShell";
+    /// <see cref="AppSettings.OpenTerminalTabs"/> entries used "cmd.exe"/"PowerShell" - the two
+    /// disagreed even with each other pre-rewrite. Idempotent: an already-new-style id (or an
+    /// unrecognized custom/WSL id) passes through unchanged, so this is safe to run on every load.</summary>
+    private static void MigrateLegacyShellTokens(AppSettings s)
+    {
+        s.DefaultShellType = MapLegacyShellToken(s.DefaultShellType);
+
+        for (var i = 0; i < s.OpenTerminalTabs.Count; i++)
+        {
+            var parts = s.OpenTerminalTabs[i].Split('|', 2);
+            if (parts.Length == 2)
+                s.OpenTerminalTabs[i] = MapLegacyShellToken(parts[0]) + "|" + parts[1];
+        }
+    }
+
+    private static string MapLegacyShellToken(string token) => token switch
+    {
+        "Cmd" or "cmd.exe" => "cmd",
+        "PowerShell" => "powershell",
+        _ => token
+    };
 
     /// <summary>Mirrors <see cref="CoderCommander.Archives.CompressionPreset"/>'s member names as
     /// plain strings rather than referencing the enum itself, matching <see cref="AppSettings.ArchiveCompression"/>'s

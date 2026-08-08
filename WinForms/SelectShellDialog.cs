@@ -1,36 +1,34 @@
-using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Terminal.Shells;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Dialog for selecting shell type when creating a new terminal tab.
-/// Themed to match application appearance.
+/// Dialog for selecting which shell to run when creating a new terminal tab. Populated from
+/// <see cref="ShellCatalog"/>'s autodetected list (cmd, Windows PowerShell, pwsh, Git Bash, one
+/// entry per installed WSL distribution) rather than a fixed two-value enum.
 /// </summary>
 public sealed class SelectShellDialog : ThemedForm
 {
     private ThemedComboBox _shellComboBox = null!;
     private Button _okButton = null!;
     private Button _cancelButton = null!;
-    /// <summary>Gets the shell type selected by the user.</summary>
-    public ShellType SelectedShell { get; private set; }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SelectShellDialog"/> class, populating the
-    /// combo box with the available shell types.
-    /// </summary>
-    /// <param name="availableShells">List of shell types to present in the dialog.</param>
+    /// <summary>Gets the shell selected by the user.</summary>
+    public ShellDescriptor SelectedShell { get; private set; }
+
+    /// <param name="availableShells">Shells to present, as discovered by <see cref="ShellCatalog.DiscoverAsync"/>.</param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="availableShells"/> is empty.</exception>
-    public SelectShellDialog(List<ShellType> availableShells)
+    public SelectShellDialog(IReadOnlyList<ShellDescriptor> availableShells, string? preferredShellId = null)
     {
-        if (!availableShells.Any())
+        if (availableShells.Count == 0)
             throw new ArgumentException("No shells available", nameof(availableShells));
 
-        InitializeComponents(availableShells);
-        SelectedShell = availableShells.First();
+        InitializeComponents(availableShells, preferredShellId);
+        SelectedShell = availableShells[0];
     }
 
-    private void InitializeComponents(List<ShellType> availableShells)
+    private void InitializeComponents(IReadOnlyList<ShellDescriptor> availableShells, string? preferredShellId)
     {
         var L = LocalizationService.Current;
         var p = ThemeService.Current;
@@ -59,24 +57,13 @@ public sealed class SelectShellDialog : ThemedForm
             ForeColor = p.Foreground
         };
 
-        // Try to select default shell from settings
-        var settings = SettingsService.Load();
-        var defaultShellType = settings.DefaultShellType == "PowerShell"
-            ? ShellType.PowerShell
-            : ShellType.Cmd;
-
-        int selectedIndex = 0;
-        int indexCounter = 0;
-
-        foreach (var shell in availableShells)
+        var selectedIndex = 0;
+        for (var i = 0; i < availableShells.Count; i++)
         {
-            var displayName = $"{shell.GetDisplayName()} ({shell.GetExecutableName()})";
-            _shellComboBox.AddItem(displayName);
-
-            if (shell == defaultShellType)
-                selectedIndex = indexCounter;
-
-            indexCounter++;
+            var shell = availableShells[i];
+            _shellComboBox.AddItem(DisplayNameFor(shell, L));
+            if (shell.Id == preferredShellId)
+                selectedIndex = i;
         }
 
         _shellComboBox.SelectedIndex = selectedIndex;
@@ -105,15 +92,17 @@ public sealed class SelectShellDialog : ThemedForm
 
         _okButton.Click += (_, _) =>
         {
-            if (_shellComboBox.SelectedItem is string displayText && displayText.Length > 0)
-            {
-                // Extract shell type from display name
+            if (_shellComboBox.SelectedIndex >= 0)
                 SelectedShell = availableShells[_shellComboBox.SelectedIndex];
-            }
             DialogResult = DialogResult.OK;
             Close();
         };
 
         _cancelButton.DialogResult = DialogResult.Cancel;
     }
+
+    private static string DisplayNameFor(ShellDescriptor shell, LocalizationService l) =>
+        shell.DisplayNameArg != null
+            ? l.GetString(shell.DisplayNameKey, shell.DisplayNameArg)
+            : l.GetString(shell.DisplayNameKey);
 }

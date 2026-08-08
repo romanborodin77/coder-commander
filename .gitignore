@@ -5,6 +5,7 @@ obj/
 *.suo
 .vs/
 *.userprefs
+TestResults/
 
 ## Build results
 [Dd]ebug/

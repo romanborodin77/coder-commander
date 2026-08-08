@@ -1104,7 +1104,7 @@ internal sealed class CodeEditorCanvas : Control
     {
         if (!HasSelection) return;
         var (start, end) = SelectionRange!.Value;
-        TrySetClipboard(_buffer.GetTextInRange(start, end));
+        ClipboardHelper.TrySetClipboard(_buffer.GetTextInRange(start, end));
     }
 
     /// <summary>Copies the current selection to the clipboard and deletes it.</summary>
@@ -1130,18 +1130,6 @@ internal sealed class CodeEditorCanvas : Control
         }
         if (string.IsNullOrEmpty(text)) return;
         InsertTextAtCaret(text, allowCoalesce: false);
-    }
-
-    private static void TrySetClipboard(string text)
-    {
-        try
-        {
-            Clipboard.SetText(text);
-        }
-        catch (Exception ex)
-        {
-            LogService.Error($"Clipboard copy failed: {ex.Message}");
-        }
     }
 
     // -- Mouse input --

@@ -1,3 +1,5 @@
+using CoderCommander.Terminal.Shells;
+
 namespace CoderCommander.Models;
 
 /// <summary>
@@ -13,8 +15,8 @@ public class TerminalTab
     /// <summary>Display name of the tab (e.g., "cmd", "PowerShell #2").</summary>
     public string Name { get; set; }
 
-    /// <summary>Type of shell (cmd.exe or PowerShell).</summary>
-    public ShellType ShellType { get; }
+    /// <summary>Which shell this tab runs.</summary>
+    public ShellDescriptor Shell { get; }
 
     /// <summary>Current working directory for this terminal session.</summary>
     public string CurrentPath { get; set; }
@@ -29,14 +31,14 @@ public class TerminalTab
     public DateTime CreatedAt { get; }
 
     /// <summary>Initialize a new terminal tab.</summary>
-    public TerminalTab(ShellType shellType, string currentPath = "")
+    public TerminalTab(ShellDescriptor shell, string displayName, string currentPath = "")
     {
         Id = Guid.NewGuid();
-        ShellType = shellType;
+        Shell = shell;
         CurrentPath = string.IsNullOrEmpty(currentPath)
             ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
             : currentPath;
-        Name = $"{shellType.GetDisplayName()}";
+        Name = displayName;
         IsActive = false;
         IsDisposed = false;
         CreatedAt = DateTime.Now;
@@ -46,5 +48,5 @@ public class TerminalTab
     public string GetDisplayName() => Name;
 
     public override string ToString() =>
-        $"TerminalTab(Id={Id:N}, Name={Name}, Shell={ShellType}, Path={CurrentPath}, Disposed={IsDisposed})";
+        $"TerminalTab(Id={Id:N}, Name={Name}, Shell={Shell.Id}, Path={CurrentPath}, Disposed={IsDisposed})";
 }

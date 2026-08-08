@@ -30,6 +30,76 @@ public sealed class SyntaxPalette
 }
 
 /// <summary>
+/// Terminal colors for <see cref="WinForms.TerminalCanvas"/> - the 16 ANSI palette entries plus
+/// cursor/selection/search-match colors. Split out of <see cref="ThemePalette"/> the same way
+/// <see cref="SyntaxPalette"/> is, so Dark (Campbell, Windows Terminal's default scheme) and Light
+/// (One Half Light) can each supply a full set. The 256-color cube and truecolor values are NOT
+/// here - they're computed by <see cref="Terminal.Vt.Xterm256"/> from these 16 entries plus the
+/// protocol's fixed color-cube/grayscale-ramp math, since they're protocol constants, not theme
+/// colors.
+/// </summary>
+public sealed class TerminalPalette
+{
+    /// <summary>ANSI 0 - black.</summary>
+    public Color Black { get; init; }
+    /// <summary>ANSI 1 - red.</summary>
+    public Color Red { get; init; }
+    /// <summary>ANSI 2 - green.</summary>
+    public Color Green { get; init; }
+    /// <summary>ANSI 3 - yellow.</summary>
+    public Color Yellow { get; init; }
+    /// <summary>ANSI 4 - blue.</summary>
+    public Color Blue { get; init; }
+    /// <summary>ANSI 5 - magenta.</summary>
+    public Color Magenta { get; init; }
+    /// <summary>ANSI 6 - cyan.</summary>
+    public Color Cyan { get; init; }
+    /// <summary>ANSI 7 - white.</summary>
+    public Color White { get; init; }
+    /// <summary>ANSI 8 - bright black (grey).</summary>
+    public Color BrightBlack { get; init; }
+    /// <summary>ANSI 9 - bright red.</summary>
+    public Color BrightRed { get; init; }
+    /// <summary>ANSI 10 - bright green.</summary>
+    public Color BrightGreen { get; init; }
+    /// <summary>ANSI 11 - bright yellow.</summary>
+    public Color BrightYellow { get; init; }
+    /// <summary>ANSI 12 - bright blue.</summary>
+    public Color BrightBlue { get; init; }
+    /// <summary>ANSI 13 - bright magenta.</summary>
+    public Color BrightMagenta { get; init; }
+    /// <summary>ANSI 14 - bright cyan.</summary>
+    public Color BrightCyan { get; init; }
+    /// <summary>ANSI 15 - bright white.</summary>
+    public Color BrightWhite { get; init; }
+
+    /// <summary>Default foreground (SGR 39 / no SGR yet) - not necessarily <see cref="White"/>.</summary>
+    public Color DefaultForeground { get; init; }
+    /// <summary>Default background (SGR 49 / no SGR yet) - not necessarily <see cref="Black"/>.</summary>
+    public Color DefaultBackground { get; init; }
+
+    /// <summary>Fill color of the block cursor when the terminal has focus.</summary>
+    public Color Cursor { get; init; }
+    /// <summary>Color of the character glyph drawn on top of a filled <see cref="Cursor"/>.</summary>
+    public Color CursorText { get; init; }
+    /// <summary>Outline color of the hollow cursor drawn when the terminal has lost focus.</summary>
+    public Color InactiveCursor { get; init; }
+
+    /// <summary>Background color for the active text selection.</summary>
+    public Color SelectionBackground { get; init; }
+    /// <summary>Foreground color for the active text selection.</summary>
+    public Color SelectionForeground { get; init; }
+
+    /// <summary>Highlight color for non-current scrollback search matches.</summary>
+    public Color SearchMatch { get; init; }
+    /// <summary>Highlight color for the current (focused) scrollback search match.</summary>
+    public Color SearchMatchCurrent { get; init; }
+
+    /// <summary>Underline color for detected clickable URLs/paths.</summary>
+    public Color LinkUnderline { get; init; }
+}
+
+/// <summary>
 /// Process-lifetime cache of <see cref="Font"/> instances keyed by (family, size, style).
 /// Dark and Light palettes share the same font metrics, so caching here means neither
 /// palette exclusively owns a Font it would need to dispose. Previously each theme switch
@@ -191,6 +261,38 @@ public sealed class ThemePalette
         SqlFunction = Color.FromArgb(220, 220, 170)
     };
 
+    /// <summary>Terminal colors for <see cref="WinForms.TerminalCanvas"/> - Campbell (Windows
+    /// Terminal's default dark scheme).</summary>
+    public TerminalPalette Terminal { get; init; } = new()
+    {
+        Black = Color.FromArgb(12, 12, 12),
+        Red = Color.FromArgb(197, 15, 31),
+        Green = Color.FromArgb(19, 161, 14),
+        Yellow = Color.FromArgb(193, 156, 0),
+        Blue = Color.FromArgb(0, 55, 218),
+        Magenta = Color.FromArgb(136, 23, 152),
+        Cyan = Color.FromArgb(58, 150, 221),
+        White = Color.FromArgb(204, 204, 204),
+        BrightBlack = Color.FromArgb(118, 118, 118),
+        BrightRed = Color.FromArgb(231, 72, 86),
+        BrightGreen = Color.FromArgb(22, 198, 12),
+        BrightYellow = Color.FromArgb(249, 241, 165),
+        BrightBlue = Color.FromArgb(59, 120, 255),
+        BrightMagenta = Color.FromArgb(180, 0, 158),
+        BrightCyan = Color.FromArgb(97, 214, 214),
+        BrightWhite = Color.FromArgb(242, 242, 242),
+        DefaultForeground = Color.FromArgb(204, 204, 204),
+        DefaultBackground = Color.FromArgb(12, 12, 12),
+        Cursor = Color.FromArgb(255, 255, 255),
+        CursorText = Color.FromArgb(12, 12, 12),
+        InactiveCursor = Color.FromArgb(128, 128, 128),
+        SelectionBackground = Color.FromArgb(38, 79, 120),
+        SelectionForeground = Color.FromArgb(255, 255, 255),
+        SearchMatch = Color.FromArgb(96, 76, 21),
+        SearchMatchCurrent = Color.FromArgb(199, 148, 22),
+        LinkUnderline = Color.FromArgb(58, 150, 221)
+    };
+
     /// <summary>Font used for file list grid cells.</summary>
     public Font GridFont { get; init; } = FontCache.Get("Segoe UI", 9F);
     /// <summary>Bold font for file list grid cells (e.g. highlighted rows).</summary>
@@ -291,6 +393,36 @@ public static class ThemeService
             Selector = Color.FromArgb(180, 100, 0),
             JsonKey = Color.FromArgb(0, 100, 150),
             SqlFunction = Color.FromArgb(150, 130, 0)
+        },
+        Terminal = new()
+        {
+            // One Half Light
+            Black = Color.FromArgb(56, 58, 66),
+            Red = Color.FromArgb(228, 86, 73),
+            Green = Color.FromArgb(80, 161, 79),
+            Yellow = Color.FromArgb(193, 131, 1),
+            Blue = Color.FromArgb(1, 132, 188),
+            Magenta = Color.FromArgb(166, 38, 164),
+            Cyan = Color.FromArgb(9, 151, 179),
+            White = Color.FromArgb(250, 250, 250),
+            BrightBlack = Color.FromArgb(79, 82, 94),
+            BrightRed = Color.FromArgb(223, 108, 117),
+            BrightGreen = Color.FromArgb(152, 195, 121),
+            BrightYellow = Color.FromArgb(229, 192, 123),
+            BrightBlue = Color.FromArgb(97, 175, 239),
+            BrightMagenta = Color.FromArgb(198, 120, 221),
+            BrightCyan = Color.FromArgb(86, 182, 194),
+            BrightWhite = Color.FromArgb(255, 255, 255),
+            DefaultForeground = Color.FromArgb(56, 58, 66),
+            DefaultBackground = Color.FromArgb(250, 250, 250),
+            Cursor = Color.FromArgb(56, 58, 66),
+            CursorText = Color.FromArgb(250, 250, 250),
+            InactiveCursor = Color.FromArgb(160, 161, 167),
+            SelectionBackground = Color.FromArgb(200, 222, 255),
+            SelectionForeground = Color.FromArgb(56, 58, 66),
+            SearchMatch = Color.FromArgb(255, 223, 128),
+            SearchMatchCurrent = Color.FromArgb(255, 173, 51),
+            LinkUnderline = Color.FromArgb(1, 132, 188)
         }
     };
 

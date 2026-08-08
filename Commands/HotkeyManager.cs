@@ -120,9 +120,12 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.D1, CommandIds.SetTheme, "Dark");
         Register(Keys.Control | Keys.D2, CommandIds.SetTheme, "Light");
 
-        // Terminal tabs
-        Register(Keys.Control | Keys.T, CommandIds.CreateTerminalTab);
-        Register(Keys.Control | Keys.W, CommandIds.CloseTerminalTab);
+        // Terminal tabs - matches TerminalKeyBindings.WindowsTerminalPreset's own tab chords, so
+        // the same shortcut does the same thing whether or not the terminal canvas has focus.
+        // Plain Ctrl+T/Ctrl+W are deliberately NOT bound here (unlike before the ConPTY rewrite):
+        // a real shell needs those free for its own use (e.g. readline's Ctrl+T transpose-chars).
+        Register(Keys.Control | Keys.Shift | Keys.T, CommandIds.CreateTerminalTab);
+        Register(Keys.Control | Keys.Shift | Keys.W, CommandIds.CloseTerminalTab);
         Register(Keys.Control | Keys.Tab, CommandIds.NextTerminalTab);
         Register(Keys.Control | Keys.Shift | Keys.Tab, CommandIds.PreviousTerminalTab);
     }

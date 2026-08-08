@@ -244,11 +244,15 @@ public class SettingsForm : ThemedForm
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
+        // Only the two always-present built-in shells are offered here - the full autodetected
+        // list (pwsh, Git Bash, per-distro WSL) is what SelectShellDialog shows when creating a
+        // tab; a richer "default shell" picker sourced from ShellCatalog is deferred to the
+        // terminal settings tab rework.
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.DefaultShell")), 0, 0);
         _defaultShellCombo = new ThemedComboBox { Dock = DockStyle.Fill };
-        _defaultShellCombo.AddItem(L.GetString("Terminal.Cmd"));
-        _defaultShellCombo.AddItem(L.GetString("Terminal.PowerShell"));
-        var defaultShellIndex = s.DefaultShellType == "PowerShell" ? 1 : 0;
+        _defaultShellCombo.AddItem(L.GetString("Terminal.Shell.Cmd"));
+        _defaultShellCombo.AddItem(L.GetString("Terminal.Shell.WindowsPowerShell"));
+        var defaultShellIndex = s.DefaultShellType == "powershell" ? 1 : 0;
         _defaultShellCombo.SelectedIndex = defaultShellIndex;
         terminalLayout.Controls.Add(_defaultShellCombo, 1, 0);
 
@@ -345,7 +349,7 @@ public class SettingsForm : ThemedForm
         s.CopyAttributes = _copyAttrsCheck.Checked;
         s.CopyTimestamps = _copyTsCheck.Checked;
         s.ArchiveCompression = _workingCompression.ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.OrdinalIgnoreCase);
-        s.DefaultShellType = _defaultShellCombo.SelectedIndex == 1 ? "PowerShell" : "Cmd";
+        s.DefaultShellType = _defaultShellCombo.SelectedIndex == 1 ? "powershell" : "cmd";
         SettingsService.Save(s);
 
         // Apply language

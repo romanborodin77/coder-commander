@@ -1,27 +1,27 @@
 using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Terminal;
+using CoderCommander.Terminal.Input;
+using CoderCommander.Terminal.Shells;
+using CoderCommander.Terminal.Ui;
 using CoderCommander.Utils;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Globalization;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Embedded terminal panel with tabbed multi-session support.
-/// Each tab can run cmd.exe or PowerShell independently with preserved output history.
+/// Embedded terminal panel with tabbed multi-session support. Each tab owns its own
+/// <see cref="TerminalSession"/> (a real ConPTY-backed shell) rendered by its own
+/// <see cref="TerminalCanvas"/> - unlike the pre-rewrite panel, tabs no longer share a single
+/// output/input control pair.
 /// </summary>
 public sealed class EmbeddedTerminalPanel : Panel
 {
     private TerminalSessionManager? _sessionManager;
-    private Dictionary<Guid, TerminalProcessWrapper> _processes = new();
-    private Dictionary<Guid, StringBuilder> _outputBuffers = new();
+    private readonly Dictionary<Guid, TerminalSession> _sessions = new();
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
-    private RichTextBox _outputBox = null!;
-    private TextBox _inputBox = null!;
-    private ThemedTabControl _tabControl = null!;
-    private Panel _sharedContent = null!;
-    private RoundedButton _newTabButton = null!;
+    private ThemedTabControl? _tabControl;
+    private RoundedButton? _newTabButton;
+    private readonly TerminalKeyBindings _keyBindings = TerminalKeyBindings.WindowsTerminalPreset();
 
     /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
@@ -29,15 +29,14 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Raised when a tab is created, closed, or the tab count changes.</summary>
     public event EventHandler? TabsChanged;
 
-    /// <summary>Raised when the active tab's output buffer receives new text.</summary>
-    public event EventHandler? OutputUpdated;
+    /// <summary>Raised when the tracked shell working directory changes for the active tab.</summary>
+    public event EventHandler<DirectoryChangedEventArgs>? DirectoryChanged;
 
     public EmbeddedTerminalPanel()
     {
         InitializeComponents();
         ApplyTheme();
         ThemeService.ThemeChanged += OnThemeChanged;
-        VisibleChanged += (_, _) => OnVisibleChanged();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
@@ -45,6 +44,15 @@ public sealed class EmbeddedTerminalPanel : Panel
     private void InitializeComponents()
     {
         BackColor = ThemeService.Current.Background;
+
+        if (!OsVersion.IsConPtySupported)
+        {
+            // No ConPTY API at all on this build - per the approved rewrite plan there is no
+            // fallback to the old pipe-based implementation, just this message. AddTerminalTab/
+            // ShowNewTabDialog/RestoreTabsAsync all no-op when _sessionManager is null.
+            Controls.Add(new UnsupportedOsPanel());
+            return;
+        }
 
         _sessionManager = new TerminalSessionManager();
         _sessionManager.TabCreated += OnTabCreated;
@@ -73,47 +81,6 @@ public sealed class EmbeddedTerminalPanel : Panel
         };
         _newTabButton.Click += (_, _) => ShowNewTabDialog();
         _tabControl.SetTrailingControl(_newTabButton);
-
-        // Output/input controls are shared across every tab (the tab strip only switches
-        // which session is "active" - RefreshDisplay swaps in that tab's buffered history).
-        _sharedContent = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = ThemeService.Current.Background
-        };
-
-        _outputBox = new RichTextBox
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            Multiline = true,
-            ScrollBars = RichTextBoxScrollBars.Vertical,
-            BackColor = ThemeService.Current.Background,
-            ForeColor = ThemeService.Current.Foreground,
-            Font = ThemeService.Current.MonoFont,
-            WordWrap = false,
-            BorderStyle = BorderStyle.None,
-            Margin = new Padding(0),
-            Padding = new Padding(8)
-        };
-        _sharedContent.Controls.Add(_outputBox);
-
-        _inputBox = new TextBox
-        {
-            Dock = DockStyle.Bottom,
-            BackColor = ThemeService.Current.Background,
-            ForeColor = ThemeService.Current.Foreground,
-            Font = ThemeService.Current.MonoFont,
-            BorderStyle = BorderStyle.FixedSingle,
-            Multiline = false,
-            Height = 24,
-            Padding = new Padding(4, 2, 4, 2),
-            Margin = new Padding(0)
-        };
-        _inputBox.KeyDown += InputBox_KeyDown;
-        _sharedContent.Controls.Add(_inputBox);
-
-        AppendOutput("Terminal Panel Ready\r\nUse [+] button to create a new tab\r\nSupported: cmd.exe, PowerShell\r\n\r\n", ThemeService.Current.Foreground);
     }
 
     private void ApplyTheme()
@@ -122,24 +89,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             return;
 
         var p = ThemeService.Current;
-
         BackColor = p.Background;
-        if (_outputBox != null)
-        {
-            _outputBox.BackColor = p.Background;
-            _outputBox.ForeColor = p.Foreground;
-            // EmbeddedTerminalPanel only ever lives inside MainForm, which isn't a ThemedForm,
-            // so nothing else walks in here to apply native dark-scrollbar theming - without
-            // this the output box's scrollbar stayed system-light in dark mode.
-            NativeControlThemer.ApplyDarkScrollbars(_outputBox);
-        }
-        if (_inputBox != null)
-        {
-            _inputBox.BackColor = p.Background;
-            _inputBox.ForeColor = p.Foreground;
-        }
-        if (_sharedContent != null)
-            _sharedContent.BackColor = p.Background;
         if (_newTabButton != null)
         {
             _newTabButton.BackColor = p.Background;
@@ -149,40 +99,58 @@ public sealed class EmbeddedTerminalPanel : Panel
             _newTabButton.BorderWidth = 1;
             _newTabButton.Invalidate();
         }
-        // ThemedTabControl self-themes via its own ThemeService.ThemeChanged subscription.
+        // ThemedTabControl and each tab's TerminalCanvas self-theme via their own
+        // ThemeService.ThemeChanged subscriptions.
     }
 
     /// <summary>Fallback working directory for new tabs when there's no active tab to inherit from.</summary>
     public string? DefaultPath { get; set; }
 
-    /// <summary>Change the working directory of the active terminal tab.</summary>
-    /// <param name="path">New working directory path.</param>
+    /// <summary>Change the working directory of the active terminal tab (programmatic push, not
+    /// something the user typed). Only takes effect once <c>Terminal.Shells.ShellBootstrap</c>-style
+    /// cwd-sync is wired up in a later phase - for a shell whose prompt doesn't report its cwd, this
+    /// is currently a best-effort <c>cd</c>-equivalent injected as if typed, so it stays available
+    /// even before that lands.</summary>
     public void SetWorkingDirectory(string path)
     {
         if (!ShellValidator.IsPathAccessible(path))
             return;
 
         var activeTab = _sessionManager?.ActiveTab;
-        if (activeTab != null)
+        if (activeTab == null || !_sessions.TryGetValue(activeTab.Id, out var session))
+            return;
+
+        activeTab.CurrentPath = path;
+        var command = session.Shell.Family switch
         {
-            activeTab.CurrentPath = path;
-            if (_processes.TryGetValue(activeTab.Id, out var process))
-                process.SetWorkingDirectory(path);
+            ShellFamily.WindowsPowerShell or ShellFamily.PowerShellCore =>
+                $"Set-Location -LiteralPath '{path.Replace("'", "''")}'\r",
+            ShellFamily.Bash or ShellFamily.Wsl => null, // needs WslPathMapper translation - phase 3
+            _ => $"cd /d \"{path}\"\r"
+        };
+        if (command != null)
+            session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
+    }
+
+    /// <summary>Restore previously saved tabs (shell id + working directory) on startup. Unknown
+    /// shell ids (e.g. a WSL distro that's since been uninstalled) are silently skipped.</summary>
+    public async Task RestoreTabsAsync(IEnumerable<(string ShellId, string Path)> tabs)
+    {
+        if (_sessionManager == null) return;
+        var available = await ShellCatalog.DiscoverAsync().ConfigureAwait(true);
+        foreach (var (shellId, path) in tabs)
+        {
+            var shell = available.FirstOrDefault(s => s.Id == shellId);
+            if (shell != null)
+                AddTerminalTab(shell, path);
         }
     }
 
-    /// <summary>Restore previously saved tabs (shell type + working directory) on startup.</summary>
-    public void RestoreTabs(IEnumerable<(ShellType Shell, string Path)> tabs)
-    {
-        foreach (var (shell, path) in tabs)
-            AddTerminalTab(shell, path);
-    }
-
     /// <summary>Create a new terminal tab, inheriting the working directory from the active tab (or DefaultPath).</summary>
-    public TerminalTab? AddTerminalTab(ShellType shellType) => AddTerminalTab(shellType, null);
+    public TerminalTab? AddTerminalTab(ShellDescriptor shell) => AddTerminalTab(shell, null);
 
     /// <summary>Create a new terminal tab with an explicit working directory.</summary>
-    public TerminalTab? AddTerminalTab(ShellType shellType, string? workingDirectory)
+    public TerminalTab? AddTerminalTab(ShellDescriptor shell, string? workingDirectory)
     {
         if (_sessionManager == null)
             return null;
@@ -202,26 +170,29 @@ public sealed class EmbeddedTerminalPanel : Panel
         var seedPath = ShellValidator.ValidateOrDefaultPath(
             workingDirectory ?? DefaultPath ?? _sessionManager.ActiveTab?.CurrentPath);
 
-        var tab = _sessionManager.CreateTab(shellType, seedPath);
-        if (tab == null)
-            return null;
-
-        // Create process for this tab
-        var process = new TerminalProcessWrapper(shellType, tab.CurrentPath);
-        _processes[tab.Id] = process;
-        _outputBuffers[tab.Id] = new StringBuilder();
-
-        // Wire up process events
-        process.OutputReceived += (_, text) => OnProcessOutput(tab.Id, text, false);
-        process.ErrorReceived += (_, text) => OnProcessOutput(tab.Id, text, true);
-        process.ProcessExited += (_, _) => OnProcessExited(tab.Id);
-
-        if (!process.Start())
+        TerminalSession session;
+        try
         {
-            AppendOutput($"Failed to start {shellType.GetDisplayName()}\r\n", ThemeService.Current.Danger);
-            CloseTerminalTab(tab.Id);
+            session = TerminalSession.Start(shell, seedPath, cols: 80, rows: 24, scrollbackLines: 5000);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Failed to start shell \"{shell.Id}\"", ex);
+            var L = LocalizationService.Current;
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, FindForm());
             return null;
         }
+
+        var tab = _sessionManager.CreateTab(shell, session.Name, seedPath);
+        if (tab == null)
+        {
+            _ = session.DisposeAsync().AsTask();
+            return null;
+        }
+
+        _sessions[tab.Id] = session;
+        session.Exited += _ => OnSessionExited(tab.Id);
+        session.Screen.CwdReported += path => OnSessionCwdReported(tab.Id, path);
 
         return tab;
     }
@@ -229,22 +200,13 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Close a terminal tab.</summary>
     public void CloseTerminalTab(Guid tabId)
     {
-        if (_processes.TryGetValue(tabId, out var process))
+        if (_sessions.TryGetValue(tabId, out var session))
         {
-            _processes.Remove(tabId);
-
-            // Terminate()/Dispose() kills the process tree and blocks up to ~1s waiting for it to
-            // exit; run it in the background so closing a single tab doesn't freeze the window -
-            // the same reasoning already applied to closing the whole panel below, in Dispose(bool).
-            _ = Task.Run(() =>
-            {
-                process.Terminate();
-                process.Dispose();
-            });
+            _sessions.Remove(tabId);
+            // Teardown blocks up to a few seconds waiting on the process tree; run it in the
+            // background so closing a single tab doesn't freeze the window.
+            _ = Task.Run(() => session.DisposeAsync().AsTask());
         }
-
-        if (_outputBuffers.TryGetValue(tabId, out _))
-            _outputBuffers.Remove(tabId);
 
         _sessionManager?.CloseTab(tabId);
         TabsChanged?.Invoke(this, EventArgs.Empty);
@@ -255,8 +217,6 @@ public sealed class EmbeddedTerminalPanel : Panel
     {
         if (!_sessionManager?.SwitchTab(tabId) ?? false)
             return;
-
-        RefreshDisplay();
     }
 
     /// <summary>Switch to next tab.</summary>
@@ -289,19 +249,6 @@ public sealed class EmbeddedTerminalPanel : Panel
             SwitchToTab(_sessionManager.Tabs[prevIndex].Id);
     }
 
-    /// <summary>Refresh display with active tab output.</summary>
-    public void RefreshDisplay()
-    {
-        _outputBox.Clear();
-        var activeTab = _sessionManager?.ActiveTab;
-        if (activeTab != null && _outputBuffers.TryGetValue(activeTab.Id, out var buffer))
-        {
-            var text = buffer.ToString();
-            AppendOutput(text, ThemeService.Current.Foreground);
-        }
-        _inputBox.Focus();
-    }
-
     private void TabControl_SelectedIndexChanged(object? sender, EventArgs e)
     {
         var page = _tabControl.SelectedPage;
@@ -311,6 +258,8 @@ public sealed class EmbeddedTerminalPanel : Panel
         var tabId = _tabPagesByGuid.FirstOrDefault(kv => kv.Value == page).Key;
         if (tabId != Guid.Empty && tabId != _sessionManager?.ActiveTab?.Id)
             SwitchToTab(tabId);
+
+        page.Content.Focus();
     }
 
     private void TabControl_TabRightClicked(object? sender, int index)
@@ -336,27 +285,30 @@ public sealed class EmbeddedTerminalPanel : Panel
             page.Text = e.NewName;
             page.RefreshTab();
         }
+        if (_sessions.TryGetValue(e.TabId, out var session))
+            session.Name = e.NewName;
     }
 
     private void OnTabCreated(object? sender, Guid tabId)
     {
-        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab)
+        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab || !_sessions.TryGetValue(tabId, out var session))
             return;
 
-        var page = new ThemedTabPage(tab.GetDisplayName(), _sharedContent);
+        var canvas = new TerminalCanvas(session, _keyBindings);
+        canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
+        session.Screen.TitleChanged += () => OnScreenTitleChanged(tabId);
+
+        var page = new ThemedTabPage(tab.GetDisplayName(), canvas);
         _tabPagesByGuid[tabId] = page;
         _tabControl.AddPage(page);
         _tabControl.SelectedIndex = _tabControl.Pages.Count - 1;
 
         // For the very first page AddPage selects index 0 internally without raising
-        // SelectedIndexChanged, so the display would keep showing the previous session's
-        // leftover text. Sync the session and display explicitly instead of relying on the
-        // event alone.
+        // SelectedIndexChanged - sync the session explicitly instead of relying on the event alone.
         if (_sessionManager.ActiveTab?.Id != tabId)
             _sessionManager.SwitchTab(tabId);
-        else
-            RefreshDisplay();
 
+        canvas.Focus();
         TabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -364,8 +316,12 @@ public sealed class EmbeddedTerminalPanel : Panel
     {
         if (_tabPagesByGuid.TryGetValue(tabId, out var page))
         {
+            // RemovePage first, so ThemedTabControl un-parents (and stops referencing) this page's
+            // Content before it's disposed - disposing a still-parented control out from under a
+            // pending re-parent in UpdateTabs() would risk an ObjectDisposedException there.
             _tabControl.RemovePage(page);
             _tabPagesByGuid.Remove(tabId);
+            page.Content.Dispose();
         }
         TabsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -382,274 +338,93 @@ public sealed class EmbeddedTerminalPanel : Panel
                     break;
                 }
             }
-        }
-        RefreshDisplay();
-    }
-
-    private void OnProcessOutput(Guid tabId, string text, bool isError)
-    {
-        if (InvokeRequired)
-        {
-            try { Invoke(() => OnProcessOutput(tabId, text, isError)); }
-            catch (ObjectDisposedException) { }
-            catch (InvalidOperationException) { }
-            return;
-        }
-        if (IsDisposed)
-            return;
-
-        if (!_outputBuffers.TryGetValue(tabId, out var buffer))
-            return;
-
-        buffer.Append(text);
-
-        var activeTab = _sessionManager?.ActiveTab;
-        if (activeTab?.Id == tabId)
-        {
-            var color = isError ? ThemeService.Current.Danger : ThemeService.Current.Foreground;
-            AppendOutput(text, color);
-            OutputUpdated?.Invoke(this, EventArgs.Empty);
+            page.Content.Focus();
         }
     }
 
-    private void OnProcessExited(Guid tabId)
+    private void OnCanvasActionRequested(Guid tabId, TerminalAction action)
     {
-        if (InvokeRequired)
+        switch (action)
         {
-            try { Invoke(() => OnProcessExited(tabId)); }
-            catch (ObjectDisposedException) { }
-            catch (InvalidOperationException) { }
-            return;
+            case TerminalAction.NewTab: ShowNewTabDialog(); break;
+            case TerminalAction.CloseTab: CloseTerminalTab(tabId); break;
+            case TerminalAction.NextTab: NextTab(); break;
+            case TerminalAction.PrevTab: PreviousTab(); break;
+            // Find/ClearBuffer/ResetTerminal/scroll navigation land in later phases.
         }
-        if (IsDisposed)
-            return;
+    }
 
-        if (_sessionManager?.GetTab(tabId) is TerminalTab tab)
-        {
-            AppendOutput($"\r\n[Process terminated for {tab.Name}]\r\n", ThemeService.Current.Danger);
-            CloseTerminalTab(tabId);
-        }
+    private void OnScreenTitleChanged(Guid tabId)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnScreenTitleChanged(tabId)); return; }
+        if (IsDisposed) return;
+        if (!_sessions.TryGetValue(tabId, out var session)) return;
+
+        // Title changes only ever rename the tab - never MainForm.Text (see VtResponder/OscSanitizer
+        // doc comments for why an attacker-controlled title must stay confined to the tab strip).
+        _sessionManager?.RenameTab(tabId, session.Screen.Title.Length > 0 ? session.Screen.Title : session.Name);
+    }
+
+    private void OnSessionCwdReported(Guid tabId, string path)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnSessionCwdReported(tabId, path)); return; }
+        if (IsDisposed) return;
+        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
+
+        tab.CurrentPath = path;
+        DirectoryChanged?.Invoke(this, new DirectoryChangedEventArgs { TabId = tabId, NewPath = path });
+    }
+
+    private void OnSessionExited(Guid tabId)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnSessionExited(tabId)); return; }
+        if (IsDisposed) return;
+        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
+
+        LogService.Info($"Terminal: shell process exited for tab {tab.Name}");
+        CloseTerminalTab(tabId);
     }
 
     /// <summary>Show dialog to create new terminal tab.</summary>
-    public void ShowNewTabDialog()
+    public async void ShowNewTabDialog()
     {
-        var available = ShellValidator.GetAvailableShells();
-        if (available.Count == 0)
-        {
-            var L = LocalizationService.Current;
-            StyledMessageBox.Show(
-                L.GetString("Terminal.NoShellAvailable"),
-                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, FindForm());
-            return;
-        }
+        if (_sessionManager == null) return; // unsupported OS - see InitializeComponents
 
-        using (var dlg = new SelectShellDialog(available))
+        try
         {
-            if (dlg.ShowDialog() == DialogResult.OK)
+            var available = await ShellCatalog.DiscoverAsync().ConfigureAwait(true);
+            if (available.Count == 0)
             {
+                var L = LocalizationService.Current;
+                StyledMessageBox.Show(
+                    L.GetString("Terminal.NoShellAvailable"),
+                    L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, FindForm());
+                return;
+            }
+
+            var preferredShellId = SettingsService.Load().DefaultShellType;
+            using var dlg = new SelectShellDialog(available, preferredShellId);
+            if (dlg.ShowDialog(FindForm()) == DialogResult.OK)
                 AddTerminalTab(dlg.SelectedShell);
-            }
+        }
+        catch (Exception ex)
+        {
+            // async void: this is the top of the call stack, so an unhandled exception here would
+            // surface as WinForms' raw crash dialog instead of the app's own error handling.
+            LogService.Error("ShowNewTabDialog failed", ex);
         }
     }
 
-    private void AppendOutput(string text, Color color)
-    {
-        if (InvokeRequired)
-        {
-            Invoke(() => AppendOutput(text, color));
-            return;
-        }
-
-        _outputBox.SelectionStart = _outputBox.TextLength;
-        _outputBox.SelectionLength = 0;
-        _outputBox.SelectionColor = color;
-        _outputBox.AppendText(text);
-        _outputBox.SelectionStart = _outputBox.TextLength;
-        _outputBox.ScrollToCaret();
-    }
-
-    private void InputBox_KeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.KeyCode == Keys.Return && !e.Control && !e.Shift)
-        {
-            e.Handled = true;
-            var rawText = _inputBox.Text;
-            var command = rawText.Trim();
-
-            if (string.IsNullOrEmpty(command))
-                return;
-
-            LogService.Info($"Input: raw=[{rawText}] trimmed=[{command}]");
-            // Don't output command here - let the shell handle echo output
-            _inputBox.Clear();
-
-            if (command.Equals("exit", StringComparison.OrdinalIgnoreCase))
-            {
-                var activeTab = _sessionManager?.ActiveTab;
-                if (activeTab != null)
-                    CloseTerminalTab(activeTab.Id);
-                return;
-            }
-
-            var tab = _sessionManager?.ActiveTab;
-            if (tab != null && _processes.TryGetValue(tab.Id, out var process))
-            {
-                process.ExecuteCommand(command);
-                // Track directory changes for cd/chdir commands
-                UpdateDirectoryIfChanged(tab, command);
-            }
-        }
-        else if (e.KeyCode == Keys.Escape)
-        {
-            e.Handled = true;
-            Visible = false;
-        }
-    }
-
-    // Best-effort heuristics for tracking the shell's working directory by re-parsing the
-    // literal command the user typed. There is no cheap way to ask a fully redirected child
-    // console process for its real cwd without issuing an extra query command after every
-    // input line (which would pollute the terminal's own visible output). The goal here is to
-    // eliminate active false positives (silently wrong tracked path) and cover cheap, common
-    // gaps - not to achieve 100% shell fidelity. Explicitly out of scope: pushd/popd and
-    // Push-Location/Pop-Location (need a directory stack, not a parsing fix), chained commands
-    // like "cd Foo && dir" or "cd Foo; ls" (fails validation and is safely skipped today, but
-    // properly splitting needs a quote-aware command-line parser), and PowerShell provider
-    // paths like "cd HKLM:\" (naturally rejected by Directory.Exists, safe no-op).
-    private static readonly Regex CdNoSpaceRegex = new(@"^(cd|chdir)\.\.$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex BareDriveRegex = new(@"^[a-zA-Z]:$", RegexOptions.Compiled);
-    private static readonly Regex PowerShellPathFlagRegex = new(@"^-Path[:\s]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex PowerShellEnvVarRegex = new(@"\$env:(\w+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private void UpdateDirectoryIfChanged(TerminalTab tab, string command)
-    {
-        var cmd = command.Trim();
-
-        // Bare drive-letter switch, e.g. "D:" (works in both cmd.exe and PowerShell)
-        if (BareDriveRegex.IsMatch(cmd))
-        {
-            TryApplyNewPath(tab, cmd + "\\");
-            return;
-        }
-
-        string cmdName;
-        string? argsText;
-        if (CdNoSpaceRegex.IsMatch(cmd))
-        {
-            // "cd.." with no space
-            cmdName = "cd";
-            argsText = "..";
-        }
-        else
-        {
-            var parts = cmd.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0)
-                return;
-            cmdName = parts[0].ToLowerInvariant();
-            argsText = parts.Length > 1 ? parts[1] : null;
-        }
-
-        var isCdCommand = cmdName is "cd" or "chdir" or "set-location" or "sl";
-        if (!isCdCommand)
-            return;
-
-        var isPowerShell = tab.ShellType == ShellType.PowerShell;
-
-        // Bare cd/sl: PowerShell goes to $HOME; cmd.exe's bare "cd" only prints the cwd
-        // (does not change it), so leaving it untracked there is correct, not a gap.
-        if (string.IsNullOrWhiteSpace(argsText))
-        {
-            if (isPowerShell)
-                TryApplyNewPath(tab, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-            return;
-        }
-
-        var rawArgs = argsText.Trim();
-        var hasDFlag = false;
-
-        if (!isPowerShell)
-        {
-            // cmd.exe cross-drive flag: cd /d C:\path
-            if (rawArgs.StartsWith("/d ", StringComparison.OrdinalIgnoreCase))
-            {
-                hasDFlag = true;
-                rawArgs = rawArgs[3..].Trim();
-            }
-        }
-        else
-        {
-            // PowerShell named-parameter form: Set-Location -Path "C:\Foo"
-            rawArgs = PowerShellPathFlagRegex.Replace(rawArgs, "").Trim();
-        }
-
-        var newPath = rawArgs.Trim('"', '\'');
-
-        // Expand environment variables (%VAR% works in both shells; $env:VAR is PowerShell-only)
-        newPath = Environment.ExpandEnvironmentVariables(newPath);
-        if (isPowerShell)
-        {
-            newPath = PowerShellEnvVarRegex.Replace(newPath,
-                m => Environment.GetEnvironmentVariable(m.Groups[1].Value) ?? m.Value);
-        }
-
-        if (newPath == "..")
-        {
-            newPath = Path.GetDirectoryName(tab.CurrentPath) ?? tab.CurrentPath;
-        }
-        else if (!Path.IsPathRooted(newPath))
-        {
-            newPath = Path.Combine(tab.CurrentPath, newPath);
-        }
-        else if (!isPowerShell && !hasDFlag)
-        {
-            // cmd.exe without /d does NOT actually change the shell's current directory when
-            // switching to a different drive - it only updates that drive's remembered
-            // directory. Tracking this as a move would be an active false positive.
-            var currentDrive = Path.GetPathRoot(tab.CurrentPath);
-            var targetDrive = Path.GetPathRoot(newPath);
-            if (!string.IsNullOrEmpty(currentDrive) && !string.IsNullOrEmpty(targetDrive) &&
-                !string.Equals(currentDrive, targetDrive, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-        }
-
-        TryApplyNewPath(tab, newPath);
-    }
-
-    private void TryApplyNewPath(TerminalTab tab, string candidatePath)
-    {
-        if (!ShellValidator.IsPathAccessible(candidatePath))
-            return;
-
-        var fullPath = Path.GetFullPath(candidatePath);
-        if (string.Equals(fullPath, tab.CurrentPath, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        tab.CurrentPath = fullPath;
-        LogService.Info($"Terminal directory changed: {tab.CurrentPath}");
-        DirectoryChanged?.Invoke(this, new DirectoryChangedEventArgs { TabId = tab.Id, NewPath = tab.CurrentPath });
-    }
-
-    private void OnVisibleChanged()
-    {
-        if (!Visible)
-            _inputBox?.Focus();
-    }
-
-    // Intercept tab-management hotkeys locally so they work while the terminal's input box
-    // has focus. ProcessCmdKey runs before KeyDown/dialog-navigation key routing, so it
-    // reliably wins regardless of what the focused TextBox itself does with these key
-    // combinations (this is why MainForm's global hotkey guard is not widened instead).
+    // Intercept tab-management hotkeys locally so they still work if focus is ever on this panel
+    // itself rather than the active tab's TerminalCanvas (which owns its own, richer chord table).
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         switch (keyData)
         {
-            case Keys.Control | Keys.T:
+            case Keys.Control | Keys.Shift | Keys.T:
                 ShowNewTabDialog();
                 return true;
-            case Keys.Control | Keys.W:
+            case Keys.Control | Keys.Shift | Keys.W:
                 if (_sessionManager?.ActiveTab is TerminalTab activeTab)
                     CloseTerminalTab(activeTab.Id);
                 return true;
@@ -663,9 +438,6 @@ public sealed class EmbeddedTerminalPanel : Panel
                 return base.ProcessCmdKey(ref msg, keyData);
         }
     }
-
-    /// <summary>Raised when the tracked shell working directory changes.</summary>
-    public event EventHandler<DirectoryChangedEventArgs>? DirectoryChanged;
 
     /// <summary>Event arguments for <see cref="DirectoryChanged"/>.</summary>
     public class DirectoryChangedEventArgs : EventArgs
@@ -683,22 +455,18 @@ public sealed class EmbeddedTerminalPanel : Panel
         {
             ThemeService.ThemeChanged -= OnThemeChanged;
 
-            // Each wrapper's Dispose() kills its process tree and blocks up to ~1s waiting for it
-            // to exit; doing that one tab at a time could stall closing the app/panel for several
-            // seconds with multiple terminal tabs open. Run them concurrently instead.
-            var disposeTasks = _processes.Values
-                .Where(p => p != null)
-                .Select(p => Task.Run(() => p!.Dispose()))
-                .ToArray();
-            Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(3));
+            // Each session's teardown blocks up to a few seconds waiting for its process tree to
+            // exit; doing that one tab at a time could stall closing the app for several seconds
+            // with multiple terminal tabs open. Run them concurrently instead.
+            var disposeTasks = _sessions.Values.Select(s => Task.Run(() => s.DisposeAsync().AsTask())).ToArray();
+            Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(5));
+            _sessions.Clear();
 
-            _processes.Clear();
-            _outputBuffers.Clear();
+            foreach (var page in _tabPagesByGuid.Values)
+                page.Content.Dispose();
             _tabPagesByGuid.Clear();
+
             _sessionManager?.Dispose();
-            _outputBox?.Dispose();
-            _inputBox?.Dispose();
-            _sharedContent?.Dispose();
             _tabControl?.Dispose();
             _newTabButton?.Dispose();
         }

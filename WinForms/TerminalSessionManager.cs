@@ -1,5 +1,6 @@
 using CoderCommander.Models;
 using CoderCommander.Services;
+using CoderCommander.Terminal.Shells;
 
 namespace CoderCommander.WinForms;
 
@@ -32,7 +33,7 @@ public sealed class TerminalSessionManager : IDisposable
     public event EventHandler<(Guid TabId, string NewName)>? TabRenamed;
 
     /// <summary>Create a new terminal tab.</summary>
-    public TerminalTab? CreateTab(ShellType shellType, string workingDirectory = "")
+    public TerminalTab? CreateTab(ShellDescriptor shell, string displayName, string workingDirectory = "")
     {
         if (_disposed)
             return null;
@@ -43,7 +44,7 @@ public sealed class TerminalSessionManager : IDisposable
             return null;
         }
 
-        var tab = new TerminalTab(shellType, workingDirectory)
+        var tab = new TerminalTab(shell, displayName, workingDirectory)
         {
             IsActive = _tabs.Count == 0 // First tab is active by default
         };
@@ -53,7 +54,7 @@ public sealed class TerminalSessionManager : IDisposable
 
         _tabs.Add(tab);
         TabCreated?.Invoke(this, tab.Id);
-        LogService.Info($"Terminal tab created: {tab.Id} ({shellType})");
+        LogService.Info($"Terminal tab created: {tab.Id} ({shell.Id})");
         return tab;
     }
 

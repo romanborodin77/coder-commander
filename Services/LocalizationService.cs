@@ -622,8 +622,12 @@ public sealed class LocalizationService
 
         // ═══ Terminal ═══
         _strings["Terminal.SelectType"] = "Select Terminal Type";
-        _strings["Terminal.Cmd"] = "Command Prompt (cmd.exe)";
-        _strings["Terminal.PowerShell"] = "PowerShell (powershell.exe)";
+        _strings["Terminal.Shell.Cmd"] = "Command Prompt (cmd.exe)";
+        _strings["Terminal.Shell.WindowsPowerShell"] = "Windows PowerShell";
+        _strings["Terminal.Shell.PowerShellCore"] = "PowerShell 7";
+        _strings["Terminal.Shell.GitBash"] = "Git Bash";
+        _strings["Terminal.Shell.Wsl"] = "WSL: {0}";
+        _strings["Terminal.UnsupportedOs"] = "The embedded terminal needs Windows 10 version 1809 (build 17763) or later.";
         _strings["Terminal.NewTab"] = "New Terminal Tab";
         _strings["Terminal.CloseTab"] = "Close Tab";
         _strings["Terminal.NextTab"] = "Next Tab";
