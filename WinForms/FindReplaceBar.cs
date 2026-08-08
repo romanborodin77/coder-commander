@@ -28,6 +28,11 @@ internal sealed class FindReplaceBar : Panel
     private readonly ThemedCheckBox _matchCaseCheck;
     private readonly Panel _replaceRow;
 
+    /// <summary>Set for the duration of our own Replace/Replace All calls, so
+    /// <see cref="OnBufferChanged"/> doesn't react to the very edits it made itself - those
+    /// already re-scan (or clear) the match list themselves afterward, in the right order.</summary>
+    private bool _suppressInvalidation;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="FindReplaceBar"/> class, wiring find/replace
     /// controls to the specified canvas and buffer.
@@ -40,6 +45,12 @@ internal sealed class FindReplaceBar : Panel
         _canvas = canvas;
         _buffer = buffer;
         _undoStack = undoStack;
+        // Match positions are a snapshot taken by SetPattern - any buffer edit not driven by this
+        // bar's own Replace/Replace All (typically the user typing directly into the canvas
+        // between opening Find and clicking Replace All) leaves stale offsets in _find.Matches.
+        // Acting on those would delete/insert at whatever text now happens to sit at the old
+        // coordinates, potentially unrelated to what was actually matched.
+        _buffer.Changed += OnBufferChanged;
 
         Dock = DockStyle.Top;
         Visible = false;
@@ -181,6 +192,17 @@ internal sealed class FindReplaceBar : Panel
         UpdateMatchCountLabel();
     }
 
+    /// <summary>Re-scans on any buffer edit not driven by our own Replace/Replace All, keeping
+    /// the match list (and the count Replace All's confirmation dialog shows) accurate instead of
+    /// silently stale - the same re-scan that already runs on every keystroke typed into the find
+    /// box itself, just triggered by document edits instead.</summary>
+    private void OnBufferChanged(object? sender, TextChangeEventArgs e)
+    {
+        if (_suppressInvalidation) return;
+        if (!string.IsNullOrEmpty(_findBox.Text))
+            OnPatternChanged();
+    }
+
     private void OnFindBoxKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.KeyCode == Keys.Enter)
@@ -224,7 +246,16 @@ internal sealed class FindReplaceBar : Panel
 
     private void ReplaceOne()
     {
-        if (!_find.ReplaceCurrent(_buffer, _undoStack, _replaceBox.Text, out var caretAfter)) return;
+        bool replaced;
+        TextPosition caretAfter;
+        _suppressInvalidation = true;
+        try
+        {
+            replaced = _find.ReplaceCurrent(_buffer, _undoStack, _replaceBox.Text, out caretAfter);
+        }
+        finally { _suppressInvalidation = false; }
+
+        if (!replaced) return;
         _canvas.SelectRange(caretAfter, caretAfter);
         _find.SetPattern(_buffer, _findBox.Text, caretAfter);
         _canvas.SetFindHighlights(_find.Matches, _find.CurrentIndex);
@@ -242,7 +273,15 @@ internal sealed class FindReplaceBar : Panel
             MsgBoxButtons.YesNo, MsgBoxIcon.Question);
         if (result != MsgBoxResult.Yes) return;
 
-        var count = _find.ReplaceAll(_buffer, _undoStack, _replaceBox.Text, _canvas.Caret, out var caretAfter);
+        int count;
+        TextPosition caretAfter;
+        _suppressInvalidation = true;
+        try
+        {
+            count = _find.ReplaceAll(_buffer, _undoStack, _replaceBox.Text, _canvas.Caret, out caretAfter);
+        }
+        finally { _suppressInvalidation = false; }
+
         _canvas.SelectRange(caretAfter, caretAfter);
         _canvas.SetFindHighlights(null, -1);
         _matchCountLabel.Text = L.GetString("Edit.FindBar.ReplacedCount", count);
