@@ -115,7 +115,14 @@ public sealed class FindController
             edits.Add(new TextEdit { Start = m.Start, OldText = oldText, NewText = replacement });
         }
 
-        caretAfter = TextBuffer.ComputeEndPosition(_matches[0].Start, replacement);
+        // The last match in document order (_matches[^1]) is also the first one actually
+        // replaced in the loop above, so its Start is still exactly its original position when
+        // ComputeEndPosition uses it here - nothing earlier in the document has been touched yet
+        // at that point. Landing the caret there (not at the first match) keeps it near whatever
+        // the user was looking at; using _matches[0] instead used to snap the caret - and the
+        // view along with it - all the way back to the first match in the whole document, even
+        // for a Replace All started from deep inside a long file.
+        caretAfter = TextBuffer.ComputeEndPosition(_matches[^1].Start, replacement);
         undo.RecordBatch(edits, caretBefore, caretAfter);
 
         var count = _matches.Count;
