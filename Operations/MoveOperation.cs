@@ -89,7 +89,8 @@ public sealed class MoveOperation : FileOperation
         }
     }
 
-    /// <summary>Cross-provider (or cross-volume) fallback: stream everything over, then drop the original.</summary>
+    /// <summary>Cross-provider (or cross-volume) fallback: stream everything over, then drop only
+    /// what was actually written.</summary>
     private async Task TransferAndDeleteAsync(FileEntry file, string destFullPath, CancellationToken ct)
     {
         using var copy = new CopyOperation(_sourceFs, _destFs, new[] { file }, _sourceBasePath, _destPath, _options);
@@ -104,8 +105,53 @@ public sealed class MoveOperation : FileOperation
             return;
         }
 
-        if (await _destFs.ExistsAsync(destFullPath, ct).ConfigureAwait(false))
-            await _sourceFs.DeleteAsync(file.FullPath, file.IsDirectory, ct).ConfigureAwait(false);
+        if (!file.IsDirectory)
+        {
+            // Checking "does the destination path exist" (the old check) is wrong: it's true
+            // even when CopyOperation Skipped this file because something already occupied that
+            // destination path - exactly the conflict that produced the Skip in the first place.
+            // That silently deleted a source file that was never actually copied anywhere.
+            if (copy.WrittenPaths.Contains(file.FullPath))
+                await _sourceFs.DeleteAsync(file.FullPath, recursive: false, ct).ConfigureAwait(false);
+            return;
+        }
+
+        // Directory move: remove exactly the files CopyOperation actually wrote, leaving
+        // anything skipped untouched on the source side - same "delete only what really made it
+        // across" philosophy as PackOperation.RemoveSourcesAsync's per-file fallback.
+        foreach (var writtenPath in copy.WrittenPaths)
+        {
+            try { await _sourceFs.DeleteAsync(writtenPath, recursive: false, ct).ConfigureAwait(false); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogService.Warning($"Move: cannot remove source {writtenPath}: {ex.Message}");
+            }
+        }
+
+        await CleanupEmptyDirectoriesAsync(file.FullPath, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Best-effort removal of directories left empty by the per-file deletes above
+    /// (deepest first), including the moved root itself if everything under it made it across.
+    /// A directory that still contains a skipped file fails to delete and is correctly left in
+    /// place - not forced away with a recursive delete.</summary>
+    private async Task CleanupEmptyDirectoriesAsync(string rootPath, CancellationToken ct)
+    {
+        try
+        {
+            var descendants = await _sourceFs.EnumerateDeepAsync(rootPath, includeHidden: true, ct).ConfigureAwait(false);
+            foreach (var dir in descendants.Where(d => d.IsDirectory).OrderByDescending(d => d.FullPath.Length))
+            {
+                try { await _sourceFs.DeleteAsync(dir.FullPath, recursive: false, ct).ConfigureAwait(false); }
+                catch { /* not empty, or otherwise busy - leave it */ }
+            }
+            try { await _sourceFs.DeleteAsync(rootPath, recursive: false, ct).ConfigureAwait(false); }
+            catch { /* not empty - some skipped file remains beneath it, correctly left in place */ }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogService.Warning($"Move: cannot clean up empty directories under {rootPath}: {ex.Message}");
+        }
     }
 
     private async Task MoveEntryWithResolver(FileEntry file, string destFullPath, CancellationToken ct)

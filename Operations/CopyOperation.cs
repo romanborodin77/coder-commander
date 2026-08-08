@@ -86,6 +86,15 @@ public sealed class CopyOperation : FileOperation
     private int _filesTotal;
     private long _bytesProcessed;
     private long _bytesTotal;
+    private readonly HashSet<string> _writtenPaths = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Source paths that were actually written to the destination - i.e. NOT skipped via
+    /// a conflict resolution. <see cref="OperationState.Completed"/> alone doesn't mean every
+    /// planned file was copied: a "Skip" conflict resolution still lets the operation finish
+    /// normally. Callers that need to know exactly what landed on disk (e.g. <see cref="MoveOperation"/>
+    /// deciding what's now safe to delete from the source) must consult this, not just
+    /// <see cref="FileOperation.State"/> or the destination's existence.</summary>
+    public IReadOnlyCollection<string> WrittenPaths => _writtenPaths;
 
     /// <summary>Creates a copy operation from <paramref name="sourceFs"/> to <paramref name="destFs"/>.</summary>
     public CopyOperation(
@@ -107,7 +116,8 @@ public sealed class CopyOperation : FileOperation
     /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
-        var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct).ConfigureAwait(false);
+        var enumerationFailures = new List<string>();
+        var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct, enumerationFailures).ConfigureAwait(false);
 
         _filesTotal = plan.Count(p => !p.Entry.IsDirectory);
         _bytesTotal = plan.Where(p => !p.Entry.IsDirectory).Sum(p => p.Entry.Size);
@@ -129,27 +139,52 @@ public sealed class CopyOperation : FileOperation
             _filesProcessed++;
             ReportProgress(entry.Name);
         }
+
+        // Copy everything that could be read (above) before reporting the failure, rather than
+        // aborting the whole operation the instant one subtree can't be enumerated - but still
+        // fail loudly at the end instead of silently completing with less content than the user
+        // selected (the WipeOperation/PackOperation.RemoveSourcesAsync precedent: collect
+        // failures, still do the achievable work, then throw a clear summary).
+        if (enumerationFailures.Count > 0)
+            throw new IOException(
+                $"Copied successfully, but {enumerationFailures.Count} folder(s) could not be fully read and were skipped: " +
+                $"{string.Join(", ", enumerationFailures.Take(5))}" +
+                (enumerationFailures.Count > 5 ? $" and {enumerationFailures.Count - 5} more" : ""));
     }
 
     /// <summary>
     /// Expands the selection into every entry that has to be created, keeping folders ahead of
-    /// their content so that the destination tree is always built top-down.
+    /// their content so that the destination tree is always built top-down. A root whose subtree
+    /// can't be enumerated is reported via <paramref name="enumerationFailures"/> (when supplied)
+    /// and excluded from the plan entirely, rather than silently producing an empty destination
+    /// folder that looks like a successful (if content-less) copy.
     /// </summary>
     internal static async Task<List<(FileEntry Entry, string Destination)>> FlattenAsync(
         IFileSystem sourceFs,
         IReadOnlyList<FileEntry> roots,
         string sourceBasePath,
         string destPath,
-        CancellationToken ct)
+        CancellationToken ct,
+        List<string>? enumerationFailures = null)
     {
         var plan = new List<(FileEntry, string)>();
+        // Guards against double-copying: Flat View lets the user select both a folder and a
+        // file already inside it (e.g. Ctrl-click a folder, then Ctrl-click a file nested under
+        // it). Without this, that file's destination path is planned once as part of the
+        // folder's own recursive walk and again as its own selection root - the second write
+        // then collides with the one the first write just made, tripping a spurious "already
+        // exists" conflict and inflating the reported file/byte totals. Mirrors
+        // PackOperation.BuildPlanAsync's identical `seen` dedup.
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var root in roots)
         {
             ct.ThrowIfCancellationRequested();
 
             var rootDest = VfsPath.Combine(destPath, VfsPath.GetRelative(sourceBasePath, root.FullPath));
-            plan.Add((root, rootDest));
+            var rootAdded = seen.Add(rootDest);
+            if (rootAdded)
+                plan.Add((root, rootDest));
 
             if (!root.IsDirectory)
                 continue;
@@ -162,13 +197,23 @@ public sealed class CopyOperation : FileOperation
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogService.Warning($"Copy: cannot enumerate {root.FullPath}: {ex.Message}");
+                // Don't leave a "planned but silently empty" destination folder for a subtree
+                // that couldn't actually be read.
+                if (rootAdded)
+                {
+                    plan.RemoveAt(plan.Count - 1);
+                    seen.Remove(rootDest);
+                }
+                enumerationFailures?.Add(root.FullPath);
                 continue;
             }
 
             foreach (var child in children.OrderBy(c => c.FullPath, StringComparer.OrdinalIgnoreCase))
             {
                 ct.ThrowIfCancellationRequested();
-                plan.Add((child, VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath))));
+                var childDest = VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath));
+                if (seen.Add(childDest))
+                    plan.Add((child, childDest));
             }
         }
 
@@ -191,6 +236,7 @@ public sealed class CopyOperation : FileOperation
             await _destFs.CopyFromStreamAsync(actualDestPath, src, ct).ConfigureAwait(false);
         }
 
+        _writtenPaths.Add(file.FullPath);
         Interlocked.Add(ref _bytesProcessed, file.Size);
 
         if (_options.CopyAttributes && file.Attributes != default)

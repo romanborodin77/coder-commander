@@ -111,14 +111,66 @@ public sealed class LocalFileSystem : IFileSystem
             }
             catch (IOException) when (overwrite)
             {
-                if (File.Exists(destination))
-                    File.Delete(destination);
-                if (Directory.Exists(source))
-                    Directory.Move(source, destination);
-                else
-                    File.Move(source, destination);
+                MoveWithBackupSwap(source, destination);
             }
         }, ct);
+
+    /// <summary>
+    /// Overwrite fallback once the straightforward attempt above has already failed (e.g. a
+    /// cross-volume File.Move(overwrite:true) that copies-then-deletes internally and can throw
+    /// mid-way, commonly from disk space pressure while both copies transiently coexist).
+    /// Renames the existing destination out of the way instead of deleting it outright - a
+    /// retry that also fails restores the backup, so the operation never ends with the
+    /// destination permanently gone and nothing having replaced it (the same "don't destroy the
+    /// original until the replacement is confirmed" principle <see cref="CopyFromStreamAsync"/>
+    /// already applies via its own temp-file-then-rename).
+    /// </summary>
+    private static void MoveWithBackupSwap(string source, string destination)
+    {
+        var destExists = File.Exists(destination) || Directory.Exists(destination);
+        if (!destExists)
+        {
+            // The first attempt's failure wasn't actually about a conflicting destination -
+            // nothing to preserve, just retry once plainly.
+            if (Directory.Exists(source)) Directory.Move(source, destination);
+            else File.Move(source, destination);
+            return;
+        }
+
+        var backupPath = destination + ".bak-" + Guid.NewGuid().ToString("N");
+        var destIsDirectory = Directory.Exists(destination);
+        if (destIsDirectory)
+            Directory.Move(destination, backupPath);
+        else
+            File.Move(destination, backupPath);
+
+        try
+        {
+            if (Directory.Exists(source))
+                Directory.Move(source, destination);
+            else
+                File.Move(source, destination);
+        }
+        catch
+        {
+            // The retry failed too - restore the original destination content instead of
+            // leaving it renamed away with nothing having replaced it.
+            try
+            {
+                if (destIsDirectory) Directory.Move(backupPath, destination);
+                else File.Move(backupPath, destination);
+            }
+            catch { /* best effort - if even the restore fails, the content is still intact under backupPath */ }
+            throw;
+        }
+
+        try
+        {
+            if (destIsDirectory) Directory.Delete(backupPath, recursive: true);
+            else File.Delete(backupPath);
+        }
+        catch { /* best-effort cleanup - a leftover .bak-* file is harmless */ }
+    }
 
     // Recursive delete of a large directory tree is just as capable of blocking the UI thread as
     // EnumerateDeepAsync above - same reasoning applies.
