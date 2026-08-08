@@ -42,15 +42,37 @@ public sealed class MoveOperation : FileOperation
     private bool CanRenameInPlace => ReferenceEquals(_sourceFs, _destFs) ||
                                      (_sourceFs is LocalFileSystem && _destFs is LocalFileSystem);
 
+    /// <summary>Drops any selected entry that's physically nested inside another selected
+    /// directory - moving that directory already relocates it, so processing it again separately
+    /// would only find its source gone.</summary>
+    internal static List<FileEntry> RemoveEntriesInsideSelectedDirectories(IReadOnlyList<FileEntry> files)
+    {
+        var directories = files.Where(f => f.IsDirectory).ToList();
+        return files.Where(f => !directories.Any(d =>
+                !ReferenceEquals(d, f) &&
+                f.FullPath.StartsWith(d.FullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
     /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
-        _filesTotal = _files.Count;
+        // Unlike CopyOperation (which flattens into individual file-level plan entries and dedups
+        // there), a directory selected for Move is moved whole via a single Directory.Move/MoveAsync
+        // call - so if the same selection also separately lists a file inside that directory (Flat
+        // View allows selecting both a folder and a file already nested inside it), the directory
+        // move already relocates that file, and the redundant separate entry then fails outright
+        // (its source no longer exists) once the loop reaches it. That failure used to propagate
+        // out and mark the WHOLE move Failed, even though everything the user selected had, in
+        // fact, already been moved successfully.
+        var files = RemoveEntriesInsideSelectedDirectories(_files);
+
+        _filesTotal = files.Count;
         LogService.Info($"Move: starting with {_filesTotal} files, source={_sourceFs.Name}, dest={_destFs.Name}, CanRenameInPlace={CanRenameInPlace}");
 
         await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
 
-        foreach (var file in _files)
+        foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
 
