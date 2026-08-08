@@ -94,6 +94,11 @@ public sealed class CodeEditorControl : Panel
 
         _gutter = new CodeEditorGutter(_canvas);
         _findBar = new FindReplaceBar(_canvas, _buffer, _canvas.UndoStack);
+        // FindReplaceBar mutates _buffer/UndoStack directly, bypassing the canvas's own edit
+        // methods (and therefore its ContentChanged event) entirely - without this, replacing
+        // text left Modified stuck on false, so the tab looked unmodified and closed with no
+        // "save changes?" prompt, silently discarding the replacement.
+        _findBar.ContentChanged += OnCanvasContentChanged;
 
         // Fill must be added first (WinForms docking order), edge-docked controls on top.
         Controls.Add(_canvas);

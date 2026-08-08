@@ -13,6 +13,15 @@ internal sealed class FindReplaceBar : Panel
     private readonly UndoStack _undoStack;
     private readonly FindController _find = new();
 
+    /// <summary>Raised whenever Replace/Replace All actually changed the buffer - the bar mutates
+    /// <see cref="TextBuffer"/>/<see cref="UndoStack"/> directly, bypassing
+    /// <see cref="CodeEditorCanvas"/>'s own edit methods entirely, so its
+    /// <see cref="CodeEditorCanvas.ContentChanged"/> event (the only thing
+    /// <see cref="CodeEditorControl"/> listens to for recomputing its Modified flag) never fires
+    /// for a replacement - without this, replacing text left the tab looking unmodified and able
+    /// to be closed with no "save changes?" prompt, silently discarding the edit.</summary>
+    public event EventHandler? ContentChanged;
+
     private readonly TextBox _findBox;
     private readonly TextBox _replaceBox;
     private readonly Label _matchCountLabel;
@@ -220,6 +229,7 @@ internal sealed class FindReplaceBar : Panel
         _find.SetPattern(_buffer, _findBox.Text, caretAfter);
         _canvas.SetFindHighlights(_find.Matches, _find.CurrentIndex);
         UpdateMatchCountLabel();
+        ContentChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ReplaceAll()
@@ -236,5 +246,7 @@ internal sealed class FindReplaceBar : Panel
         _canvas.SelectRange(caretAfter, caretAfter);
         _canvas.SetFindHighlights(null, -1);
         _matchCountLabel.Text = L.GetString("Edit.FindBar.ReplacedCount", count);
+        if (count > 0)
+            ContentChanged?.Invoke(this, EventArgs.Empty);
     }
 }
