@@ -95,16 +95,27 @@ public static class ArchiveTree
     /// no explicit directory entry for it exists.</summary>
     public static bool HasDescendants(IReadOnlyList<ArchiveEntryRecord> entries, string innerPath)
     {
-        var prefix = VfsPath.NormalizeInner(innerPath) + "/";
+        var normalized = VfsPath.NormalizeInner(innerPath);
+        // At the archive root, "below" means "anything at all" - the general case below builds a
+        // "<path>/" prefix to match against, but TrimmedName's entries never start with a bare
+        // "/", so an empty normalized path used to build prefix "/" and this always returned
+        // false at the root, even for a non-empty archive.
+        if (normalized.Length == 0)
+            return entries.Count > 0;
+
+        var prefix = normalized + "/";
         return entries.Any(e => TrimmedName(e).StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string TrimmedName(ArchiveEntryRecord entry)
     {
         var t = entry.FullName.Replace('\\', '/').Trim('/');
-        // GNU tar and many other tools prefix entries with "./" (e.g. "./.claude/").
-        // Strip it so ListChildren doesn't extract "." as a directory name.
-        return t.StartsWith("./") ? t[2..] : t;
+        // GNU tar and many other tools prefix entries with "./" (e.g. "./.claude/") - and some
+        // archives double it up ("././file.txt"). Strip every leading "./", not just one, so
+        // ListChildren doesn't extract "." (or a leftover "./"-prefixed name) as a directory name.
+        while (t.StartsWith("./", StringComparison.Ordinal))
+            t = t[2..];
+        return t;
     }
 
     private static string NormalizePrefix(string innerPath)
