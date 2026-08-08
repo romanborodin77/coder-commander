@@ -81,11 +81,30 @@ public sealed class OperationManager : IDisposable
             if (state is OperationState.Completed or OperationState.Canceled or OperationState.Failed)
             {
                 Services.LogService.LogFileOperation(operation.GetType().Name, $"{displayName} -> {state}");
-                _ = Task.Delay(OperationRemovalDelayMs, _disposeCts.Token).ContinueWith(t =>
+                try
                 {
-                    _operations.TryRemove(id, out var _);
-                    OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
-                }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+                    _ = Task.Delay(OperationRemovalDelayMs, _disposeCts.Token).ContinueWith(t =>
+                    {
+                        _operations.TryRemove(id, out var _);
+                        OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
+                    }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Dispose()'s 5-second wait already elapsed and disposed _disposeCts while
+                    // this operation was still finishing up - accessing .Token above throws
+                    // synchronously, right inside this StateChanged handler. Left unguarded, that
+                    // exception propagated out of FileOperation.SetState (called from inside
+                    // ExecuteAsync's own try block), got caught by ExecuteAsync's catch, which
+                    // called SetState(Failed) - triggering this same throw a second time, this
+                    // time inside the catch itself, so it escaped ExecuteAsync entirely and
+                    // surfaced as an unobserved task exception on the fire-and-forget
+                    // "_ = Operations.RunAsync(...)" callers use - while the operation's own
+                    // State had already been silently overwritten from Completed to Failed by
+                    // that second SetState call. There's nothing left to schedule removal for
+                    // once the manager is disposing anyway, so just let the operation finish
+                    // reporting its real, correct final state.
+                }
             }
         };
 
