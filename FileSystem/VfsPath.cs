@@ -124,7 +124,8 @@ public static class VfsPath
     {
         if (string.IsNullOrEmpty(newName) ||
             newName.IndexOfAny(['/', '\\']) >= 0 ||
-            newName is "." or "..")
+            newName is "." or ".." ||
+            Path.IsPathRooted(newName))
             throw new ArgumentException($"Invalid entry name: \"{newName}\"", nameof(newName));
 
         var parent = GetParent(path);
