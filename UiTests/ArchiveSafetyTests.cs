@@ -21,6 +21,19 @@ public class ArchiveSafetyTests
         Assert.That(ArchiveSafety.EscapesTarget(@"C:\Windows\System32\evil.dll"), Is.True);
     }
 
+    // NTFS Alternate Data Stream syntax ("file:stream"): Path.IsPathRooted and Path.GetFullPath
+    // both treat ':' as significant only in the drive-letter position, so a relative entry name
+    // like "readme.txt:payload.exe" looks like an ordinary filename to both of them and would
+    // otherwise sail past every other guard here, writing a hidden, directly-executable stream
+    // onto the extracted file.
+    [TestCase("readme.txt:payload.exe", true)]
+    [TestCase("sub/readme.txt:payload.exe", true)]
+    [TestCase("normal.txt", false)]
+    public void EscapesTarget_AlternateDataStreamName_Escapes(string relative, bool expectedEscapes)
+    {
+        Assert.That(ArchiveSafety.EscapesTarget(relative), Is.EqualTo(expectedEscapes));
+    }
+
     [Test]
     public void EscapesRoot_EntryWithinRoot_DoesNotEscape()
     {

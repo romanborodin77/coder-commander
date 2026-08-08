@@ -8,11 +8,17 @@ namespace CoderCommander.Archives;
 /// </summary>
 public static class ArchiveSafety
 {
-    /// <summary>True if a "/"-separated entry-relative path contains a rooted segment or a ".."
-    /// component that would escape its own subtree.</summary>
+    /// <summary>True if a "/"-separated entry-relative path contains a rooted segment, a ".."
+    /// component that would escape its own subtree, or a ':' in any segment. The latter blocks
+    /// NTFS Alternate Data Stream syntax (e.g. "readme.txt:payload.exe"): Path.IsPathRooted and
+    /// Path.GetFullPath both treat that as a plain, non-rooted filename (":" is only special to
+    /// them in the drive-letter position), so it slips past every other guard here and writes a
+    /// hidden stream onto the extracted file - invisible in Explorer/dir but directly executable.
+    /// No current archive reader legitimately needs ':' in an entry name, so this is a flat reject
+    /// rather than a narrower Windows-only check.</summary>
     public static bool EscapesTarget(string relativeEntryPath) =>
         Path.IsPathRooted(relativeEntryPath) ||
-        relativeEntryPath.Split('/').Any(part => part == "..");
+        relativeEntryPath.Split('/').Any(part => part == ".." || part.Contains(':'));
 
     /// <summary>True if resolving <paramref name="entryName"/> against <paramref name="targetRoot"/>
     /// would land outside <paramref name="targetRoot"/>. Real path resolution, as a second layer
