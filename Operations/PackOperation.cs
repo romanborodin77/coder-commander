@@ -62,9 +62,6 @@ public sealed class PackOperation : FileOperation
 
         /// <summary>True when this item represents a directory entry.</summary>
         public bool IsDirectory { get; init; }
-
-        /// <summary>Index into <see cref="_files"/> this item was expanded from.</summary>
-        public int TopLevelIndex { get; init; }
     }
 
     /// <inheritdoc/>
@@ -142,12 +139,12 @@ public sealed class PackOperation : FileOperation
             if (!file.IsDirectory)
             {
                 if (seen.Add(target))
-                    plan.Add(new PackItem { Source = file, EntryName = target, TopLevelIndex = idx });
+                    plan.Add(new PackItem { Source = file, EntryName = target });
                 continue;
             }
 
             if (seen.Add(target + "/"))
-                plan.Add(new PackItem { EntryName = target + "/", IsDirectory = true, TopLevelIndex = idx });
+                plan.Add(new PackItem { EntryName = target + "/", IsDirectory = true });
 
             IReadOnlyList<FileEntry> children;
             try
@@ -170,11 +167,11 @@ public sealed class PackOperation : FileOperation
                 if (child.IsDirectory)
                 {
                     if (seen.Add(childName + "/"))
-                        plan.Add(new PackItem { EntryName = childName + "/", IsDirectory = true, TopLevelIndex = idx });
+                        plan.Add(new PackItem { EntryName = childName + "/", IsDirectory = true });
                 }
                 else if (seen.Add(childName))
                 {
-                    plan.Add(new PackItem { Source = child, EntryName = childName, TopLevelIndex = idx });
+                    plan.Add(new PackItem { Source = child, EntryName = childName });
                 }
             }
         }
@@ -285,7 +282,16 @@ public sealed class PackOperation : FileOperation
                     continue;
                 }
 
-                var descendantFiles = plan.Where(p => p.TopLevelIndex == idx && !p.IsDirectory && p.Source != null).ToList();
+                // Path-prefix containment, not TopLevelIndex: BuildPlanAsync's `seen` dedup can
+                // attribute a file to whichever selection index reached it FIRST, not necessarily
+                // the folder that actually contains it on disk (e.g. both a file and its
+                // containing folder are selected together, in Flat View). Filtering by index
+                // used to silently exclude such a file from this folder's own descendant check,
+                // so "every descendant was written" could come back true while that file - never
+                // written to the archive - still got swept up by the recursive delete below.
+                var folderPrefix = file.FullPath + Path.DirectorySeparatorChar;
+                var descendantFiles = plan.Where(p => !p.IsDirectory && p.Source != null &&
+                    p.Source!.FullPath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
                 var allWritten = descendantFiles.All(d => writtenPaths.Contains(d.Source!.FullPath));
 
                 if (allWritten)
