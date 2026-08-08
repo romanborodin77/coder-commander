@@ -23,6 +23,13 @@ public sealed class EmbeddedTerminalPanel : Panel
     private RoundedButton? _newTabButton;
     private readonly TerminalKeyBindings _keyBindings = TerminalKeyBindings.WindowsTerminalPreset();
 
+    /// <summary>Loop-guard for the push (panel -&gt; shell) / report (shell -&gt; panel) cwd-sync
+    /// cycle: a path just pushed via <see cref="SetWorkingDirectory"/>, so the shell's own
+    /// bootstrap reporting that same path back a moment later doesn't bounce straight back into
+    /// another panel navigation. Keyed by tab id; cleared once consumed or once it expires.</summary>
+    private readonly Dictionary<Guid, (string NormalizedPath, DateTime UntilUtc)> _suppressCwdReport = new();
+    private static readonly TimeSpan CwdReportSuppressWindow = TimeSpan.FromSeconds(3);
+
     /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
 
@@ -107,10 +114,13 @@ public sealed class EmbeddedTerminalPanel : Panel
     public string? DefaultPath { get; set; }
 
     /// <summary>Change the working directory of the active terminal tab (programmatic push, not
-    /// something the user typed). Only takes effect once <c>Terminal.Shells.ShellBootstrap</c>-style
-    /// cwd-sync is wired up in a later phase - for a shell whose prompt doesn't report its cwd, this
-    /// is currently a best-effort <c>cd</c>-equivalent injected as if typed, so it stays available
-    /// even before that lands.</summary>
+    /// something the user typed) - injects a <c>cd</c>-equivalent as if typed. Silently does
+    /// nothing if: the path isn't accessible, it's already where the tab is tracked as being
+    /// (normalized, case-insensitive - also what breaks the push/report loop with
+    /// <see cref="OnSessionCwdReported"/>), the alt-screen is active (never type into a running
+    /// full-screen TUI like vim/htop on the user's behalf), or - a heuristic, not a precise
+    /// shell-idle check like the OSC 133 prompt marks a later phase could add - the cursor isn't
+    /// at the start of a line (probably mid-command, not sitting at an empty prompt).</summary>
     public void SetWorkingDirectory(string path)
     {
         if (!ShellValidator.IsPathAccessible(path))
@@ -120,17 +130,31 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (activeTab == null || !_sessions.TryGetValue(activeTab.Id, out var session))
             return;
 
-        activeTab.CurrentPath = path;
-        var command = session.Shell.Family switch
+        if (NormalizePath(path) == NormalizePath(activeTab.CurrentPath))
+            return;
+        if (session.Screen.IsAltScreenActive || session.Screen.CursorCol != 0)
+            return;
+
+        var shellPath = path;
+        if (session.Shell.Family is ShellFamily.Wsl)
         {
-            ShellFamily.WindowsPowerShell or ShellFamily.PowerShellCore =>
-                $"Set-Location -LiteralPath '{path.Replace("'", "''")}'\r",
-            ShellFamily.Bash or ShellFamily.Wsl => null, // needs WslPathMapper translation - phase 3
-            _ => $"cd /d \"{path}\"\r"
-        };
-        if (command != null)
-            session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
+            var distro = session.Shell.Id.StartsWith(ShellIds.WslPrefix, StringComparison.Ordinal)
+                ? session.Shell.Id[ShellIds.WslPrefix.Length..]
+                : session.Shell.Id;
+            if (!new WslPathMapper(distro).TryToWsl(path, out shellPath))
+                return; // e.g. a UNC path with no automount-root equivalent in this distro
+        }
+
+        if (!ShellCwdQuoting.TryBuildCd(session.Shell.Family, shellPath, out var command))
+            return;
+
+        activeTab.CurrentPath = path;
+        _suppressCwdReport[activeTab.Id] = (NormalizePath(path), DateTime.UtcNow + CwdReportSuppressWindow);
+        session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
     }
+
+    private static string NormalizePath(string path) =>
+        path.TrimEnd('\\').ToUpperInvariant();
 
     /// <summary>Restore previously saved tabs (shell id + working directory) on startup. Unknown
     /// shell ids (e.g. a WSL distro that's since been uninstalled) are silently skipped.</summary>
@@ -207,6 +231,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             // background so closing a single tab doesn't freeze the window.
             _ = Task.Run(() => session.DisposeAsync().AsTask());
         }
+        _suppressCwdReport.Remove(tabId);
 
         _sessionManager?.CloseTab(tabId);
         TabsChanged?.Invoke(this, EventArgs.Empty);
@@ -372,6 +397,17 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
 
         tab.CurrentPath = path;
+
+        // Loop-guard: if this report just confirms a path we pushed ourselves a moment ago (see
+        // SetWorkingDirectory), don't bounce it back into another panel navigation - the panel is
+        // already there, that's WHY we pushed it.
+        if (_suppressCwdReport.TryGetValue(tabId, out var suppress))
+        {
+            _suppressCwdReport.Remove(tabId);
+            if (DateTime.UtcNow <= suppress.UntilUtc && suppress.NormalizedPath == NormalizePath(path))
+                return;
+        }
+
         DirectoryChanged?.Invoke(this, new DirectoryChangedEventArgs { TabId = tabId, NewPath = path });
     }
 

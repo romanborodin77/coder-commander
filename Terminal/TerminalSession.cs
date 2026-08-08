@@ -82,8 +82,16 @@ internal sealed class TerminalSession : IAsyncDisposable
 
     public static TerminalSession Start(ShellDescriptor shell, string workingDirectory, int cols, int rows, int scrollbackLines)
     {
+        var arguments = shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(shell.Family)).ToList();
+
+        // ShellBootstrap's entries (cwd-report PROMPT/PROMPT_COMMAND injection) are layered on top
+        // of the base TERM/COLORTERM set; a family with nothing to add contributes an empty dict.
+        var environment = new Dictionary<string, string>(ExtraEnvironment);
+        foreach (var (key, value) in ShellBootstrap.BuildEnvironment(shell.Family))
+            environment[key] = value;
+
         var pty = PtySession.Start(
-            shell.ExecutablePath, shell.Arguments, workingDirectory, ExtraEnvironment,
+            shell.ExecutablePath, arguments, workingDirectory, environment,
             (short)cols, (short)rows, ExcludedEnvironment);
 
         var screen = new TerminalScreen(rows, cols, scrollbackLines, bytes => pty.Write(bytes));

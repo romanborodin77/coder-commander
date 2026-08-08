@@ -72,6 +72,13 @@ public sealed class AppSettings
     /// <summary>Restored tabs as <c>"{ShellId}|{Path}"</c> entries.</summary>
     public List<string> OpenTerminalTabs { get; set; } = new();
     public string? LastTerminalPath { get; set; }
+
+    /// <summary>Whether navigating the active file panel pushes a <c>cd</c>-equivalent into the
+    /// visible terminal tab: <c>"Never"</c> (tabs still seed from the panel's path when first
+    /// created, but never afterward), <c>"OnOpen"</c> (push once when the terminal panel becomes
+    /// visible, not on every subsequent panel navigation), <c>"Always"</c> (push on every
+    /// navigation while the terminal is visible).</summary>
+    public string TerminalFollowPanelCwd { get; set; } = "OnOpen";
 }
 
 /// <summary>

@@ -37,6 +37,9 @@ public sealed class MainForm : Form
     private Splitter _terminalSplitter = null!;
     private int _terminalHeight = 250;
     private bool _terminalVisible;
+    /// <summary>Guards the "OnOpen" <c>TerminalFollowPanelCwd</c> setting - reset to false each
+    /// time the terminal panel becomes visible; see <see cref="PushActivePathToTerminal"/>.</summary>
+    private bool _terminalFollowedOnceSinceOpen;
 
     // Menu items that need re-localization
     private readonly List<Action> _relocalizeActions = new();
@@ -652,6 +655,9 @@ public sealed class MainForm : Form
 
         if (_terminalVisible)
         {
+            // "OnOpen" (TerminalFollowPanelCwd) means "push once per time the terminal becomes
+            // visible" - reset so PushActivePathToTerminal's one-shot guard fires again.
+            _terminalFollowedOnceSinceOpen = false;
             PushActivePathToTerminal();
         }
     }
@@ -907,13 +913,20 @@ public sealed class MainForm : Form
     }
 
     /// <summary>Push the active file panel's path into the terminal (default path for new tabs,
-    /// and live working directory of the active tab when the terminal is visible).</summary>
+    /// and - gated by the <c>TerminalFollowPanelCwd</c> setting - the live working directory of
+    /// the active tab when the terminal is visible).</summary>
     private void PushActivePathToTerminal()
     {
         var path = _vm.ActivePanel.CurrentPath;
         _terminalPanel.DefaultPath = path;
-        if (_terminalVisible)
-            _terminalPanel.SetWorkingDirectory(path);
+        if (!_terminalVisible) return;
+
+        var follow = SettingsService.Load().TerminalFollowPanelCwd;
+        if (follow == "Never") return;
+        if (follow == "OnOpen" && _terminalFollowedOnceSinceOpen) return;
+
+        _terminalPanel.SetWorkingDirectory(path);
+        _terminalFollowedOnceSinceOpen = true;
     }
 
     private async void OnFormLoad(object? sender, EventArgs e)
