@@ -195,13 +195,42 @@ public sealed class TextBuffer
         return new TextPosition(start.Line + lines.Count - 1, lines[^1].Length);
     }
 
+    /// <summary>Counts each line-ending style and returns whichever is actually dominant (ties
+    /// favor "\r\n") - not "\r\n" the instant a single one appears anywhere. A file that's
+    /// overwhelmingly one style (say LF) but happens to carry one stray CRLF line (e.g. pasted
+    /// from a Windows machine once) used to have every one of its other line endings silently
+    /// rewritten to CRLF on the next save - GetText() joins with a single, file-wide LineEnding.</summary>
     private static string DetectLineEnding(string text)
     {
-        var crlf = text.IndexOf("\r\n", StringComparison.Ordinal);
-        if (crlf >= 0) return "\r\n";
-        if (text.Contains('\n')) return "\n";
-        if (text.Contains('\r')) return "\r";
-        return "\r\n";
+        var crlfCount = 0;
+        var lfOnlyCount = 0;
+        var crOnlyCount = 0;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\r')
+            {
+                if (i + 1 < text.Length && text[i + 1] == '\n')
+                {
+                    crlfCount++;
+                    i++; // the paired '\n' isn't a separate line break
+                }
+                else
+                {
+                    crOnlyCount++;
+                }
+            }
+            else if (text[i] == '\n')
+            {
+                lfOnlyCount++;
+            }
+        }
+
+        if (crlfCount == 0 && lfOnlyCount == 0 && crOnlyCount == 0)
+            return "\r\n";
+        if (crlfCount >= lfOnlyCount && crlfCount >= crOnlyCount)
+            return "\r\n";
+        return lfOnlyCount >= crOnlyCount ? "\n" : "\r";
     }
 
     private static List<string> SplitLines(string text) =>
