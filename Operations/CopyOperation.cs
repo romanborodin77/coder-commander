@@ -86,6 +86,15 @@ public sealed class CopyOperation : FileOperation
     private int _filesTotal;
     private long _bytesProcessed;
     private long _bytesTotal;
+    private readonly HashSet<string> _writtenPaths = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Source paths that were actually written to the destination - i.e. NOT skipped via
+    /// a conflict resolution. <see cref="OperationState.Completed"/> alone doesn't mean every
+    /// planned file was copied: a "Skip" conflict resolution still lets the operation finish
+    /// normally. Callers that need to know exactly what landed on disk (e.g. <see cref="MoveOperation"/>
+    /// deciding what's now safe to delete from the source) must consult this, not just
+    /// <see cref="FileOperation.State"/> or the destination's existence.</summary>
+    public IReadOnlyCollection<string> WrittenPaths => _writtenPaths;
 
     /// <summary>Creates a copy operation from <paramref name="sourceFs"/> to <paramref name="destFs"/>.</summary>
     public CopyOperation(
@@ -191,6 +200,7 @@ public sealed class CopyOperation : FileOperation
             await _destFs.CopyFromStreamAsync(actualDestPath, src, ct).ConfigureAwait(false);
         }
 
+        _writtenPaths.Add(file.FullPath);
         Interlocked.Add(ref _bytesProcessed, file.Size);
 
         if (_options.CopyAttributes && file.Attributes != default)
