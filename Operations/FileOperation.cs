@@ -37,8 +37,14 @@ public abstract class FileOperation : IFileOperation, IDisposable
         CancellationTokenSource cts;
         lock (_stateLock)
         {
-            if (_state is OperationState.Running)
-                throw new InvalidOperationException("Operation already running");
+            // Rejects any re-entry, not just a concurrent one: an operation instance is meant to
+            // run exactly once. OperationManager.RunAsync subscribes a fresh ProgressChanged/
+            // StateChanged handler pair on every call - re-running an already-Completed/Failed/
+            // Canceled operation (rather than throwing) used to silently restart it from scratch
+            // and, if that happened via a second RunAsync call on the same instance, double up
+            // every progress/state event through the old handlers still attached from the first run.
+            if (_state is not OperationState.NotStarted)
+                throw new InvalidOperationException($"Operation already {(_state == OperationState.Running ? "running" : "run")} (State={_state})");
 
             _cts?.Dispose();
             cts = _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
