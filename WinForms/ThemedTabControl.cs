@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using System.Drawing.Drawing2D;
 
 namespace CoderCommander.WinForms;
 
@@ -8,9 +9,27 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public sealed class ThemedTabControl : UserControl, ISelfThemedControl
 {
+    /// <summary>Side of the square hover pill behind a tab's close glyph.</summary>
+    private const int CloseGlyphBox = 16;
+    /// <summary>Gap between the close glyph's box and the tab button's right edge.</summary>
+    private const int CloseGlyphRightMargin = 6;
+    /// <summary>Horizontal room a close glyph claims on the right of a tab button, so the tab's
+    /// own text is laid out inside what's left rather than running underneath it.</summary>
+    private const int CloseGlyphReservedWidth = CloseGlyphBox + CloseGlyphRightMargin;
+
+    /// <summary>Where a tab button of <paramref name="buttonSize"/> puts its close glyph. Exposed
+    /// (rather than left inline in the paint/hit-test code) so a test can assert the box stays
+    /// inside the button - an earlier close button drawn with a glyph font overflowed its bounds.</summary>
+    internal static Rectangle CloseGlyphBoxFor(Size buttonSize) => new(
+        buttonSize.Width - CloseGlyphBox - CloseGlyphRightMargin,
+        (buttonSize.Height - CloseGlyphBox) / 2,
+        CloseGlyphBox,
+        CloseGlyphBox);
+
     private readonly List<ThemedTabPage> _pages = new();
     private readonly Panel _buttonPanel;
     private readonly Panel _contentPanel;
+    private readonly ToolTip _closeButtonTip = new();
     private int _selectedIndex = -1;
     private Control? _trailingControl;
 
@@ -54,7 +73,10 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             ThemeService.ThemeChanged -= OnThemeChanged;
+            _closeButtonTip.Dispose();
+        }
         base.Dispose(disposing);
     }
 
@@ -90,6 +112,24 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     public event EventHandler<int>? TabRightClicked;
 
     /// <summary>
+    /// When true, every tab button gets a small "x" close button of its own. Off by default so
+    /// existing callers (EditorForm, ViewerForm, SettingsForm - none of which expose per-tab
+    /// closing this way) are unaffected; opt in per instance.
+    /// </summary>
+    public bool ShowCloseButtons { get; set; }
+
+    /// <summary>Tooltip text shown when hovering a tab's close button. Ignored if
+    /// <see cref="ShowCloseButtons"/> is false.</summary>
+    public string? CloseButtonTooltip { get; set; }
+
+    /// <summary>
+    /// Raised when a tab's close ("x") button is clicked. EventArgs = tab index. Only fires when
+    /// <see cref="ShowCloseButtons"/> is true. The subscriber decides whether/how the tab actually
+    /// closes (e.g. tearing down a session) - this control only reports the click.
+    /// </summary>
+    public event EventHandler<int>? TabCloseClicked;
+
+    /// <summary>
     /// Re-themes the tab chrome (buttons, strip) and, critically, every page's content - not
     /// just the currently selected one. Only the selected page's <see cref="ThemedTabPage.Content"/>
     /// is actually parented into <see cref="_contentPanel"/> at any given time (see
@@ -111,6 +151,11 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         }
         Invalidate();
     }
+
+    /// <summary>Rebuilds the tab button strip from scratch - e.g. after
+    /// <see cref="CloseButtonTooltip"/> changes (a live language switch) and existing close
+    /// buttons' tooltips need to pick up the new text.</summary>
+    public void RefreshTabStrip() => RebuildButtons();
 
     /// <summary>Place a control (e.g. an "add tab" button) right after the last tab button.
     /// Preserved across tab add/remove, which otherwise rebuild the whole button strip.</summary>
@@ -179,11 +224,13 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         {
             var index = i;
             var page = _pages[i];
-            var btn = new RoundedButton
+            var textWidth = TextRenderer.MeasureText(page.Text, p.GridFont).Width;
+
+            var btn = new TabButton
             {
                 Text = page.Text,
                 Height = 32,
-                Width = TextRenderer.MeasureText(page.Text, p.GridFont).Width + 32,
+                Width = textWidth + 32 + (ShowCloseButtons ? CloseGlyphReservedWidth : 0),
                 FlatStyle = FlatStyle.Flat,
                 Font = p.GridFont,
                 Cursor = Cursors.Hand,
@@ -191,10 +238,14 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
                 Tag = index,
                 CornerRadius = 0,
                 UseGradient = false,
-                DrawShadow = false
+                DrawShadow = false,
+                ShowClose = ShowCloseButtons,
+                CloseTooltip = CloseButtonTooltip,
+                CloseTooltipHost = _closeButtonTip
             };
             btn.Click += (_, _) => SelectedIndex = index;
             btn.RightClick += (_, _) => TabRightClicked?.Invoke(this, index);
+            btn.CloseClicked += (_, _) => TabCloseClicked?.Invoke(this, index);
             _buttonPanel.Controls.Add(btn);
         }
 
@@ -214,7 +265,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
 
         foreach (Control c in _buttonPanel.Controls)
         {
-            if (c is not RoundedButton btn || btn.Tag is not int idx) continue;
+            if (c is not TabButton btn || btn.Tag is not int idx) continue;
 
             var selected = idx == _selectedIndex;
             btn.BackColor = selected ? p.PanelBackground : p.Background;
@@ -223,7 +274,12 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
             btn.PressedColor = p.ToolbarHover;
             btn.BorderColor = selected ? p.Accent : p.GridLine;
             btn.BorderWidth = 1;
-            btn.Padding = new Padding(12, 0, 12, 0);
+            btn.CloseGlyphColor = selected ? p.Foreground : p.DimForeground;
+            btn.CloseGlyphHoverColor = p.Danger;
+            btn.CloseHoverFill = p.ToolbarHover;
+            // A tab with a close glyph keeps the same 12px text inset on the left, but its right
+            // inset also has to clear the glyph - otherwise a long title runs straight under it.
+            btn.Padding = new Padding(12, 0, btn.ShowClose ? CloseGlyphReservedWidth : 12, 0);
             btn.Invalidate();
         }
 
@@ -245,6 +301,136 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
 
         _buttonPanel.Invalidate();
         _contentPanel.Invalidate();
+    }
+
+    /// <summary>
+    /// One tab's button, with an optional close ("x") glyph drawn <em>inside its own</em> paint
+    /// pass rather than as a child control on top. That distinction is the whole point of this
+    /// class: <see cref="RoundedButton.OnPaint"/> starts by filling its entire
+    /// <c>ClientRectangle</c> with the parent's background to avoid transparent-corner artifacts,
+    /// so a close button parented over a tab button punches an opaque rectangle through the tab's
+    /// rounded fill and border. Drawing the glyph here keeps a single, artifact-free surface, and
+    /// sizing it in code (two lines in a fixed box) means it can't overflow the way a glyph-font
+    /// character in a 16px button did.
+    /// </summary>
+    private sealed class TabButton : RoundedButton
+    {
+        private bool _closeHot;
+        private bool _closeArmed;
+        private bool _suppressClick;
+        private bool _tooltipAttached;
+
+        /// <summary>Whether to draw (and hit-test) the close glyph at all.</summary>
+        public bool ShowClose { get; init; }
+
+        /// <summary>Tooltip shown while the pointer is over the close glyph specifically - attached
+        /// and detached on the fly, since a tooltip set on the whole button would also pop when
+        /// hovering the tab's title.</summary>
+        public string? CloseTooltip { get; init; }
+
+        /// <summary>The owning control's shared <see cref="ToolTip"/> component.</summary>
+        public ToolTip? CloseTooltipHost { get; init; }
+
+        public Color CloseGlyphColor { get; set; } = Color.Empty;
+        public Color CloseGlyphHoverColor { get; set; } = Color.Empty;
+        public Color CloseHoverFill { get; set; } = Color.Empty;
+
+        /// <summary>Raised when the close glyph itself is clicked (not the rest of the tab).</summary>
+        public event EventHandler? CloseClicked;
+
+        private Rectangle CloseBox => CloseGlyphBoxFor(Size);
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (!ShowClose) return;
+
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var box = CloseBox;
+
+            if (_closeHot && CloseHoverFill != Color.Empty)
+            {
+                using var fill = new SolidBrush(CloseHoverFill);
+                using var pill = GraphicsHelpers.GetRoundedRect(box, 3);
+                g.FillPath(fill, pill);
+            }
+
+            var glyphColor = _closeHot
+                ? (CloseGlyphHoverColor != Color.Empty ? CloseGlyphHoverColor : ForeColor)
+                : (CloseGlyphColor != Color.Empty ? CloseGlyphColor : ForeColor);
+
+            // Two diagonals in a fixed inset box - no font metrics involved, so the glyph is the
+            // same crisp size at any theme font and can never overflow its box.
+            const int inset = 5;
+            using var pen = new Pen(glyphColor, 1.4f);
+            g.DrawLine(pen, box.Left + inset, box.Top + inset, box.Right - inset, box.Bottom - inset);
+            g.DrawLine(pen, box.Right - inset, box.Top + inset, box.Left + inset, box.Bottom - inset);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (!ShowClose) return;
+
+            var hot = CloseBox.Contains(e.Location);
+            if (hot == _closeHot) return;
+
+            _closeHot = hot;
+            UpdateTooltipAttachment();
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (!_closeHot && !_closeArmed) return;
+
+            _closeHot = false;
+            _closeArmed = false;
+            UpdateTooltipAttachment();
+            Invalidate();
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            _closeArmed = ShowClose && e.Button == MouseButtons.Left && CloseBox.Contains(e.Location);
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            // Fire (and swallow the tab-select Click that base.OnMouseUp is about to raise) only
+            // if the press *and* the release both landed on the glyph - matching how every other
+            // button in the app behaves when you press it and drag off before releasing.
+            var closeHit = _closeArmed && CloseBox.Contains(e.Location);
+            _closeArmed = false;
+            _suppressClick = closeHit;
+
+            base.OnMouseUp(e);
+
+            if (closeHit)
+                CloseClicked?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            if (_suppressClick)
+            {
+                _suppressClick = false;
+                return;
+            }
+            base.OnClick(e);
+        }
+
+        private void UpdateTooltipAttachment()
+        {
+            if (CloseTooltipHost == null || string.IsNullOrEmpty(CloseTooltip)) return;
+            if (_closeHot == _tooltipAttached) return;
+
+            _tooltipAttached = _closeHot;
+            CloseTooltipHost.SetToolTip(this, _closeHot ? CloseTooltip : null);
+        }
     }
 
     /// <summary>Draws the content border and the separator line between the button strip and content area.</summary>

@@ -55,9 +55,21 @@ public sealed class EmbeddedTerminalPanel : Panel
         InitializeComponents();
         ApplyTheme();
         ThemeService.ThemeChanged += OnThemeChanged;
+        LocalizationService.Current.LanguageChanged += OnLanguageChanged;
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
+
+    /// <summary>Picks up the close button's tooltip text on a live language switch - every other
+    /// localized string in this panel is looked up fresh at the moment it's shown (dialogs, error
+    /// messages), but the tooltip is attached once when a tab button is built and would otherwise
+    /// keep showing whatever language was active at that point.</summary>
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        if (_tabControl == null) return;
+        _tabControl.CloseButtonTooltip = LocalizationService.Current.GetString("Terminal.CloseTab");
+        _tabControl.RefreshTabStrip();
+    }
 
     private void InitializeComponents()
     {
@@ -80,9 +92,15 @@ public sealed class EmbeddedTerminalPanel : Panel
 
         // Fully owner-drawn, theme-aware tab strip (native TabControl chrome ignores
         // BackColor/ForeColor and stays light in dark mode).
-        _tabControl = new ThemedTabControl { Dock = DockStyle.Fill };
+        _tabControl = new ThemedTabControl
+        {
+            Dock = DockStyle.Fill,
+            ShowCloseButtons = true,
+            CloseButtonTooltip = LocalizationService.Current.GetString("Terminal.CloseTab")
+        };
         _tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged;
         _tabControl.TabRightClicked += TabControl_TabRightClicked;
+        _tabControl.TabCloseClicked += TabControl_TabCloseClicked;
         Controls.Add(_tabControl);
 
         _newTabButton = new RoundedButton
@@ -318,6 +336,23 @@ public sealed class EmbeddedTerminalPanel : Panel
             _sessionManager.RenameTab(tabId, dlg.Value);
     }
 
+    /// <summary>Handles a click on a tab's own close ("x") button - resolves the button strip
+    /// index back to the tab's <see cref="Guid"/> (the index is only stable for the duration of
+    /// this callback; tabs can be reordered/removed by the time async work would resume) and tears
+    /// the tab down through the same path as the hotkey/menu Close Tab command.</summary>
+    private void TabControl_TabCloseClicked(object? sender, int index)
+    {
+        if (index < 0 || index >= _tabControl.Pages.Count)
+            return;
+
+        var page = _tabControl.Pages[index];
+        var tabId = _tabPagesByGuid.FirstOrDefault(kv => kv.Value == page).Key;
+        if (tabId == Guid.Empty)
+            return;
+
+        CloseTerminalTab(tabId);
+    }
+
     private void OnTabRenamed(object? sender, (Guid TabId, string NewName) e)
     {
         if (_tabPagesByGuid.TryGetValue(e.TabId, out var page))
@@ -515,6 +550,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (disposing)
         {
             ThemeService.ThemeChanged -= OnThemeChanged;
+            LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
 
             // Each session's teardown blocks up to a few seconds waiting for its process tree to
             // exit; doing that one tab at a time could stall closing the app for several seconds
