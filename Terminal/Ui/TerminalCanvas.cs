@@ -33,6 +33,23 @@ namespace CoderCommander.Terminal.Ui;
 /// repaints at a fixed cap, which is also what keeps backpressure free - the parser blocking the
 /// pty read loop is itself what prevents unbounded output from outrunning the screen model.
 /// </para>
+/// <para>
+/// <b>Threading</b>: <see cref="TerminalScreen"/> is mutated on the pty reader thread and read here
+/// on the UI thread - every method that touches <c>_session.Screen</c>'s buffers/cursor/modes
+/// takes <c>_session.Screen.SyncRoot</c> for the duration of that read (see
+/// <see cref="TerminalScreen.SyncRoot"/>'s doc comment).
+/// </para>
+/// <para>
+/// <b>Scrollback coordinate space</b>: selection and find both anchor to a "combined" line index -
+/// scrollback rows (oldest first) followed by the active screen's rows - rather than
+/// viewport-relative rows, so they stay valid as the user scrolls. <see cref="_scrollOffset"/> is
+/// the number of lines the viewport is scrolled back from live (0 = live, showing the active
+/// screen). Both the scroll offset and any active selection are re-anchored in
+/// <see cref="ReanchorForScrollbackGrowth"/> whenever new rows are pushed into scrollback while
+/// scrolled back, using <see cref="TerminalScreen.ScrollbackTotalPushed"/> (which - unlike
+/// <see cref="TerminalScreen.ScrollbackCount"/> - keeps counting after the ring fills up) so a
+/// fixed index keeps pointing at the same text instead of silently drifting.
+/// </para>
 /// </summary>
 internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
 {
@@ -54,9 +71,17 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     private readonly System.Windows.Forms.Timer _caretTimer;
     private bool _caretVisible = true;
 
+    private int _scrollOffset;
+    private long _lastKnownScrollbackTotalPushed;
+
+    private readonly TerminalSelection _selection = new();
+    private bool _selectionDragActive;
+
+    private IReadOnlyList<(int Line, int Col, int Length)>? _findMatches;
+    private int _findCurrentIndex = -1;
+
     /// <summary>Raised for a <see cref="TerminalAction"/> this canvas doesn't fully own itself
-    /// (tab management, find, scrollback navigation, clear/reset) - the owning
-    /// <c>EmbeddedTerminalPanel</c> handles these.</summary>
+    /// (tab management, clear/reset) - the owning <c>EmbeddedTerminalPanel</c>/<see cref="TerminalTabView"/> handles these.</summary>
     public event EventHandler<TerminalAction>? ActionRequested;
 
     public TerminalSession Session => _session;
@@ -76,7 +101,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         RescaleMetrics();
 
         _repaintTimer = new System.Windows.Forms.Timer { Interval = 16 };
-        _repaintTimer.Tick += (_, _) => FlushDirtyRows();
+        _repaintTimer.Tick += (_, _) => { ReanchorForScrollbackGrowth(); FlushDirtyRows(); };
         _repaintTimer.Start();
 
         _caretTimer = new System.Windows.Forms.Timer { Interval = 530 };
@@ -201,32 +226,156 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         Invalidate();
     }
 
+    // -- Scrollback --
+
+    /// <summary>Number of lines the viewport is scrolled back from live (0 = live).</summary>
+    private int MaxScrollOffset(TerminalScreen screen) => screen.IsAltScreenActive ? 0 : screen.ScrollbackCount;
+
+    /// <summary>Combined-space line index of the viewport's TOP row. Must be called under
+    /// <c>_session.Screen.SyncRoot</c>.</summary>
+    private static int ViewportTopLine(TerminalScreen screen, int scrollOffset) => screen.ScrollbackCount - scrollOffset;
+
+    /// <summary>Resolves a combined-space line index to its row. Must be called under
+    /// <c>_session.Screen.SyncRoot</c>.</summary>
+    private static TerminalRow GetCombinedRow(TerminalScreen screen, int combinedLine) =>
+        combinedLine < screen.ScrollbackCount
+            ? screen.GetScrollbackRow(combinedLine)
+            : screen.GetRow(combinedLine - screen.ScrollbackCount);
+
+    /// <summary>Keeps a scrolled-back viewport and any active selection anchored to the same text
+    /// as new rows are pushed into scrollback (which would otherwise silently shift what a fixed
+    /// index points at) - see the class doc comment.</summary>
+    private void ReanchorForScrollbackGrowth()
+    {
+        long delta;
+        lock (_session.Screen.SyncRoot)
+        {
+            delta = _session.Screen.ScrollbackTotalPushed - _lastKnownScrollbackTotalPushed;
+            _lastKnownScrollbackTotalPushed = _session.Screen.ScrollbackTotalPushed;
+        }
+        if (delta <= 0) return;
+
+        if (_scrollOffset > 0)
+        {
+            _scrollOffset = (int)Math.Min(_scrollOffset + delta, int.MaxValue);
+            lock (_session.Screen.SyncRoot)
+                _scrollOffset = Math.Min(_scrollOffset, MaxScrollOffset(_session.Screen));
+        }
+        if (_selection.IsActive)
+            _selection.ShiftLines((int)Math.Min(delta, int.MaxValue));
+        if (_findMatches != null)
+            _findMatches = _findMatches.Select(m => (m.Line + (int)delta, m.Col, m.Length)).ToList();
+    }
+
+    private int VisibleRows()
+    {
+        lock (_session.Screen.SyncRoot)
+            return _session.Screen.Rows;
+    }
+
+    private void ScrollBy(int linesUp)
+    {
+        lock (_session.Screen.SyncRoot)
+            _scrollOffset = Math.Clamp(_scrollOffset + linesUp, 0, MaxScrollOffset(_session.Screen));
+        Invalidate();
+    }
+
+    private void ScrollToTop()
+    {
+        lock (_session.Screen.SyncRoot)
+            _scrollOffset = MaxScrollOffset(_session.Screen);
+        Invalidate();
+    }
+
+    private void ScrollToLive()
+    {
+        _scrollOffset = 0;
+        Invalidate();
+    }
+
+    /// <summary>Scrolls so <paramref name="combinedLine"/> is visible, a couple of lines below the
+    /// viewport top for a little context - used by the find bar to bring a match into view.</summary>
+    public void ScrollToCombinedLine(int combinedLine)
+    {
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            var target = screen.ScrollbackCount - combinedLine + 2;
+            _scrollOffset = Math.Clamp(target, 0, MaxScrollOffset(screen));
+        }
+        Invalidate();
+    }
+
+    // -- Find (used by TerminalFindBar) --
+
+    /// <summary>Total addressable lines (scrollback + active screen) at this moment.</summary>
+    public int CombinedLineCount()
+    {
+        lock (_session.Screen.SyncRoot)
+            return _session.Screen.ScrollbackCount + _session.Screen.Rows;
+    }
+
+    /// <summary>Plain-text content of one combined-space line, for the find bar to search against.</summary>
+    public string GetCombinedLineText(int combinedLine)
+    {
+        lock (_session.Screen.SyncRoot)
+        {
+            var row = GetCombinedRow(_session.Screen, combinedLine);
+            return RowToPlainText(row, 0, row.Cells.Length - 1);
+        }
+    }
+
+    /// <summary>Sets (or clears, with a null/empty list) the highlighted find matches and which
+    /// one is "current" (drawn in a brighter color).</summary>
+    public void SetFindHighlights(IReadOnlyList<(int Line, int Col, int Length)>? matches, int currentIndex)
+    {
+        _findMatches = matches;
+        _findCurrentIndex = currentIndex;
+        Invalidate();
+    }
+
     // -- Repaint --
 
     private void FlushDirtyRows()
     {
         if (IsDisposed || !IsHandleCreated) return;
 
-        var dirty = _session.Screen.Dirty;
-        if (dirty.FullRepaint)
+        bool fullRepaint;
+        lock (_session.Screen.SyncRoot)
         {
-            Invalidate();
+            var dirty = _session.Screen.Dirty;
+            fullRepaint = dirty.FullRepaint;
+            if (!fullRepaint)
+            {
+                // Only the live viewport's dirty rows matter for a partial repaint - if scrolled
+                // back, the visible content is scrollback (never dirty) plus possibly the tail of
+                // the active screen, which FullRepaint would have caught on a resize/ED anyway.
+                for (var r = 0; r < _session.Screen.Rows; r++)
+                {
+                    if (!dirty.IsDirty(r)) continue;
+                    if (_scrollOffset == 0)
+                        Invalidate(RowRect(r));
+                    else
+                        fullRepaint = true; // simplest correct fallback while scrolled back
+                }
+            }
+            dirty.Clear();
         }
-        else
-        {
-            for (var r = 0; r < _session.Screen.Rows; r++)
-                if (dirty.IsDirty(r))
-                    Invalidate(RowRect(r));
-        }
-        dirty.Clear();
+        if (fullRepaint) Invalidate();
     }
 
-    private Rectangle RowRect(int row) => new(0, row * _lineHeight, ClientSize.Width, _lineHeight);
+    private Rectangle RowRect(int viewportRow) => new(0, viewportRow * _lineHeight, ClientSize.Width, _lineHeight);
 
     private void InvalidateCursorCell()
     {
-        var screen = _session.Screen;
-        Invalidate(new Rectangle(screen.CursorCol * _charWidth, screen.CursorRow * _lineHeight, _charWidth * 2, _lineHeight));
+        if (_scrollOffset != 0) return; // cursor isn't in the visible viewport while scrolled back
+        int col, row;
+        lock (_session.Screen.SyncRoot)
+        {
+            col = _session.Screen.CursorCol;
+            row = _session.Screen.CursorRow;
+        }
+        Invalidate(new Rectangle(col * _charWidth, row * _lineHeight, _charWidth * 2, _lineHeight));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -235,19 +384,31 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         using (var bg = new SolidBrush(p.DefaultBackground))
             e.Graphics.FillRectangle(bg, e.ClipRectangle);
 
-        var screen = _session.Screen;
-        var firstRow = Math.Max(0, e.ClipRectangle.Top / _lineHeight);
-        var lastRow = Math.Min(screen.Rows - 1, e.ClipRectangle.Bottom / _lineHeight);
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            var top = ViewportTopLine(screen, _scrollOffset);
+            var firstViewportRow = Math.Max(0, e.ClipRectangle.Top / _lineHeight);
+            var lastViewportRow = Math.Min(screen.Rows - 1, e.ClipRectangle.Bottom / _lineHeight);
 
-        for (var r = firstRow; r <= lastRow; r++)
-            DrawRow(e.Graphics, r, r * _lineHeight);
+            for (var r = firstViewportRow; r <= lastViewportRow; r++)
+            {
+                var combinedLine = top + r;
+                if (combinedLine < 0) continue;
+                var row = GetCombinedRow(screen, combinedLine);
+                DrawRow(e.Graphics, row, r * _lineHeight);
+            }
 
-        DrawCursor(e.Graphics);
+            DrawSelectionOverlay(e.Graphics, screen, top);
+            DrawFindHighlightOverlay(e.Graphics, screen, top);
+
+            if (_scrollOffset == 0)
+                DrawCursor(e.Graphics, screen);
+        }
     }
 
-    private void DrawRow(Graphics g, int rowIndex, int y)
+    private void DrawRow(Graphics g, TerminalRow row, int y)
     {
-        var row = _session.Screen.GetRow(rowIndex);
         var cells = row.Cells;
         var col = 0;
         while (col < cells.Length)
@@ -319,9 +480,8 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     private static Color Blend(Color fg, Color bg) => Color.FromArgb(
         (fg.R + bg.R) / 2, (fg.G + bg.G) / 2, (fg.B + bg.B) / 2);
 
-    private void DrawCursor(Graphics g)
+    private void DrawCursor(Graphics g, TerminalScreen screen)
     {
-        var screen = _session.Screen;
         if (!screen.Modes.CursorVisible) return;
 
         var p = ThemeService.Current.Terminal;
@@ -350,6 +510,59 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         }
     }
 
+    private void DrawSelectionOverlay(Graphics g, TerminalScreen screen, int viewportTopLine)
+    {
+        if (!_selection.HasSelection) return;
+        var p = ThemeService.Current.Terminal;
+        using var brush = new SolidBrush(Color.FromArgb(110, p.SelectionBackground));
+        var lastViewportRow = screen.Rows - 1;
+
+        if (_selection.IsBlock)
+        {
+            var (top, left, bottom, right) = _selection.NormalizedBlock();
+            for (var line = Math.Max(top, viewportTopLine); line <= bottom; line++)
+            {
+                var viewportRow = line - viewportTopLine;
+                if (viewportRow < 0 || viewportRow > lastViewportRow) break;
+                var x = left * _charWidth;
+                var width = (right - left + 1) * _charWidth;
+                g.FillRectangle(brush, x, viewportRow * _lineHeight, width, _lineHeight);
+            }
+        }
+        else
+        {
+            var (l1, c1, l2, c2) = _selection.NormalizedRange();
+            for (var line = Math.Max(l1, viewportTopLine); line <= l2; line++)
+            {
+                var viewportRow = line - viewportTopLine;
+                if (viewportRow < 0 || viewportRow > lastViewportRow) break;
+                var row = GetCombinedRow(screen, line);
+                var fromCol = line == l1 ? c1 : 0;
+                var toCol = line == l2 ? Math.Min(c2, row.Cells.Length - 1) : row.Cells.Length - 1;
+                var x = fromCol * _charWidth;
+                var width = Math.Max(_charWidth, (toCol - fromCol + 1) * _charWidth);
+                g.FillRectangle(brush, x, viewportRow * _lineHeight, width, _lineHeight);
+            }
+        }
+    }
+
+    private void DrawFindHighlightOverlay(Graphics g, TerminalScreen screen, int viewportTopLine)
+    {
+        if (_findMatches is not { Count: > 0 }) return;
+        var p = ThemeService.Current.Terminal;
+        var lastViewportRow = screen.Rows - 1;
+
+        for (var i = 0; i < _findMatches.Count; i++)
+        {
+            var m = _findMatches[i];
+            var viewportRow = m.Line - viewportTopLine;
+            if (viewportRow < 0 || viewportRow > lastViewportRow) continue;
+            var color = i == _findCurrentIndex ? p.SearchMatchCurrent : p.SearchMatch;
+            using var brush = new SolidBrush(Color.FromArgb(150, color));
+            g.FillRectangle(brush, m.Col * _charWidth, viewportRow * _lineHeight, m.Length * _charWidth, _lineHeight);
+        }
+    }
+
     // -- Focus --
 
     protected override void OnGotFocus(EventArgs e)
@@ -365,10 +578,62 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         InvalidateCursorCell();
     }
 
+    // -- Mouse (selection) --
+
+    private (int Line, int Col) PixelToCombinedPosition(int x, int y)
+    {
+        var col = Math.Max(0, x / _charWidth);
+        var viewportRow = Math.Clamp(y / Math.Max(1, _lineHeight), 0, int.MaxValue);
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            viewportRow = Math.Min(viewportRow, screen.Rows - 1);
+            col = Math.Min(col, screen.Cols - 1);
+            return (ViewportTopLine(screen, _scrollOffset) + viewportRow, col);
+        }
+    }
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
         if (!Focused) Focus();
+        if (e.Button != MouseButtons.Left) return;
+
+        var (line, col) = PixelToCombinedPosition(e.X, e.Y);
+        _selection.Start(line, col, block: ModifierKeys.HasFlag(Keys.Alt));
+        _selectionDragActive = true;
+        Invalidate();
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!_selectionDragActive || e.Button != MouseButtons.Left) return;
+
+        var (line, col) = PixelToCombinedPosition(e.X, e.Y);
+        _selection.Extend(line, col);
+        Invalidate();
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        _selectionDragActive = false;
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        bool altScreen;
+        lock (_session.Screen.SyncRoot)
+            altScreen = _session.Screen.IsAltScreenActive;
+        // Forwarding the wheel as arrow keys while the alt-screen has no scrollback of its own
+        // (so e.g. `less`/`man` still scroll) is phase 5 (mouse) scope - for now the wheel simply
+        // does nothing there rather than scrolling non-existent history.
+        if (altScreen) return;
+
+        var notches = e.Delta / 120;
+        ScrollBy(-notches * 3);
     }
 
     // -- Keyboard --
@@ -394,9 +659,13 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         var control = keyData.HasFlag(Keys.Control);
         var alt = keyData.HasFlag(Keys.Alt);
 
-        var bytes = VtKeyEncoder.TryEncodeSpecialKey(keyCode, shift, control, alt, _session.Screen.Modes);
+        byte[]? bytes;
+        lock (_session.Screen.SyncRoot)
+            bytes = VtKeyEncoder.TryEncodeSpecialKey(keyCode, shift, control, alt, _session.Screen.Modes);
+
         if (bytes != null)
         {
+            ScrollToLiveOnInput();
             _session.SendInput(bytes);
             return true;
         }
@@ -417,8 +686,17 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         // consuming it at the ProcessCmdKey stage prevents the translation entirely.
         if (char.IsControl(e.KeyChar)) return;
 
+        ScrollToLiveOnInput();
         var altPressed = ModifierKeys.HasFlag(Keys.Alt) && !VtKeyEncoder.IsAltGrPressed();
         _session.SendInput(VtKeyEncoder.EncodePrintableChar(e.KeyChar, altPressed));
+    }
+
+    /// <summary>Typing while scrolled back into history jumps to live, matching every other
+    /// terminal - the user is about to see the shell echo/react to what they typed, which only
+    /// happens at the bottom.</summary>
+    private void ScrollToLiveOnInput()
+    {
+        if (_scrollOffset != 0) ScrollToLive();
     }
 
     private void DispatchAction(TerminalAction action)
@@ -426,25 +704,107 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         switch (action)
         {
             case TerminalAction.Copy:
-                // No selection model yet (lands in a later phase) - nothing to copy.
+                CopySelection();
                 break;
             case TerminalAction.CopyOrInterrupt:
-                // Until selection exists, this always interrupts - still the correct behavior for
-                // "Ctrl+C with nothing selected".
-                _session.SendInput([0x03]);
+                if (_selection.HasSelection) CopySelection();
+                else _session.SendInput([0x03]);
                 break;
             case TerminalAction.Paste:
                 PasteFromClipboard();
                 break;
+            case TerminalAction.SelectAll:
+                SelectAll();
+                break;
             case TerminalAction.IncreaseFont: Zoom(1); break;
             case TerminalAction.DecreaseFont: Zoom(-1); break;
             case TerminalAction.ResetFont: ResetZoom(); break;
+            case TerminalAction.ScrollLineUp: ScrollBy(1); break;
+            case TerminalAction.ScrollLineDown: ScrollBy(-1); break;
+            case TerminalAction.ScrollPageUp: ScrollBy(Math.Max(1, VisibleRows() - 1)); break;
+            case TerminalAction.ScrollPageDown: ScrollBy(-Math.Max(1, VisibleRows() - 1)); break;
+            case TerminalAction.ScrollToTop: ScrollToTop(); break;
+            case TerminalAction.ScrollToBottom: ScrollToLive(); break;
             default:
-                // Tab management, find, scrollback navigation, clear/reset - owned by the panel
-                // hosting this canvas (tab lifecycle) or a later phase (scrollback/find).
+                // Tab management, find, clear/reset - owned by the panel/view hosting this canvas.
                 ActionRequested?.Invoke(this, action);
                 break;
         }
+    }
+
+    private void SelectAll()
+    {
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            var total = screen.ScrollbackCount + screen.Rows;
+            if (total == 0) return;
+            var lastRow = GetCombinedRow(screen, total - 1);
+            _selection.Start(0, 0, block: false);
+            _selection.Extend(total - 1, Math.Max(0, lastRow.Cells.Length - 1));
+        }
+        Invalidate();
+    }
+
+    private void CopySelection()
+    {
+        var text = ExtractSelectionText();
+        if (text.Length > 0)
+            ClipboardHelper.TrySetClipboard(text);
+    }
+
+    private string ExtractSelectionText()
+    {
+        if (!_selection.HasSelection) return "";
+        var sb = new StringBuilder();
+
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            if (_selection.IsBlock)
+            {
+                var (top, left, bottom, right) = _selection.NormalizedBlock();
+                for (var line = top; line <= bottom; line++)
+                {
+                    var row = GetCombinedRow(screen, line);
+                    sb.Append(RowToPlainText(row, left, Math.Min(right, row.Cells.Length - 1)).TrimEnd());
+                    if (line != bottom) sb.Append('\n');
+                }
+            }
+            else
+            {
+                var (l1, c1, l2, c2) = _selection.NormalizedRange();
+                for (var line = l1; line <= l2; line++)
+                {
+                    var row = GetCombinedRow(screen, line);
+                    var fromCol = line == l1 ? c1 : 0;
+                    var toCol = line == l2 ? Math.Min(c2, row.Cells.Length - 1) : row.Cells.Length - 1;
+                    sb.Append(RowToPlainText(row, fromCol, toCol).TrimEnd());
+                    // A wrapped row's continuation is the same logical line - no line break.
+                    if (line != l2 && !row.Wrapped) sb.Append('\n');
+                }
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Cell range [fromCol, toColInclusive] as plain text - a WideTrail cell contributes
+    /// nothing (its glyph lives on the paired WideLead cell), everything else always has a real
+    /// rune (blank cells are U+0020, not 0 - see <see cref="TerminalCell.Blank"/>).</summary>
+    private static string RowToPlainText(TerminalRow row, int fromCol, int toColInclusive)
+    {
+        var sb = new StringBuilder();
+        var end = Math.Min(toColInclusive, row.Cells.Length - 1);
+        for (var c = Math.Max(0, fromCol); c <= end; c++)
+        {
+            var cell = row.Cells[c];
+            if (cell.Flags.HasFlag(CellFlags.WideTrail)) continue;
+            sb.Append(char.ConvertFromUtf32(cell.Rune));
+            if (cell.Flags.HasFlag(CellFlags.HasCombining) && row.Combining != null && row.Combining.TryGetValue(c, out var tail))
+                sb.Append(tail);
+        }
+        return sb.ToString();
     }
 
     private void PasteFromClipboard()
@@ -467,7 +827,12 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         text = text.Replace("\x1b[200~", "").Replace("\x1b[201~", "");
         var bytes = Encoding.UTF8.GetBytes(text);
 
-        if (_session.Screen.Modes.BracketedPaste)
+        bool bracketedPaste;
+        lock (_session.Screen.SyncRoot)
+            bracketedPaste = _session.Screen.Modes.BracketedPaste;
+
+        ScrollToLiveOnInput();
+        if (bracketedPaste)
         {
             _session.SendInput("\x1b[200~"u8);
             _session.SendInput(bytes);

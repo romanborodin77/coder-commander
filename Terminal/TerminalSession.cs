@@ -108,13 +108,19 @@ internal sealed class TerminalSession : IAsyncDisposable
         if (cols == _cols && rows == _rows) return;
         _cols = cols;
         _rows = rows;
-        Screen.Resize(rows, cols);
+        // Called from the UI thread, races the reader thread's OnPtyOutput mutating the same
+        // buffers - both must go through Screen.SyncRoot.
+        lock (Screen.SyncRoot)
+            Screen.Resize(rows, cols);
         _pty.Resize((short)cols, (short)rows);
     }
 
     private void OnPtyOutput(ReadOnlyMemory<byte> bytes)
     {
-        _decoder.Decode(bytes.Span, _decodeScratch, chars => _parser.Parse(chars, Screen));
+        // The UI thread reads Screen concurrently (painting, cursor, scrollback) - every mutation
+        // here must go through Screen.SyncRoot, which the UI layer takes around its own reads.
+        lock (Screen.SyncRoot)
+            _decoder.Decode(bytes.Span, _decodeScratch, chars => _parser.Parse(chars, Screen));
         OutputArrived?.Invoke();
     }
 

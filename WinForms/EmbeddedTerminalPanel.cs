@@ -284,7 +284,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (tabId != Guid.Empty && tabId != _sessionManager?.ActiveTab?.Id)
             SwitchToTab(tabId);
 
-        page.Content.Focus();
+        FocusTerminalContent(page.Content);
     }
 
     private void TabControl_TabRightClicked(object? sender, int index)
@@ -319,11 +319,11 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (_sessionManager?.GetTab(tabId) is not TerminalTab tab || !_sessions.TryGetValue(tabId, out var session))
             return;
 
-        var canvas = new TerminalCanvas(session, _keyBindings);
-        canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
+        var view = new TerminalTabView(session, _keyBindings);
+        view.Canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
         session.Screen.TitleChanged += () => OnScreenTitleChanged(tabId);
 
-        var page = new ThemedTabPage(tab.GetDisplayName(), canvas);
+        var page = new ThemedTabPage(tab.GetDisplayName(), view);
         _tabPagesByGuid[tabId] = page;
         _tabControl.AddPage(page);
         _tabControl.SelectedIndex = _tabControl.Pages.Count - 1;
@@ -333,8 +333,17 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (_sessionManager.ActiveTab?.Id != tabId)
             _sessionManager.SwitchTab(tabId);
 
-        canvas.Focus();
+        view.Canvas.Focus();
         TabsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Focuses the actual interactive control of a tab page's content - a
+    /// <see cref="TerminalTabView"/>'s <see cref="TerminalTabView.Canvas"/>, not the wrapper panel
+    /// itself (which also hosts the find bar).</summary>
+    private static void FocusTerminalContent(Control content)
+    {
+        if (content is TerminalTabView view) view.Canvas.Focus();
+        else content.Focus();
     }
 
     private void OnTabClosed(object? sender, Guid tabId)
@@ -363,7 +372,7 @@ public sealed class EmbeddedTerminalPanel : Panel
                     break;
                 }
             }
-            page.Content.Focus();
+            FocusTerminalContent(page.Content);
         }
     }
 

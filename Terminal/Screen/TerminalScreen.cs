@@ -5,8 +5,10 @@ namespace CoderCommander.Terminal.Screen;
 /// <summary>
 /// Owns the main + alt screen buffers, cursor, modes, and dirty tracking for one terminal
 /// session, and is the <see cref="IVtSink"/> that <see cref="VtParser"/> dispatches into. Mutated
-/// exclusively from the pty's reader thread (see <c>Terminal.Native.PtySession</c>) - the UI
-/// layer only ever reads under a lock, snapshotting <see cref="Dirty"/>.
+/// from the pty's reader thread (see <c>Terminal.Native.PtySession</c>) via
+/// <c>Terminal.TerminalSession</c>, which takes <see cref="SyncRoot"/> around every dispatch call
+/// and around <see cref="Resize"/> - the UI layer must take the same lock around every read
+/// (painting, cursor position, scrollback, <see cref="Dirty"/>).
 /// </summary>
 internal sealed class TerminalScreen : IVtSink
 {
@@ -23,6 +25,14 @@ internal sealed class TerminalScreen : IVtSink
     private int _lastPrintedRune = -1;
     private readonly VtResponder _responder;
 
+    /// <summary>Guards every mutation (via <see cref="Vt.VtParser.Parse"/>'s dispatch into this
+    /// sink, and <see cref="Resize"/>) and every read (painting, cursor position, scrollback) of
+    /// this screen's buffers/cursor/modes. Mutation happens on the pty reader thread; reads happen
+    /// on the UI thread - callers on both sides must take this lock, this class does not take it
+    /// internally (its own dispatch methods are only ever called already-locked, by
+    /// <c>Terminal.TerminalSession</c>).</summary>
+    public object SyncRoot { get; } = new();
+
     public TerminalModes Modes { get; } = new();
     public DirtyRows Dirty { get; private set; }
     public string Title { get; private set; } = "";
@@ -34,6 +44,12 @@ internal sealed class TerminalScreen : IVtSink
     public int Rows => _active.Rows;
     public int Cols => _active.Cols;
     public int ScrollbackCount => _main.Scrollback?.Count ?? 0;
+
+    /// <summary>Monotonic total (never plateaus once the ring is full, unlike
+    /// <see cref="ScrollbackCount"/>) - lets a scrolled-back viewport detect "old rows kept getting
+    /// evicted while I was looking at a fixed index" and re-anchor. See
+    /// <see cref="ScrollbackRing.TotalPushed"/>.</summary>
+    public long ScrollbackTotalPushed => _main.Scrollback?.TotalPushed ?? 0;
 
     /// <summary>Raised when OSC 0/1/2 sets the tab title (already sanitized).</summary>
     public event Action? TitleChanged;

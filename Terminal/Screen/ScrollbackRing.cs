@@ -13,6 +13,13 @@ internal sealed class ScrollbackRing
     public int Capacity { get; }
     public int Count => _count;
 
+    /// <summary>Monotonically increasing count of every row ever pushed, even past eviction -
+    /// unlike <see cref="Count"/> (which plateaus at <see cref="Capacity"/> once the ring is
+    /// full), this lets a consumer that's scrolled back into history detect "the ring kept
+    /// evicting old rows while I was looking at a fixed index" and re-anchor, instead of silently
+    /// showing different content at the same index once the ring fills up.</summary>
+    public long TotalPushed { get; private set; }
+
     public ScrollbackRing(int capacity)
     {
         Capacity = Math.Max(1, capacity);
@@ -31,6 +38,7 @@ internal sealed class ScrollbackRing
             _rows[(_head + _count) % Capacity] = row;
             _count++;
         }
+        TotalPushed++;
     }
 
     /// <summary>0 = oldest row, Count-1 = newest.</summary>
@@ -46,5 +54,6 @@ internal sealed class ScrollbackRing
         Array.Clear(_rows);
         _head = 0;
         _count = 0;
+        TotalPushed = 0;
     }
 }
