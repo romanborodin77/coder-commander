@@ -26,10 +26,11 @@ internal static class ShellBootstrap
     };
 
     /// <summary>Extra arguments to append after <see cref="ShellDescriptor.Arguments"/>. Empty for
-    /// a family that uses <see cref="BuildEnvironment"/> instead.</summary>
-    public static IReadOnlyList<string> BuildExtraArguments(ShellFamily family) => family switch
+    /// a family that uses <see cref="BuildEnvironment"/> instead. <paramref name="loadProfile"/>
+    /// only affects PowerShell families - <c>AppSettings.TerminalLoadShellProfile</c>.</summary>
+    public static IReadOnlyList<string> BuildExtraArguments(ShellFamily family, bool loadProfile) => family switch
     {
-        ShellFamily.WindowsPowerShell or ShellFamily.PowerShellCore => PowerShellArguments,
+        ShellFamily.WindowsPowerShell or ShellFamily.PowerShellCore => BuildPowerShellArguments(loadProfile),
         _ => Array.Empty<string>()
     };
 
@@ -70,16 +71,20 @@ internal static class ShellBootstrap
         ["WSLENV"] = "PROMPT_COMMAND/u"
     };
 
-    private static readonly IReadOnlyList<string> PowerShellArguments = BuildPowerShellArguments();
+    private static readonly string EncodedBootstrapScript =
+        Convert.ToBase64String(Encoding.Unicode.GetBytes(PowerShellBootstrapScript));
 
-    private static IReadOnlyList<string> BuildPowerShellArguments()
+    private static IReadOnlyList<string> BuildPowerShellArguments(bool loadProfile)
     {
-        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(PowerShellBootstrapScript));
-        // -NoExit: stay interactive after running this. Deliberately NOT -NoProfile - that flag is
-        // what disabled PSReadLine/tab-completion in the pre-rewrite pipe-based terminal. Profile
-        // scripts (oh-my-posh, Starship, PSReadLine config) still load first; this only wraps
-        // whatever prompt function they left behind, it doesn't replace the whole prompt.
-        return ["-NoExit", "-EncodedCommand", encoded];
+        // -NoExit: stay interactive after running this. -NoProfile is what disabled PSReadLine/
+        // tab-completion in the pre-rewrite pipe-based terminal when always applied - here it's
+        // opt-in (AppSettings.TerminalLoadShellProfile) rather than baked in, since a heavy
+        // profile (oh-my-posh, Starship) measurably slows down opening a tab and some users would
+        // rather trade the customized prompt for that. When profiles load, this bootstrap only
+        // wraps whatever prompt function they left behind - it never replaces the whole prompt.
+        return loadProfile
+            ? ["-NoExit", "-EncodedCommand", EncodedBootstrapScript]
+            : ["-NoExit", "-NoProfile", "-EncodedCommand", EncodedBootstrapScript];
     }
 
     private const string PowerShellBootstrapScript = """

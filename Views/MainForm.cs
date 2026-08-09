@@ -1784,6 +1784,11 @@ public sealed class MainForm : Form
     /// <summary>Loads saved paths and restores terminal tabs after the window is shown.</summary>
     public async Task InitializeAsync()
     {
+        // Fire-and-forget: memoized internally, so by the time anything actually needs the shell
+        // list (the "+" new-tab dialog, or Settings' default-shell combo) it's already warm rather
+        // than blocking on WSL distro enumeration/registry lookups at that point instead.
+        _ = Terminal.Shells.ShellCatalog.DiscoverAsync();
+
         var s = SettingsService.Load();
         var leftPath = !string.IsNullOrEmpty(s.LeftPath) && Directory.Exists(s.LeftPath)
             ? s.LeftPath

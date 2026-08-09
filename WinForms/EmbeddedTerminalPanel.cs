@@ -21,7 +21,14 @@ public sealed class EmbeddedTerminalPanel : Panel
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
     private ThemedTabControl? _tabControl;
     private RoundedButton? _newTabButton;
-    private readonly TerminalKeyBindings _keyBindings = TerminalKeyBindings.WindowsTerminalPreset();
+    // Not a fixed field: re-read on every tab creation so a settings change (SettingsForm's
+    // Terminal tab) takes effect for the next new/restored tab without needing to reload the
+    // whole panel - an already-open tab's canvas keeps whatever table it was created with.
+    private static TerminalKeyBindings LoadKeyBindings()
+    {
+        var s = SettingsService.Load();
+        return TerminalKeyBindings.FromSettings(s.TerminalKeyBindingPreset, s.TerminalCustomKeyBindings);
+    }
 
     /// <summary>Loop-guard for the push (panel -&gt; shell) / report (shell -&gt; panel) cwd-sync
     /// cycle: a path just pushed via <see cref="SetWorkingDirectory"/>, so the shell's own
@@ -323,7 +330,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (_sessionManager?.GetTab(tabId) is not TerminalTab tab || !_sessions.TryGetValue(tabId, out var session))
             return;
 
-        var view = new TerminalTabView(session, _keyBindings);
+        var view = new TerminalTabView(session, LoadKeyBindings());
         view.Canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
         view.Canvas.ShowPathInPanelRequested += (_, path) => ShowPathInPanelRequested?.Invoke(this, path);
         session.Screen.TitleChanged += () => OnScreenTitleChanged(tabId);

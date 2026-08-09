@@ -25,6 +25,33 @@ internal sealed class TerminalKeyBindings
     public TerminalAction Resolve(Keys keyData) =>
         _bindings.TryGetValue(keyData, out var action) ? action : TerminalAction.None;
 
+    /// <summary>Builds the active table from <c>AppSettings.TerminalKeyBindingPreset</c>/
+    /// <c>TerminalCustomKeyBindings</c> - a plain function of its inputs rather than reading
+    /// settings itself, so it stays unit-testable and the "what settings say" vs. "what table
+    /// results" mapping is explicit at the call site. An unparseable custom chord or unknown
+    /// action name is skipped rather than failing the whole table (a hand-edited or
+    /// version-skewed settings.json shouldn't be able to break every terminal tab).</summary>
+    public static TerminalKeyBindings FromSettings(string preset, IReadOnlyDictionary<string, string> customBindings)
+    {
+        if (preset == "Classic")
+            return ClassicPreset();
+
+        if (preset == "Custom")
+        {
+            var bindings = new Dictionary<Keys, TerminalAction>();
+            foreach (var (actionName, chordText) in customBindings)
+            {
+                if (Enum.TryParse<TerminalAction>(actionName, out var action) &&
+                    action != TerminalAction.None &&
+                    TryParseChord(chordText, out var chord))
+                    bindings[chord] = action;
+            }
+            return new TerminalKeyBindings(bindings);
+        }
+
+        return WindowsTerminalPreset();
+    }
+
     /// <summary>Windows-Terminal-style chords - the default preset. Ctrl+C copies the selection if
     /// one exists and otherwise falls through to <see cref="VtKeyEncoder"/> as the interrupt byte
     /// (see <see cref="TerminalAction.CopyOrInterrupt"/>); Ctrl+Shift+C/V are the unambiguous

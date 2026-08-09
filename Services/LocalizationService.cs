@@ -642,5 +642,23 @@ public sealed class LocalizationService
         _strings["Terminal.NoShellAvailable"] = "No terminal shell (cmd.exe or PowerShell) is available on this system";
         _strings["Settings.Terminal"] = "Terminal";
         _strings["Settings.DefaultShell"] = "Default shell:";
+        _strings["Settings.Terminal.KeyBindingPreset"] = "Key bindings:";
+        _strings["Settings.Terminal.KeyBindingPreset.WindowsTerminal"] = "Windows Terminal";
+        _strings["Settings.Terminal.KeyBindingPreset.Classic"] = "Classic";
+        _strings["Settings.Terminal.KeyBindingPreset.Custom"] = "Custom";
+        _strings["Settings.Terminal.Customize"] = "Customize…";
+        _strings["Settings.Terminal.FollowPanelCwd"] = "Sync panel path to terminal:";
+        _strings["Settings.Terminal.FollowPanelCwd.Never"] = "Never";
+        _strings["Settings.Terminal.FollowPanelCwd.OnOpen"] = "When terminal opens";
+        _strings["Settings.Terminal.FollowPanelCwd.Always"] = "Always";
+        _strings["Settings.Terminal.LoadShellProfile"] = "Load PowerShell profile (oh-my-posh, PSReadLine, …)";
+        _strings["Settings.Terminal.KeyBindings"] = "Terminal Key Bindings";
+        _strings["Settings.Terminal.KeyBindings.Action"] = "Action";
+        _strings["Settings.Terminal.KeyBindings.Shortcut"] = "Shortcut";
+        _strings["Settings.Terminal.KeyBindings.Hint"] = "Double-click a row to set a new shortcut, or Escape to cancel.";
+        _strings["Settings.Terminal.KeyBindings.Clear"] = "Clear Shortcut";
+        _strings["Settings.Terminal.KeyBindings.ResetAll"] = "Reset All to Defaults";
+        _strings["Settings.Terminal.KeyBindings.PressKeys"] = "Press a key combination…";
+        _strings["Settings.Terminal.KeyBindings.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
     }
 }

@@ -82,7 +82,8 @@ internal sealed class TerminalSession : IAsyncDisposable
 
     public static TerminalSession Start(ShellDescriptor shell, string workingDirectory, int cols, int rows, int scrollbackLines)
     {
-        var arguments = shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(shell.Family)).ToList();
+        var loadProfile = SettingsService.Load().TerminalLoadShellProfile;
+        var arguments = shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(shell.Family, loadProfile)).ToList();
 
         // ShellBootstrap's entries (cwd-report PROMPT/PROMPT_COMMAND injection) are layered on top
         // of the base TERM/COLORTERM set; a family with nothing to add contributes an empty dict.

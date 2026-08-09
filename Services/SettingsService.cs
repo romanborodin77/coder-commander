@@ -79,6 +79,25 @@ public sealed class AppSettings
     /// visible, not on every subsequent panel navigation), <c>"Always"</c> (push on every
     /// navigation while the terminal is visible).</summary>
     public string TerminalFollowPanelCwd { get; set; } = "OnOpen";
+
+    /// <summary>Key binding preset: <c>"WindowsTerminal"</c> (default), <c>"Classic"</c> (mirrors
+    /// this app's pre-rewrite Ctrl+T/Ctrl+W/Ctrl+C/Ctrl+V layout), or <c>"Custom"</c> (user-edited,
+    /// stored in <see cref="TerminalCustomKeyBindings"/>).</summary>
+    public string TerminalKeyBindingPreset { get; set; } = "WindowsTerminal";
+
+    /// <summary>Custom chord overrides when <see cref="TerminalKeyBindingPreset"/> is
+    /// <c>"Custom"</c> - keyed by <c>Terminal.Input.TerminalAction</c> name, valued by a chord
+    /// string in <c>Terminal.Input.TerminalKeyBindings.FormatChord</c>'s format (e.g.
+    /// <c>"Ctrl+Shift+T"</c>). Starts as a copy of the WindowsTerminal preset when the user first
+    /// switches to Custom (see <c>TerminalKeyBindingsForm</c>); an action missing from this
+    /// dictionary is simply unbound, not defaulted.</summary>
+    public Dictionary<string, string> TerminalCustomKeyBindings { get; set; } = new();
+
+    /// <summary>Whether a new PowerShell tab loads the user's profile (oh-my-posh, Starship,
+    /// PSReadLine config, ...). Off trades a faster tab-open for a bare, un-customized prompt -
+    /// on by default since a plain PowerShell prompt with no tab-completion history is what the
+    /// pre-rewrite pipe-based terminal shipped, and this rewrite exists specifically to fix that.</summary>
+    public bool TerminalLoadShellProfile { get; set; } = true;
 }
 
 /// <summary>

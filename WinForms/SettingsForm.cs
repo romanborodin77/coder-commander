@@ -27,6 +27,11 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _copyTsCheck;
     private readonly ThemedCheckBox _showExtInNameCheck;
     private readonly ThemedComboBox _defaultShellCombo;
+    private readonly ThemedComboBox _keyBindingPresetCombo;
+    private readonly ThemedComboBox _followPanelCwdCombo;
+    private readonly ThemedCheckBox _loadShellProfileCheck;
+    private IReadOnlyList<Terminal.Shells.ShellDescriptor> _availableShells = Array.Empty<Terminal.Shells.ShellDescriptor>();
+    private Dictionary<string, string> _customKeyBindings;
 
     /// <summary>Raised after settings are saved and applied.</summary>
     public event EventHandler? SettingsSaved;
@@ -41,6 +46,8 @@ public class SettingsForm : ThemedForm
 
         var p = ThemeService.Current;
         var s = SettingsService.Load();
+        // Working copy - the Customize dialog mutates this in place; only persisted on Save.
+        _customKeyBindings = new Dictionary<string, string>(s.TerminalCustomKeyBindings);
 
         _tabs = new ThemedTabControl
         {
@@ -235,26 +242,51 @@ public class SettingsForm : ThemedForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 2,
+            RowCount = 5,
             Padding = new Padding(16),
             BackColor = p.Background
         };
-        terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+        terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        // Only the two always-present built-in shells are offered here - the full autodetected
-        // list (pwsh, Git Bash, per-distro WSL) is what SelectShellDialog shows when creating a
-        // tab; a richer "default shell" picker sourced from ShellCatalog is deferred to the
-        // terminal settings tab rework.
+        // Populated synchronously with whatever ShellCatalog already has cached (instant if
+        // MainForm's startup pre-warm already ran, which it always has by the time a user opens
+        // Settings) and refreshed asynchronously otherwise - never blocks dialog construction.
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.DefaultShell")), 0, 0);
         _defaultShellCombo = new ThemedComboBox { Dock = DockStyle.Fill };
-        _defaultShellCombo.AddItem(L.GetString("Terminal.Shell.Cmd"));
-        _defaultShellCombo.AddItem(L.GetString("Terminal.Shell.WindowsPowerShell"));
-        var defaultShellIndex = s.DefaultShellType == "powershell" ? 1 : 0;
-        _defaultShellCombo.SelectedIndex = defaultShellIndex;
         terminalLayout.Controls.Add(_defaultShellCombo, 1, 0);
+        PopulateShellComboAsync(s.DefaultShellType);
+
+        terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.KeyBindingPreset")), 0, 1);
+        var keyBindingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        _keyBindingPresetCombo = new ThemedComboBox { Width = 160, Margin = new Padding(0, 0, 8, 0) };
+        _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.WindowsTerminal"));
+        _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Classic"));
+        _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Custom"));
+        _keyBindingPresetCombo.SelectedIndex = s.TerminalKeyBindingPreset switch { "Classic" => 1, "Custom" => 2, _ => 0 };
+        var customizeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Terminal.Customize"));
+        customizeBtn.Click += OnCustomizeKeyBindings;
+        keyBindingRow.Controls.Add(_keyBindingPresetCombo);
+        keyBindingRow.Controls.Add(customizeBtn);
+        terminalLayout.Controls.Add(keyBindingRow, 1, 1);
+
+        terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.FollowPanelCwd")), 0, 2);
+        _followPanelCwdCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.Never"));
+        _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.OnOpen"));
+        _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.Always"));
+        _followPanelCwdCombo.SelectedIndex = s.TerminalFollowPanelCwd switch { "Never" => 0, "Always" => 2, _ => 1 };
+        terminalLayout.Controls.Add(_followPanelCwdCombo, 1, 2);
+
+        _loadShellProfileCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.Terminal.LoadShellProfile"), s.TerminalLoadShellProfile);
+        _loadShellProfileCheck.Dock = DockStyle.Fill;
+        terminalLayout.Controls.Add(_loadShellProfileCheck, 0, 3);
+        terminalLayout.SetColumnSpan(_loadShellProfileCheck, 2);
 
         _tabs.AddPage(new ThemedTabPage(L.GetString("Settings.Terminal"), terminalLayout));
 
@@ -283,6 +315,49 @@ public class SettingsForm : ThemedForm
 
         AcceptButton = saveBtn;
         CancelButton = cancelBtn;
+    }
+
+    private async void PopulateShellComboAsync(string preferredShellId)
+    {
+        IReadOnlyList<Terminal.Shells.ShellDescriptor> shells;
+        try
+        {
+            shells = await Terminal.Shells.ShellCatalog.DiscoverAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("SettingsForm: shell discovery failed", ex);
+            return;
+        }
+        if (IsDisposed) return;
+
+        _availableShells = shells;
+        var L = LocalizationService.Current;
+        _defaultShellCombo.ClearItems();
+        var selectedIndex = 0;
+        for (var i = 0; i < shells.Count; i++)
+        {
+            var shell = shells[i];
+            var name = shell.DisplayNameArg != null
+                ? L.GetString(shell.DisplayNameKey, shell.DisplayNameArg)
+                : L.GetString(shell.DisplayNameKey);
+            _defaultShellCombo.AddItem(name);
+            if (shell.Id == preferredShellId) selectedIndex = i;
+        }
+        if (shells.Count > 0)
+            _defaultShellCombo.SelectedIndex = selectedIndex;
+    }
+
+    private void OnCustomizeKeyBindings(object? sender, EventArgs e)
+    {
+        // Editing custom bindings only makes sense once "Custom" is actually selected - switch to
+        // it automatically rather than silently discarding what the user is about to configure.
+        if (_keyBindingPresetCombo.SelectedIndex != 2)
+            _keyBindingPresetCombo.SelectedIndex = 2;
+
+        using var dlg = new TerminalKeyBindingsForm(_customKeyBindings);
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+            _customKeyBindings = dlg.ResultBindings;
     }
 
     /// <summary>Returns the default <see cref="CompressionPreset"/> for a format, preferring Balanced.</summary>
@@ -349,7 +424,12 @@ public class SettingsForm : ThemedForm
         s.CopyAttributes = _copyAttrsCheck.Checked;
         s.CopyTimestamps = _copyTsCheck.Checked;
         s.ArchiveCompression = _workingCompression.ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.OrdinalIgnoreCase);
-        s.DefaultShellType = _defaultShellCombo.SelectedIndex == 1 ? "powershell" : "cmd";
+        if (_defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count)
+            s.DefaultShellType = _availableShells[_defaultShellCombo.SelectedIndex].Id;
+        s.TerminalKeyBindingPreset = _keyBindingPresetCombo.SelectedIndex switch { 1 => "Classic", 2 => "Custom", _ => "WindowsTerminal" };
+        s.TerminalCustomKeyBindings = _customKeyBindings;
+        s.TerminalFollowPanelCwd = _followPanelCwdCombo.SelectedIndex switch { 0 => "Never", 2 => "Always", _ => "OnOpen" };
+        s.TerminalLoadShellProfile = _loadShellProfileCheck.Checked;
         SettingsService.Save(s);
 
         // Apply language
