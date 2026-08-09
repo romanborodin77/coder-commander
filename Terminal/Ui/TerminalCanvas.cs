@@ -95,6 +95,26 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
 
     public TerminalSession Session => _session;
 
+    protected override AccessibleObject CreateAccessibilityInstance() => new TerminalAccessibleObject(this);
+
+    /// <summary>Plain-text join of the currently visible screen rows (not scrollback) - see
+    /// <see cref="TerminalAccessibleObject"/>'s doc comment for why this exists.</summary>
+    public string GetVisibleScreenText()
+    {
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            var sb = new StringBuilder();
+            for (var r = 0; r < screen.Rows; r++)
+            {
+                var row = screen.GetRow(r);
+                sb.Append(RowToPlainText(row, 0, row.Cells.Length - 1).TrimEnd());
+                if (r != screen.Rows - 1) sb.Append('\n');
+            }
+            return sb.ToString();
+        }
+    }
+
     public TerminalCanvas(TerminalSession session, TerminalKeyBindings keyBindings)
     {
         _session = session;
@@ -109,6 +129,13 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         // OnHalf (not Inherit's system-default fallback): a terminal is mostly ASCII commands
         // with occasional CJK/Japanese/Korean input, not full-width text entry.
         ImeMode = ImeMode.OnHalf;
+        // Stable name for UI automation to find this control by (FlaUI, the accessibility tree) -
+        // an anonymous owner-drawn Control otherwise has no identifier beyond its position in the
+        // tree.
+        Name = "TerminalCanvas";
+        AccessibleName = session.Shell.DisplayNameArg != null
+            ? LocalizationService.Current.GetString(session.Shell.DisplayNameKey, session.Shell.DisplayNameArg)
+            : LocalizationService.Current.GetString(session.Shell.DisplayNameKey);
 
         RescaleMetrics();
 
