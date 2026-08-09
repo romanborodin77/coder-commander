@@ -67,7 +67,13 @@ internal sealed class TerminalScreen : IVtSink
     /// <summary>Raised when OSC 7 or OSC 9;9 reports a validated, existing Windows directory.</summary>
     public event Action<string>? CwdReported;
 
-    public TerminalScreen(int rows, int cols, int scrollbackLines, Action<byte[]> writeToPty)
+    private readonly Func<string, string?>? _osc7PosixPathTranslator;
+
+    /// <param name="osc7PosixPathTranslator">Optional - for a shell whose OSC 7 payload is a POSIX
+    /// path rather than a Windows one (WSL), translates it before <see cref="CwdReport"/> tries to
+    /// resolve it as a plain Windows path. See <see cref="CwdReport.TryParseOsc7(ReadOnlySpan{char},System.Func{string,string?},out string)"/>.</param>
+    public TerminalScreen(int rows, int cols, int scrollbackLines, Action<byte[]> writeToPty,
+        Func<string, string?>? osc7PosixPathTranslator = null)
     {
         _main = new TerminalBuffer(rows, cols, withScrollback: true, scrollbackLines, CellColor.Default);
         _alt = new TerminalBuffer(rows, cols, withScrollback: false, 0, CellColor.Default);
@@ -78,6 +84,7 @@ internal sealed class TerminalScreen : IVtSink
         _cursorBeforeAlt1049 = _cursor;
         _responder = new VtResponder(writeToPty);
         Dirty = new DirtyRows(rows);
+        _osc7PosixPathTranslator = osc7PosixPathTranslator;
     }
 
     public TerminalRow GetRow(int row) => _active[row];
@@ -758,7 +765,7 @@ internal sealed class TerminalScreen : IVtSink
                 TitleChanged?.Invoke();
                 break;
             case 7:
-                if (CwdReport.TryParseOsc7(payload, out var path7))
+                if (CwdReport.TryParseOsc7(payload, _osc7PosixPathTranslator, out var path7))
                     CwdReported?.Invoke(path7);
                 break;
             case 9:

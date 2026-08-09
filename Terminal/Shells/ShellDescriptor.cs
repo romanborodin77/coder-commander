@@ -35,4 +35,10 @@ public static class ShellIds
 
     /// <summary>Prefix for a per-distro WSL id: <c>"wsl:" + distroName</c>.</summary>
     public const string WslPrefix = "wsl:";
+
+    /// <summary>Extracts the distro name from a WSL shell id (<c>"wsl:Ubuntu-22.04"</c> -&gt;
+    /// <c>"Ubuntu-22.04"</c>). Falls back to the id unchanged if it's missing the expected prefix
+    /// (defensive only - every id actually produced by <see cref="ShellCatalog"/> has it).</summary>
+    public static string DistroNameFromShellId(string shellId) =>
+        shellId.StartsWith(WslPrefix, StringComparison.Ordinal) ? shellId[WslPrefix.Length..] : shellId;
 }

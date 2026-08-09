@@ -95,7 +95,17 @@ internal sealed class TerminalSession : IAsyncDisposable
             shell.ExecutablePath, arguments, workingDirectory, environment,
             (short)cols, (short)rows, ExcludedEnvironment);
 
-        var screen = new TerminalScreen(rows, cols, scrollbackLines, bytes => pty.Write(bytes));
+        // WSL's OSC 7 payload is a POSIX path ($(pwd) inside the distro), not a Windows one - the
+        // plain CwdReport interpretation would just backslash-replace it and fail Directory.Exists
+        // every time, silently breaking cwd sync for every WSL tab.
+        Func<string, string?>? posixCwdTranslator = null;
+        if (shell.Family == ShellFamily.Wsl)
+        {
+            var mapper = new WslPathMapper(ShellIds.DistroNameFromShellId(shell.Id));
+            posixCwdTranslator = posixPath => mapper.TryToWindows(posixPath, out var winPath) ? winPath : null;
+        }
+
+        var screen = new TerminalScreen(rows, cols, scrollbackLines, bytes => pty.Write(bytes), posixCwdTranslator);
         var session = new TerminalSession(pty, shell, screen, workingDirectory, cols, rows);
         pty.BeginReading();
         return session;

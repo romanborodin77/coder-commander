@@ -14,7 +14,16 @@ internal static class CwdReport
     /// <summary>Parses an OSC 7 payload of the form "file://host/path". Only host "",
     /// "localhost", or this machine's own name is accepted - a remote host reporting a path
     /// (e.g. over SSH) must never be allowed to navigate the local file panel.</summary>
-    public static bool TryParseOsc7(ReadOnlySpan<char> payload, out string windowsPath)
+    public static bool TryParseOsc7(ReadOnlySpan<char> payload, out string windowsPath) =>
+        TryParseOsc7(payload, posixPathTranslator: null, out windowsPath);
+
+    /// <summary>Same as <see cref="TryParseOsc7(ReadOnlySpan{char},out string)"/>, but for a shell
+    /// whose OSC 7 payload is a POSIX path rather than a Windows one (WSL: <c>$(pwd)</c> reports
+    /// e.g. <c>/mnt/c/Work</c>, not <c>C:\Work</c>). <paramref name="posixPathTranslator"/> is
+    /// tried first on the decoded path; if it returns a translated Windows path that resolves to a
+    /// real, existing directory, that wins - otherwise this falls back to treating the payload as
+    /// a plain Windows path, same as the single-argument overload.</summary>
+    public static bool TryParseOsc7(ReadOnlySpan<char> payload, Func<string, string?>? posixPathTranslator, out string windowsPath)
     {
         windowsPath = "";
         const string prefix = "file://";
@@ -32,6 +41,14 @@ internal static class CwdReport
             return false;
 
         var decoded = PercentDecode(pathPart);
+
+        if (posixPathTranslator != null)
+        {
+            var translated = posixPathTranslator(decoded);
+            if (translated != null && TryNormalizeToWindowsPath(translated, out windowsPath))
+                return true;
+        }
+
         return TryNormalizeToWindowsPath(decoded, out windowsPath);
     }
 

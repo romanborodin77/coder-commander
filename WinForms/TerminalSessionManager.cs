@@ -32,8 +32,12 @@ public sealed class TerminalSessionManager : IDisposable
     /// <summary>Raised when a tab is renamed. The event data contains the tab identifier and the new display name.</summary>
     public event EventHandler<(Guid TabId, string NewName)>? TabRenamed;
 
-    /// <summary>Create a new terminal tab.</summary>
-    public TerminalTab? CreateTab(ShellDescriptor shell, string displayName, string workingDirectory = "")
+    /// <summary>Create a new terminal tab. <paramref name="beforeNotify"/>, if given, runs after the
+    /// tab is registered but before <see cref="TabCreated"/> fires - it lets the caller register
+    /// whatever state a <see cref="TabCreated"/> handler needs to look up (e.g. the session backing
+    /// this tab's ID) before that handler can possibly run, since the tab's ID isn't known to the
+    /// caller until this method returns.</summary>
+    public TerminalTab? CreateTab(ShellDescriptor shell, string displayName, string workingDirectory = "", Action<Guid>? beforeNotify = null)
     {
         if (_disposed)
             return null;
@@ -53,6 +57,7 @@ public sealed class TerminalSessionManager : IDisposable
             _activeTabId = tab.Id;
 
         _tabs.Add(tab);
+        beforeNotify?.Invoke(tab.Id);
         TabCreated?.Invoke(this, tab.Id);
         LogService.Info($"Terminal tab created: {tab.Id} ({shell.Id})");
         return tab;

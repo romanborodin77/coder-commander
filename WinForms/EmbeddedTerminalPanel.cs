@@ -149,9 +149,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         var shellPath = path;
         if (session.Shell.Family is ShellFamily.Wsl)
         {
-            var distro = session.Shell.Id.StartsWith(ShellIds.WslPrefix, StringComparison.Ordinal)
-                ? session.Shell.Id[ShellIds.WslPrefix.Length..]
-                : session.Shell.Id;
+            var distro = ShellIds.DistroNameFromShellId(session.Shell.Id);
             if (!new WslPathMapper(distro).TryToWsl(path, out shellPath))
                 return; // e.g. a UNC path with no automount-root equivalent in this distro
         }
@@ -218,16 +216,22 @@ public sealed class EmbeddedTerminalPanel : Panel
             return null;
         }
 
-        var tab = _sessionManager.CreateTab(shell, session.Name, seedPath);
+        // _sessions must be populated - and the Exited/CwdReported subscriptions attached - before
+        // TabCreated fires: CreateTab raises it synchronously, and OnTabCreated looks the session up
+        // by tab ID immediately. Doing this after CreateTab returns is too late (the ID isn't known
+        // that early anyway) and previously made OnTabCreated silently no-op, leaving a live session
+        // with no visible tab.
+        var tab = _sessionManager.CreateTab(shell, session.Name, seedPath, beforeNotify: tabId =>
+        {
+            _sessions[tabId] = session;
+            session.Exited += _ => OnSessionExited(tabId);
+            session.Screen.CwdReported += path => OnSessionCwdReported(tabId, path);
+        });
         if (tab == null)
         {
             _ = session.DisposeAsync().AsTask();
             return null;
         }
-
-        _sessions[tab.Id] = session;
-        session.Exited += _ => OnSessionExited(tab.Id);
-        session.Screen.CwdReported += path => OnSessionCwdReported(tab.Id, path);
 
         return tab;
     }
