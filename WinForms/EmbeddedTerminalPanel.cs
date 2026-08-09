@@ -71,7 +71,11 @@ public sealed class EmbeddedTerminalPanel : Panel
         _tabControl.CloseButtonTooltip = LocalizationService.Current.GetString("Terminal.CloseTab");
         _tabControl.RefreshTabStrip();
         if (_newTabButton != null)
-            _newTabTooltip.SetToolTip(_newTabButton, LocalizationService.Current.GetString("Terminal.NewTab"));
+        {
+            var newTab = LocalizationService.Current.GetString("Terminal.NewTab");
+            _newTabTooltip.SetToolTip(_newTabButton, newTab);
+            _newTabButton.AccessibleName = newTab;
+        }
     }
 
     private void InitializeComponents()
@@ -120,6 +124,10 @@ public sealed class EmbeddedTerminalPanel : Panel
             UseGradient = false,
             DrawShadow = false,
             TabStop = false,
+            // Icon-only, so the caption can no longer serve as its accessible name - without
+            // this the button is nameless to a screen reader and unreachable by UIA.
+            AccessibleName = LocalizationService.Current.GetString("Terminal.NewTab"),
+            AccessibleRole = AccessibleRole.PushButton,
         };
         _newTabButton.Click += (_, _) => ShowNewTabDialog();
         _newTabTooltip.SetToolTip(_newTabButton, LocalizationService.Current.GetString("Terminal.NewTab"));

@@ -130,6 +130,19 @@ About.Version=Version {0}
 About.Subtitle=Dual-panel file manager for programmers
 About.Description=Modern file manager for developers
 About.Tech=Built with WinForms + MVVM + Command Pattern
+About.Display=Display
+About.Terminal=Terminal
+About.Formats=Archive formats
+About.NotAvailable=not available
+About.SystemInfo=System information
+About.Runtime=.NET runtime
+About.Os=Operating system
+About.Architecture=Architecture
+About.Memory=Memory in use
+About.ConfigFolder=Settings folder
+About.CopyInfo=Copy info
+About.Copied=Copied
+About.OpenFolder=Open
 
 # ═══ Copy/Move dialog ═══
 CopyMove.Title.Copy=Copy

@@ -271,6 +271,19 @@ public sealed class LocalizationService
         _strings["About.Subtitle"] = "Dual-panel file manager for programmers";
         _strings["About.Description"] = "Modern file manager for developers";
         _strings["About.Tech"] = "Built with WinForms + MVVM + Command Pattern";
+        _strings["About.Display"] = "Display";
+        _strings["About.Terminal"] = "Terminal";
+        _strings["About.Formats"] = "Archive formats";
+        _strings["About.NotAvailable"] = "not available";
+        _strings["About.SystemInfo"] = "System information";
+        _strings["About.Runtime"] = ".NET runtime";
+        _strings["About.Os"] = "Operating system";
+        _strings["About.Architecture"] = "Architecture";
+        _strings["About.Memory"] = "Memory in use";
+        _strings["About.ConfigFolder"] = "Settings folder";
+        _strings["About.CopyInfo"] = "Copy info";
+        _strings["About.Copied"] = "Copied";
+        _strings["About.OpenFolder"] = "Open";
 
         // ═══ Copy/Move dialog ═══
         _strings["CopyMove.Title.Copy"] = "Copy";

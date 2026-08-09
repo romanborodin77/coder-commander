@@ -14,6 +14,11 @@ public static class ArchiveFormatRegistry
 
     private static readonly List<IArchiveFormat> _formats = new();
 
+    /// <summary>Every registered format, in registration order - for reporting what this build
+    /// actually supports (the About dialog) rather than for lookup, which the By*/From* members
+    /// below do more precisely.</summary>
+    public static IEnumerable<IArchiveFormat> Registered => _formats;
+
     /// <summary>Returns all registered formats that support archive creation (<see cref="ArchiveCapabilities.Create"/>).</summary>
     public static IEnumerable<IArchiveFormat> Creatable =>
         _formats.Where(f => f.Capabilities.HasFlag(ArchiveCapabilities.Create));

@@ -378,6 +378,9 @@ public sealed class MainForm : Form
             Image = ToolbarIcons.Get(iconKey),
             DisplayStyle = ToolStripItemDisplayStyle.Image,
             ToolTipText = L.GetString(tooltipKey),
+            // Image-only buttons have no caption to fall back on, so without an explicit
+            // accessible name they show up nameless in the UIA tree (and to a screen reader).
+            AccessibleName = L.GetString(tooltipKey),
             Padding = new Padding(6, 3, 6, 3),
             Margin = new Padding(2, 0, 2, 0),
             AutoSize = false,
@@ -386,7 +389,11 @@ public sealed class MainForm : Form
             Tag = iconKey
         };
         btn.Click += (_, _) => onClick();
-        _relocalizeActions.Add(() => btn.ToolTipText = L.GetString(tooltipKey));
+        _relocalizeActions.Add(() =>
+        {
+            btn.ToolTipText = L.GetString(tooltipKey);
+            btn.AccessibleName = L.GetString(tooltipKey);
+        });
         return btn;
     }
 

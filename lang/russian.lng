@@ -127,6 +127,19 @@ About.Version=Версия {0}
 About.Subtitle=Двухпанельный файловый менеджер для программистов
 About.Description=Современный файловый менеджер для разработчиков
 About.Tech=WinForms + MVVM + паттерн команд
+About.Display=Дисплей
+About.Terminal=Терминал
+About.Formats=Форматы архивов
+About.NotAvailable=недоступен
+About.SystemInfo=Сведения о системе
+About.Runtime=Среда .NET
+About.Os=Операционная система
+About.Architecture=Архитектура
+About.Memory=Занято памяти
+About.ConfigFolder=Папка настроек
+About.CopyInfo=Скопировать сведения
+About.Copied=Скопировано
+About.OpenFolder=Открыть
 
 # ═══ Диалог копирования/перемещения ═══
 CopyMove.Title.Copy=Копирование

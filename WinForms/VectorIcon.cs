@@ -72,6 +72,57 @@ internal static class VectorIcon
         return bmp;
     }
 
+    /// <summary>Renders at an arbitrary grid size rather than the 16x16 icon grid - for the app
+    /// logo, which is drawn much larger and on its own coordinate system.</summary>
+    public static Bitmap RenderOn(float grid, string pathData, int pixelSize, Color color,
+                                  float strokeWidth, string? fillData = null, Color? fillColor = null)
+    {
+        var bmp = new Bitmap(pixelSize, pixelSize);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.CompositingQuality = CompositingQuality.HighQuality;
+        g.Clear(Color.Transparent);
+        g.ScaleTransform(pixelSize / grid, pixelSize / grid);
+
+        if (!string.IsNullOrEmpty(fillData))
+        {
+            using var fillPath = Parse(fillData);
+            using var brush = new SolidBrush(fillColor ?? color);
+            g.FillPath(brush, fillPath);
+        }
+        if (!string.IsNullOrEmpty(pathData))
+        {
+            using var path = Parse(pathData);
+            using var pen = new Pen(color, strokeWidth)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round,
+            };
+            g.DrawPath(pen, path);
+        }
+        return bmp;
+    }
+
+    /// <summary>Rounded rectangle as path data - four straight edges joined by quarter-circle
+    /// cubics (same 0.5523 kappa as <see cref="Circle"/>).</summary>
+    public static string RoundedRect(float x, float y, float w, float h, float r)
+    {
+        var ci = CultureInfo.InvariantCulture;
+        string N(float v) => v.ToString("0.###", ci);
+        var k = r * 0.5523f;
+        float x2 = x + w, y2 = y + h;
+        return $"M {N(x + r)} {N(y)} H {N(x2 - r)} " +
+               $"C {N(x2 - r + k)} {N(y)} {N(x2)} {N(y + r - k)} {N(x2)} {N(y + r)} " +
+               $"V {N(y2 - r)} " +
+               $"C {N(x2)} {N(y2 - r + k)} {N(x2 - r + k)} {N(y2)} {N(x2 - r)} {N(y2)} " +
+               $"H {N(x + r)} " +
+               $"C {N(x + r - k)} {N(y2)} {N(x)} {N(y2 - r + k)} {N(x)} {N(y2 - r)} " +
+               $"V {N(y + r)} " +
+               $"C {N(x)} {N(y + r - k)} {N(x + r - k)} {N(y)} {N(x + r)} {N(y)} Z";
+    }
+
     /// <summary>Circle as path data - four cubic segments, the standard 0.5523 kappa
     /// approximation. Saves every rounded icon from spelling the same beziers out by hand.</summary>
     public static string Circle(float cx, float cy, float r)
