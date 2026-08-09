@@ -39,6 +39,10 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Raised when the tracked shell working directory changes for the active tab.</summary>
     public event EventHandler<DirectoryChangedEventArgs>? DirectoryChanged;
 
+    /// <summary>Raised from a tab's right-click "Show in panel" menu item with a detected
+    /// filesystem path - <c>MainForm</c> navigates the active file panel there.</summary>
+    public event EventHandler<string>? ShowPathInPanelRequested;
+
     public EmbeddedTerminalPanel()
     {
         InitializeComponents();
@@ -321,6 +325,7 @@ public sealed class EmbeddedTerminalPanel : Panel
 
         var view = new TerminalTabView(session, _keyBindings);
         view.Canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
+        view.Canvas.ShowPathInPanelRequested += (_, path) => ShowPathInPanelRequested?.Invoke(this, path);
         session.Screen.TitleChanged += () => OnScreenTitleChanged(tabId);
 
         var page = new ThemedTabPage(tab.GetDisplayName(), view);

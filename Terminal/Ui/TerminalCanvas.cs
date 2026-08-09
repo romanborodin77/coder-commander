@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using CoderCommander.Services;
 using CoderCommander.Terminal.Input;
@@ -80,9 +81,17 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     private IReadOnlyList<(int Line, int Col, int Length)>? _findMatches;
     private int _findCurrentIndex = -1;
 
+    private ushort _hoverLinkId;
+    private Point? _mouseDownPoint;
+
     /// <summary>Raised for a <see cref="TerminalAction"/> this canvas doesn't fully own itself
     /// (tab management, clear/reset) - the owning <c>EmbeddedTerminalPanel</c>/<see cref="TerminalTabView"/> handles these.</summary>
     public event EventHandler<TerminalAction>? ActionRequested;
+
+    /// <summary>Raised from the right-click "Show in panel" menu item with a detected filesystem
+    /// path (see <see cref="PathDetector"/>) - the owning panel navigates the active file panel
+    /// there; this class has no reference to it.</summary>
+    public event EventHandler<string>? ShowPathInPanelRequested;
 
     public TerminalSession Session => _session;
 
@@ -97,6 +106,9 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
                  ControlStyles.Selectable, true);
         TabStop = true;
         Cursor = Cursors.IBeam;
+        // OnHalf (not Inherit's system-default fallback): a terminal is mostly ASCII commands
+        // with occasional CJK/Japanese/Korean input, not full-width text entry.
+        ImeMode = ImeMode.OnHalf;
 
         RescaleMetrics();
 
@@ -475,6 +487,13 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
 
         TextRenderer.DrawText(g, sb.ToString(), StyledFont(first.Flags), new Point(x, y), fg,
             TextFormatFlags.NoPadding | TextFormatFlags.NoClipping | TextFormatFlags.Left | TextFormatFlags.Top);
+
+        if (first.LinkId != 0)
+        {
+            var p = ThemeService.Current.Terminal;
+            using var pen = new Pen(p.LinkUnderline);
+            g.DrawLine(pen, x, y + _lineHeight - 1, x + pixelWidth, y + _lineHeight - 1);
+        }
     }
 
     private static Color Blend(Color fg, Color bg) => Color.FromArgb(
@@ -497,6 +516,20 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         }
 
         if (!_caretVisible && screen.Modes.CursorBlink) return;
+
+        // Underline/Bar (DECSCUSR) are thin accents drawn OVER the glyph DrawRow already painted
+        // in its normal colors - unlike Block, they must not invert the cell.
+        switch (screen.Modes.CursorShape)
+        {
+            case CursorShape.Underline:
+                using (var brush = new SolidBrush(p.Cursor))
+                    g.FillRectangle(brush, x, y + _lineHeight - 2, width, 2);
+                return;
+            case CursorShape.Bar:
+                using (var brush = new SolidBrush(p.Cursor))
+                    g.FillRectangle(brush, x, y, 2, _lineHeight);
+                return;
+        }
 
         using (var brush = new SolidBrush(p.Cursor))
             g.FillRectangle(brush, x, y, width, _lineHeight);
@@ -570,15 +603,28 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         base.OnGotFocus(e);
         _caretVisible = true;
         InvalidateCursorCell();
+        SendFocusReportIfEnabled(gained: true);
     }
 
     protected override void OnLostFocus(EventArgs e)
     {
         base.OnLostFocus(e);
         InvalidateCursorCell();
+        SendFocusReportIfEnabled(gained: false);
     }
 
-    // -- Mouse (selection) --
+    private void SendFocusReportIfEnabled(bool gained)
+    {
+        bool enabled;
+        lock (_session.Screen.SyncRoot)
+            enabled = _session.Screen.Modes.FocusReporting;
+        if (enabled)
+            _session.SendInput(MouseEncoder.EncodeFocus(gained));
+    }
+
+    // -- Mouse (SGR reporting when a full-screen app wants it, local selection otherwise) --
+
+    private bool _mouseReportButtonHeld;
 
     private (int Line, int Col) PixelToCombinedPosition(int x, int y)
     {
@@ -593,14 +639,68 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         }
     }
 
+    private (int Col, int Row) PixelToViewportCell(int x, int y)
+    {
+        lock (_session.Screen.SyncRoot)
+        {
+            var screen = _session.Screen;
+            var col = Math.Clamp(x / Math.Max(1, _charWidth), 0, Math.Max(0, screen.Cols - 1));
+            var row = Math.Clamp(y / Math.Max(1, _lineHeight), 0, Math.Max(0, screen.Rows - 1));
+            return (col, row);
+        }
+    }
+
+    /// <summary>Whether an app has asked for SGR mouse reporting (mode 1006 plus at least one of
+    /// X10/VT200/button-event/any-event) - and, if so, which motion granularity it wants. Holding
+    /// Shift always bypasses reporting for local selection, matching xterm's own convention (the
+    /// only way to select text with the mouse in an app that's grabbed it, e.g. vim's mouse=a).</summary>
+    private bool TryGetMouseReportModes(out bool anyEventMotion, out bool buttonEventMotion)
+    {
+        anyEventMotion = buttonEventMotion = false;
+        if (ModifierKeys.HasFlag(Keys.Shift)) return false;
+
+        lock (_session.Screen.SyncRoot)
+        {
+            var modes = _session.Screen.Modes;
+            if (!modes.MouseSgr || !modes.MouseTrackingEnabled) return false;
+            anyEventMotion = modes.MouseAnyEvent;
+            buttonEventMotion = modes.MouseButtonEvent;
+            return true;
+        }
+    }
+
+    private static int ButtonCode(MouseButtons button) => button switch
+    {
+        MouseButtons.Left => MouseEncoder.ButtonLeft,
+        MouseButtons.Middle => MouseEncoder.ButtonMiddle,
+        MouseButtons.Right => MouseEncoder.ButtonRight,
+        _ => MouseEncoder.ButtonNone
+    };
+
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
         if (!Focused) Focus();
-        if (e.Button != MouseButtons.Left) return;
 
-        var (line, col) = PixelToCombinedPosition(e.X, e.Y);
-        _selection.Start(line, col, block: ModifierKeys.HasFlag(Keys.Alt));
+        if (e.Button == MouseButtons.Right)
+        {
+            ShowContextMenu(e.Location);
+            return;
+        }
+
+        if (TryGetMouseReportModes(out _, out _))
+        {
+            var (col, row) = PixelToViewportCell(e.X, e.Y);
+            _session.SendInput(MouseEncoder.EncodeButton(ButtonCode(e.Button), col, row, press: true,
+                shift: false, ModifierKeys.HasFlag(Keys.Alt), ModifierKeys.HasFlag(Keys.Control)));
+            _mouseReportButtonHeld = true;
+            return; // the app owns the click - no local selection
+        }
+
+        if (e.Button != MouseButtons.Left) return;
+        _mouseDownPoint = e.Location;
+        var (line, col2) = PixelToCombinedPosition(e.X, e.Y);
+        _selection.Start(line, col2, block: ModifierKeys.HasFlag(Keys.Alt));
         _selectionDragActive = true;
         Invalidate();
     }
@@ -608,32 +708,216 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (!_selectionDragActive || e.Button != MouseButtons.Left) return;
 
-        var (line, col) = PixelToCombinedPosition(e.X, e.Y);
-        _selection.Extend(line, col);
-        Invalidate();
+        if (TryGetMouseReportModes(out var anyEventMotion, out var buttonEventMotion))
+        {
+            if (!anyEventMotion && !(buttonEventMotion && _mouseReportButtonHeld)) return;
+            var (col, row) = PixelToViewportCell(e.X, e.Y);
+            var button = _mouseReportButtonHeld ? ButtonCode(e.Button) : MouseEncoder.ButtonNone;
+            _session.SendInput(MouseEncoder.EncodeButton(button, col, row, press: true,
+                shift: false, ModifierKeys.HasFlag(Keys.Alt), ModifierKeys.HasFlag(Keys.Control), motion: true));
+            return;
+        }
+
+        if (_selectionDragActive && e.Button == MouseButtons.Left)
+        {
+            var (line, col2) = PixelToCombinedPosition(e.X, e.Y);
+            _selection.Extend(line, col2);
+            Invalidate();
+            return;
+        }
+
+        var linkId = GetLinkIdAtPixel(e.X, e.Y);
+        if (linkId != _hoverLinkId)
+        {
+            _hoverLinkId = linkId;
+            Cursor = linkId != 0 ? Cursors.Hand : Cursors.IBeam;
+        }
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+
+        if (_mouseReportButtonHeld)
+        {
+            _mouseReportButtonHeld = false;
+            if (TryGetMouseReportModes(out _, out _))
+            {
+                var (col, row) = PixelToViewportCell(e.X, e.Y);
+                _session.SendInput(MouseEncoder.EncodeButton(ButtonCode(e.Button), col, row, press: false,
+                    shift: false, ModifierKeys.HasFlag(Keys.Alt), ModifierKeys.HasFlag(Keys.Control)));
+            }
+            return;
+        }
+
         _selectionDragActive = false;
+
+        // A click (not a drag) on a link opens it - checked on release, same as every browser.
+        const int dragThresholdPixels = 3;
+        var wasClick = _mouseDownPoint is { } down &&
+            Math.Abs(e.X - down.X) <= dragThresholdPixels && Math.Abs(e.Y - down.Y) <= dragThresholdPixels;
+        _mouseDownPoint = null;
+
+        if (e.Button == MouseButtons.Left && wasClick)
+        {
+            var linkId = GetLinkIdAtPixel(e.X, e.Y);
+            if (linkId != 0)
+            {
+                bool found;
+                string uri;
+                lock (_session.Screen.SyncRoot)
+                    found = _session.Screen.TryGetHyperlinkUri(linkId, out uri);
+                if (found) OpenHyperlink(uri);
+            }
+        }
+    }
+
+    private ushort GetLinkIdAtPixel(int x, int y)
+    {
+        var (line, col) = PixelToCombinedPosition(x, y);
+        lock (_session.Screen.SyncRoot)
+        {
+            var row = GetCombinedRow(_session.Screen, line);
+            return col >= 0 && col < row.Cells.Length ? row.Cells[col].LinkId : (ushort)0;
+        }
+    }
+
+    private void OpenHyperlink(string uri)
+    {
+        if (!HyperlinkPolicy.IsAllowed(uri, out var parsed))
+        {
+            LogService.Warning($"Terminal: refused to open hyperlink with disallowed scheme: {uri}");
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(parsed!.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Terminal: failed to open hyperlink: {ex.Message}");
+        }
+    }
+
+    private void ShowContextMenu(Point location)
+    {
+        var L = LocalizationService.Current;
+        var p = ThemeService.Current;
+        var menu = new ContextMenuStrip
+        {
+            Renderer = new ThemeRenderer(),
+            BackColor = p.HeaderBackground,
+            ForeColor = p.Foreground,
+            Font = p.GridFont
+        };
+
+        var linkId = GetLinkIdAtPixel(location.X, location.Y);
+        if (linkId != 0)
+        {
+            bool found;
+            string uri;
+            lock (_session.Screen.SyncRoot)
+                found = _session.Screen.TryGetHyperlinkUri(linkId, out uri);
+            if (found)
+            {
+                var openItem = new ToolStripMenuItem(L.GetString("Terminal.Ctx.OpenLink")) { ForeColor = p.Foreground };
+                openItem.Click += (_, _) => OpenHyperlink(uri);
+                menu.Items.Add(openItem);
+
+                var copyLinkItem = new ToolStripMenuItem(L.GetString("Terminal.Ctx.CopyLink")) { ForeColor = p.Foreground };
+                copyLinkItem.Click += (_, _) => ClipboardHelper.TrySetClipboard(uri);
+                menu.Items.Add(copyLinkItem);
+            }
+        }
+
+        var (combinedLine, col) = PixelToCombinedPosition(location.X, location.Y);
+        var lineText = GetCombinedLineText(combinedLine);
+        if (PathDetector.TryFindPathAt(lineText, col, out var path, out _, out _))
+        {
+            var showItem = new ToolStripMenuItem(L.GetString("Terminal.Ctx.ShowInPanel")) { ForeColor = p.Foreground };
+            showItem.Click += (_, _) => ShowPathInPanelRequested?.Invoke(this, path);
+            menu.Items.Add(showItem);
+        }
+
+        if (menu.Items.Count > 0)
+            menu.Items.Add(new ToolStripSeparator());
+
+        var copyItem = new ToolStripMenuItem(L.GetString("Terminal.Ctx.Copy")) { ForeColor = p.Foreground, Enabled = _selection.HasSelection };
+        copyItem.Click += (_, _) => CopySelection();
+        menu.Items.Add(copyItem);
+
+        var pasteItem = new ToolStripMenuItem(L.GetString("Terminal.Ctx.Paste")) { ForeColor = p.Foreground };
+        pasteItem.Click += (_, _) => PasteFromClipboard();
+        menu.Items.Add(pasteItem);
+
+        menu.Show(this, location);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        bool altScreen;
-        lock (_session.Screen.SyncRoot)
-            altScreen = _session.Screen.IsAltScreenActive;
-        // Forwarding the wheel as arrow keys while the alt-screen has no scrollback of its own
-        // (so e.g. `less`/`man` still scroll) is phase 5 (mouse) scope - for now the wheel simply
-        // does nothing there rather than scrolling non-existent history.
-        if (altScreen) return;
-
         var notches = e.Delta / 120;
-        ScrollBy(-notches * 3);
+        if (notches == 0) return;
+
+        if (TryGetMouseReportModes(out _, out _))
+        {
+            var (col, row) = PixelToViewportCell(e.X, e.Y);
+            for (var i = 0; i < Math.Abs(notches); i++)
+                _session.SendInput(MouseEncoder.EncodeWheel(notches > 0, col, row,
+                    false, ModifierKeys.HasFlag(Keys.Alt), ModifierKeys.HasFlag(Keys.Control)));
+            return;
+        }
+
+        bool altScreen, alternateScroll, applicationCursorKeys;
+        lock (_session.Screen.SyncRoot)
+        {
+            var modes = _session.Screen.Modes;
+            altScreen = _session.Screen.IsAltScreenActive;
+            alternateScroll = modes.AlternateScroll;
+            applicationCursorKeys = modes.ApplicationCursorKeys;
+        }
+
+        if (altScreen)
+        {
+            // The alt-screen has no scrollback of its own - forwarding the wheel as arrow keys
+            // is what makes it scroll inside apps like less/man that read raw keys, not mouse
+            // events, for their own paging.
+            if (!alternateScroll) return;
+            var key = notches > 0 ? Keys.Up : Keys.Down;
+            for (var i = 0; i < Math.Abs(notches); i++)
+            {
+                var bytes = VtKeyEncoder.TryEncodeSpecialKey(key, false, false, false,
+                    new TerminalModes { ApplicationCursorKeys = applicationCursorKeys });
+                if (bytes != null) _session.SendInput(bytes);
+            }
+            return;
+        }
+
+        ScrollBy(notches * 3);
+    }
+
+    // -- IME --
+
+    private const int WmImeStartComposition = 0x010D;
+    private const int WmImeComposition = 0x010F;
+
+    /// <summary>Re-anchors the IME candidate popup at the terminal cursor's cell every time a
+    /// composition starts or updates - see <see cref="ImeInterop"/>'s doc comment for why this
+    /// needs to happen at all (Windows' default anchor is a fixed control corner, not the caret).</summary>
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg is WmImeStartComposition or WmImeComposition)
+        {
+            int x, y;
+            lock (_session.Screen.SyncRoot)
+            {
+                x = _session.Screen.CursorCol * _charWidth;
+                y = _session.Screen.CursorRow * _lineHeight;
+            }
+            ImeInterop.RepositionAt(Handle, x, y);
+        }
+        base.WndProc(ref m);
     }
 
     // -- Keyboard --

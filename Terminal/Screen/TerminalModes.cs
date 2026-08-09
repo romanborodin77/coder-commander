@@ -1,5 +1,16 @@
 namespace CoderCommander.Terminal.Screen;
 
+/// <summary>Cursor rendering shape, set via DECSCUSR (<c>CSI Ps SP q</c>). Blink is tracked
+/// separately (<see cref="TerminalModes.CursorBlink"/>) since DECSCUSR's Ps values fold both
+/// together (0/1=blinking block, 2=steady block, 3/4=blinking/steady underline, 5/6=blinking/steady
+/// bar).</summary>
+internal enum CursorShape
+{
+    Block,
+    Underline,
+    Bar
+}
+
 /// <summary>Terminal-wide mode flags set/reset via CSI ?h/?l (DEC private) and CSI h/l (ANSI) -
 /// deliberately a plain class with named bools rather than a bitfield enum, since callers need to
 /// query/toggle individual modes by meaning, not iterate a bitset.</summary>
@@ -25,6 +36,9 @@ internal sealed class TerminalModes
 
     /// <summary>DECTCEM (?25) - default on.</summary>
     public bool CursorVisible = true;
+
+    /// <summary>DECSCUSR (<c>CSI Ps SP q</c>) - default block.</summary>
+    public CursorShape CursorShape = CursorShape.Block;
 
     /// <summary>9 - X10 mouse reporting (click only, no release/motion).</summary>
     public bool MouseX10;
@@ -68,6 +82,7 @@ internal sealed class TerminalModes
         AutoWrap = true;
         CursorBlink = true;
         CursorVisible = true;
+        CursorShape = CursorShape.Block;
         MouseX10 = MouseVt200 = MouseButtonEvent = MouseAnyEvent = false;
         FocusReporting = false;
         MouseSgr = false;

@@ -853,6 +853,7 @@ public sealed class MainForm : Form
         _vm.OperationStarted += OnOperationStarted;
 
         _terminalPanel.DirectoryChanged += OnTerminalDirectoryChanged;
+        _terminalPanel.ShowPathInPanelRequested += OnShowPathInPanelRequested;
         _vm.LeftPanel.PropertyChanged += OnFilePanelPropertyChanged;
         _vm.RightPanel.PropertyChanged += OnFilePanelPropertyChanged;
 
@@ -909,6 +910,28 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             LogService.Error("Failed to sync file panel to terminal cwd", ex);
+        }
+    }
+
+    /// <summary>Handles a terminal tab's "Show in panel" context menu item - navigates the active
+    /// file panel to a path detected in the terminal's own text (see
+    /// <c>Terminal.Ui.PathDetector</c>). A file path navigates to its containing folder (there's
+    /// nothing to "browse into" for a file); a directory navigates directly.</summary>
+    private async void OnShowPathInPanelRequested(object? sender, string path)
+    {
+        try
+        {
+            var target = Directory.Exists(path) ? path
+                : File.Exists(path) ? Path.GetDirectoryName(path)
+                : null;
+            if (string.IsNullOrEmpty(target))
+                return;
+
+            await _vm.ActivePanel.NavigateAsync(target);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("Failed to show terminal path in panel", ex);
         }
     }
 

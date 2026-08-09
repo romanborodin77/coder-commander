@@ -25,6 +25,16 @@ internal sealed class TerminalScreen : IVtSink
     private int _lastPrintedRune = -1;
     private readonly VtResponder _responder;
 
+    // OSC 8 hyperlinks - id 0 means "no link". Deduplicated by URI (not just id: real-world output
+    // - e.g. ls with a file:// URI on every line - reopens the "same" link constantly) and capped
+    // so a pathological amount of distinct URIs can't grow this unboundedly for the life of a
+    // long-running session; once full, new distinct URIs simply aren't clickable.
+    private const int MaxHyperlinks = 4096;
+    private ushort _currentLinkId;
+    private ushort _nextHyperlinkId = 1;
+    private readonly Dictionary<ushort, string> _hyperlinksById = new();
+    private readonly Dictionary<string, ushort> _hyperlinkIdsByUri = new();
+
     /// <summary>Guards every mutation (via <see cref="Vt.VtParser.Parse"/>'s dispatch into this
     /// sink, and <see cref="Resize"/>) and every read (painting, cursor position, scrollback) of
     /// this screen's buffers/cursor/modes. Mutation happens on the pty reader thread; reads happen
@@ -72,6 +82,19 @@ internal sealed class TerminalScreen : IVtSink
 
     public TerminalRow GetRow(int row) => _active[row];
     public TerminalRow GetScrollbackRow(int index) => _main.Scrollback!.Get(index);
+
+    /// <summary>Resolves a cell's <see cref="TerminalCell.LinkId"/> (OSC 8) to its URI. Id 0 (no
+    /// link) and an id from a session with a different/reset link table both return false.</summary>
+    public bool TryGetHyperlinkUri(ushort linkId, out string uri)
+    {
+        if (linkId != 0 && _hyperlinksById.TryGetValue(linkId, out var found))
+        {
+            uri = found;
+            return true;
+        }
+        uri = "";
+        return false;
+    }
 
     /// <summary>Resizes both buffers. Never reflows long lines - ConPTY's own client-side buffer
     /// already reflows and re-emits on resize; reflowing here too would double-correct.</summary>
@@ -151,13 +174,13 @@ internal sealed class TerminalScreen : IVtSink
                 row.Cells[col - 1] = TerminalCell.Blank(_cursor.Bg);
         }
 
-        var cell = new TerminalCell { Rune = rune, Fg = _cursor.Fg, Bg = _cursor.Bg, Flags = _cursor.Attrs };
+        var cell = new TerminalCell { Rune = rune, Fg = _cursor.Fg, Bg = _cursor.Bg, Flags = _cursor.Attrs, LinkId = _currentLinkId };
         if (width == 2)
         {
             cell.Flags |= CellFlags.WideLead;
             row.Cells[col] = cell;
             if (col + 1 < row.Cells.Length)
-                row.Cells[col + 1] = new TerminalCell { Fg = _cursor.Fg, Bg = _cursor.Bg, Flags = _cursor.Attrs | CellFlags.WideTrail };
+                row.Cells[col + 1] = new TerminalCell { Fg = _cursor.Fg, Bg = _cursor.Bg, Flags = _cursor.Attrs | CellFlags.WideTrail, LinkId = _currentLinkId };
         }
         else
         {
@@ -291,9 +314,10 @@ internal sealed class TerminalScreen : IVtSink
             case 's': if (privateMarker == '\0') SaveCursorPositionOnly(); break;
             case 'u': if (privateMarker == '\0') RestoreCursorPositionOnly(); break;
             case 'p': if (intermediates.Length == 1 && intermediates[0] == '!') SoftReset(); break;
-            // DECSCUSR (CSI SP q), DECRQM (CSI $p), XTWINOPS (CSI t), DECRQSS, and anything else
-            // recognized-but-unimplemented falls through here as a deliberate no-op - see
-            // VtResponder's doc comment for why "never call the responder" is itself the refusal.
+            case 'q': if (intermediates.Length == 1 && intermediates[0] == ' ') SetCursorStyle(Count1(parameters)); break;
+            // DECRQM (CSI $p), XTWINOPS (CSI t), DECRQSS, and anything else recognized-but-
+            // unimplemented falls through here as a deliberate no-op - see VtResponder's doc
+            // comment for why "never call the responder" is itself the refusal.
             default: break;
         }
     }
@@ -494,8 +518,26 @@ internal sealed class TerminalScreen : IVtSink
         _cursor.PendingWrap = false;
         Modes.OriginMode = false;
         Modes.CursorVisible = true;
+        Modes.CursorShape = CursorShape.Block;
+        Modes.CursorBlink = true;
         _active.ScrollTop = 0;
         _active.ScrollBottom = _active.Rows - 1;
+    }
+
+    /// <summary>DECSCUSR (<c>CSI Ps SP q</c>): 0/1=blinking block, 2=steady block,
+    /// 3=blinking underline, 4=steady underline, 5=blinking bar, 6=steady bar. An out-of-range Ps
+    /// is simply ignored - not a reason to reset or throw.</summary>
+    private void SetCursorStyle(int ps)
+    {
+        switch (ps)
+        {
+            case 0: case 1: Modes.CursorShape = CursorShape.Block; Modes.CursorBlink = true; break;
+            case 2: Modes.CursorShape = CursorShape.Block; Modes.CursorBlink = false; break;
+            case 3: Modes.CursorShape = CursorShape.Underline; Modes.CursorBlink = true; break;
+            case 4: Modes.CursorShape = CursorShape.Underline; Modes.CursorBlink = false; break;
+            case 5: Modes.CursorShape = CursorShape.Bar; Modes.CursorBlink = true; break;
+            case 6: Modes.CursorShape = CursorShape.Bar; Modes.CursorBlink = false; break;
+        }
     }
 
     private void FullReset()
@@ -512,6 +554,10 @@ internal sealed class TerminalScreen : IVtSink
         _scoCursorSaved = false;
         Modes.ResetToDefaults();
         Title = "";
+        _currentLinkId = 0;
+        _nextHyperlinkId = 1;
+        _hyperlinksById.Clear();
+        _hyperlinkIdsByUri.Clear();
         Dirty.MarkAll();
     }
 
@@ -723,13 +769,54 @@ internal sealed class TerminalScreen : IVtSink
                         CwdReported?.Invoke(path99);
                 }
                 break;
-            // 4 (palette), 8 (hyperlink), 10/11/12 (set colors), 52 (clipboard), 133 (shell
-            // integration marks) - parsed-and-discarded for v1; wired up in later phases. Every
-            // "?"-suffixed query form of any OSC (color queries etc.) is included in that
-            // discard - never answered, by the same "never implemented, not individually
-            // refused" principle as VtResponder's CSI whitelist.
+            case 8:
+                HandleHyperlink(payload);
+                break;
+            // 4 (palette), 10/11/12 (set colors), 52 (clipboard), 133 (shell integration marks) -
+            // parsed-and-discarded for v1; wired up in later phases. Every "?"-suffixed query form
+            // of any OSC (color queries etc.) is included in that discard - never answered, by the
+            // same "never implemented, not individually refused" principle as VtResponder's CSI
+            // whitelist.
             default: break;
         }
+    }
+
+    /// <summary>OSC 8 (<c>OSC 8 ; params ; URI ST</c>): opens a hyperlink that subsequently
+    /// printed cells get tagged with (<see cref="TerminalCell.LinkId"/>), until the next OSC 8
+    /// with an empty URI closes it. <c>params</c> (typically <c>id=...</c>) is accepted but not
+    /// otherwise interpreted - URIs are deduplicated by their own text regardless of what id the
+    /// application asked for.</summary>
+    private void HandleHyperlink(ReadOnlySpan<char> payload)
+    {
+        var semi = payload.IndexOf(';');
+        var uri = semi < 0 ? payload : payload[(semi + 1)..];
+
+        if (uri.IsEmpty || uri.Length > VtLimits.MaxOscLength)
+        {
+            _currentLinkId = 0;
+            return;
+        }
+
+        var uriString = uri.ToString();
+        if (_hyperlinkIdsByUri.TryGetValue(uriString, out var existingId))
+        {
+            _currentLinkId = existingId;
+            return;
+        }
+
+        if (_hyperlinksById.Count >= MaxHyperlinks)
+        {
+            _currentLinkId = 0;
+            return;
+        }
+
+        var id = _nextHyperlinkId;
+        _nextHyperlinkId = (ushort)(_nextHyperlinkId + 1);
+        if (_nextHyperlinkId == 0) _nextHyperlinkId = 1; // wrap past ushort.MaxValue, 0 stays reserved
+
+        _hyperlinksById[id] = uriString;
+        _hyperlinkIdsByUri[uriString] = id;
+        _currentLinkId = id;
     }
 
     // ── DCS (consumed by the parser regardless; nothing here needs the passthrough content) ──

@@ -628,6 +628,11 @@ public sealed class LocalizationService
         _strings["Terminal.Shell.GitBash"] = "Git Bash";
         _strings["Terminal.Shell.Wsl"] = "WSL: {0}";
         _strings["Terminal.UnsupportedOs"] = "The embedded terminal needs Windows 10 version 1809 (build 17763) or later.";
+        _strings["Terminal.Ctx.OpenLink"] = "Open Link";
+        _strings["Terminal.Ctx.CopyLink"] = "Copy Link Address";
+        _strings["Terminal.Ctx.ShowInPanel"] = "Show in Panel";
+        _strings["Terminal.Ctx.Copy"] = "Copy";
+        _strings["Terminal.Ctx.Paste"] = "Paste";
         _strings["Terminal.NewTab"] = "New Terminal Tab";
         _strings["Terminal.CloseTab"] = "Close Tab";
         _strings["Terminal.NextTab"] = "Next Tab";
