@@ -21,6 +21,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
     private ThemedTabControl? _tabControl;
     private RoundedButton? _newTabButton;
+    private readonly ToolTip _newTabTooltip = new();
     // Not a fixed field: re-read on every tab creation so a settings change (SettingsForm's
     // Terminal tab) takes effect for the next new/restored tab without needing to reload the
     // whole panel - an already-open tab's canvas keeps whatever table it was created with.
@@ -69,6 +70,8 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (_tabControl == null) return;
         _tabControl.CloseButtonTooltip = LocalizationService.Current.GetString("Terminal.CloseTab");
         _tabControl.RefreshTabStrip();
+        if (_newTabButton != null)
+            _newTabTooltip.SetToolTip(_newTabButton, LocalizationService.Current.GetString("Terminal.NewTab"));
     }
 
     private void InitializeComponents()
@@ -103,19 +106,23 @@ public sealed class EmbeddedTerminalPanel : Panel
         _tabControl.TabCloseClicked += TabControl_TabCloseClicked;
         Controls.Add(_tabControl);
 
+        // A drawn "+" rather than the "+" character: the glyph's weight and optical centring
+        // depend on the UI font, so it never quite matched the tab strip's close glyphs.
+        // ToolbarIcons draws both, so they are now the same stroke on the same grid.
         _newTabButton = new RoundedButton
         {
-            Text = "+",
-            Width = 32,
-            Height = 32,
-            Font = ThemeService.Current.ButtonGlyphFont,
+            Width = 30,
+            Height = 30,
+            Image = ToolbarIcons.Get("plus"),
             Cursor = Cursors.Hand,
             Margin = new Padding(6, 1, 0, 1),
-            CornerRadius = 0,
+            CornerRadius = 4,
             UseGradient = false,
-            DrawShadow = false
+            DrawShadow = false,
+            TabStop = false,
         };
         _newTabButton.Click += (_, _) => ShowNewTabDialog();
+        _newTabTooltip.SetToolTip(_newTabButton, LocalizationService.Current.GetString("Terminal.NewTab"));
         _tabControl.SetTrailingControl(_newTabButton);
     }
 
@@ -128,11 +135,14 @@ public sealed class EmbeddedTerminalPanel : Panel
         BackColor = p.Background;
         if (_newTabButton != null)
         {
+            // Borderless by default so it reads as an affordance next to the tabs rather than a
+            // fourth tab; the rounded hover fill is what makes it feel clickable.
             _newTabButton.BackColor = p.Background;
             _newTabButton.ForeColor = p.Foreground;
             _newTabButton.HoverColor = p.ToolbarHover;
-            _newTabButton.BorderColor = p.GridLine;
-            _newTabButton.BorderWidth = 1;
+            _newTabButton.PressedColor = p.Accent;
+            _newTabButton.BorderWidth = 0;
+            _newTabButton.Image = ToolbarIcons.Get("plus");
             _newTabButton.Invalidate();
         }
         // ThemedTabControl and each tab's TerminalCanvas self-theme via their own
@@ -566,6 +576,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             _sessionManager?.Dispose();
             _tabControl?.Dispose();
             _newTabButton?.Dispose();
+            _newTabTooltip.Dispose();
         }
         base.Dispose(disposing);
     }
