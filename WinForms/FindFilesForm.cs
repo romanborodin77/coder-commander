@@ -251,13 +251,16 @@ public sealed class FindFilesForm : ThemedForm
                 progress => _progress = progress,
                 _cancellation.Token), _cancellation.Token);
 
+            // The engine's own counters, not the last progress report: progress is reported when a
+            // directory is opened, before its files are scanned, so the last report is always short
+            // by the contents of the last directory.
             _status.Text = engine.WasTruncated
                 ? L.GetString("Find.Truncated", SearchEngine.MaxResults)
-                : L.GetString("Find.Done", _progress.FilesExamined, _results.Items.Count + PendingCount());
+                : L.GetString("Find.Done", engine.FilesExamined, engine.Hits);
         }
         catch (OperationCanceledException)
         {
-            _status.Text = L.GetString("Find.Stopped", _results.Items.Count + PendingCount());
+            _status.Text = L.GetString("Find.Stopped", engine.Hits);
         }
         catch (Exception ex)
         {
@@ -273,11 +276,6 @@ public sealed class FindFilesForm : ThemedForm
             _cancellation = null;
             UpdateButtonState();
         }
-    }
-
-    private int PendingCount()
-    {
-        lock (_pendingLock) return _pending.Count;
     }
 
     /// <summary>Moves everything the engine has found since the last tick into the grid, in one

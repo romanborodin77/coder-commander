@@ -60,6 +60,19 @@ public sealed class SearchEngine
     public bool WasTruncated { get; private set; }
 
     /// <summary>
+    /// Live counters, for the summary shown when the search ends.
+    ///
+    /// <para>Read from here rather than from the last <see cref="SearchProgress"/>: progress is
+    /// reported when a directory is <i>opened</i>, before its files have been scanned, so the last
+    /// report is always short by the contents of the last directory. It read "examined 8" for a
+    /// folder of nine files - a number small enough to look plausible and be wrong.</para>
+    /// </summary>
+    public int FilesExamined => Volatile.Read(ref _filesExamined);
+
+    /// <inheritdoc cref="FilesExamined"/>
+    public int Hits => Volatile.Read(ref _hits);
+
+    /// <summary>
     /// Runs the search.
     /// </summary>
     /// <param name="rootPath">Where to start. Included itself only as a directory to walk.</param>
