@@ -1403,10 +1403,14 @@ public sealed class FilePanelUserControl : UserControl
                 AutoSize = true,
                 Margin = new Padding(0, 5, 2, 0),
                 Padding = new Padding(4, 2, 4, 2),
-                ForeColor = isLast ? p.Foreground : p.HeaderForeground,
-                Font = p.GridFont,
                 Cursor = Cursors.Hand
             };
+            // A role, not a colour and font set here. ControlThemer resets every untagged control
+            // to its generic default on each theme switch, so a hand-set colour survives only until
+            // the next one - and these crumbs happen to be rebuilt often enough that the breakage
+            // was invisible rather than absent. The last segment is where the panel actually is, so
+            // it carries the emphasis.
+            seg.SetRole(isLast ? ThemeRole.Emphasis : ThemeRole.Body);
             var target = fullPath;
             var canNavigate = !isLast;
             seg.Click += (_, _) =>
@@ -1425,9 +1429,10 @@ public sealed class FilePanelUserControl : UserControl
                     Text = "\u203A",
                     AutoSize = true,
                     Margin = new Padding(0, 5, 2, 0),
-                    ForeColor = p.DimForeground,
-                    Font = p.GridFont
                 };
+                // Separator, not Muted: the dimmed colour lands around 3:1 against the header
+                // background these sit on, below the 4.5:1 a glyph rendered as text needs.
+                chevron.SetRole(ThemeRole.Separator);
                 _breadcrumbBar.Controls.Add(chevron);
             }
         }

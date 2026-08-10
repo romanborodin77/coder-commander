@@ -329,6 +329,10 @@ public static class ControlThemer
                 lbl.Font = p.GridFont;
                 lbl.ForeColor = p.DimForeground;
                 break;
+            case ThemeRole.Separator:
+                lbl.Font = p.GridFont;
+                lbl.ForeColor = p.SeparatorForeground;
+                break;
             case ThemeRole.Hint:
                 lbl.Font = p.ItalicFont;
                 lbl.ForeColor = p.DimForeground;
@@ -382,6 +386,19 @@ public static class ControlThemer
                 rbtn.PressedColor = p.AccentHover;
                 rbtn.BorderColor = p.Accent;
                 break;
+            case ThemeRole.ToolbarButton:
+                // Returns early on purpose: the shared tail below imposes a border, side padding
+                // and a 30px floor, which is the shape of a dialog button. An icon-only button on
+                // a tab strip has to stay borderless and exactly its own size, and the rounded
+                // hover fill is what makes it read as clickable.
+                rbtn.BackColor = p.Background;
+                rbtn.ForeColor = p.Foreground;
+                rbtn.HoverColor = p.ToolbarHover;
+                rbtn.PressedColor = p.Accent;
+                rbtn.BorderWidth = 0;
+                rbtn.Cursor = Cursors.Hand;
+                rbtn.Invalidate();
+                return;
             case ThemeRole.DangerButton:
                 rbtn.BackColor = p.Danger;
                 rbtn.ForeColor = p.SelectionForeground;

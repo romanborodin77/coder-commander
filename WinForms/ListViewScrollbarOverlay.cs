@@ -312,11 +312,19 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         }
     }
 
-    /// <summary>Sets bounds and visibility on a control, avoiding unnecessary updates.</summary>
+    /// <summary>
+    /// Sets bounds and visibility on a control, avoiding unnecessary updates.
+    ///
+    /// <para>Bounds are applied whether or not the control is visible. Skipping them while hidden
+    /// leaves stale geometry behind, and the next time the control is shown it appears at the size
+    /// it had when it was last visible - which is how the vertical scrollbar came to extend under
+    /// the scroll corner: it was last positioned while the horizontal bar was absent, so it kept
+    /// the full height it had then. Setting bounds on a hidden control costs nothing.</para>
+    /// </summary>
     private static void ApplyBounds(Control control, bool visible, Rectangle bounds)
     {
         if (visible && (bounds.Width <= 0 || bounds.Height <= 0)) visible = false;
-        if (visible && control.Bounds != bounds) control.Bounds = bounds;
+        if (control.Bounds != bounds) control.Bounds = bounds;
         if (control.Visible != visible) control.Visible = visible;
     }
 

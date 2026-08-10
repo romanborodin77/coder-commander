@@ -168,6 +168,18 @@ public sealed class ThemePalette
     /// <summary>Dimmed foreground for secondary or disabled text.</summary>
     public Color DimForeground { get; init; } = Color.FromArgb(136, 136, 136);
 
+    /// <summary>
+    /// Foreground for purely structural glyphs - the "›" between breadcrumb segments and
+    /// anything else that separates rather than says something.
+    ///
+    /// <para>Separate from <see cref="DimForeground"/> because these glyphs sit on
+    /// <see cref="HeaderBackground"/>, where a dimmed grey lands at about 3:1 against it - below
+    /// the 4.5:1 that readable text needs. This is chosen to clear that bar on both themes while
+    /// still reading as quieter than the text it separates; DimForeground stays as it is, since it
+    /// is used on the much darker/lighter ordinary backgrounds where it is perfectly legible.</para>
+    /// </summary>
+    public Color SeparatorForeground { get; init; } = Color.FromArgb(168, 168, 168);
+
     /// <summary>Background color for selected items in lists and grids.</summary>
     public Color Selection { get; init; } = Color.FromArgb(9, 71, 113);
     /// <summary>Foreground color for selected items.</summary>
@@ -350,6 +362,7 @@ public static class ThemeService
         PanelInactiveBorder = Color.FromArgb(200, 200, 200),
         Foreground = Color.FromArgb(60, 60, 60),
         DimForeground = Color.FromArgb(128, 128, 128),
+        SeparatorForeground = Color.FromArgb(95, 95, 95),
         Selection = Color.FromArgb(0, 96, 192),
         SelectionForeground = Color.White,
         InactiveSelection = Color.FromArgb(228, 230, 241),

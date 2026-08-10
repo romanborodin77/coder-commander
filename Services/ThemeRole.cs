@@ -36,11 +36,19 @@ public enum ThemeRole
     Hint,
     Danger,
     Link,
+    /// <summary>Structural glyph rather than text - the separator between breadcrumb segments.
+    /// Uses <see cref="ThemePalette.SeparatorForeground"/>, which unlike the dimmed colour clears
+    /// the contrast floor against the header background these sit on.</summary>
+    Separator,
 
     // ── Buttons (RoundedButton color scheme) ──
     PrimaryButton,
     SecondaryButton,
     DangerButton,
+    /// <summary>Icon-only button on a toolbar or tab strip: no border, no padding, no minimum
+    /// height. The other button roles all impose a bordered, padded, 30px-tall shape, which is
+    /// right for a dialog button and wrong for a 30x30 glyph sitting beside tabs.</summary>
+    ToolbarButton,
 }
 
 /// <summary>

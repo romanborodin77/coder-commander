@@ -128,7 +128,15 @@ public sealed class EmbeddedTerminalPanel : Panel
             // this the button is nameless to a screen reader and unreachable by UIA.
             AccessibleName = LocalizationService.Current.GetString("Terminal.NewTab"),
             AccessibleRole = AccessibleRole.PushButton,
+            // WinForms surfaces Control.Name as the UIA AutomationId, which is the only stable
+            // handle on this button: its caption is gone (it draws an icon now) and its accessible
+            // name is localized. TerminalCanvas is identified the same way, for the same reason.
+            Name = "TerminalNewTabButton",
         };
+        // The role carries the whole borderless icon-button look, so ControlThemer reapplies it on
+        // every theme switch. Previously this was styled by hand below, which left the button one
+        // untagged control away from being reset to the bordered, padded dialog-button shape.
+        _newTabButton.Role = ThemeRole.ToolbarButton;
         _newTabButton.Click += (_, _) => ShowNewTabDialog();
         _newTabTooltip.SetToolTip(_newTabButton, LocalizationService.Current.GetString("Terminal.NewTab"));
         _tabControl.SetTrailingControl(_newTabButton);
@@ -143,13 +151,9 @@ public sealed class EmbeddedTerminalPanel : Panel
         BackColor = p.Background;
         if (_newTabButton != null)
         {
-            // Borderless by default so it reads as an affordance next to the tabs rather than a
-            // fourth tab; the rounded hover fill is what makes it feel clickable.
-            _newTabButton.BackColor = p.Background;
-            _newTabButton.ForeColor = p.Foreground;
-            _newTabButton.HoverColor = p.ToolbarHover;
-            _newTabButton.PressedColor = p.Accent;
-            _newTabButton.BorderWidth = 0;
+            // Colours come from ThemeRole.ToolbarButton via ControlThemer. Only the icon is
+            // repainted here: it is drawn against the new palette and has no role to carry it.
+            ControlThemer.ThemeSingleControl(_newTabButton, p);
             _newTabButton.Image = ToolbarIcons.Get("plus");
             _newTabButton.Invalidate();
         }
