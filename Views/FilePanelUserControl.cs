@@ -124,9 +124,52 @@ public sealed class FilePanelUserControl : UserControl
         ApplyTheme();
 
         LocalizationService.Current.LanguageChanged += OnLanguageChanged;
+
+        // The drive bar used to be rebuilt only from ApplyTheme(), i.e. at construction and on a
+        // theme switch - so a drive plugged in afterwards never appeared. Subscribing here is what
+        // makes the bar track reality; MainForm's DeviceChangeWatcher triggers the refresh.
+        DriveCatalog.Instance.Changed += OnDrivesChanged;
+        _ = DriveCatalog.Instance.RefreshAsync();
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Relocalize();
+
+    /// <summary>
+    /// Redraws the drive bar once this control can actually be marshalled to.
+    ///
+    /// The first <see cref="DriveCatalog.RefreshAsync"/> is kicked off in the constructor and may
+    /// well finish before the handle exists, in which case <see cref="OnDrivesChanged"/> has no
+    /// choice but to drop the notification. Without this the bar would then stay empty until some
+    /// unrelated event (a theme switch) rebuilt it - exactly the class of bug this whole change
+    /// is fixing.
+    /// </summary>
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        PopulateDriveBar();
+    }
+
+    /// <summary>
+    /// <see cref="DriveCatalog.Changed"/> fires on a thread-pool thread, so this marshals before
+    /// touching any control. BeginInvoke, never Invoke: a synchronous call from the catalog's
+    /// probe continuation into a UI thread that is itself inside a catalog call would deadlock.
+    /// </summary>
+    private void OnDrivesChanged(object? sender, EventArgs e)
+    {
+        if (IsDisposed || !IsHandleCreated) return;
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (IsDisposed) return;
+                PopulateDriveBar();
+            }));
+        }
+        catch (ObjectDisposedException)
+        {
+            // The panel went away between the check above and the marshal - nothing to update.
+        }
+    }
 
     private void BuildControls()
     {
@@ -820,7 +863,12 @@ public sealed class FilePanelUserControl : UserControl
         var btnHeight = _driveBar.Height - 6;
         var btnWidth = (int)Math.Round(80 * toolbarScale);
 
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
+        // Drives come from DriveCatalog's cached snapshot, never from DriveInfo directly: IsReady,
+        // VolumeLabel and TotalSize all issue a device query that blocks for seconds on an empty
+        // optical drive or a dead network share, and this method runs on the UI thread.
+        // An unavailable drive is still drawn (dimmed) rather than filtered out - a button that
+        // disappears whenever a disc is missing is worse than one that says so.
+        foreach (var drive in DriveCatalog.Instance.Current)
         {
             var iconKey = drive.DriveType switch
             {
@@ -832,19 +880,18 @@ public sealed class FilePanelUserControl : UserControl
                 _ => "drive"
             };
 
-            var rootPath = drive.RootDirectory.FullName;
-            var letter = rootPath.TrimEnd('\\');
+            var rootPath = drive.RootPath;
             var isCurrent = string.Equals(
                 Path.GetPathRoot(rootPath),
                 currentRoot,
                 StringComparison.OrdinalIgnoreCase);
 
             var icon = ToolbarIcons.Get(iconKey) ?? ToolbarIcons.Get("drive")!;
-            var btn = new ToolStripButton(letter)
+            var btn = new ToolStripButton(drive.Letter)
             {
                 Image = icon,
                 Tag = new DriveButtonState(rootPath),
-                ToolTipText = L.GetString("Panel.DriveTooltip", drive.VolumeLabel.Length > 0 ? $"{letter} ({drive.VolumeLabel})" : letter),
+                ToolTipText = L.GetString("Panel.DriveTooltip", drive.DisplayName),
                 DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
                 TextAlign = ContentAlignment.MiddleCenter,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
@@ -1320,6 +1367,7 @@ public sealed class FilePanelUserControl : UserControl
         if (disposing)
         {
             LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
+            DriveCatalog.Instance.Changed -= OnDrivesChanged;
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
             _scrollOverlay?.Dispose();

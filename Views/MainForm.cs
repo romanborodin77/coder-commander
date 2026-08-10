@@ -29,6 +29,10 @@ public sealed class MainForm : Form
     private ToolStripStatusLabel _lblQueue = null!;
     private Panel _splitterOverlay = null!;
     private bool _splitterDragging;
+    /// <summary>Listens for volume arrival/removal so the panels' drive bars stay honest. Lives
+    /// here because volume broadcasts go to top-level windows, and because one watcher shared by
+    /// both panels means one probe pass per device change instead of two racing ones.</summary>
+    private readonly DeviceChangeWatcher _deviceWatcher = new();
     /// <summary>Fraction of _mainSplit's width where the splitter sits, 0.5 (centered) until the
     /// user drags it. OnFormResize uses this to preserve the chosen proportion instead of
     /// recentering the panels on every window resize.</summary>
@@ -864,10 +868,13 @@ public sealed class MainForm : Form
         _vm.LeftPanel.PropertyChanged += OnFilePanelPropertyChanged;
         _vm.RightPanel.PropertyChanged += OnFilePanelPropertyChanged;
 
+        _deviceWatcher.DevicesChanged += OnDevicesChanged;
+
         Load += OnFormLoad;
         Resize += OnFormResize;
         KeyDown += OnFormKeyDown;
         FormClosing += OnFormClosing;
+        FormClosed += (_, _) => _deviceWatcher.Dispose();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1721,6 +1728,25 @@ public sealed class MainForm : Form
     // ═══════════════════════════════════════════
     // FORM CLOSING
     // ═══════════════════════════════════════════
+
+    /// <summary>
+    /// Volume arrival/removal reaches a top-level window as <c>WM_DEVICECHANGE</c> without any
+    /// <c>RegisterDeviceNotification</c> call - that is only needed for device-interface classes.
+    /// The message is always passed on to the base implementation; the watcher only observes.
+    /// </summary>
+    protected override void WndProc(ref Message m)
+    {
+        _deviceWatcher.HandleMessage(m.Msg, m.WParam, m.LParam);
+        base.WndProc(ref m);
+    }
+
+    private void OnDevicesChanged(object? sender, EventArgs e)
+    {
+        // Fires on a thread-pool thread (DeviceChangeWatcher's contract), and the refresh itself
+        // must not run on the UI thread anyway - DriveCatalog publishes its results back through
+        // its own event, which the panels marshal.
+        _ = DriveCatalog.Instance.RefreshAsync();
+    }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
