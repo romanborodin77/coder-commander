@@ -40,7 +40,8 @@ public sealed class MoveOperation : FileOperation
 
     /// <summary>A native rename is only possible while both sides are served by the same provider.</summary>
     private bool CanRenameInPlace => ReferenceEquals(_sourceFs, _destFs) ||
-                                     (_sourceFs is LocalFileSystem && _destFs is LocalFileSystem);
+                                     (_sourceFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths) &&
+                                      _destFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths));
 
     /// <summary>Drops any selected entry that's physically nested inside another selected
     /// directory - moving that directory already relocates it, so processing it again separately

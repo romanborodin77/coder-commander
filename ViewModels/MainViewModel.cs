@@ -389,7 +389,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // The shell Recycle Bin only understands real paths.
         var op = new DeleteOperation(fs, entries)
         {
-            UseRecycleBin = fs is LocalFileSystem,
+            UseRecycleBin = fs.Capabilities.HasFlag(FileSystemCapabilities.RecycleBin),
             ConfirmPermanentDelete = remainingPaths =>
             {
                 if (ConfirmPermanentDeleteRequested == null) return false;
@@ -765,7 +765,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private static async Task RefreshGitStatusAsync(PanelViewModel panel)
     {
-        if (panel.CurrentFileSystem is not LocalFileSystem)
+        if (!panel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.GitStatus))
             return;
 
         var path = panel.CurrentPath;

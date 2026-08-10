@@ -59,8 +59,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         set => _fs = value;
     }
 
-    /// <summary><c>true</c> when the current path points inside a ZIP archive.</summary>
-    public bool IsInsideArchive => _fs is FileSystem.ZipArchiveFileSystem;
+    /// <summary>
+    /// <c>true</c> when this panel is looking at a virtual tree rather than the real filesystem,
+    /// i.e. inside an archive of any format.
+    ///
+    /// Used to reject operations that have to reach around the provider to real paths - secure
+    /// wipe, folder-size calculation, creating an archive. It used to be <c>_fs is
+    /// ZipArchiveFileSystem</c>, which is blind to <see cref="Archives.ArchiveFileSystem"/>, the
+    /// provider backing TAR, TAR.GZ, TAR.BZ2, TAR.XZ, 7z and RAR: inside any of those it answered
+    /// false, so every one of those guards was skipped and the operation ran as if on a disk.
+    ///
+    /// Asking for the capability instead makes the answer correct for providers nobody has written
+    /// yet, which is the whole point - a remote provider will have no native paths either, and the
+    /// same operations must be refused there for the same reason.
+    /// </summary>
+    public bool IsInsideArchive => !_fs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
 
     /// <summary><c>true</c> when there is at least one entry on the back-navigation stack.</summary>
     public bool CanGoBack => _back.Count > 0;
@@ -593,7 +606,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void StartWatcher(string path)
     {
         StopWatcher();
-        if (_fs is not LocalFileSystem) return;
+        if (!_fs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.FileWatch)) return;
         try
         {
             if (!Directory.Exists(path)) return;

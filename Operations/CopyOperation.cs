@@ -276,7 +276,7 @@ public sealed class CopyOperation : FileOperation
     /// <summary>Timestamps are only meaningful on a real filesystem; archives carry their own.</summary>
     internal static void ApplyTimestamps(IFileSystem destFs, string path, FileEntry source)
     {
-        if (destFs is not LocalFileSystem)
+        if (!destFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             return;
 
         try

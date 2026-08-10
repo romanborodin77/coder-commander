@@ -12,6 +12,15 @@ public sealed class LocalFileSystem : IFileSystem
     /// <inheritdoc/>
     public string Name => "Local";
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The one provider that offers everything. Note that <see cref="FileSystemCapabilities.RecycleBin"/>
+    /// is claimed for all local paths including UNC, which matches the previous behaviour exactly -
+    /// the network-share case is handled inside <see cref="RecycleBinHelper"/>, which detects it and
+    /// refuses rather than deleting permanently.
+    /// </remarks>
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Local;
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool GetDiskFreeSpaceEx(
         string lpDirectoryName,

@@ -33,6 +33,12 @@ public sealed class ArchiveFileSystem : IFileSystem
     /// <summary>Human-readable name shown in the panel title, e.g. <c>"ZIP"</c> or <c>"TAR.GZ"</c>.</summary>
     public string Name => _format.Id.ToUpperInvariant();
 
+    /// <inheritdoc/>
+    /// <remarks>Same as <see cref="FileSystem.ZipArchiveFileSystem"/> - a virtual tree inside one
+    /// file. This provider backs every format except ZIP, and it is precisely the provider the old
+    /// <c>is ZipArchiveFileSystem</c> guards failed to recognise.</remarks>
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+
     /// <summary>Invalidates the cached directory listing for the given archive path, forcing a fresh read on the next access.</summary>
     public static void Forget(string archivePath) => Cache.Forget(archivePath);
 

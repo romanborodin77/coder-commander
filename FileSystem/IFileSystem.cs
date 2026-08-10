@@ -5,6 +5,18 @@ public interface IFileSystem
     /// <summary>Human-readable name of this file system provider (e.g. "Local", "ZIP", "TAR").</summary>
     string Name { get; }
 
+    /// <summary>
+    /// What this provider supports beyond the methods below - see
+    /// <see cref="FileSystemCapabilities"/>. Callers must ask this rather than test for a concrete
+    /// provider type: a type test silently answers "no" for any provider the author didn't think
+    /// of, which is exactly how the archive guards came to be blind to every format except ZIP.
+    ///
+    /// Declared on the interface rather than probed through an optional one (the way
+    /// <see cref="IBatchDeletableFileSystem"/> is) because every provider has an answer, and a
+    /// missing implementation should be a compile error rather than a silent "supports nothing".
+    /// </summary>
+    FileSystemCapabilities Capabilities { get; }
+
     /// <summary>Enumerates immediate children of <paramref name="path"/>.</summary>
     Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default);
 

@@ -16,6 +16,11 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public string Name => "ZIP";
 
+    /// <inheritdoc/>
+    /// <remarks>A virtual tree inside a single file: none of the OS-level side channels apply, and
+    /// its paths (<c>archive.zip|inner/name</c>) are not valid OS paths at all.</remarks>
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+
     /// <summary>Path to the underlying ZIP archive file on disk.</summary>
     public string ArchivePath => _archivePath;
 

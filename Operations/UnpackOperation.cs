@@ -301,7 +301,9 @@ public sealed class UnpackOperation : FileOperation
             return false;
         }
 
-        if (_options.CopyTimestamps && _destFs is LocalFileSystem && record.LastWriteTimeUtc != default)
+        if (_options.CopyTimestamps &&
+            _destFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths) &&
+            record.LastWriteTimeUtc != default)
         {
             try { File.SetLastWriteTimeUtc(actualTarget, record.LastWriteTimeUtc); }
             catch (Exception ex) { LogService.Warning($"Unpack: cannot stamp {actualTarget}: {ex.Message}"); }

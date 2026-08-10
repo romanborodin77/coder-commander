@@ -42,7 +42,7 @@ public sealed class DeleteOperation : FileOperation
     {
         _filesTotal = _files.Count;
 
-        if (UseRecycleBin && _fs is LocalFileSystem)
+        if (UseRecycleBin && _fs.Capabilities.HasFlag(FileSystemCapabilities.RecycleBin))
         {
             // Send all to Recycle Bin in one Shell operation (faster, single undo)
             var paths = _files.Select(f => f.FullPath).ToList();
