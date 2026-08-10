@@ -89,6 +89,7 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.Back, CommandIds.GoToParent);
         Register(Keys.Control | Keys.R, CommandIds.Refresh);
         Register(Keys.Control | Keys.Shift | Keys.R, CommandIds.RefreshDrives);
+        Register(Keys.Alt | Keys.F7, CommandIds.FindFiles);
 
         // Selection
         Register(Keys.Control | Keys.A, CommandIds.SelectAll);

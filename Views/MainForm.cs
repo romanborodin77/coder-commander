@@ -205,6 +205,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Commands.Terminal", "terminal", "F9", CommandIds.ToggleTerminal));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.Checksum", "properties", "", CommandIds.Checksum));
+        m.DropDownItems.Add(Mi("Menu.Commands.Find", "search", "Alt+F7", CommandIds.FindFiles));
         m.DropDownItems.Add(Mi("Menu.Commands.CalculateFolderSize", "properties", "Ctrl+Alt+Space", CommandIds.CalculateFolderSize));
         m.DropDownItems.Add(Mi("Menu.Commands.Differ", "view", "", null, () => OpenDiffer()));
         m.DropDownItems.Add(new ToolStripSeparator());
@@ -907,6 +908,7 @@ public sealed class MainForm : Form
         _vm.OperationRejected += OnOperationRejected;
         _vm.EditNewRequested += (_, _) => OpenEditorNew();
         _vm.ChecksumRequested += (_, _) => OpenChecksum();
+        _vm.FindFilesRequested += (_, _) => OpenFindFiles();
         _vm.ToggleTerminalRequested += (_, _) => ToggleTerminal();
         _vm.CreateTerminalTabRequested += (_, _) => CreateTerminalTabWithDefaults();
         _vm.CloseTerminalTabRequested += (_, _) => CloseTerminalTab();
@@ -1725,6 +1727,40 @@ public sealed class MainForm : Form
         var dlg = new EditorForm(null);
         dlg.FormClosed += (_, _) => dlg.Dispose();
         dlg.Show(this);
+    }
+
+    /// <summary>
+    /// Opens the search dialog against the active panel's own file system, which is what makes the
+    /// same dialog search a local folder, the inside of an archive and a connection with no code
+    /// aware of the difference. Choosing a result navigates the panel to the file's folder and puts
+    /// the cursor on it.
+    /// </summary>
+    private void OpenFindFiles()
+    {
+        var panel = _vm.ActivePanel;
+        using var dlg = new FindFilesForm(panel.CurrentFileSystem, panel.CurrentPath);
+
+        if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrEmpty(dlg.SelectedPath)) return;
+
+        var folder = FileSystem.VfsPath.GetParent(dlg.SelectedPath);
+        if (string.IsNullOrEmpty(folder)) return;
+
+        var target = dlg.SelectedPath;
+        _ = SafeNavigateAndSelectAsync(panel, folder, target);
+    }
+
+    private async Task SafeNavigateAndSelectAsync(ViewModels.PanelViewModel panel, string folder, string target)
+    {
+        try
+        {
+            await panel.NavigateAsync(folder);
+            panel.SelectedItem = panel.Items.FirstOrDefault(
+                i => string.Equals(i.FullPath, target, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Could not open the found file's folder: {folder}", ex);
+        }
     }
 
     private void OpenChecksum()

@@ -162,6 +162,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.PackFiles, _ => PackFiles());
         Commands.Register(CommandIds.UnpackFiles, _ => UnpackFiles());
         Commands.Register(CommandIds.Checksum, _ => ChecksumRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.FindFiles, _ => FindFilesRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ToggleTerminal, _ => ToggleTerminalRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.CreateTerminalTab, _ => CreateTerminalTabRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.CloseTerminalTab, _ => CloseTerminalTabRequested?.Invoke(this, EventArgs.Empty));
@@ -780,6 +781,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? EditNewRequested;
     /// <summary>Raised when the user wants to compute file checksums.</summary>
     public event EventHandler? ChecksumRequested;
+
+    /// <summary>Raised when the user asks to search for files. The UI layer owns the dialog
+    /// because the search runs against the active panel's own file system, which only it knows.</summary>
+    public event EventHandler? FindFilesRequested;
     /// <summary>Raised when the user toggles the embedded terminal panel.</summary>
     public event EventHandler? ToggleTerminalRequested;
     /// <summary>Raised when the user requests a new terminal tab with default shell settings.</summary>

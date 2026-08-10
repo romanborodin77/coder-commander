@@ -34,6 +34,7 @@ public static class CommandIds
     public const string UnpackFiles = "cm_UnpackFiles";
     /// <summary>Compute checksums for selected files.</summary>
     public const string Checksum = "cm_Checksum";
+    public const string FindFiles = "cm_FindFiles";
 
     // Navigation
     /// <summary>Navigate to the parent directory (Backspace).</summary>

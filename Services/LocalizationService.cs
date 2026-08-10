@@ -393,6 +393,26 @@ public sealed class LocalizationService
 
         // ═══ Bookmarks ═══
         _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
+        _strings["Menu.Commands.Find"] = "Search...";
+        _strings["Find.Title"] = "Search for files";
+        _strings["Find.Field.Mask"] = "File mask";
+        _strings["Find.Field.Text"] = "Containing text";
+        _strings["Find.MatchCase"] = "Match case";
+        _strings["Find.WholeWord"] = "Whole words only";
+        _strings["Find.Subdirectories"] = "Include subfolders";
+        _strings["Find.Col.Name"] = "Name";
+        _strings["Find.Col.Folder"] = "Folder";
+        _strings["Find.Col.Size"] = "Size";
+        _strings["Find.Col.Line"] = "Line";
+        _strings["Find.Col.Text"] = "Text";
+        _strings["Find.Start"] = "Start";
+        _strings["Find.Stop"] = "Stop";
+        _strings["Find.GoTo"] = "Go to file";
+        _strings["Find.Where"] = "Searching in: {0}";
+        _strings["Find.Progress"] = "Examined {0}, found {1}";
+        _strings["Find.Done"] = "Done. Examined {0}, found {1}";
+        _strings["Find.Stopped"] = "Stopped. Found {0}";
+        _strings["Find.Truncated"] = "Stopped at the {0}-result limit; narrow the search";
         _strings["Conn.NotConnected"] = "That connection is not open. Open it from the places bar and try again.";
         _strings["Conn.OpenUnsupported"] = "Files on a connection cannot be opened in place yet. Copy the file to a local folder first.";
         _strings["Conn.State.Disconnected"] = "not connected";
