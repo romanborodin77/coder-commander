@@ -391,6 +391,29 @@ public sealed class LocalizationService
         _strings["Search.NoResults"] = "No files found";
 
         // ═══ Bookmarks ═══
+        _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
+        _strings["Conn.Title"] = "Connections";
+        _strings["Conn.Col.Name"] = "Name";
+        _strings["Conn.Col.Address"] = "Address";
+        _strings["Conn.Col.Auto"] = "Auto-connect";
+        _strings["Conn.Add"] = "Add";
+        _strings["Conn.Edit"] = "Edit";
+        _strings["Conn.Remove"] = "Remove";
+        _strings["Conn.Empty"] = "No connections configured";
+        _strings["Conn.RemoveConfirm"] = "Remove connection \"{0}\"? The saved password will be deleted too.";
+        _strings["Conn.Edit.Title"] = "Connection";
+        _strings["Conn.Field.Name"] = "Name";
+        _strings["Conn.Field.Type"] = "Type";
+        _strings["Conn.Field.Url"] = "Address";
+        _strings["Conn.Field.User"] = "User name";
+        _strings["Conn.Field.Password"] = "Password";
+        _strings["Conn.Field.SavePassword"] = "Save password";
+        _strings["Conn.Field.AutoConnect"] = "Connect on startup";
+        _strings["Conn.PasswordStored"] = "A password is saved. Leave empty to keep it.";
+        _strings["Conn.Invalid.Name"] = "Enter a name for the connection.";
+        _strings["Conn.Invalid.Url"] = "Enter an address, for example https://example.com/dav";
+        _strings["Conn.AutoConnectNeedsPassword"] = "Connect on startup needs a saved password, or an empty user name.";
+        _strings["Settings.Connections"] = "Connections";
         _strings["Bookmark.Title"] = "Bookmarks";
         _strings["Bookmark.Col.Name"] = "Name";
         _strings["Bookmark.Col.Path"] = "Path";

@@ -257,6 +257,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Config.Settings", "settings", "", null, () => OpenSettings()));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Config.Bookmarks", "bookmarks", "", null, () => OpenBookmarks()));
+        m.DropDownItems.Add(Mi("Conn.Title", "connection", "", null, () => OpenConnections()));
 
         _menuStrip.Items.Add(m);
     }
@@ -786,6 +787,14 @@ public sealed class MainForm : Form
     {
         using var dlg = new BookmarksForm();
         dlg.BookmarkActivated += (_, path) => _ = _vm.ActivePanel.NavigateAsync(path);
+        dlg.ShowDialog(this);
+    }
+
+    private void OpenConnections()
+    {
+        using var dlg = new ConnectionsForm();
+        // The places bar shows connections alongside drives, so it has to rebuild after any edit.
+        dlg.ConnectionsChanged += (_, _) => _ = DriveCatalog.Instance.RefreshAsync();
         dlg.ShowDialog(this);
     }
 

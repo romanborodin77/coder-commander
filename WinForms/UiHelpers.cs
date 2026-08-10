@@ -112,8 +112,17 @@ public class RoundedButton : Button
         using (var clearBrush = new SolidBrush(clearColor))
             g.FillRectangle(clearBrush, ClientRectangle);
 
+        // A disabled button must look disabled. This control used to paint identically whether
+        // Enabled was true or false, so six places across the app that disable a button - the
+        // operation dialog's Pause, the About dialog's Copy-info during its confirmation, the
+        // Connections dialog's Add when no provider can serve one - all offered a button that
+        // looked perfectly clickable and silently did nothing.
+        var enabled = Enabled;
+
         Color baseColor;
-        if (_pressed)
+        if (!enabled)
+            baseColor = BackColor;
+        else if (_pressed)
             baseColor = PressedColor != Color.Empty ? PressedColor : ThemeService.Current.ToolbarHover;
         else if (_hover)
             baseColor = HoverColor != Color.Empty ? HoverColor : ThemeService.Current.ToolbarHover;
@@ -139,7 +148,7 @@ public class RoundedButton : Button
         // Border
         if (BorderWidth > 0 && BorderColor != Color.Empty)
         {
-            using var borderPen = new Pen(BorderColor, BorderWidth);
+            using var borderPen = new Pen(enabled ? BorderColor : ThemeService.Current.GridLine, BorderWidth);
             g.DrawPath(borderPen, path);
         }
 
@@ -167,6 +176,10 @@ public class RoundedButton : Button
 
         path.Dispose();
 
+        // Grey text is the conventional disabled cue, and the only one available here -
+        // the background stays the button's own colour so the shape doesn't jump.
+        var textColor = enabled ? ForeColor : ThemeService.Current.DimForeground;
+
         var textRect = new Rectangle(
             Padding.Left,
             Padding.Top,
@@ -185,14 +198,14 @@ public class RoundedButton : Button
                 var imgY = textRect.Y + (textRect.Height - Image.Height) / 2;
                 g.DrawImage(Image, startX, imgY, Image.Width, Image.Height);
                 var tRect = new Rectangle(startX + Image.Width + 6, textRect.Y, textW + 2, textRect.Height);
-                TextRenderer.DrawText(g, Text, Font, tRect, ForeColor, flags);
+                TextRenderer.DrawText(g, Text, Font, tRect, textColor, flags);
             }
             else
             {
                 var imgY = textRect.Y + (textRect.Height - Image.Height) / 2;
                 g.DrawImage(Image, textRect.X + 4, imgY, Image.Width, Image.Height);
                 var tRect = new Rectangle(textRect.X + Image.Width + 8, textRect.Y, textRect.Width - Image.Width - 12, textRect.Height);
-                TextRenderer.DrawText(g, Text, Font, tRect, ForeColor, flags);
+                TextRenderer.DrawText(g, Text, Font, tRect, textColor, flags);
             }
         }
         else if (Image != null)
@@ -204,7 +217,7 @@ public class RoundedButton : Button
         else
         {
             var centerFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
-            TextRenderer.DrawText(g, Text, Font, textRect, ForeColor, centerFlags);
+            TextRenderer.DrawText(g, Text, Font, textRect, textColor, centerFlags);
         }
     }
 

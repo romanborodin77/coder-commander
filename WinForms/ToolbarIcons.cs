@@ -190,5 +190,13 @@ public static class ToolbarIcons
 
         // ── Terminal panel ──────────────────────────────────────────────────────────────────
         ["plus"] = new("M 8 3.5 V 12.5 M 3.5 8 H 12.5", Tint.Accent, Width: 1.25f),
+
+        // ── Remote connections ──────────────────────────────────────────────────────────────
+        // A cloud: three overlapping arcs on the shared 16x16 grid. Reads at 16px where a more
+        // literal "server rack" would collapse into stripes.
+        ["connection"] = new("M 4.25 12.5 C 2.45 12.5 1.5 11.2 1.5 9.9 C 1.5 8.6 2.5 7.5 3.9 7.4 "
+                              + "C 4.2 5.2 6 3.5 8.2 3.5 C 10.4 3.5 12.2 5.1 12.5 7.2 "
+                              + "C 13.7 7.5 14.5 8.5 14.5 9.8 C 14.5 11.3 13.4 12.5 11.9 12.5 Z",
+                              Tint.Accent),
     };
 }
