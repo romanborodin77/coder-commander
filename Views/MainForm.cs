@@ -561,6 +561,20 @@ public sealed class MainForm : Form
     private void OnItemActivated(object? sender, FileSystemItem item)
     {
         if (item.IsDirectory || item.IsParent) return;
+
+        // ShellExecute on "dav://host/f.txt" does not fail harmlessly: the shell sees a URL and
+        // looks for a handler registered for the "dav" scheme, so what opens - if anything - is
+        // decided by whatever is installed on the machine rather than by this app. Refuse plainly
+        // instead; copying the file to a local folder is the supported route until the viewer and
+        // editor learn to read through IFileSystem.
+        if (FileSystem.RemotePath.IsRemote(item.FullPath))
+        {
+            var L = LocalizationService.Current;
+            StyledMessageBox.Show(L.GetString("Conn.OpenUnsupported"), L.GetString("Conn.Title"),
+                MsgBoxButtons.OK, MsgBoxIcon.Information, this);
+            return;
+        }
+
         try
         {
             Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true });
@@ -1460,6 +1474,12 @@ public sealed class MainForm : Form
             if (fs is null)
             {
                 var status = manager.Current.FirstOrDefault(c => c.ProfileId == profileId);
+
+                // A null result also means "someone else is already connecting to this" - startup
+                // auto-connect, or the other panel. That is not a failure and must not be reported
+                // as one; the button will come alive on its own when the attempt in flight settles.
+                if (status?.State == ConnectionState.Connecting) return;
+
                 var L = LocalizationService.Current;
                 StyledMessageBox.Show(
                     L.GetString("Conn.ConnectFailed", status?.Name ?? "", status?.Error ?? ""),

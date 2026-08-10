@@ -107,10 +107,20 @@ public sealed class DriveCatalog
     {
         ct.ThrowIfCancellationRequested();
 
-        // Cheap pass: letters + type only. Publish immediately so buttons appear without waiting
-        // for any medium.
+        // Cheap pass: letters + type only.
         var pending = EnumerateCheap();
-        Publish(pending);
+
+        // Publish it immediately only when the set of drives actually changed - that is what makes
+        // a newly inserted stick get a button without waiting for any medium. When the set is the
+        // same (a manual refresh, a repeated device notification, a network-mapping check),
+        // publishing would replace fully probed entries with Pending ones and blank every label and
+        // size on the bar for as long as the probes take, for no new information.
+        //
+        // Deliberately not carried the other way either: probed fields are never copied onto the
+        // new snapshot by letter. A letter can be reused by a different volume, and a label that
+        // belongs to a disk that is no longer there is worse than no label.
+        if (!SameShape(pending))
+            Publish(pending);
 
         if (pending.Count == 0)
             return;
@@ -213,6 +223,23 @@ public sealed class DriveCatalog
             // error worth an Error-level entry.
             LogService.Debug($"Drive probe failed for {drive.RootPath}: {ex.Message}");
             return drive with { ProbeState = DriveProbeState.Unavailable };
+        }
+    }
+
+    /// <summary>Whether a freshly enumerated list names the same drives, of the same types, as the
+    /// snapshot in hand - regardless of what the probes later found on them.</summary>
+    private bool SameShape(IReadOnlyList<DriveEntry> candidate)
+    {
+        lock (_lock)
+        {
+            if (_current.Count != candidate.Count) return false;
+            for (var i = 0; i < candidate.Count; i++)
+            {
+                if (!string.Equals(_current[i].RootPath, candidate[i].RootPath, StringComparison.OrdinalIgnoreCase) ||
+                    _current[i].DriveType != candidate[i].DriveType)
+                    return false;
+            }
+            return true;
         }
     }
 

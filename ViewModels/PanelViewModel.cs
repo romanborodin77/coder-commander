@@ -223,8 +223,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         if (string.IsNullOrEmpty(path)) return;
 
-        bool isArchivePath = FileSystem.ZipArchiveFileSystem.IsArchivePath(path);
-        if (!isArchivePath)
+        // The trailing separator is a Windows-path convention (it is what makes "C:" mean the root
+        // of C: rather than the process's current directory on C:). Neither virtual flavour uses
+        // it, and appending a backslash to "dav://host" would put one inside the host component -
+        // where RemotePath.HostOf would then read it as part of the host name.
+        bool isVirtualPath = FileSystem.ZipArchiveFileSystem.IsArchivePath(path)
+            || FileSystem.RemotePath.IsRemote(path);
+        if (!isVirtualPath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
         // Claim "newest navigation" before the await below, not after: two overlapping
@@ -288,6 +293,18 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task GoToParentAsync()
     {
         if (string.IsNullOrEmpty(CurrentPath)) return;
+
+        if (FileSystem.RemotePath.IsRemote(CurrentPath))
+        {
+            // Path.GetFullPath on "dav://host/dir\.." does not fail loudly - it resolves the string
+            // against the process's current directory and hands back a local path that has nothing
+            // to do with the server. Going up one level in a connection has to be remote-path
+            // arithmetic, and at the connection root there is simply nowhere up to go.
+            var remoteParent = FileSystem.VfsPath.GetParent(CurrentPath);
+            if (!string.IsNullOrEmpty(remoteParent))
+                await NavigateAsync(remoteParent);
+            return;
+        }
 
         if (FileSystem.ZipArchiveFileSystem.IsArchivePath(CurrentPath))
         {
@@ -392,7 +409,10 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             foreach (var e in entries)
             {
                 var item = IsFlatView
-                    ? new FileSystemItem(e) { DisplayName = Path.GetRelativePath(path, e.FullPath) }
+                    // VfsPath, not Path: in flat view over an archive or a connection, the two
+                    // paths are not Windows paths and GetRelativePath would resolve them against
+                    // the process's current directory.
+                    ? new FileSystemItem(e) { DisplayName = FileSystem.VfsPath.GetRelative(path, e.FullPath) }
                     : new FileSystemItem(e);
                 if (selectedPaths.Contains(item.FullPath))
                     item.IsSelected = true;

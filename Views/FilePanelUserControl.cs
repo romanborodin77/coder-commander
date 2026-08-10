@@ -112,6 +112,17 @@ public sealed class FilePanelUserControl : UserControl
     /// it can swap the panel's file system and show a dialog.</summary>
     public event EventHandler<Guid>? ConnectionActivated;
 
+    /// <summary>
+    /// Whether what this panel is showing lives at real paths on this machine.
+    ///
+    /// Everything that hands a path to something outside the app - the shell's FileDrop format,
+    /// opening a file as an archive, ShellExecute - is only meaningful when this is true. A
+    /// <c>dav://host/x.zip</c> string given to any of them is not merely useless: the archive
+    /// reader would try to open it as a file, and ShellExecute would look for a handler registered
+    /// for the "dav" URL scheme.
+    /// </summary>
+    private bool HasNativePaths => _vm.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.NativePaths);
+
     /// <summary>Creates the panel UI and wires up the ViewModel, context menu and drag-and-drop.</summary>
     /// <param name="vm">ViewModel providing data for this panel.</param>
     public FilePanelUserControl(PanelViewModel vm)
@@ -548,7 +559,7 @@ public sealed class FilePanelUserControl : UserControl
             {
                 _ = _vm.NavigateAsync(item.FullPath);
             }
-            else if (ArchiveFormatRegistry.FromExtension(item.FullPath) != null)
+            else if (HasNativePaths && ArchiveFormatRegistry.FromExtension(item.FullPath) != null)
             {
                 ArchiveEntered?.Invoke(this, item);
             }
@@ -579,7 +590,7 @@ public sealed class FilePanelUserControl : UserControl
                 _ = _vm.GoToParentAsync();
             else if (enterItem.IsDirectory)
                 _ = _vm.NavigateAsync(enterItem.FullPath);
-            else if (ArchiveFormatRegistry.FromExtension(enterItem.FullPath) != null)
+            else if (HasNativePaths && ArchiveFormatRegistry.FromExtension(enterItem.FullPath) != null)
                 ArchiveEntered?.Invoke(this, enterItem);
             else
                 ItemActivated?.Invoke(this, enterItem);
@@ -671,13 +682,17 @@ public sealed class FilePanelUserControl : UserControl
 
         if (items.Count == 0) return;
 
-        // The internal payload survives archive paths, which the shell FileDrop format cannot carry.
+        // The internal payload survives virtual paths, which the shell FileDrop format cannot
+        // carry - not archive ones and not remote ones. Handing Explorer a "dav://host/f.txt"
+        // through FileDrop would announce a file that does not exist at that path.
         var data = new DataObject();
         data.SetData(PanelDragPayload.Format, new PanelDragPayload(this, items));
 
-        var shellPaths = items.Where(i => !VfsPath.IsArchive(i.FullPath))
-                              .Select(i => i.FullPath)
-                              .ToArray();
+        var shellPaths = HasNativePaths
+            ? items.Where(i => !VfsPath.IsArchive(i.FullPath) && !RemotePath.IsRemote(i.FullPath))
+                   .Select(i => i.FullPath)
+                   .ToArray()
+            : [];
         if (shellPaths.Length > 0)
             data.SetData(DataFormats.FileDrop, shellPaths);
 
@@ -1339,7 +1354,23 @@ public sealed class FilePanelUserControl : UserControl
         var p = ThemeService.Current;
         var parts = new List<(string display, string fullPath)>();
 
-        if (ArchivePath.IsArchivePath(currentPath))
+        if (RemotePath.IsRemote(currentPath))
+        {
+            // Split on '/' below the root, which is the only separator a remote path has.
+            // Path.GetPathRoot below would answer "" for "dav://host/x" - not null, so the
+            // existing `?? trimmed` fallback would not catch it - and the bar would start with an
+            // empty crumb pointing nowhere.
+            var remoteRoot = RemotePath.GetRoot(currentPath);
+            parts.Add((remoteRoot, remoteRoot));
+
+            var acc = remoteRoot;
+            foreach (var seg in RemotePath.PathOf(currentPath).Split('/', StringSplitOptions.RemoveEmptyEntries))
+            {
+                acc = RemotePath.Combine(acc, seg);
+                parts.Add((seg, acc));
+            }
+        }
+        else if (ArchivePath.IsArchivePath(currentPath))
         {
             // Archive paths mix a real path with an internal virtual one — too many
             // edge cases to safely split into clickable segments, so show as-is.

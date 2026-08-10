@@ -82,6 +82,30 @@ public sealed class ConnectionManager : IDisposable
     }
 
     /// <summary>
+    /// The live filesystem that serves <paramref name="path"/>, matched by its <c>scheme://host</c>
+    /// root, or <c>null</c> when nothing is connected there.
+    ///
+    /// <para>This is what lets a remote path arriving from anywhere - a copy destination, a
+    /// hand-typed address - find the connection it belongs to, instead of being handed to the local
+    /// filesystem because it happens to be the default. Two profiles pointing at the same host and
+    /// port are indistinguishable by path and the first connected one wins; that ambiguity is
+    /// inherent in addressing by host, and the alternative (a synthetic per-profile authority) would
+    /// put an opaque identifier in every path the user sees.</para>
+    /// </summary>
+    public IFileSystem? GetConnectedForPath(string? path)
+    {
+        if (!RemotePath.IsRemote(path)) return null;
+
+        var root = RemotePath.GetRoot(path!);
+        foreach (var status in Current)
+        {
+            if (!string.Equals(status.RootPath, root, StringComparison.OrdinalIgnoreCase)) continue;
+            if (GetConnected(status.ProfileId) is { } fs) return fs;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Connects, or returns the existing connection if there already is one.
     ///
     /// Concurrent calls for the same profile do not each open a connection: the second sees

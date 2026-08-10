@@ -254,6 +254,8 @@ Search.NoResults=Файлы не найдены
 
 # ═══ Закладки ═══
 Conn.NoProviders=В этой сборке пока нет ни одного типа подключений.
+Conn.NotConnected=Это подключение не открыто. Откройте его на полке мест и повторите.
+Conn.OpenUnsupported=Файл на подключении пока нельзя открыть прямо там. Скопируйте его в локальную папку.
 Conn.State.Disconnected=не подключено
 Conn.State.Connecting=подключение…
 Conn.State.Connected=подключено

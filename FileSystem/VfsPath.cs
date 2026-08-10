@@ -1,12 +1,19 @@
 namespace CoderCommander.FileSystem;
 
 /// <summary>
-/// Path arithmetic that understands both plain Windows paths and virtual archive paths
-/// of the form <c>C:\dir\file.zip|inner/dir/name</c>.
+/// Path arithmetic for every path flavour the app has: plain Windows paths, virtual archive paths
+/// of the form <c>C:\dir\file.zip|inner/dir/name</c>, and remote paths of the form
+/// <c>dav://host/dir/name</c>.
 /// <para>
-/// <see cref="System.IO.Path"/> mangles the archive form (the <c>|</c> character is illegal
-/// in Windows paths and <c>Path.Combine</c> would insert backslashes inside the archive part),
-/// so every operation that may touch an archive routes through these helpers instead.
+/// <see cref="System.IO.Path"/> mangles both virtual forms - <c>|</c> is illegal in a Windows path,
+/// <c>Path.Combine</c> would insert backslashes inside the archive part, and
+/// <c>Path.GetPathRoot("dav://host/x")</c> answers with an empty string - so every operation that
+/// may touch either routes through these helpers instead.
+/// </para>
+/// <para>
+/// The three flavours are mutually exclusive by construction: <see cref="RemotePath"/> rejects
+/// <c>|</c> in a remote path outright, so a remote path can never be read as an archive one. That
+/// is why <see cref="IsArchive"/> can stay a bare <c>|</c> test.
 /// </para>
 /// </summary>
 public static class VfsPath
@@ -33,6 +40,9 @@ public static class VfsPath
         if (string.IsNullOrEmpty(relative))
             return basePath;
 
+        if (RemotePath.IsRemote(basePath))
+            return RemotePath.Combine(basePath, relative);
+
         if (!IsArchive(basePath))
             return Path.Combine(basePath, relative.Replace('/', Path.DirectorySeparatorChar));
 
@@ -49,21 +59,21 @@ public static class VfsPath
     /// </summary>
     public static string GetRelative(string basePath, string fullPath)
     {
-        if (IsArchive(basePath) || IsArchive(fullPath))
+        if (RemotePath.IsRemote(basePath) || RemotePath.IsRemote(fullPath))
         {
-            var baseInner = GetInner(basePath);
-            var fullInner = GetInner(fullPath);
+            // A remote path and a local one - or two different connections - are unrelated trees by
+            // definition, and "unrelated" means the bare name, exactly as it does for two paths on
+            // different drives. Reducing them through PathOf instead would silently treat the whole
+            // of one as relative to the other and nest the result several levels too deep.
+            if (!RemotePath.IsRemote(basePath) || !RemotePath.IsRemote(fullPath) ||
+                !string.Equals(RemotePath.GetRoot(basePath), RemotePath.GetRoot(fullPath), StringComparison.OrdinalIgnoreCase))
+                return GetName(fullPath);
 
-            if (baseInner.Length == 0)
-                return fullInner;
-
-            if (fullInner.Length > baseInner.Length &&
-                fullInner.StartsWith(baseInner, StringComparison.OrdinalIgnoreCase) &&
-                fullInner[baseInner.Length] == '/')
-                return fullInner[(baseInner.Length + 1)..];
-
-            return GetName(fullPath);
+            return RelativeInner(RemotePath.PathOf(basePath), RemotePath.PathOf(fullPath), fullPath);
         }
+
+        if (IsArchive(basePath) || IsArchive(fullPath))
+            return RelativeInner(GetInner(basePath), GetInner(fullPath), fullPath);
 
         try
         {
@@ -85,9 +95,37 @@ public static class VfsPath
         }
     }
 
+    /// <summary>
+    /// Shared tail of <see cref="GetRelative"/> for the two slash-separated flavours: both reduce
+    /// to "strip the base prefix off the full inner path", differing only in how the inner path is
+    /// extracted. Falls back to the bare name when the two are not in the same subtree, which is
+    /// the same "unrelated trees" answer the plain-path branch gives.
+    /// </summary>
+    private static string RelativeInner(string baseInner, string fullInner, string fullPath)
+    {
+        if (baseInner.Length == 0)
+            return fullInner;
+
+        if (fullInner.Length > baseInner.Length &&
+            fullInner.StartsWith(baseInner, StringComparison.OrdinalIgnoreCase) &&
+            fullInner[baseInner.Length] == '/')
+            return fullInner[(baseInner.Length + 1)..];
+
+        return GetName(fullPath);
+    }
+
     /// <summary>Parent directory, or an empty string when there is none.</summary>
     public static string GetParent(string path)
     {
+        if (RemotePath.IsRemote(path))
+        {
+            // At the connection root there is no parent inside this filesystem - the same answer
+            // the archive branch gives at an archive's own root. Leaving a remote filesystem is a
+            // navigation decision, not path arithmetic.
+            var parent = RemotePath.GetParent(path);
+            return string.Equals(parent, path, StringComparison.Ordinal) ? "" : parent;
+        }
+
         if (IsArchive(path))
         {
             var (archive, inner) = ArchivePath.SplitPath(path);
@@ -104,6 +142,9 @@ public static class VfsPath
     /// <summary>Last path component.</summary>
     public static string GetName(string path)
     {
+        if (RemotePath.IsRemote(path))
+            return RemotePath.GetName(path);
+
         if (IsArchive(path))
         {
             var inner = GetInner(path);

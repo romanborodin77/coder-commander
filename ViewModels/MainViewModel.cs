@@ -299,8 +299,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         else if (fromArchive)
         {
+            var unpackDestFs = ResolveFileSystem(destPath);
+            if (unpackDestFs is null)
+            {
+                OperationRejected?.Invoke(this, "Conn.NotConnected");
+                return;
+            }
+
             op = new UnpackOperation(sourceArchive, entries, VfsPath.GetInner(sourceBase),
-                ResolveFileSystem(destPath), destPath, options, removeSource: move);
+                unpackDestFs, destPath, options, removeSource: move);
         }
         else
         {
@@ -311,6 +318,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             var destFs = ResolveFileSystem(destPath);
+            if (destFs is null)
+            {
+                // The destination panel is showing a connection that has since dropped. Falling
+                // back to the local filesystem here would be far worse than refusing: the remote
+                // path would be resolved against the current directory and the files written
+                // somewhere on disk the user never chose.
+                OperationRejected?.Invoke(this, "Conn.NotConnected");
+                return;
+            }
+
             op = move
                 ? new MoveOperation(sourceFs, destFs, entries, sourceBase, destPath, options)
                 : new CopyOperation(sourceFs, destFs, entries, sourceBase, destPath, options);
@@ -319,11 +336,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ = Operations.RunAsync(op, $"{verb} {entries.Count} item(s) to {destPath}");
     }
 
-    /// <summary>Picks the provider that can serve an arbitrary (possibly hand-typed) path.</summary>
-    private IFileSystem ResolveFileSystem(string path) =>
-        VfsPath.IsArchive(path)
+    /// <summary>
+    /// Picks the provider that can serve an arbitrary (possibly hand-typed) path, or <c>null</c>
+    /// when the path names a connection that is not open.
+    ///
+    /// <para>Remote is tested first, for the same reason <see cref="RemotePath.IsRemote"/> documents:
+    /// the classification has to be unambiguous, and a remote path must never fall through to a
+    /// filesystem that would interpret it as a local one.</para>
+    /// </summary>
+    private IFileSystem? ResolveFileSystem(string path)
+    {
+        if (RemotePath.IsRemote(path))
+            return Services.ConnectionManager.Instance.GetConnectedForPath(path);
+
+        return VfsPath.IsArchive(path)
             ? ArchiveFormatRegistry.CreateFileSystem(VfsPath.GetArchiveFile(path)) ?? new ZipArchiveFileSystem(VfsPath.GetArchiveFile(path))
             : FileSystem;
+    }
 
     /// <summary>
     /// Guards against transferring a plain (non-archive) selection onto itself: the destination
@@ -333,6 +362,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private static bool IsDestinationInsideSource(string sourceBase, string destPath, IReadOnlyList<FileEntry> entries)
     {
+        if (RemotePath.IsRemote(sourceBase) || RemotePath.IsRemote(destPath))
+            return IsRemoteDestinationInsideSource(sourceBase, destPath, entries);
+
         string Normalize(string p) => Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         string normalizedDest, normalizedSourceBase;
@@ -359,6 +391,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             if (string.Equals(normalizedDest, normalizedEntry, StringComparison.OrdinalIgnoreCase) ||
                 normalizedDest.StartsWith(normalizedEntry + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The same containment question for remote paths, which <see cref="Path.GetFullPath"/> cannot
+    /// answer: given "dav://host/a" it does not throw, it resolves the string against the process's
+    /// current directory and returns a local path - so the check above would compare two unrelated
+    /// strings and cheerfully answer "not contained".
+    ///
+    /// <para>Comparison is case-sensitive below the root. Remote filesystems generally are, and
+    /// treating "Docs" and "docs" as one directory here would refuse a transfer that is in fact
+    /// between two different directories.</para>
+    /// </summary>
+    private static bool IsRemoteDestinationInsideSource(string sourceBase, string destPath, IReadOnlyList<FileEntry> entries)
+    {
+        // A local path and a remote one can never contain each other, and neither can two different
+        // connections - the local-vs-remote pair is the ordinary "copy a file to the server" case.
+        if (!RemotePath.IsRemote(sourceBase) || !RemotePath.IsRemote(destPath)) return false;
+        if (!string.Equals(RemotePath.GetRoot(sourceBase), RemotePath.GetRoot(destPath), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var dest = RemotePath.PathOf(destPath);
+        if (string.Equals(dest, RemotePath.PathOf(sourceBase), StringComparison.Ordinal)) return true;
+
+        foreach (var entry in entries)
+        {
+            if (!entry.IsDirectory) continue;
+
+            var inner = RemotePath.PathOf(entry.FullPath);
+            if (inner.Length == 0) continue;
+            if (string.Equals(dest, inner, StringComparison.Ordinal) ||
+                dest.StartsWith(inner + "/", StringComparison.Ordinal))
                 return true;
         }
 

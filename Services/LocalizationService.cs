@@ -393,6 +393,8 @@ public sealed class LocalizationService
 
         // ═══ Bookmarks ═══
         _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
+        _strings["Conn.NotConnected"] = "That connection is not open. Open it from the places bar and try again.";
+        _strings["Conn.OpenUnsupported"] = "Files on a connection cannot be opened in place yet. Copy the file to a local folder first.";
         _strings["Conn.State.Disconnected"] = "not connected";
         _strings["Conn.State.Connecting"] = "connecting…";
         _strings["Conn.State.Connected"] = "connected";

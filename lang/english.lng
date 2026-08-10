@@ -257,6 +257,8 @@ Search.NoResults=No files found
 
 # ═══ Bookmarks ═══
 Conn.NoProviders=No connection types are available in this build yet.
+Conn.NotConnected=That connection is not open. Open it from the places bar and try again.
+Conn.OpenUnsupported=Files on a connection cannot be opened in place yet. Copy the file to a local folder first.
 Conn.State.Disconnected=not connected
 Conn.State.Connecting=connecting…
 Conn.State.Connected=connected

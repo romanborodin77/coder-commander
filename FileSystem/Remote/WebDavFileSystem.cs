@@ -87,7 +87,12 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
         var xml = await ReadBoundedStringAsync(response, ct).ConfigureAwait(false);
 
         var inner = RemotePath.PathOf(path);
-        var entries = WebDavPropfindParser.ParseListing(xml, uri.AbsolutePath);
+
+        // Decoded, because the parser compares this against decoded hrefs to recognise the
+        // directory's own entry in its own Depth:1 listing. Uri.AbsolutePath keeps percent-encoding,
+        // so passing it raw made "/dav/My%20Docs" never equal "/dav/My Docs" - and every directory
+        // whose name contained a space or a non-ASCII character listed itself as its own child.
+        var entries = WebDavPropfindParser.ParseListing(xml, Uri.UnescapeDataString(uri.AbsolutePath));
 
         // FileEntry derives Name from FullPath, and Path.GetFileName handles a dav:// path
         // correctly because it splits on '/' as well as '\'. Its archive-path branch cannot fire
@@ -157,14 +162,28 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
         return siblings.FirstOrDefault(e => string.Equals(e.Name, name, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Existence check by <c>PROPFIND</c> with <c>Depth: 0</c>, not <c>HEAD</c>.
+    ///
+    /// HEAD is the obvious choice and the wrong one: a collection is not a retrievable entity, and
+    /// servers are within their rights to answer <c>405 Method Not Allowed</c> for one - which would
+    /// make every directory on such a server look absent, and every attempt to navigate into it fail
+    /// with "path does not exist". PROPFIND is the method WebDAV defines for asking about a resource
+    /// and answers for collections and files alike, at the same cost of one round trip.
+    /// </summary>
     public async Task<bool> ExistsAsync(string path, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Head, ToUri(path));
+        using var request = new HttpRequestMessage(Propfind, ToUri(path, asCollection: true))
+        {
+            Content = new StringContent(PropfindBody, Encoding.UTF8, "application/xml"),
+        };
+        request.Headers.Add("Depth", "0");
+
         try
         {
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
                 .ConfigureAwait(false);
-            return response.IsSuccessStatusCode;
+            return response.IsSuccessStatusCode || (int)response.StatusCode == 207;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -287,6 +306,9 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
             HttpStatusCode.NotFound => "not found",
             HttpStatusCode.Conflict => "parent collection is missing",
             HttpStatusCode.PreconditionFailed => "destination exists and overwrite was refused",
+            // Raised against a chunked PUT, which is what an upload from a source whose length is
+            // not known in advance (an archive entry, another connection) has to use.
+            HttpStatusCode.LengthRequired => "the server requires the file size in advance and cannot accept this upload",
             (HttpStatusCode)423 => "resource is locked",
             (HttpStatusCode)507 => "insufficient storage on the server",
             _ => response.StatusCode.ToString(),

@@ -29,6 +29,13 @@ public sealed class WebDavProvider : IFileSystemProvider
         if (baseUri.Scheme is not ("http" or "https"))
             throw new InvalidOperationException($"WebDAV needs an http or https address, not \"{baseUri.Scheme}\"");
 
+        // Every request URL is built by appending encoded segments to this one, so a query string
+        // or fragment left on it would end up in the middle of the path ("…/dav?x=1/sub"). Neither
+        // means anything to a WebDAV collection; dropping them here keeps every later concatenation
+        // correct instead of guarding each one.
+        if (baseUri.Query.Length > 0 || baseUri.Fragment.Length > 0)
+            baseUri = new Uri(baseUri.GetLeftPart(UriPartial.Path));
+
         if (baseUri.Scheme == "http")
         {
             // Not refused - a WebDAV server on a private network without TLS is a legitimate
