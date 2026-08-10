@@ -1529,7 +1529,11 @@ public sealed class MainForm : Form
         var root = manager.Current.FirstOrDefault(c => c.ProfileId == profileId)?.RootPath;
         if (string.IsNullOrEmpty(root)) return;
 
-        panel.ViewModel.CurrentFileSystem = fs;
+        // Deliberately not assigning CurrentFileSystem here. NavigateAsync resolves the filesystem
+        // from the path itself, and assigning it first opened a window between the two statements:
+        // if the navigation was then superseded or refused, the panel was left holding a
+        // connection while its path was still the local one - so the next local navigation listed
+        // the server under a drive letter.
         await panel.ViewModel.NavigateAsync(root);
     }
 

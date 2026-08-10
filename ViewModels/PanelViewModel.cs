@@ -232,6 +232,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!isVirtualPath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
+        if (!AdoptFileSystemFor(path)) return;
+
         // Claim "newest navigation" before the await below, not after: two overlapping
         // NavigateAsync calls (fast double-click into folder A then quickly into folder B, or a
         // slow network path racing a fast local one) used to resolve ExistsAsync in whichever
@@ -272,6 +274,57 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         await RefreshAsync(ct);
     }
 
+    /// <summary>
+    /// Makes sure the filesystem this panel is holding is the one that can actually serve
+    /// <paramref name="path"/>, switching it when it is not.
+    ///
+    /// <para><b>Why this is necessary at all.</b> A panel keeps one filesystem and every navigation
+    /// used it, whatever the path. That is fine while the path flavour never changes, and it stops
+    /// being fine the moment a panel can be inside a connection: clicking the C: button then asked a
+    /// WebDAV server about "C:\". The failure was not a clean refusal - the server answered the
+    /// probe, so the panel set its path to C:\ and then listed the server's root under it. The panel
+    /// claimed to be on a local drive while showing remote files, which is the state in which a
+    /// delete does something other than what the screen says.</para>
+    ///
+    /// <para><b>Deliberately narrow.</b> It fires only when leaving a connection for a
+    /// non-remote path, or when entering one - the two cases where the flavours genuinely disagree.
+    /// Archives are left alone: they are entered and left by code that already swaps the filesystem
+    /// itself, and a panel backed by some other implementation over ordinary paths is none of this
+    /// method's business.</para>
+    /// </summary>
+    /// <returns><c>false</c> when the navigation must not proceed - a remote path whose connection
+    /// is not open. Continuing would hand the path to whatever filesystem happened to be there.</returns>
+    private bool AdoptFileSystemFor(string path)
+    {
+        if (FileSystem.RemotePath.IsRemote(path))
+        {
+            var connection = Services.ConnectionManager.Instance.GetConnectedForPath(path);
+            if (connection is null)
+            {
+                LogService.Warning($"No open connection serves {FileSystem.RemotePath.GetRoot(path)}");
+                return false;
+            }
+
+            if (!ReferenceEquals(connection, _fs)) _fs = connection;
+            return true;
+        }
+
+        // An archive path is served by the filesystem that was installed when the archive was
+        // entered; that machinery swaps it back on the way out and is none of this method's business.
+        if (FileSystem.ZipArchiveFileSystem.IsArchivePath(path)) return true;
+
+        // Leaving a connection for an ordinary path. Keyed off the filesystem being one the
+        // connection manager has open - not off the current path, which is the mistake that made
+        // the first version of this useless: the panel can be holding a connection's filesystem
+        // while its path is still the local one from before, and that is exactly the case that
+        // needs catching. Asking the manager also leaves archives and the fakes tests use alone,
+        // since neither is ever one of its live connections.
+        if (Services.ConnectionManager.Instance.IsConnectionFileSystem(_fs))
+            _fs = new FileSystem.LocalFileSystem();
+
+        return true;
+    }
+
     /// <summary>Cancels any in-flight navigation's own RefreshAsync and starts tracking a new
     /// one, returning the token this navigation's RefreshAsync should use so a later navigation
     /// can in turn cancel it. Shared by NavigateAsync/GoBackAsync/GoForwardAsync so none of them
@@ -302,7 +355,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             // arithmetic, and at the connection root there is simply nowhere up to go.
             var remoteParent = FileSystem.VfsPath.GetParent(CurrentPath);
             if (!string.IsNullOrEmpty(remoteParent))
+            {
                 await NavigateAsync(remoteParent);
+                return;
+            }
+
+            // Already at the connection's root, so "up" means out of it - the same thing ".." does
+            // at the root of an archive. Without this the panel had no way back to a local drive
+            // from inside a connection at all.
+            await NavigateAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
             return;
         }
 
@@ -401,8 +462,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             var root = _fs.GetRootPath(path);
             var isAtRoot = string.Equals(path.TrimEnd(Path.DirectorySeparatorChar, '/'),
                 root.TrimEnd(Path.DirectorySeparatorChar, '/'), StringComparison.OrdinalIgnoreCase);
-            // Always show ".." when inside archive (even at root — it exits the archive)
-            var showParent = !isAtRoot || FileSystem.ArchivePath.IsArchivePath(path);
+            // Always show ".." inside an archive or a connection, even at their root, because there
+            // it is what leaves them. A panel with no ".." at the root of a connection has no
+            // visible way out.
+            var showParent = !isAtRoot
+                || FileSystem.ArchivePath.IsArchivePath(path)
+                || FileSystem.RemotePath.IsRemote(path);
             if (showParent)
                 _allItems.Add(FileSystemItem.CreateParent(path));
 

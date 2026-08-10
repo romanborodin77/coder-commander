@@ -75,6 +75,20 @@ public sealed class ConnectionManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="fs"/> is one of the filesystems this manager currently has open.
+    ///
+    /// <para>Asked by a panel deciding whether the filesystem it is holding belongs to a connection,
+    /// which cannot be answered from the path: a panel can be holding a connection's filesystem
+    /// while its path is still the local one it had before, and that combination is precisely the
+    /// broken state worth detecting - it lists a server's contents under a local path.</para>
+    /// </summary>
+    public bool IsConnectionFileSystem(IFileSystem? fs)
+    {
+        if (fs is null) return false;
+        lock (_lock) return _live.Values.Any(live => ReferenceEquals(live, fs));
+    }
+
     /// <summary>The live filesystem for a connected profile, or <c>null</c>.</summary>
     public IFileSystem? GetConnected(Guid profileId)
     {
