@@ -253,6 +253,14 @@ Search.NoResults=Файлы не найдены
 
 # ═══ Закладки ═══
 Conn.NoProviders=В этой сборке пока нет ни одного типа подключений.
+Conn.State.Disconnected=не подключено
+Conn.State.Connecting=подключение…
+Conn.State.Connected=подключено
+Conn.State.Failed=подключиться не удалось
+Conn.Tooltip={0} — {1}
+Conn.ConnectFailed=Не удалось подключиться к «{0}».
+
+{1}
 Conn.Title=Подключения
 Conn.Col.Name=Имя
 Conn.Col.Address=Адрес

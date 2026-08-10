@@ -392,6 +392,12 @@ public sealed class LocalizationService
 
         // ═══ Bookmarks ═══
         _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
+        _strings["Conn.State.Disconnected"] = "not connected";
+        _strings["Conn.State.Connecting"] = "connecting…";
+        _strings["Conn.State.Connected"] = "connected";
+        _strings["Conn.State.Failed"] = "connection failed";
+        _strings["Conn.Tooltip"] = "{0} — {1}";
+        _strings["Conn.ConnectFailed"] = "Could not connect to \"{0}\".\n\n{1}";
         _strings["Conn.Title"] = "Connections";
         _strings["Conn.Col.Name"] = "Name";
         _strings["Conn.Col.Address"] = "Address";

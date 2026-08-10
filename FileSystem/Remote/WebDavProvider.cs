@@ -21,7 +21,7 @@ public sealed class WebDavProvider : IFileSystemProvider
     public string Scheme => "dav";
     public string DisplayName => "WebDAV";
 
-    public Task<IFileSystem> ConnectAsync(ConnectionProfile profile, string? password, CancellationToken ct)
+    public async Task<IFileSystem> ConnectAsync(ConnectionProfile profile, string? password, CancellationToken ct)
     {
         if (!Uri.TryCreate(profile.Url, UriKind.Absolute, out var baseUri))
             throw new InvalidOperationException($"Invalid WebDAV address: \"{profile.Url}\"");
@@ -66,7 +66,25 @@ public sealed class WebDavProvider : IFileSystemProvider
         http.DefaultRequestHeaders.UserAgent.ParseAdd("CoderCommander");
 
         var authority = baseUri.IsDefaultPort ? baseUri.Host : $"{baseUri.Host}:{baseUri.Port}";
-        return Task.FromResult<IFileSystem>(new WebDavFileSystem(http, baseUri, authority));
+        var fs = new WebDavFileSystem(http, baseUri, authority);
+
+        // Verify before reporting success. Building an HttpClient contacts nothing, so without
+        // this the app would announce "connected" for a host that does not resolve, a wrong
+        // password or an untrusted certificate - and the user would only find out on their first
+        // click, by which time the error has lost its context. One cheap round trip converts every
+        // one of those into an honest failure with a message worth reading.
+        try
+        {
+            await fs.EnumerateAsync(RemotePath.Make(Scheme, authority), includeHidden: true, ct)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            fs.Dispose();
+            throw;
+        }
+
+        return fs;
     }
 
     /// <summary>

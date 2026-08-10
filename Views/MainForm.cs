@@ -467,6 +467,8 @@ public sealed class MainForm : Form
         _rightPanel.ItemActivated += OnItemActivated;
         _leftPanel.ArchiveEntered += OnArchiveEntered;
         _rightPanel.ArchiveEntered += OnArchiveEntered;
+        _leftPanel.ConnectionActivated += OnConnectionActivated;
+        _rightPanel.ConnectionActivated += OnConnectionActivated;
 
         // Wire context menu events from panels to commands
         WirePanelContextMenu(_leftPanel);
@@ -794,7 +796,13 @@ public sealed class MainForm : Form
     {
         using var dlg = new ConnectionsForm();
         // The places bar shows connections alongside drives, so it has to rebuild after any edit.
-        dlg.ConnectionsChanged += (_, _) => _ = DriveCatalog.Instance.RefreshAsync();
+        dlg.ConnectionsChanged += (_, _) =>
+        {
+            // A deleted profile must actually close its connection rather than leave an
+            // orphan holding a socket; the places bar then rebuilds from the manager's event.
+            ConnectionManager.Instance.SyncWithProfiles();
+            _ = DriveCatalog.Instance.RefreshAsync();
+        };
         dlg.ShowDialog(this);
     }
 
@@ -883,7 +891,11 @@ public sealed class MainForm : Form
         Resize += OnFormResize;
         KeyDown += OnFormKeyDown;
         FormClosing += OnFormClosing;
-        FormClosed += (_, _) => _deviceWatcher.Dispose();
+        FormClosed += (_, _) =>
+        {
+            _deviceWatcher.Dispose();
+            ConnectionManager.Instance.Dispose();
+        };
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -986,6 +998,11 @@ public sealed class MainForm : Form
         try
         {
             await InitializeAsync();
+
+            // Deliberately not awaited: auto-connect talks to servers that may be unreachable,
+            // and startup must not wait for any of them. Failures land in the places bar as a
+            // retryable state, never as a dialog in front of a just-launched app.
+            _ = ConnectionManager.Instance.AutoConnectAllAsync();
         }
         catch (Exception ex)
         {
@@ -1417,6 +1434,44 @@ public sealed class MainForm : Form
             var rel = Path.GetRelativePath(source, file);
             File.Copy(file, Path.Combine(dest, rel), overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// A connection button in the places bar was clicked.
+    ///
+    /// One button, three meanings depending on state: an established connection is entered, an
+    /// idle or failed one is (re)connected and then entered. Retrying from the same button is
+    /// deliberate - a failed connection that offers no way to try again is a dead end, and the
+    /// usual cause is a server that was simply not up yet.
+    /// </summary>
+    private async void OnConnectionActivated(object? sender, Guid profileId)
+    {
+        if (sender is not FilePanelUserControl panel) return;
+
+        var manager = ConnectionManager.Instance;
+        var fs = manager.GetConnected(profileId);
+
+        if (fs is null)
+        {
+            // Connecting talks to a server, so it must not run on the UI thread; the manager
+            // enforces that and reports progress through its own event, which rebuilds the bar.
+            fs = await manager.ConnectAsync(profileId);
+            if (fs is null)
+            {
+                var status = manager.Current.FirstOrDefault(c => c.ProfileId == profileId);
+                var L = LocalizationService.Current;
+                StyledMessageBox.Show(
+                    L.GetString("Conn.ConnectFailed", status?.Name ?? "", status?.Error ?? ""),
+                    L.GetString("Conn.Title"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+                return;
+            }
+        }
+
+        var root = manager.Current.FirstOrDefault(c => c.ProfileId == profileId)?.RootPath;
+        if (string.IsNullOrEmpty(root)) return;
+
+        panel.ViewModel.CurrentFileSystem = fs;
+        await panel.ViewModel.NavigateAsync(root);
     }
 
     private async void OnArchiveEntered(object? sender, FileSystemItem item)

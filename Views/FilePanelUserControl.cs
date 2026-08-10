@@ -107,6 +107,11 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when the user tries to enter a recognized archive file (double-click or Enter).</summary>
     public event EventHandler<FileSystemItem>? ArchiveEntered;
 
+    /// <summary>Raised when a connection button in the places bar is clicked. Carries the
+    /// profile id; MainForm decides whether that means connect, enter, or retry, because only
+    /// it can swap the panel's file system and show a dialog.</summary>
+    public event EventHandler<Guid>? ConnectionActivated;
+
     /// <summary>Creates the panel UI and wires up the ViewModel, context menu and drag-and-drop.</summary>
     /// <param name="vm">ViewModel providing data for this panel.</param>
     public FilePanelUserControl(PanelViewModel vm)
@@ -129,6 +134,9 @@ public sealed class FilePanelUserControl : UserControl
         // theme switch - so a drive plugged in afterwards never appeared. Subscribing here is what
         // makes the bar track reality; MainForm's DeviceChangeWatcher triggers the refresh.
         DriveCatalog.Instance.Changed += OnDrivesChanged;
+        // Connections share the same strip, so they share its refresh path - one handler,
+        // one rebuild, no second mechanism to keep in step.
+        ConnectionManager.Instance.Changed += OnDrivesChanged;
         _ = DriveCatalog.Instance.RefreshAsync();
     }
 
@@ -911,7 +919,67 @@ public sealed class FilePanelUserControl : UserControl
             _driveButtons.Add(btn);
         }
 
+        AddConnectionButtons(toolbarScale, btnHeight);
         UpdateDriveBarDim();
+    }
+
+    /// <summary>
+    /// Appends the configured connections after the drives, so "places" is one strip rather than
+    /// two competing ones.
+    ///
+    /// A connection is shown in every state, including failed: hiding a connection the user
+    /// configured because its server is down would leave them with no way to retry it. State is
+    /// carried by the tooltip and by dimming, not by removing the button.
+    /// </summary>
+    private void AddConnectionButtons(float toolbarScale, int btnHeight)
+    {
+        var L = LocalizationService.Current;
+        var statuses = ConnectionManager.Instance.Current;
+        if (statuses.Count == 0) return;
+
+        foreach (var status in statuses)
+        {
+            var stateText = L.GetString(status.State switch
+            {
+                ConnectionState.Connected => "Conn.State.Connected",
+                ConnectionState.Connecting => "Conn.State.Connecting",
+                ConnectionState.Failed => "Conn.State.Failed",
+                _ => "Conn.State.Disconnected",
+            });
+
+            var tooltip = status.State == ConnectionState.Failed && status.Error.Length > 0
+                ? L.GetString("Conn.Tooltip", status.Name, $"{stateText}: {status.Error}")
+                : L.GetString("Conn.Tooltip", status.Name, stateText);
+
+            var btn = new ToolStripButton(status.Name)
+            {
+                Image = ToolbarIcons.Get("connection"),
+                Tag = status.ProfileId,
+                ToolTipText = tooltip,
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextAlign = ContentAlignment.MiddleCenter,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding((int)Math.Round(8 * toolbarScale), 0, (int)Math.Round(8 * toolbarScale), 0),
+                Margin = new Padding((int)Math.Round(3 * toolbarScale), 0, (int)Math.Round(3 * toolbarScale), 0),
+                AutoSize = true,
+                Overflow = ToolStripItemOverflow.AsNeeded,
+                // Not connected yet is a normal state, not an error - only a failed attempt is
+                // dimmed, so "never tried" and "tried and failed" stay distinguishable.
+                ForeColor = status.State == ConnectionState.Failed
+                    ? ThemeService.Current.DimForeground
+                    : ThemeService.Current.HeaderForeground,
+            };
+            btn.Height = btnHeight;
+
+            var id = status.ProfileId;
+            btn.Click += (_, _) =>
+            {
+                ActivatePanel();
+                ConnectionActivated?.Invoke(this, id);
+            };
+
+            _driveBar.Items.Add(btn);
+        }
     }
 
     private void UpdateDriveBarHighlight()
@@ -1368,6 +1436,7 @@ public sealed class FilePanelUserControl : UserControl
         {
             LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
             DriveCatalog.Instance.Changed -= OnDrivesChanged;
+            ConnectionManager.Instance.Changed -= OnDrivesChanged;
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
             _scrollOverlay?.Dispose();
