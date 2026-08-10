@@ -135,8 +135,15 @@ public sealed class ConnectionManager : IDisposable
             // one place that decides how a secret is obtained.
             var password = profile.SavePassword ? _credentials.TryGet(profileId) : null;
 
+            // RequestTimeout, not ConnectTimeout, for the whole attempt. Opening a connection is one
+            // request for WebDAV but a conversation for FTP - greeting, FEAT, AUTH TLS, the TLS
+            // handshake, login, then a listing to verify - and holding all of that to the
+            // ten-second budget meant for reaching a host would report a live but slow server as
+            // failed. The fast-fail for a host that is not there comes from the provider's own TCP
+            // connect budget, which is still ConnectTimeout, so a dead server still costs ten
+            // seconds rather than thirty.
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown.Token);
-            linked.CancelAfter(FileSystem.Remote.RemoteLimits.ConnectTimeout);
+            linked.CancelAfter(FileSystem.Remote.RemoteLimits.RequestTimeout);
 
             var fs = await provider.ConnectAsync(profile, password, linked.Token).ConfigureAwait(false);
 

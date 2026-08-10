@@ -816,9 +816,32 @@ public sealed class MainForm : Form
             // A deleted profile must actually close its connection rather than leave an
             // orphan holding a socket; the places bar then rebuilds from the manager's event.
             ConnectionManager.Instance.SyncWithProfiles();
+            EvictPanelsFromClosedConnections();
             _ = DriveCatalog.Instance.RefreshAsync();
         };
         dlg.ShowDialog(this);
+    }
+
+    /// <summary>
+    /// Sends any panel back to a local folder when the connection it was showing has just been
+    /// closed.
+    ///
+    /// <para>Deleting a profile disposes its filesystem, and a panel still holding that instance is
+    /// not merely stale: its next refresh throws <see cref="ObjectDisposedException"/>, which
+    /// <c>RefreshAsync</c> catches and logs - leaving the panel frozen on the contents of a
+    /// connection that no longer exists, with no indication why. The panel cannot notice this on its
+    /// own, so the code that closed the connection is what has to move it.</para>
+    /// </summary>
+    private void EvictPanelsFromClosedConnections()
+    {
+        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        {
+            if (!FileSystem.RemotePath.IsRemote(panel.CurrentPath)) continue;
+            if (ConnectionManager.Instance.GetConnectedForPath(panel.CurrentPath) is not null) continue;
+
+            panel.CurrentFileSystem = new FileSystem.LocalFileSystem();
+            _ = panel.NavigateAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
     }
 
     private void OpenDirectoryTree()
@@ -1017,7 +1040,13 @@ public sealed class MainForm : Form
             // Deliberately not awaited: auto-connect talks to servers that may be unreachable,
             // and startup must not wait for any of them. Failures land in the places bar as a
             // retryable state, never as a dialog in front of a just-launched app.
-            _ = ConnectionManager.Instance.AutoConnectAllAsync();
+            //
+            // The continuation is the difference between "not awaited" and "not observed": an
+            // exception the manager did not absorb would otherwise vanish into an unobserved task
+            // and leave no trace anywhere.
+            _ = ConnectionManager.Instance.AutoConnectAllAsync()
+                .ContinueWith(t => LogService.Error("Auto-connect failed", t.Exception),
+                    TaskContinuationOptions.OnlyOnFaulted);
         }
         catch (Exception ex)
         {
@@ -1460,6 +1489,25 @@ public sealed class MainForm : Form
     /// usual cause is a server that was simply not up yet.
     /// </summary>
     private async void OnConnectionActivated(object? sender, Guid profileId)
+    {
+        // async void, so the same rule as OnFormLoad applies: an exception escaping here does not
+        // reach Program.cs's crash handling and would surface as WinForms' own raw dialog. Nothing
+        // below is expected to throw - the connection manager absorbs its own failures - but "not
+        // expected to" is not a guarantee when the other side is a network.
+        try
+        {
+            await ActivateConnectionAsync(sender, profileId);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("Opening a connection failed", ex);
+            var L = LocalizationService.Current;
+            StyledMessageBox.Show(ex.Message, L.GetString("Conn.Title"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
+    }
+
+    private async Task ActivateConnectionAsync(object? sender, Guid profileId)
     {
         if (sender is not FilePanelUserControl panel) return;
 

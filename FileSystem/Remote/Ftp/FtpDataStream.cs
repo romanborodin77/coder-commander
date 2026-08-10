@@ -28,6 +28,11 @@ internal sealed class FtpDataStream : Stream
     /// connection to the pool. Set by the filesystem, which owns the rental.</summary>
     internal Action? Released { get; set; }
 
+    /// <summary>Set when the caller deliberately stops reading before the end. The server then
+    /// answers 426 instead of 226, which is the expected consequence of that decision and not a
+    /// failure to report.</summary>
+    internal bool AbortExpected { get; set; }
+
     internal FtpDataStream(FtpControlConnection control, TcpClient client, Stream inner, bool expectFinalReply)
     {
         _control = control;
@@ -87,14 +92,33 @@ internal sealed class FtpDataStream : Stream
 
         try
         {
-            // Closing the data connection is what tells the server the transfer is over.
-            await _inner.DisposeAsync().ConfigureAwait(false);
-            _client.Dispose();
+            FtpReply reply;
+            try
+            {
+                // Closing the data connection is what tells the server the transfer is over.
+                await _inner.DisposeAsync().ConfigureAwait(false);
+                _client.Dispose();
 
-            if (!_expectFinalReply) return;
+                if (!_expectFinalReply) return;
 
-            var reply = await _control.ReadTransferResultAsync(CancellationToken.None).ConfigureAwait(false);
-            if (!reply.IsSuccess)
+                reply = await _control.ReadTransferResultAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The verdict could not be read - it timed out, or the socket died mid-transfer.
+                // Either that reply is still queued on the control connection or the server never
+                // sent one, and there is no way to tell which. Returning such a connection to the
+                // pool is how one failed transfer poisons every later operation on it: each answers
+                // with the previous one's reply. Discarding it costs one connection and keeps the
+                // rest correct.
+                LogService.Debug("FTP: discarding a control connection whose transfer did not settle");
+                _control.Dispose();
+                throw;
+            }
+
+            // A verdict that was read successfully and says "no" leaves the connection perfectly
+            // usable - the server refused the file, not the conversation. Only the transfer fails.
+            if (!reply.IsSuccess && !AbortExpected)
                 throw new IOException($"FTP: transfer failed: {reply}");
         }
         finally

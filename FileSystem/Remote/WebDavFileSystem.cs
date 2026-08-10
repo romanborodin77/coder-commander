@@ -37,6 +37,10 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
     private readonly Uri _baseUri;
     private readonly string _authority;
 
+    /// <summary>Collections this connection has already created, so a copy does not recreate the
+    /// same destination once per file. Guarded by its own lock: two panels can copy at once.</summary>
+    private readonly HashSet<string> _knownCollections = new(StringComparer.Ordinal);
+
     public string Name => "WebDAV";
 
     /// <inheritdoc/>
@@ -215,20 +219,36 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
         using var response = await SendAsync(request, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Creates a collection and any missing ancestors.
+    ///
+    /// <para>MKCOL creates one collection and fails if the parent is missing (RFC 4918 §9.3), so
+    /// ancestors are created top-down. An already-existing collection answers 405, which is the
+    /// desired end state rather than an error.</para>
+    ///
+    /// <para><b>Collections already created are remembered.</b> A copy calls this once per file,
+    /// always for the same destination - free on a local disk, a round trip per level per file over
+    /// the network. Without the cache, copying a few hundred files spends more requests recreating
+    /// an existing collection than transferring data.</para>
+    /// </summary>
     public async Task CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
-        // MKCOL creates one collection and fails if the parent is missing (RFC 4918 §9.3), so the
-        // ancestors are created top-down. An already-existing collection answers 405, which is the
-        // desired end state rather than an error.
         var inner = RemotePath.PathOf(path);
         if (inner.Length == 0) return;
 
+        lock (_knownCollections)
+        {
+            if (_knownCollections.Contains(inner)) return;
+        }
+
         var segments = inner.Split('/');
         var built = "";
+        var created = new List<string>();
         foreach (var segment in segments)
         {
             ct.ThrowIfCancellationRequested();
             built = built.Length == 0 ? segment : $"{built}/{segment}";
+            created.Add(built);
 
             using var request = new HttpRequestMessage(Mkcol, ToUri(ToAppPath(built), asCollection: true));
             using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
@@ -236,6 +256,11 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
             if (response.StatusCode is HttpStatusCode.MethodNotAllowed or HttpStatusCode.Conflict)
                 continue;
             EnsureSuccess(response, "MKCOL", built);
+        }
+
+        lock (_knownCollections)
+        {
+            foreach (var collection in created) _knownCollections.Add(collection);
         }
     }
 

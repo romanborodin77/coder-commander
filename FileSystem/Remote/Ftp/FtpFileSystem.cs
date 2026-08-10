@@ -27,6 +27,10 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
     private readonly string _authority;
     private readonly string _basePath;
 
+    /// <summary>Directories this connection has already created, so a copy does not recreate the
+    /// same destination once per file. Guarded by its own lock: two panels can copy at once.</summary>
+    private readonly HashSet<string> _knownDirectories = new(StringComparer.Ordinal);
+
     public string Name => "FTP";
 
     /// <inheritdoc/>
@@ -83,9 +87,15 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
 
         // MLSD wherever it exists: its output is defined by RFC 3659 and needs no shape-matching.
         // LIST output was never specified at all - see FtpListParser for what that costs.
+        //
+        // Plain LIST, with no "-a": the flag is a widespread convention rather than part of the
+        // protocol, and a server that does not pass its argument to a shell reads "-a" as the path
+        // and lists nothing. Losing dotfiles on some servers is a far smaller failure than losing
+        // every listing on others. `includeHidden` is therefore not honoured over FTP, in either
+        // listing format - the protocol has no notion of a hidden file to honour.
         var useMlsd = connection.SupportsMlsd;
         var lines = await connection.ReadLinesAsync(
-            $"{(useMlsd ? "MLSD" : "LIST -a")} {serverPath}", ct).ConfigureAwait(false);
+            $"{(useMlsd ? "MLSD" : "LIST")} {serverPath}", ct).ConfigureAwait(false);
 
         var entries = useMlsd ? FtpListParser.ParseMlsd(lines) : FtpListParser.ParseList(lines);
 
@@ -222,22 +232,39 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
         // rejected upload throws from there rather than being reported as a successful copy.
     }
 
+    /// <summary>
+    /// Creates a directory and any missing ancestors.
+    ///
+    /// <para><b>Directories already created are remembered.</b> A copy calls this once per file, for
+    /// the same destination directory every time - which on a local disk is a cheap no-op and over
+    /// FTP is a fresh round trip per level per file. Copying a few hundred files then spends more
+    /// time creating a directory that has existed since the first one than transferring anything.
+    /// The cache lives as long as the connection; a directory removed on the server behind our back
+    /// makes the next write fail, which is the same thing that would happen anyway.</para>
+    /// </summary>
     public async Task CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
         var inner = RemotePath.PathOf(path);
         if (inner.Length == 0) return;
+
+        lock (_knownDirectories)
+        {
+            if (_knownDirectories.Contains(inner)) return;
+        }
 
         using var rental = await FtpRental.TakeAsync(_pool, ct).ConfigureAwait(false);
 
         // MKD creates one level and fails if the parent is missing, so ancestors are created
         // top-down. An existing directory answers 550, which is the desired end state rather than
         // an error - and is indistinguishable from "refused", which is why the failure is only
-        // raised if the final level could not be created.
+        // raised if the final level could not be reached.
         var built = "";
+        var created = new List<string>();
         foreach (var segment in inner.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             ct.ThrowIfCancellationRequested();
             built = built.Length == 0 ? segment : $"{built}/{segment}";
+            created.Add(built);
 
             await rental.Connection.SendAsync($"MKD {ToServerPath(ToAppPath(built))}", ct).ConfigureAwait(false);
         }
@@ -245,26 +272,47 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
         var check = await rental.Connection.SendAsync($"CWD {ToServerPath(path)}", ct).ConfigureAwait(false);
         if (check.Code != 250)
             throw new IOException($"FTP: could not create \"{inner}\": {check}");
+
+        lock (_knownDirectories)
+        {
+            foreach (var directory in created) _knownDirectories.Add(directory);
+        }
     }
 
+    /// <summary>
+    /// Deletes a file or a directory tree. FTP has no recursive delete - <c>RMD</c> removes an empty
+    /// directory and nothing else - so the walk is done here, depth first.
+    ///
+    /// <para><b>DELE is attempted before asking what the path is.</b> The obvious implementation
+    /// probes first, and that probe is a listing of the whole parent directory: deleting n files
+    /// from one directory then costs n listings of it rather than n commands. Trying the common case
+    /// first costs one round trip for a file and one extra for a directory.</para>
+    /// </summary>
     public async Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
-        var info = await GetFileInfoAsync(path, ct).ConfigureAwait(false);
-        var isDirectory = info?.IsDirectory ?? false;
-
-        if (!isDirectory)
+        FtpReply deleteReply;
+        using (var fileRental = await FtpRental.TakeAsync(_pool, ct).ConfigureAwait(false))
         {
-            using var fileRental = await FtpRental.TakeAsync(_pool, ct).ConfigureAwait(false);
-            var reply = await fileRental.Connection.SendAsync($"DELE {ToServerPath(path)}", ct).ConfigureAwait(false);
-            if (!reply.IsSuccess) throw new IOException($"FTP: could not delete \"{RemotePath.GetName(path)}\": {reply}");
-            return;
+            deleteReply = await fileRental.Connection.SendAsync($"DELE {ToServerPath(path)}", ct).ConfigureAwait(false);
+            if (deleteReply.IsSuccess) return;
         }
 
-        // FTP has no recursive delete: RMD removes an empty directory and nothing else. The walk is
-        // depth-first because a directory cannot go until its contents have.
+        // DELE refused it: either this is a directory, or it genuinely cannot be deleted.
         if (recursive)
         {
-            foreach (var child in await EnumerateAsync(path, includeHidden: true, ct).ConfigureAwait(false))
+            IReadOnlyList<FileEntry> children;
+            try
+            {
+                children = await EnumerateAsync(path, includeHidden: true, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Not listable, so it was not a directory we could descend into - the original
+                // refusal is the honest answer, not this secondary failure.
+                throw new IOException($"FTP: could not delete \"{RemotePath.GetName(path)}\": {deleteReply}");
+            }
+
+            foreach (var child in children)
             {
                 ct.ThrowIfCancellationRequested();
                 await DeleteAsync(child.FullPath, recursive: true, ct).ConfigureAwait(false);
@@ -274,7 +322,7 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
         using var dirRental = await FtpRental.TakeAsync(_pool, ct).ConfigureAwait(false);
         var removed = await dirRental.Connection.SendAsync($"RMD {ToServerPath(path)}", ct).ConfigureAwait(false);
         if (!removed.IsSuccess)
-            throw new IOException($"FTP: could not remove \"{RemotePath.GetName(path)}\": {removed}");
+            throw new IOException($"FTP: could not remove \"{RemotePath.GetName(path)}\": {removed} (delete said: {deleteReply})");
     }
 
     /// <summary>

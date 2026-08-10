@@ -80,7 +80,17 @@ internal sealed class FtpConnectionPool : IDisposable
         else
             _idle.Add(connection);
 
-        _slots.Release();
+        try
+        {
+            _slots.Release();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The filesystem was disposed while a transfer was still running - closing the app
+            // during a download does exactly this. The connection has just been torn down above and
+            // nobody is waiting on the semaphore, so there is nothing left to release; throwing here
+            // would surface as a crash inside a Dispose.
+        }
     }
 
     private static async Task<bool> IsAliveAsync(FtpControlConnection connection, CancellationToken ct)

@@ -90,9 +90,14 @@ internal sealed class FtpControlConnection : IDisposable
             }
         }
 
+        // Bounds the one write this class performs synchronously - the courtesy QUIT in Dispose.
+        // Every other exchange is async and bounded by its own linked token instead, because
+        // Socket.SendTimeout/ReceiveTimeout are ignored by the asynchronous methods.
+        _client.SendTimeout = (int)RemoteLimits.ConnectTimeout.TotalMilliseconds;
+
         _stream = _client.GetStream();
 
-        var greeting = await ReadReplyAsync(ct).ConfigureAwait(false);
+        var greeting = await WithTimeoutAsync(ReadReplyAsync, ct).ConfigureAwait(false);
         if (greeting.Code != 220)
             throw new IOException($"FTP: unexpected greeting: {greeting}");
 
@@ -198,7 +203,8 @@ internal sealed class FtpControlConnection : IDisposable
 
     private async Task LoginAsync(CancellationToken ct)
     {
-        var user = string.IsNullOrEmpty(_profile.UserName) ? "anonymous" : _profile.UserName;
+        var anonymous = string.IsNullOrEmpty(_profile.UserName);
+        var user = anonymous ? "anonymous" : _profile.UserName;
 
         var userReply = await SendAsync($"USER {user}", ct).ConfigureAwait(false);
 
@@ -207,9 +213,15 @@ internal sealed class FtpControlConnection : IDisposable
         if (userReply.Code != 331)
             throw new IOException($"FTP: login refused: {userReply}");
 
+        // An anonymous login conventionally sends an e-mail address as the password. A named account
+        // with no stored password sends an empty one, which the server refuses with a message that
+        // says so - better than sending "anonymous@" on its behalf and getting a refusal that looks
+        // like the account is wrong.
+        var secret = _password ?? (anonymous ? "anonymous@" : "");
+
         // The password is the one string that must never reach the log, so PASS is sent through
         // the path that does not log its own command text.
-        var passReply = await SendCommandAsync($"PASS {_password ?? "anonymous@"}", logAs: "PASS ****", ct)
+        var passReply = await SendCommandAsync($"PASS {secret}", logAs: "PASS ****", ct)
             .ConfigureAwait(false);
 
         if (passReply.Code == 332)
@@ -236,11 +248,42 @@ internal sealed class FtpControlConnection : IDisposable
         LogService.Debug($"FTP > {logAs}");
         LastUsedUtc = DateTime.UtcNow;
 
-        var bytes = _encoding.GetBytes(command + "\r\n");
-        await _stream!.WriteAsync(bytes, ct).ConfigureAwait(false);
-        await _stream.FlushAsync(ct).ConfigureAwait(false);
+        return await WithTimeoutAsync(async token =>
+        {
+            var bytes = _encoding.GetBytes(command + "\r\n");
+            await _stream!.WriteAsync(bytes, token).ConfigureAwait(false);
+            await _stream.FlushAsync(token).ConfigureAwait(false);
 
-        return await ReadReplyAsync(ct).ConfigureAwait(false);
+            return await ReadReplyAsync(token).ConfigureAwait(false);
+        }, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Bounds one exchange with <see cref="RemoteLimits.RequestTimeout"/>.
+    ///
+    /// <para>Without this a server that accepts the connection and then goes silent - which is what
+    /// a half-closed socket, an overloaded server or a firewall dropping the flow all look like -
+    /// blocks the caller forever. There is no equivalent of <c>HttpClient.Timeout</c> here to fall
+    /// back on: sockets have <c>ReceiveTimeout</c>, but it is documented as having no effect on the
+    /// asynchronous methods, so the bound has to come from a token.</para>
+    ///
+    /// <para>A timeout is reported as an <see cref="IOException"/> rather than as cancellation,
+    /// because the caller's own token was not cancelled and treating it as "the user cancelled"
+    /// would make the operation disappear without a word.</para>
+    /// </summary>
+    private static async Task<T> WithTimeoutAsync<T>(Func<CancellationToken, Task<T>> body, CancellationToken ct)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(RemoteLimits.RequestTimeout);
+
+        try
+        {
+            return await body(timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new IOException($"FTP: the server stopped responding (no reply within {RemoteLimits.RequestTimeout.TotalSeconds:0} s)");
+        }
     }
 
     /// <summary>
@@ -415,19 +458,26 @@ internal sealed class FtpControlConnection : IDisposable
         }
     }
 
-    /// <summary>Reads the reply that follows a completed transfer (226/250). Called by
+    /// <summary>
+    /// Reads the reply that follows a completed transfer (226/250). Called by
     /// <see cref="FtpDataStream"/> once the data connection is closed - and only then, because the
-    /// server does not send it until it sees the end of the data.</summary>
-    internal async Task<FtpReply> ReadTransferResultAsync(CancellationToken ct) =>
-        await ReadReplyAsync(ct).ConfigureAwait(false);
+    /// server does not send it until it sees the end of the data.
+    ///
+    /// <para>Bounded like every other exchange. This one matters most: it is awaited from a
+    /// <c>Dispose</c>, so a server that never sends its verdict would hang the thread closing the
+    /// stream - typically the one running the copy - with no token anywhere to cancel it.</para>
+    /// </summary>
+    internal Task<FtpReply> ReadTransferResultAsync(CancellationToken ct) =>
+        WithTimeoutAsync(ReadReplyAsync, ct);
 
     /// <summary>Reads a whole data connection as lines - used for listings, which are small and
     /// have to be parsed as a unit anyway.</summary>
     public async Task<IReadOnlyList<string>> ReadLinesAsync(string command, CancellationToken ct)
     {
         var lines = new List<string>();
+        var data = (FtpDataStream)await OpenDataStreamAsync(command, ct).ConfigureAwait(false);
 
-        await using (var data = await OpenDataStreamAsync(command, ct).ConfigureAwait(false))
+        await using (data.ConfigureAwait(false))
         {
             using var reader = new StreamReader(data, _encoding, detectEncodingFromByteOrderMarks: false);
 
@@ -438,6 +488,12 @@ internal sealed class FtpControlConnection : IDisposable
                 if (total > RemoteLimits.MaxListingBytes)
                 {
                     LogService.Warning("FTP: listing exceeded the size limit and was truncated");
+
+                    // Walking away from a half-read data connection makes the server answer 426
+                    // rather than 226. That is the expected outcome of our own decision to stop, so
+                    // it must not be raised as a failure - the caller asked for a bounded listing
+                    // and is getting one.
+                    data.AbortExpected = true;
                     break;
                 }
                 if (line.Length > 0) lines.Add(line);
