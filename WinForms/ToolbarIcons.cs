@@ -180,6 +180,12 @@ public static class ToolbarIcons
         ["drive"] = new("M 1.5 4.5 H 14.5 V 11.5 H 1.5 Z", Tint.Accent, Fill: "M 11.5 7.25 H 13 V 8.75 H 11.5 Z"),
         ["drive_fixed"] = new("M 1.5 4.5 H 14.5 V 11.5 H 1.5 Z M 1.5 8 H 14.5", Tint.Accent,
                                Fill: "M 11.5 9.25 H 13 V 10.5 H 11.5 Z"),
+        // A flash drive: body plus the metal connector shroud and its two contacts. Distinct from
+        // drive_removable, which is the classic floppy - Windows reports both as Removable, and
+        // showing a floppy for a USB stick is the kind of detail that dates an application.
+        ["drive_usb"] = new("M 4.5 6.5 H 11.5 V 14.5 H 4.5 Z M 6.5 6.5 V 3.5 H 9.5 V 6.5", Tint.Accent,
+                             Fill: "M 6.9 4.2 H 7.7 V 5.6 H 6.9 Z M 8.3 4.2 H 9.1 V 5.6 H 8.3 Z"),
+
         ["drive_removable"] = new("M 3.5 1.5 H 12.5 V 14.5 H 3.5 Z M 5.5 1.5 V 6.5 H 10.5 V 1.5", Tint.Accent,
                                    Fill: "M 8.25 2.5 H 9.75 V 5.5 H 8.25 Z"),
         ["drive_cdrom"] = new(VectorIcon.Circle(8, 8, 6.25f) + VectorIcon.Circle(8, 8, 1.75f), Tint.Accent),

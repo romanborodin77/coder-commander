@@ -199,6 +199,7 @@ public sealed class LocalizationService
         _strings["Menu.View"] = "&View";
         _strings["Menu.View.Hidden"] = "Show &Hidden";
         _strings["Menu.View.Refresh"] = "&Refresh";
+        _strings["Menu.View.RefreshDrives"] = "Refresh drives";
         _strings["Menu.View.Theme"] = "&Theme";
         _strings["Menu.View.Theme.Dark"] = "&Dark";
         _strings["Menu.View.Theme.Light"] = "&Light";

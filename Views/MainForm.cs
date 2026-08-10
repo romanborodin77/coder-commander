@@ -245,6 +245,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.View.Hidden", "view", "Ctrl+.", CommandIds.ToggleHidden));
         m.DropDownItems.Add(Mi("Menu.View.ShowExtInName", "view", "", CommandIds.ToggleShowExtensionInName));
         m.DropDownItems.Add(Mi("Menu.View.Refresh", "refresh", "Ctrl+R", CommandIds.Refresh));
+        m.DropDownItems.Add(Mi("Menu.View.RefreshDrives", "drive", "Ctrl+Shift+R", CommandIds.RefreshDrives));
 
         _menuStrip.Items.Add(m);
     }

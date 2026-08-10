@@ -44,6 +44,10 @@ public static class CommandIds
     public const string GoToHome = "cm_GoToHome";
     /// <summary>Refresh the current directory listing (Ctrl+R).</summary>
     public const string Refresh = "cm_Refresh";
+    /// <summary>Re-read the drive list (Ctrl+Shift+R). Local devices announce themselves through
+    /// WM_DEVICECHANGE and need no command; network mappings made outside the app do not, so this
+    /// is how a drive mapped with "net use" gets a button without a restart.</summary>
+    public const string RefreshDrives = "cm_RefreshDrives";
     /// <summary>Change directory by path input (Ctrl+G).</summary>
     public const string ChangeDir = "cm_ChangeDir";
 

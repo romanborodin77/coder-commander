@@ -878,13 +878,16 @@ public sealed class FilePanelUserControl : UserControl
         // disappears whenever a disc is missing is worse than one that says so.
         foreach (var drive in DriveCatalog.Instance.Current)
         {
-            var iconKey = drive.DriveType switch
+            // Keyed on DriveKind, not the raw DriveType: the latter cannot tell a flash drive
+            // from a floppy, and the model is the right place for that distinction.
+            var iconKey = drive.Kind switch
             {
-                DriveType.Fixed => "drive_fixed",
-                DriveType.Removable => "drive_removable",
-                DriveType.CDRom => "drive_cdrom",
-                DriveType.Network => "drive_network",
-                DriveType.Ram => "drive_ram",
+                DriveKind.Fixed => "drive_fixed",
+                DriveKind.Usb => "drive_usb",
+                DriveKind.Floppy => "drive_removable",
+                DriveKind.Optical => "drive_cdrom",
+                DriveKind.Network => "drive_network",
+                DriveKind.RamDisk => "drive_ram",
                 _ => "drive"
             };
 

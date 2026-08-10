@@ -14,6 +14,26 @@ public enum DriveProbeState
     Unavailable,
 }
 
+
+/// <summary>
+/// What kind of device a drive is, as far as the UI needs to care.
+///
+/// Separate from <see cref="DriveType"/> because that enum lumps a USB stick and a floppy together
+/// as <see cref="DriveType.Removable"/>, and those want different icons - a floppy picture for a
+/// flash drive is the sort of detail that makes an app look unmaintained. This is a domain fact;
+/// which picture it maps to is the UI's business.
+/// </summary>
+public enum DriveKind
+{
+    Unknown,
+    Fixed,
+    Usb,
+    Floppy,
+    Optical,
+    Network,
+    RamDisk,
+}
+
 /// <summary>
 /// One drive as the UI needs it. Split into cheap fields (known immediately) and slow fields
 /// (filled in by a background probe) because reading them costs wildly different amounts:
@@ -48,4 +68,25 @@ public sealed record DriveEntry(
 
     /// <summary><c>true</c> once the medium answered, i.e. navigating to it should work.</summary>
     public bool IsAccessible => ProbeState == DriveProbeState.Ready;
+
+    /// <summary>
+    /// Device kind, refining <see cref="DriveType"/> where it is too coarse.
+    ///
+    /// Floppy versus USB is decided by drive letter: A: and B: have been reserved for floppy
+    /// controllers since DOS and Windows still assigns them nowhere else, so a Removable drive on
+    /// any other letter is a flash device. Telling them apart properly would mean a privileged
+    /// device query for what is purely a choice of picture.
+    /// </summary>
+    public DriveKind Kind => DriveType switch
+    {
+        DriveType.Fixed => DriveKind.Fixed,
+        DriveType.Network => DriveKind.Network,
+        DriveType.CDRom => DriveKind.Optical,
+        DriveType.Ram => DriveKind.RamDisk,
+        DriveType.Removable => Letter.StartsWith("A:", StringComparison.OrdinalIgnoreCase)
+                            || Letter.StartsWith("B:", StringComparison.OrdinalIgnoreCase)
+            ? DriveKind.Floppy
+            : DriveKind.Usb,
+        _ => DriveKind.Unknown,
+    };
 }

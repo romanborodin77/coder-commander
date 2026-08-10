@@ -57,6 +57,7 @@ Menu.Commands.CalculateFolderSize=Размер &папки
 Menu.View=&Вид
 Menu.View.Hidden=Показывать &скрытые
 Menu.View.Refresh=&Обновить
+Menu.View.RefreshDrives=Обновить диски
 Menu.View.Theme=&Тема
 Menu.View.Theme.Dark=&Тёмная
 Menu.View.Theme.Light=&Светлая

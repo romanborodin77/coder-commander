@@ -60,6 +60,7 @@ Menu.Commands.ChangeDir=&Change Directory…
 Menu.View=&View
 Menu.View.Hidden=Show &Hidden
 Menu.View.Refresh=&Refresh
+Menu.View.RefreshDrives=Refresh drives
 Menu.View.Theme=&Theme
 Menu.View.Theme.Dark=&Dark
 Menu.View.Theme.Light=&Light
