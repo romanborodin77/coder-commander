@@ -39,4 +39,24 @@ public static class RemoteLimits
     /// <c>Utils/BufferSizing</c> - large enough that per-read overhead disappears on a network
     /// stream, small enough to be irrelevant to memory.</summary>
     public const int TransferBufferSize = 1024 * 1024;
+
+    // ── FTP control channel ─────────────────────────────────────────────────────────────────
+
+    /// <summary>Cap on one line of an FTP reply. The protocol is line-based with no length field,
+    /// so a server that never sends a newline would otherwise grow a buffer without limit.</summary>
+    public const int MaxControlLineLength = 8 * 1024;
+
+    /// <summary>Cap on the lines of one multi-line reply. <c>FEAT</c> legitimately answers with a
+    /// few dozen; a server answering with a million is not one worth talking to.</summary>
+    public const int MaxControlReplyLines = 1024;
+
+    /// <summary>
+    /// Control connections opened per FTP filesystem.
+    ///
+    /// An FTP control channel is strictly one conversation at a time - a command may not be sent
+    /// while a transfer is running on its data connection - so a single connection would make a
+    /// panel refresh wait for a download to finish. A handful covers both panels plus a transfer
+    /// without turning a file manager into something a server would see as a flood.
+    /// </summary>
+    public const int MaxFtpControlConnections = 4;
 }

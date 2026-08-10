@@ -420,7 +420,7 @@ public sealed class LocalizationService
         _strings["Conn.Field.AutoConnect"] = "Connect on startup";
         _strings["Conn.PasswordStored"] = "A password is saved. Leave empty to keep it.";
         _strings["Conn.Invalid.Name"] = "Enter a name for the connection.";
-        _strings["Conn.Invalid.Url"] = "Enter an address, for example https://example.com/dav";
+        _strings["Conn.Invalid.Url"] = "Enter a full address, for example https://example.com/dav or ftp://example.com";
         _strings["Conn.AutoConnectNeedsPassword"] = "Connect on startup needs a saved password, or an empty user name.";
         _strings["Settings.Connections"] = "Connections";
         _strings["Bookmark.Title"] = "Bookmarks";

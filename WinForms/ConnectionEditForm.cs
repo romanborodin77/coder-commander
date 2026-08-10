@@ -154,7 +154,10 @@ public sealed class ConnectionEditForm : ThemedForm
             Reject(L.GetString("Conn.Invalid.Name"), _nameBox);
             return;
         }
-        if (url.Length == 0)
+        // Absolute, not merely non-empty. "example.com/dav" looks like an address and is not one:
+        // every provider parses it with Uri.TryCreate(..., UriKind.Absolute) and would refuse it at
+        // connect time, by which point the dialog is closed and the message has lost its field.
+        if (url.Length == 0 || !Uri.TryCreate(url, UriKind.Absolute, out _))
         {
             Reject(L.GetString("Conn.Invalid.Url"), _urlBox);
             return;

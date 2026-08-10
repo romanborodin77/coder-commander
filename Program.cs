@@ -1,6 +1,7 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
 using CoderCommander.FileSystem.Remote;
+using CoderCommander.FileSystem.Remote.Ftp;
 using CoderCommander.Archives.SharpCompress;
 using CoderCommander.Archives.Tar;
 using CoderCommander.Archives.Zip;
@@ -30,6 +31,7 @@ internal static class Program
         ArchiveFormatRegistry.Register(TarXzArchiveFormat.Instance);
 
         FileSystemProviderRegistry.Register(WebDavProvider.Instance);
+        FileSystemProviderRegistry.Register(FtpProvider.Instance);
 
         LogCrash("=== App startup ===");
 
