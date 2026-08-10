@@ -867,7 +867,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnPanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PanelViewModel.SelectedCount) or nameof(PanelViewModel.SelectedBytes) or nameof(PanelViewModel.CursorInfo))
+        // FreeSpaceDisplay belongs here as much as the rest: it is filled in by an asynchronous
+        // probe that finishes well after the listing, so the status bar is always built before the
+        // number exists. Without this the bar keeps showing the previous drive's free space after
+        // switching drives - the panel's own footer updates, the bar below it does not, and the two
+        // disagree on screen.
+        if (e.PropertyName is nameof(PanelViewModel.SelectedCount) or nameof(PanelViewModel.SelectedBytes)
+            or nameof(PanelViewModel.CursorInfo) or nameof(PanelViewModel.FreeSpaceDisplay))
             UpdateStatus();
     }
 
@@ -893,7 +899,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         var panel = ActivePanel;
         var L = LocalizationService.Current;
-        StatusText = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatUtils.FormatSize(panel.SelectedBytes)})  |  {panel.FreeSpaceDisplay}";
+        var text = $"{panel.CursorInfo}  |  {L.GetString("Panel.Selected", panel.SelectedCount)}  ({FormatUtils.FormatSize(panel.SelectedBytes)})";
+
+        // Only when there is a number to show. A connection reports no free space - the protocols
+        // either have no such notion or make it optional - and appending the separator regardless
+        // left a bar ending in a lone "|" with nothing after it.
+        if (panel.FreeSpaceDisplay.Length > 0)
+            text += $"  |  {panel.FreeSpaceDisplay}";
+
+        StatusText = text;
     }
 
     /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>

@@ -8,6 +8,19 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// File search dialog with name masks, content search, regex, subdirs.
 /// </summary>
+/// <remarks>
+/// <para><b>No longer reachable from the UI.</b> Both the Commands menu entry and the toolbar
+/// button now open <see cref="FindFilesForm"/>, which searches through <c>IFileSystem</c> and so
+/// works inside an archive and on a connection as well as on a local disk, streams file contents
+/// instead of reading them line by line with no binary check, and batches its results instead of
+/// marshalling one callback per hit.</para>
+///
+/// <para>The file is kept rather than deleted because it still has one thing the replacement does
+/// not: regular-expression matching, for both the name and the content. Whether that is worth
+/// porting - content regex over a stream is a different problem from substring search, since a
+/// match has no bounded length - is a decision for its own change, not a side effect of removing a
+/// duplicated menu entry.</para>
+/// </remarks>
 public class SearchDialogForm : ThemedForm
 {
     private readonly TextBox _pathBox;

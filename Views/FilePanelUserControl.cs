@@ -972,7 +972,11 @@ public sealed class FilePanelUserControl : UserControl
             var btn = new ToolStripButton(status.Name)
             {
                 Image = ToolbarIcons.Get("connection"),
-                Tag = status.ProfileId,
+                // The same state object the drive buttons carry, so "you are here" is drawn for a
+                // connection exactly as it is for a drive. Without it the places bar showed nothing
+                // at all once the panel was inside a connection - the drive buttons went dark and
+                // no connection lit up, so the bar stopped saying where the panel was.
+                Tag = new DriveButtonState(status.RootPath),
                 ToolTipText = tooltip,
                 DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -997,12 +1001,17 @@ public sealed class FilePanelUserControl : UserControl
             };
 
             _driveBar.Items.Add(btn);
+            _driveButtons.Add(btn);
         }
     }
 
     private void UpdateDriveBarHighlight()
     {
-        var currentRoot = Path.GetPathRoot(_vm.CurrentPath);
+        // Path.GetPathRoot answers "" for a remote path, so asking it alone would mean no button
+        // can ever match while the panel is inside a connection.
+        var currentRoot = RemotePath.IsRemote(_vm.CurrentPath)
+            ? RemotePath.GetRoot(_vm.CurrentPath)
+            : Path.GetPathRoot(_vm.CurrentPath);
         var dimmed = !_vm.IsActive;
 
         // Previously this packed RootPath/IsCurrent/Dimmed into a single delimited string and
@@ -1411,6 +1420,12 @@ public sealed class FilePanelUserControl : UserControl
             // was invisible rather than absent. The last segment is where the panel actually is, so
             // it carries the emphasis.
             seg.SetRole(isLast ? ThemeRole.Emphasis : ThemeRole.Body);
+            // Applied immediately, not only on the next theme switch. Tagging a freshly built
+            // control and walking away leaves it with no colour or font of its own until something
+            // re-themes the tree, so it inherits whatever the bar happens to have - which is how a
+            // crumb ends up unreadable. ControlThemer is the one place that turns a role into
+            // colours, so it is what gets called here too.
+            ControlThemer.ThemeSingleControl(seg, p);
             var target = fullPath;
             var canNavigate = !isLast;
             seg.Click += (_, _) =>
@@ -1433,6 +1448,7 @@ public sealed class FilePanelUserControl : UserControl
                 // Separator, not Muted: the dimmed colour lands around 3:1 against the header
                 // background these sit on, below the 4.5:1 a glyph rendered as text needs.
                 chevron.SetRole(ThemeRole.Separator);
+                ControlThemer.ThemeSingleControl(chevron, p);
                 _breadcrumbBar.Controls.Add(chevron);
             }
         }

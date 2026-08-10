@@ -194,7 +194,7 @@ public sealed class MainForm : Form
         var L = LocalizationService.Current;
         var m = new ToolStripMenuItem(L.GetString("Menu.Commands"));
 
-        m.DropDownItems.Add(Mi("Menu.Commands.Search", "search", "Alt+F7", null, () => OpenSearch()));
+        m.DropDownItems.Add(Mi("Menu.Commands.Search", "search", "Alt+F7", CommandIds.FindFiles));
         m.DropDownItems.Add(Mi("Menu.Commands.MultiRename", "multirename", "Ctrl+M", CommandIds.MultiRename));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.SyncDirs", "syncdirs", "", null, () => OnSyncDirs(this, (_vm.LeftPanel.CurrentPath, _vm.RightPanel.CurrentPath))));
@@ -205,7 +205,6 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Commands.Terminal", "terminal", "F9", CommandIds.ToggleTerminal));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.Checksum", "properties", "", CommandIds.Checksum));
-        m.DropDownItems.Add(Mi("Menu.Commands.Find", "search", "Alt+F7", CommandIds.FindFiles));
         m.DropDownItems.Add(Mi("Menu.Commands.CalculateFolderSize", "properties", "Ctrl+Alt+Space", CommandIds.CalculateFolderSize));
         m.DropDownItems.Add(Mi("Menu.Commands.Differ", "view", "", null, () => OpenDiffer()));
         m.DropDownItems.Add(new ToolStripSeparator());
@@ -325,7 +324,7 @@ public sealed class MainForm : Form
         _toolStrip.Items.Add(TbBtn("Toolbar.Delete", "delete", () => _vm.Commands.Execute(CommandIds.Delete)));
         _toolStrip.Items.Add(TbBtn("Toolbar.NewDir", "newdir", () => _vm.Commands.Execute(CommandIds.MakeDir)));
         _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
-        _toolStrip.Items.Add(TbBtn("Toolbar.Search", "search", () => OpenSearch()));
+        _toolStrip.Items.Add(TbBtn("Toolbar.Search", "search", () => _vm.Commands.Execute(CommandIds.FindFiles)));
         _toolStrip.Items.Add(TbBtn("Toolbar.Refresh", "refresh", () => _vm.Commands.Execute(CommandIds.Refresh)));
         _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
         _toolStrip.Items.Add(TbBtn("Toolbar.Settings", "settings", () => OpenSettings()));
@@ -771,17 +770,6 @@ public sealed class MainForm : Form
     // ═══════════════════════════════════════════
     // DIALOG OPENERS
     // ═══════════════════════════════════════════
-
-    private void OpenSearch()
-    {
-        var dlg = new SearchDialogForm(_vm.ActivePanel.CurrentPath);
-        dlg.ResultActivated += (_, item) =>
-        {
-            _ = _vm.ActivePanel.NavigateAsync(Path.GetDirectoryName(item.FullPath) ?? item.FullPath);
-        };
-        dlg.FormClosed += (_, _) => dlg.Dispose();
-        dlg.Show(this);
-    }
 
     private void OpenSettings()
     {
