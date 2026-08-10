@@ -88,7 +88,9 @@ public sealed class ConnectionEditForm : ThemedForm
         var passwordHint = UiHelpers.CreateLabel(_hadStoredPassword ? L.GetString("Conn.PasswordStored") : "");
         passwordHint.Dock = DockStyle.Fill;
         passwordHint.SetRole(ThemeRole.Hint);
-        layout.Controls.Add(new Label(), 0, row);
+        // No filler control in column 0: TableLayoutPanel handles an empty cell by itself, and a
+        // bare `new Label()` would be an untagged control that ControlThemer resets to a generic
+        // default on every theme switch.
         layout.Controls.Add(passwordHint, 1, row);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         row++;
