@@ -694,6 +694,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ExecuteUnpack(IReadOnlyList<Models.FileSystemItem> archives, string destPath, TransferOptions options)
     {
         var destFs = ResolveFileSystem(destPath);
+        if (destFs is null)
+        {
+            // Unpacking into a connection that is no longer open. Falling through to the local
+            // filesystem would resolve the remote path against the process's current directory and
+            // extract the archive somewhere on disk the user never chose - the same trap the
+            // copy/move path guards against.
+            OperationRejected?.Invoke(this, "Conn.NotConnected");
+            return;
+        }
+
         foreach (var archive in archives)
         {
             var op = new UnpackOperation(archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options);
