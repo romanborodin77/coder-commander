@@ -2,6 +2,7 @@ using CoderCommander.Archives;
 using CoderCommander.FileSystem;
 using CoderCommander.FileSystem.Remote;
 using CoderCommander.FileSystem.Remote.Ftp;
+using CoderCommander.FileSystem.Remote.Sftp;
 using CoderCommander.Archives.SharpCompress;
 using CoderCommander.Archives.Tar;
 using CoderCommander.Archives.Zip;
@@ -32,6 +33,7 @@ internal static class Program
 
         FileSystemProviderRegistry.Register(WebDavProvider.Instance);
         FileSystemProviderRegistry.Register(FtpProvider.Instance);
+        FileSystemProviderRegistry.Register(SftpProvider.Instance);
 
         LogCrash("=== App startup ===");
 

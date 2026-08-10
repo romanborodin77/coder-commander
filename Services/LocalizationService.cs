@@ -418,6 +418,8 @@ public sealed class LocalizationService
         _strings["Conn.Field.Password"] = "Password";
         _strings["Conn.Field.SavePassword"] = "Save password";
         _strings["Conn.Field.AutoConnect"] = "Connect on startup";
+        _strings["Conn.Field.Fingerprint"] = "Server fingerprint";
+        _strings["Conn.FingerprintHint"] = "SHA-256, only for a self-signed certificate or an SSH host key";
         _strings["Conn.PasswordStored"] = "A password is saved. Leave empty to keep it.";
         _strings["Conn.Invalid.Name"] = "Enter a name for the connection.";
         _strings["Conn.Invalid.Url"] = "Enter a full address, for example https://example.com/dav or ftp://example.com";

@@ -28,6 +28,7 @@ public sealed class ConnectionEditForm : ThemedForm
     private readonly TextBox _passwordBox;
     private readonly ThemedCheckBox _savePasswordCheck;
     private readonly ThemedCheckBox _autoConnectCheck;
+    private readonly TextBox _fingerprintBox;
 
     /// <summary>The edited profile - valid only after <see cref="Form.ShowDialog()"/> returned
     /// <see cref="DialogResult.OK"/>.</summary>
@@ -41,13 +42,13 @@ public sealed class ConnectionEditForm : ThemedForm
 
         var L = LocalizationService.Current;
         Text = L.GetString("Conn.Edit.Title");
-        ClientSize = new Size(520, 330);
+        ClientSize = new Size(560, 400);
 
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 8,
+            RowCount = 10,
             Padding = new Padding(20, 16, 20, 8),
         };
         layout.SetRole(ThemeRole.Background);
@@ -105,6 +106,20 @@ public sealed class ConnectionEditForm : ThemedForm
         _autoConnectCheck.Dock = DockStyle.Fill;
         layout.Controls.Add(_autoConnectCheck, 1, row);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        row++;
+
+        // The field that makes an untrusted server's identity acceptable - a TLS certificate's
+        // SHA-256 thumbprint, or an SSH host key's SHA-256 fingerprint. Without it here the
+        // profile's AcceptedCertificateThumbprint was unreachable: the trust policies read it, and
+        // nothing could ever set it, so a self-signed server simply could not be connected to.
+        _fingerprintBox = AddTextRow(layout, ref row, L.GetString("Conn.Field.Fingerprint"),
+            _draft.AcceptedCertificateThumbprint);
+
+        var fingerprintHint = UiHelpers.CreateLabel(L.GetString("Conn.FingerprintHint"));
+        fingerprintHint.Dock = DockStyle.Fill;
+        fingerprintHint.SetRole(ThemeRole.Hint);
+        layout.Controls.Add(fingerprintHint, 1, row);
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         row++;
 
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -182,6 +197,7 @@ public sealed class ConnectionEditForm : ThemedForm
         _draft.UserName = user;
         _draft.SavePassword = savePassword;
         _draft.AutoConnect = _autoConnectCheck.Checked;
+        _draft.AcceptedCertificateThumbprint = _fingerprintBox.Text.Trim();
 
         if (!savePassword)
         {
