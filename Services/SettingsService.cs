@@ -98,6 +98,11 @@ public sealed class AppSettings
     /// on by default since a plain PowerShell prompt with no tab-completion history is what the
     /// pre-rewrite pipe-based terminal shipped, and this rewrite exists specifically to fix that.</summary>
     public bool TerminalLoadShellProfile { get; set; } = true;
+
+    /// <summary>Saved remote connections. Contains no secrets by construction - see
+    /// <see cref="Models.ConnectionProfile"/>; passwords live in <see cref="CredentialStore"/>,
+    /// keyed by profile id, because this file is plain text.</summary>
+    public List<Models.ConnectionProfile> Connections { get; set; } = new();
 }
 
 /// <summary>
@@ -163,6 +168,32 @@ public static class SettingsService
         CleanArchiveCompression(s);
         CleanAlreadyCompressedExtensions(s);
         MigrateLegacyShellTokens(s);
+        CleanConnections(s);
+    }
+
+    /// <summary>
+    /// Drops connection profiles that could never be used, and repairs ones that are merely
+    /// incomplete.
+    ///
+    /// A hand-edited or partially-written <c>settings.json</c> can produce a profile with no scheme
+    /// or no URL; keeping it means a dead button in the places bar that fails on every click. An
+    /// all-zero <see cref="Models.ConnectionProfile.Id"/> is worse than useless - every such profile
+    /// would share one key in the credential store, so saving a password for one would silently
+    /// hand it to the others. Both are repaired here rather than defended against at each use site.
+    /// </summary>
+    private static void CleanConnections(AppSettings s)
+    {
+        s.Connections.RemoveAll(c =>
+            c is null || string.IsNullOrWhiteSpace(c.Scheme) || string.IsNullOrWhiteSpace(c.Url));
+
+        foreach (var c in s.Connections.Where(c => c.Id == Guid.Empty))
+            c.Id = Guid.NewGuid();
+
+        // AutoConnect with neither a saved password nor an anonymous login would pop a credential
+        // prompt during startup, before the window is even usable. Clearing it is the conservative
+        // repair: the connection stays configured, it just waits to be opened deliberately.
+        foreach (var c in s.Connections.Where(c => c.AutoConnect && !c.SavePassword && c.UserName.Length > 0))
+            c.AutoConnect = false;
     }
 
     /// <summary>Maps both legacy shell-token vocabularies onto the new stable
