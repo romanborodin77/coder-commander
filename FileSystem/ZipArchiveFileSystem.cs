@@ -30,15 +30,6 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         _archivePath = archivePath;
     }
 
-    [Obsolete("Use CoderCommander.FileSystem.ArchivePath.MakePath.")]
-    public static string MakePath(string archivePath, string innerPath) => CoderCommander.FileSystem.ArchivePath.MakePath(archivePath, innerPath);
-
-    [Obsolete("Use CoderCommander.FileSystem.ArchivePath.SplitPath.")]
-    public static (string archivePath, string innerPath) SplitPath(string fullPath) => CoderCommander.FileSystem.ArchivePath.SplitPath(fullPath);
-
-    [Obsolete("Use CoderCommander.FileSystem.ArchivePath.IsArchivePath.")]
-    public static bool IsArchivePath(string path) => CoderCommander.FileSystem.ArchivePath.IsArchivePath(path);
-
     private static readonly Encoding Cp866 = Encoding.GetEncoding(866);
     private static readonly Encoding Utf8 = Encoding.UTF8;
     private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, throwOnInvalidBytes: true);
@@ -302,7 +293,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
             var normalized = filename.Replace('\\', '/');
             // Strip "./" prefix (e.g. from Info-ZIP or similar tools)
-            if (normalized.StartsWith("./"))
+            if (normalized.StartsWith("./", StringComparison.Ordinal))
                 normalized = normalized[2..];
 
             records.Add(new ZipEntryRecord
@@ -441,7 +432,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
     private static string ExpandEscapedCodePoints(string text)
     {
-        if (text.IndexOf('%') < 0)
+        if (text.IndexOf('%', StringComparison.Ordinal) < 0)
             return text;
 
         return EscapedCodePointPattern.Replace(text, m =>
@@ -505,7 +496,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
         var prefix = string.IsNullOrEmpty(innerPath) ? "" : innerPath + "/";
 
@@ -531,30 +522,30 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 var dirName = rest.TrimEnd('/');
                 if (string.IsNullOrEmpty(dirName))
                     continue;
-                var slashIdx = dirName.IndexOf('/');
+                var slashIdx = dirName.IndexOf('/', StringComparison.Ordinal);
                 if (slashIdx >= 0)
                     dirName = dirName[..slashIdx];
                 if (seenDirs.Add(dirName))
                 {
-                    var dirFullPath = MakePath(_archivePath, prefix + dirName);
+                    var dirFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + dirName);
                     result.Add(new FileEntry(dirFullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
                 }
             }
             else
             {
-                var slashIdx = rest.IndexOf('/');
+                var slashIdx = rest.IndexOf('/', StringComparison.Ordinal);
                 if (slashIdx >= 0)
                 {
                     var dirName = rest[..slashIdx];
                     if (seenDirs.Add(dirName))
                     {
-                        var dirFullPath = MakePath(_archivePath, prefix + dirName);
+                        var dirFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + dirName);
                         result.Add(new FileEntry(dirFullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
                     }
                 }
                 else
                 {
-                    var fileFullPath = MakePath(_archivePath, name);
+                    var fileFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name);
                     result.Add(new FileEntry(
                         fileFullPath, false, true, entry.Size,
                         lastWriteTimeUtc: entry.LastWriteTimeUtc));
@@ -569,7 +560,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
         var prefix = string.IsNullOrEmpty(innerPath) ? "" : innerPath + "/";
 
@@ -589,7 +580,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             if (string.IsNullOrEmpty(rest))
                 continue;
 
-            var fullPath = MakePath(_archivePath, name.TrimEnd('/'));
+            var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name.TrimEnd('/'));
 
             if (isDirEntry)
                 result.Add(new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
@@ -606,12 +597,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
         Task.Run<FileEntry?>(() =>
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
         {
-            var rootPath = MakePath(_archivePath, "");
+            var rootPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, "");
             return new FileEntry(rootPath, true);
         }
 
@@ -621,12 +612,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         {
             var name = entry.FullName.Replace('\\', '/');
             // Strip "./" prefix (e.g. from Info-ZIP or similar tools)
-            if (name.StartsWith("./"))
+            if (name.StartsWith("./", StringComparison.Ordinal))
                 name = name[2..];
             name = name.Trim('/');
             if (string.Equals(name, innerPath, StringComparison.OrdinalIgnoreCase))
             {
-                var fullPath = MakePath(_archivePath, name);
+                var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name);
                 var isDir = entry.FullName.EndsWith('/');
                 return new FileEntry(
                     fullPath, isDir, true, entry.Size,
@@ -638,11 +629,11 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         foreach (var entry in entries)
         {
             var name = entry.FullName.Replace('\\', '/');
-            if (name.StartsWith("./"))
+            if (name.StartsWith("./", StringComparison.Ordinal))
                 name = name[2..];
             if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                var fullPath = MakePath(_archivePath, innerPath);
+                var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, innerPath);
                 return new FileEntry(fullPath, true);
             }
         }
@@ -654,7 +645,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     public Task<bool> ExistsAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
@@ -683,7 +674,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public async Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
     {
-        var (_, srcInner) = SplitPath(source);
+        var (_, srcInner) = CoderCommander.FileSystem.ArchivePath.SplitPath(source);
         srcInner = srcInner.Replace('\\', '/');
 
         var tempFile = Path.GetTempFileName();
@@ -699,9 +690,9 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 await s.CopyToAsync(fs, ct);
             }
 
-            if (IsArchivePath(destination))
+            if (CoderCommander.FileSystem.ArchivePath.IsArchivePath(destination))
             {
-                var (dstArchive, rawInner) = SplitPath(destination);
+                var (dstArchive, rawInner) = CoderCommander.FileSystem.ArchivePath.SplitPath(destination);
                 var dstInner = VfsPath.NormalizeInner(rawInner);
                 if (dstInner.Length == 0)
                     throw new IOException("Cannot write to the archive root without an entry name.");
@@ -941,7 +932,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
@@ -1000,7 +991,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         {
             ct.ThrowIfCancellationRequested();
 
-            var (_, innerPath) = SplitPath(path);
+            var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
             innerPath = innerPath.Replace('\\', '/').Trim('/');
 
             if (string.IsNullOrEmpty(innerPath))
@@ -1049,7 +1040,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
@@ -1082,7 +1073,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public async Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {
-        var (_, innerPath) = SplitPath(path);
+        var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/');
 
         var tempFile = Path.GetTempFileName();
@@ -1110,7 +1101,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     public async Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default)
     {
-        var innerPath = VfsPath.NormalizeInner(SplitPath(destinationPath).innerPath);
+        var innerPath = VfsPath.NormalizeInner(CoderCommander.FileSystem.ArchivePath.SplitPath(destinationPath).innerPath);
         if (innerPath.Length == 0)
             throw new IOException("Cannot write to the archive root without an entry name.");
 
@@ -1128,5 +1119,5 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     }
 
     /// <inheritdoc/>
-    public string GetRootPath(string path) => MakePath(_archivePath, "");
+    public string GetRootPath(string path) => CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, "");
 }

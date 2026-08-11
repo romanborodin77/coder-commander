@@ -1,6 +1,7 @@
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Services.Search;
+using System.Globalization;
 
 namespace CoderCommander.WinForms;
 
@@ -303,7 +304,7 @@ public sealed class FindFilesForm : ThemedForm
                 var item = new ListViewItem(hit.Entry.Name) { Tag = hit.Entry.FullPath };
                 item.SubItems.Add(VfsPath.GetParent(hit.Entry.FullPath));
                 item.SubItems.Add(Utils.FormatUtils.FormatSize(hit.Entry.Size));
-                item.SubItems.Add(hit.LineNumber > 0 ? hit.LineNumber.ToString() : "");
+                item.SubItems.Add(hit.LineNumber > 0 ? hit.LineNumber.ToString(CultureInfo.InvariantCulture) : "");
                 item.SubItems.Add(hit.Line);
                 _results.Items.Add(item);
             }

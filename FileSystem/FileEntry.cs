@@ -55,9 +55,9 @@ public sealed class FileEntry
     {
         FullPath = fullPath;
         string name;
-        if (ZipArchiveFileSystem.IsArchivePath(fullPath))
+        if (ArchivePath.IsArchivePath(fullPath))
         {
-            var (_, innerPath) = ZipArchiveFileSystem.SplitPath(fullPath);
+            var (_, innerPath) = ArchivePath.SplitPath(fullPath);
             innerPath = innerPath.Replace('\\', '/').Trim('/');
             var lastSlash = innerPath.LastIndexOf('/');
             name = lastSlash >= 0 ? innerPath[(lastSlash + 1)..] : innerPath;

@@ -27,7 +27,7 @@ public static class RemoteTls
     /// came from without the caller having to build its own message.</param>
     public static RemoteCertificateValidationCallback MakeCertificateValidator(ConnectionProfile profile, string protocol)
     {
-        var pinned = profile.AcceptedCertificateThumbprint?.Replace(":", "").Trim() ?? "";
+        var pinned = profile.AcceptedCertificateThumbprint?.Replace(":", "", StringComparison.Ordinal).Trim() ?? "";
 
         return (_, certificate, _, errors) =>
         {

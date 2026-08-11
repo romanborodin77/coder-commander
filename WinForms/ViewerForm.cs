@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using System.Globalization;
 using System.Text;
 
 namespace CoderCommander.WinForms;
@@ -491,13 +492,13 @@ public class ViewerForm : ThemedForm
         for (int i = 0; i < limit; i += HexBytesPerRow)
         {
             // Offset
-            sb.Append($"{i:X8}  ");
+            sb.Append(CultureInfo.InvariantCulture, $"{i:X8}  ");
 
             // Hex bytes
             for (int j = 0; j < HexBytesPerRow; j++)
             {
                 if (i + j < limit)
-                    sb.Append($"{bytes[i + j]:X2} ");
+                    sb.Append(CultureInfo.InvariantCulture, $"{bytes[i + j]:X2} ");
                 else
                     sb.Append("   ");
                 if (j == 7) sb.Append(' ');
@@ -515,7 +516,7 @@ public class ViewerForm : ThemedForm
         }
 
         if (_fileSize > HexMaxBytes)
-            sb.AppendLine($"... ({FormatSize(_fileSize - HexMaxBytes)} more)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"... ({FormatSize(_fileSize - HexMaxBytes)} more)");
 
         _textBox.Text = sb.ToString();
     }

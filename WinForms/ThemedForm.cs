@@ -140,13 +140,17 @@ public class ThemedForm : Form
     }
 
     /// <summary>Creates a themed button with optional accent styling. Reusable from any context.</summary>
-    public static Button CreateThemedButton(string text, bool accent = false)
+    /// <param name="name">Sets <see cref="Control.Name"/>, which WinForms' UIA bridge exposes
+    /// directly as <c>AutomationId</c> - the standard, no-custom-provider way for a UI test to
+    /// address this control by identity instead of by its (possibly localized) text.</param>
+    public static Button CreateThemedButton(string text, bool accent = false, string? name = null)
     {
         var p = ThemeService.Current;
         const int hPadding = 20;
         var textWidth = TextRenderer.MeasureText(text, p.GridFont).Width;
         var btn = new RoundedButton
         {
+            Name = name ?? "",
             Text = text,
             Height = 32,
             Width = Math.Max(80, textWidth + hPadding * 2 + 4),

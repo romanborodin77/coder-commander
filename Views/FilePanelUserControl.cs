@@ -125,9 +125,18 @@ public sealed class FilePanelUserControl : UserControl
 
     /// <summary>Creates the panel UI and wires up the ViewModel, context menu and drag-and-drop.</summary>
     /// <param name="vm">ViewModel providing data for this panel.</param>
-    public FilePanelUserControl(PanelViewModel vm)
+    /// <param name="automationIdPrefix">
+    /// Identifies this instance for UI automation - e.g. <c>"LeftPanel"</c>/<c>"RightPanel"</c>,
+    /// giving <see cref="_fileList"/> the stable <c>AutomationId</c> <c>"LeftPanel.FileList"</c>
+    /// (WinForms' UIA bridge reads <c>AutomationId</c> straight from <see cref="Control.Name"/>, so
+    /// no custom automation provider is needed). Before this, a test could only tell the two
+    /// panels' file lists apart by comparing on-screen X position - fragile by construction, and
+    /// exactly the workaround <c>TabSwitchesActivePanelTests</c>'s own doc comment already flagged.
+    /// </param>
+    public FilePanelUserControl(PanelViewModel vm, string automationIdPrefix)
     {
         _vm = vm;
+        Name = automationIdPrefix;
         _showExtensionInName = SettingsService.Load().ShowExtensionInName;
         Dock = DockStyle.Fill;
         BackColor = ThemeService.Current.PanelBackground;
@@ -272,6 +281,7 @@ public sealed class FilePanelUserControl : UserControl
         // File list
         _fileList = new ListView
         {
+            Name = $"{Name}.FileList",
             Dock = DockStyle.Fill,
             View = View.Details,
             FullRowSelect = true,
@@ -667,6 +677,25 @@ public sealed class FilePanelUserControl : UserControl
         PanelActivated?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Moves real keyboard focus to this panel's file list.
+    ///
+    /// <para><b>Why this needs to exist at all.</b> Tab-switching panels
+    /// (<c>MainForm.OnFormKeyDown</c>) used to only call <c>MainViewModel.SetActivePanel</c> -
+    /// updating which panel is logically active (border highlight, F5/F6 targeting) without moving
+    /// the real WinForms/Win32 keyboard focus there. The two states would then disagree the instant
+    /// Tab was pressed: <c>_fileList.GotFocus</c> on this same panel already calls
+    /// <see cref="ActivatePanel"/> to keep them in sync for a <i>mouse</i> click, but nothing did
+    /// the equivalent for a <i>keyboard</i> switch. Whoever still held real OS focus (the panel Tab
+    /// was pressed <em>away</em> from) would silently reclaim active-panel status the next time
+    /// anything brought the window to the foreground and Windows restored focus to its
+    /// last-focused child - reverting a Tab the user had already pressed, with nothing on screen
+    /// explaining why. Reproduced consistently once a test harness needed the two states to be
+    /// exactly consistent to work at all; a human clicking as they go rarely hits the gap, which is
+    /// why it went unnoticed.</para>
+    /// </summary>
+    public void FocusFileList() => _fileList.Focus();
+
     // -- Drag & Drop --
 
     private void OnFileListItemDrag(object? sender, ItemDragEventArgs e)
@@ -826,10 +855,14 @@ public sealed class FilePanelUserControl : UserControl
         _ctxMenu.Items.Add(new ToolStripSeparator());
         CtxItem("Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
 
-        // Copy path submenu
+        // Copy path submenu. cpFull/cpName go into copyPathMenu.DropDownItems below, which goes
+        // into _ctxMenu.Items, which Dispose(bool) now disposes explicitly - the analyzer's
+        // dataflow doesn't follow ownership two collections deep.
+#pragma warning disable CA2000
         var copyPathMenu = new ToolStripMenuItem(L.GetString("Ctx.CopyPath"), ToolbarIcons.Get("copy"));
         var cpFull = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Full"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.FullPath ?? ""));
         var cpName = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Name"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.Name ?? ""));
+#pragma warning restore CA2000
         copyPathMenu.DropDownItems.AddRange([cpFull, cpName]);
         _ctxMenu.Items.Add(copyPathMenu);
 
@@ -1495,6 +1528,10 @@ public sealed class FilePanelUserControl : UserControl
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
             _scrollOverlay?.Dispose();
+            // ContextMenuStrip and ImageList are Components, not Controls - they're never in the
+            // Controls collection, so base.Dispose()'s recursive walk below never reaches them.
+            _ctxMenu?.Dispose();
+            _fileImageList?.Dispose();
         }
         base.Dispose(disposing);
     }

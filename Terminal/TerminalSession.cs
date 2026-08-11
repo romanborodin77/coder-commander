@@ -77,8 +77,10 @@ internal sealed class TerminalSession : IAsyncDisposable
     };
 
     /// <summary>Environment keys that must never reach an interactive shell the user can inspect
-    /// (e.g. via "set"/"$env:") - the UI-automation test flag chief among them.</summary>
-    private static readonly IReadOnlyCollection<string> ExcludedEnvironment = ["CODERCOMMANDER_UI_DEBUG"];
+    /// (e.g. via "set"/"$env:") - the UI-automation test flag and the test sandbox's data-directory
+    /// override chief among them.</summary>
+    private static readonly IReadOnlyCollection<string> ExcludedEnvironment =
+        ["CODERCOMMANDER_UI_DEBUG", Services.DataDirectory.OverrideEnvironmentVariable];
 
     public static TerminalSession Start(ShellDescriptor shell, string workingDirectory, int cols, int rows, int scrollbackLines)
     {

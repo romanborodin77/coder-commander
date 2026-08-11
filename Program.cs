@@ -75,27 +75,59 @@ internal static class Program
 
         // Create ViewModel and main form
         var vm = new MainViewModel();
-        var mainForm = new MainForm(vm);
+        using var mainForm = new MainForm(vm);
         mainForm.FormClosed += (_, _) => vm.Dispose();
+
+        // invoke_command channel for automated UI tests - see DiagnosticCommandChannel's own doc
+        // comment. Gated by the same env var as the UI-tree dump above; a no-op call outside a
+        // debug-mode launch.
+        DiagnosticCommandChannel.Start(vm, mainForm);
+        mainForm.FormClosed += (_, _) => DiagnosticCommandChannel.Stop();
 
         Application.Run(mainForm);
     }
 
     private static readonly string CrashLogPath = Path.Combine(Path.GetTempPath(), "CoderCommander_crash.log");
 
+    /// <summary>Crash log is rotated to <c>.old</c> once it passes this size, the same one-generation
+    /// scheme <see cref="LogService"/> already uses for app.log - previously this file was never
+    /// rotated at all and grew without bound for as long as %TEMP% kept it around, which on a
+    /// machine that runs the app for months (or crashes in a loop) is an unbounded-size file
+    /// nothing ever cleans up.</summary>
+    private const long MaxCrashLogSizeBytes = 5 * 1024 * 1024; // 5 MB, matching LogService
+
     private static void LogCrash(string msg)
     {
         try
         {
-            // Full date, not just time-of-day: this file is never rotated and accumulates
-            // entries across the app's entire history, so a bare HH:mm:ss.fff timestamp made
-            // entries from different days indistinguishable when merged with app.log by time.
+            RotateCrashLogIfTooLarge();
+
+            // Full date, not just time-of-day: even with rotation, one generation can still span
+            // more than a day, so a bare HH:mm:ss.fff timestamp would make entries from different
+            // days indistinguishable when merged with app.log by time.
             File.AppendAllText(CrashLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\r\n");
         }
         catch (Exception ex)
         {
             // Log write failure — cannot do anything
             System.Diagnostics.Debug.WriteLine($"LogCrash failed: {ex}");
+        }
+    }
+
+    /// <summary>Best-effort, deliberately as simple as <see cref="LogCrash"/> itself has to be:
+    /// this runs on the crash path, potentially before the app has reached any themed or otherwise
+    /// working state, so a failure here must never throw back into the caller - a failed rotation
+    /// should cost nothing worse than an unrotated log entry.</summary>
+    private static void RotateCrashLogIfTooLarge()
+    {
+        try
+        {
+            Utils.LogRotation.RotateIfTooLarge(CrashLogPath, MaxCrashLogSizeBytes);
+        }
+        catch
+        {
+            // Best-effort - a failed rotation must not stop crash logging, which is itself the
+            // last-resort diagnostic when everything else has already gone wrong.
         }
     }
 

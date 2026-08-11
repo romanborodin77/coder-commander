@@ -265,7 +265,7 @@ public static class SyntaxHighlighter
             {
                 var start = i;
                 while (i < text.Length && (char.IsDigit(text[i]) || text[i] == '.' || text[i] == 'x' || text[i] == 'X' ||
-                       "abcdefABCDEF".Contains(text[i]))) i++;
+                       "abcdefABCDEF".Contains(text[i], StringComparison.Ordinal))) i++;
                 tokens.Add(new SyntaxToken(start, i - start, TokenType.Number, text[start..i]));
                 continue;
             }
@@ -289,10 +289,10 @@ public static class SyntaxHighlighter
             }
 
             // Operator - combine consecutive operators
-            if ("+-*/%=<>!&|^~.,;:()[]{}?".Contains(text[i]))
+            if ("+-*/%=<>!&|^~.,;:()[]{}?".Contains(text[i], StringComparison.Ordinal))
             {
                 var start = i;
-                while (i < text.Length && "+-*/%=<>!&|^~.,;:()[]{}?".Contains(text[i]))
+                while (i < text.Length && "+-*/%=<>!&|^~.,;:()[]{}?".Contains(text[i], StringComparison.Ordinal))
                     i++;
                 tokens.Add(new SyntaxToken(start, i - start, TokenType.Operator, text[start..i]));
                 continue;
@@ -458,7 +458,7 @@ public static class SyntaxHighlighter
                 var start = i;
                 while (i < text.Length && (char.IsDigit(text[i]) || text[i] == '.' || text[i] == 'x' ||
                        text[i] == 'X' || text[i] == 'o' || text[i] == 'O' || text[i] == 'b' || text[i] == 'B' ||
-                       "abcdefABCDEF".Contains(text[i]))) i++;
+                       "abcdefABCDEF".Contains(text[i], StringComparison.Ordinal))) i++;
                 tokens.Add(new SyntaxToken(start, i - start, TokenType.Number, text[start..i]));
                 continue;
             }
@@ -743,7 +743,7 @@ public static class SyntaxHighlighter
             }
 
             // Operators
-            if ("{}[],:".Contains(text[i]))
+            if ("{}[],:".Contains(text[i], StringComparison.Ordinal))
             {
                 tokens.Add(new SyntaxToken(i, 1, TokenType.Operator, text[i].ToString()));
                 i++;
@@ -863,7 +863,7 @@ public static class SyntaxHighlighter
             }
 
             // List item
-            if (line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("+ ") ||
+            if (line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith("* ", StringComparison.Ordinal) || line.StartsWith("+ ", StringComparison.Ordinal) ||
                 Regex.IsMatch(line, @"^\d+\."))
             {
                 var match = Regex.Match(line, @"^(\s*[-*+]|\s*\d+\.)");
@@ -874,7 +874,7 @@ public static class SyntaxHighlighter
             }
 
             // Code block
-            if (line.StartsWith("```"))
+            if (line.StartsWith("```", StringComparison.Ordinal))
             {
                 tokens.Add(new SyntaxToken(pos, line.Length, TokenType.MarkdownCode, line));
                 pos += line.Length + 1;
@@ -965,7 +965,7 @@ public static class SyntaxHighlighter
         var result = new List<SyntaxToken>();
         foreach (var token in tokens)
         {
-            if (token.Type == TokenType.Plain && token.Text.StartsWith("$"))
+            if (token.Type == TokenType.Plain && token.Text.StartsWith("$", StringComparison.Ordinal))
             {
                 result.Add(new SyntaxToken(token.Start, token.Length, TokenType.Attribute, token.Text));
             }
@@ -1126,7 +1126,7 @@ public static class SyntaxHighlighter
             }
 
             // Pipe and operators
-            if ("|;&><".Contains(text[i]))
+            if ("|;&><".Contains(text[i], StringComparison.Ordinal))
             {
                 tokens.Add(new SyntaxToken(i, 1, TokenType.Operator, text[i].ToString()));
                 i++;
@@ -1151,14 +1151,14 @@ public static class SyntaxHighlighter
             // Comment
             if (line.TrimStart().StartsWith('#'))
             {
-                var start = pos + line.IndexOf('#');
-                tokens.Add(new SyntaxToken(start, line.Length - line.IndexOf('#'), TokenType.Comment, line[line.IndexOf('#')..]));
+                var start = pos + line.IndexOf('#', StringComparison.Ordinal);
+                tokens.Add(new SyntaxToken(start, line.Length - line.IndexOf('#', StringComparison.Ordinal), TokenType.Comment, line[line.IndexOf('#', StringComparison.Ordinal)..]));
                 pos += line.Length + 1;
                 continue;
             }
 
             // Key
-            var colonIdx = line.IndexOf(':');
+            var colonIdx = line.IndexOf(':', StringComparison.Ordinal);
             if (colonIdx > 0)
             {
                 var key = line[..colonIdx].TrimStart();
@@ -1204,7 +1204,7 @@ public static class SyntaxHighlighter
             }
 
             // Section header
-            if (trimmed.StartsWith('[') && trimmed.Contains(']'))
+            if (trimmed.StartsWith('[') && trimmed.Contains(']', StringComparison.Ordinal))
             {
                 tokens.Add(new SyntaxToken(pos, line.Length, TokenType.Preprocessor, line));
                 pos += line.Length + 1;
@@ -1212,12 +1212,12 @@ public static class SyntaxHighlighter
             }
 
             // Key=Value
-            var eqIdx = line.IndexOf('=');
+            var eqIdx = line.IndexOf('=', StringComparison.Ordinal);
             if (eqIdx > 0)
             {
                 var key = line[..eqIdx].Trim();
                 var value = line[(eqIdx + 1)..].Trim();
-                var keyStart = pos + line.IndexOf(key);
+                var keyStart = pos + line.IndexOf(key, StringComparison.Ordinal);
 
                 tokens.Add(new SyntaxToken(keyStart, key.Length, TokenType.JsonKey, key));
                 tokens.Add(new SyntaxToken(pos + eqIdx, 1, TokenType.Operator, "="));
@@ -1260,7 +1260,7 @@ public static class SyntaxHighlighter
             }
 
             // Instruction
-            var spaceIdx = trimmed.IndexOf(' ');
+            var spaceIdx = trimmed.IndexOf(' ', StringComparison.Ordinal);
             var instruction = spaceIdx > 0 ? trimmed[..spaceIdx] : trimmed;
 
             if (instructions.Contains(instruction))

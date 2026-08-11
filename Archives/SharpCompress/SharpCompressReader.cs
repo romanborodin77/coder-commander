@@ -39,6 +39,10 @@ public enum SharpCompressKind
 /// </summary>
 public sealed class SharpCompressReader : IArchiveReader
 {
+    /// <summary>How often <see cref="ScanAsync"/> yields the thread while walking entries - see
+    /// the call site for why this isn't every single entry.</summary>
+    private const int YieldEveryNEntries = 64;
+
     private readonly string _archivePath;
     private readonly SharpCompressKind _kind;
 
@@ -134,9 +138,14 @@ public sealed class SharpCompressReader : IArchiveReader
 
                 yield return new ArchiveEntryStream(record, content);
 
-                // SharpCompress is fully synchronous; yield the thread periodically so
-                // cancellation and the caller's own async work get a fair chance to run.
-                await Task.Yield();
+                // SharpCompress is fully synchronous; yield the thread periodically (not on every
+                // single entry - audit finding S8, AUDIT-FINDINGS.md) so cancellation and the
+                // caller's own async work get a fair chance to run. Every-entry yielding meant an
+                // archive at UnpackLimits.MaxEntries (200,000) forced 200,000 thread-pool
+                // suspend/resume round trips for no benefit over checking in every YieldEveryNEntries -
+                // the fairness this exists for doesn't need finer granularity than that.
+                if (index % YieldEveryNEntries == 0)
+                    await Task.Yield();
             }
         }
         finally
@@ -180,7 +189,7 @@ public sealed class SharpCompressReader : IArchiveReader
     {
         var name = (entry.Key ?? "").Replace('\\', '/');
         // Strip "./" prefix (e.g. from GNU tar or similar tools)
-        if (name.StartsWith("./"))
+        if (name.StartsWith("./", StringComparison.Ordinal))
             name = name[2..];
 
         return new ArchiveEntryRecord

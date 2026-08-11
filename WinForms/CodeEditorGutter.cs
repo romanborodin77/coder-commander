@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using System.Globalization;
 
 namespace CoderCommander.WinForms;
 
@@ -52,7 +53,7 @@ internal sealed class CodeEditorGutter : Control
 
     private void RecalculateWidth()
     {
-        var digits = Math.Max(2, _canvas.Buffer.LineCount.ToString().Length);
+        var digits = Math.Max(2, _canvas.Buffer.LineCount.ToString(CultureInfo.InvariantCulture).Length);
         var textWidth = TextRenderer.MeasureText(new string('9', digits), _font, Size.Empty, TextFormatFlags.NoPadding).Width;
         var newWidth = textWidth + HorizontalPadding * 2;
         if (Width != newWidth) Width = newWidth;
@@ -79,7 +80,7 @@ internal sealed class CodeEditorGutter : Control
             var y = line * lineHeight - scrollY;
             textRect.Y = y;
             var color = line == caretLine ? p.Foreground : p.DimForeground;
-            TextRenderer.DrawText(g, (line + 1).ToString(), _font, textRect, color,
+            TextRenderer.DrawText(g, (line + 1).ToString(CultureInfo.InvariantCulture), _font, textRect, color,
                 TextFormatFlags.NoPadding | TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
         }
     }

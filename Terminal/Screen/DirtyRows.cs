@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace CoderCommander.Terminal.Screen;
 
 /// <summary>Tracks which visible rows changed since the canvas last painted, as a bitset -
@@ -13,6 +15,11 @@ internal sealed class DirtyRows
 
     public DirtyRows(int rows) => Reset(rows);
 
+    /// <remarks><see cref="MemberNotNullAttribute"/> rather than a <c>= null!</c> on the field:
+    /// the constructor really does always assign <c>_bits</c>, just indirectly through here, and
+    /// the compiler's definite-assignment analysis does not follow into a method call. This states
+    /// the actual invariant instead of suppressing the question.</remarks>
+    [MemberNotNull(nameof(_bits))]
     public void Reset(int rows)
     {
         _rows = rows;

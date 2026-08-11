@@ -45,7 +45,16 @@ public sealed class AppSettings
     /// here falls back to "Balanced" wherever it's resolved. Kept as plain strings (not the
     /// <c>CompressionPreset</c> enum) so this class has no dependency on the Archives namespace.
     /// </summary>
-    public Dictionary<string, string> ArchiveCompression { get; set; } = new();
+    /// <remarks>Get-only + <see cref="JsonObjectCreationHandlingAttribute"/>, not a settable
+    /// property: <c>System.Text.Json</c> populates this existing instance via its indexer during
+    /// deserialization instead of assigning a new one - confirmed empirically, since a get-only
+    /// collection property is *silently* left at its initializer value (not an error) without this
+    /// attribute. The initializer's <see cref="StringComparer.OrdinalIgnoreCase"/> is what
+    /// <see cref="SettingsForm"/>'s working copy already used before this was a plain settable
+    /// property with a whole-dictionary replace - populate-mode preserves it because it deserializes
+    /// into this exact instance rather than constructing a fresh one.</remarks>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Dictionary<string, string> ArchiveCompression { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>When true, files whose extension is already compressed (see
     /// <see cref="AlreadyCompressedExtensions"/>) are stored without further compression
@@ -54,7 +63,8 @@ public sealed class AppSettings
 
     /// <summary>Extensions considered already-compressed for <see cref="SkipCompressionForCompressedFiles"/>.
     /// Empty means "use the built-in default list" (see <c>PackOperation</c>).</summary>
-    public List<string> AlreadyCompressedExtensions { get; set; } = new();
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> AlreadyCompressedExtensions { get; } = new();
 
     /// <summary>Format id (<see cref="CoderCommander.Archives.IArchiveFormat.Id"/>) the Pack
     /// dialog preselects for new archives - "zip", "tar", or "tar.gz".</summary>
@@ -70,7 +80,15 @@ public sealed class AppSettings
     public string DefaultShellType { get; set; } = "cmd";
 
     /// <summary>Restored tabs as <c>"{ShellId}|{Path}"</c> entries.</summary>
-    public List<string> OpenTerminalTabs { get; set; } = new();
+    /// <remarks><c>init</c>, not a plain get-only property like its four siblings above/below:
+    /// <c>UiTests/TerminalSettingsMigrationTests.cs</c> constructs test fixtures with
+    /// <c>new AppSettings { OpenTerminalTabs = [...] }</c>, which needs an accessor object-
+    /// initializer syntax can target. Confirmed empirically that this does not reopen CA2227 (init
+    /// still isn't a public mutator reachable after construction) and does not fight
+    /// <see cref="JsonObjectCreationHandlingAttribute"/> - <c>System.Text.Json</c> still populates
+    /// this exact instance via <c>Add</c> during deserialization rather than calling <c>init</c>.</remarks>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> OpenTerminalTabs { get; init; } = new();
     public string? LastTerminalPath { get; set; }
 
     /// <summary>Whether navigating the active file panel pushes a <c>cd</c>-equivalent into the
@@ -91,7 +109,8 @@ public sealed class AppSettings
     /// <c>"Ctrl+Shift+T"</c>). Starts as a copy of the WindowsTerminal preset when the user first
     /// switches to Custom (see <c>TerminalKeyBindingsForm</c>); an action missing from this
     /// dictionary is simply unbound, not defaulted.</summary>
-    public Dictionary<string, string> TerminalCustomKeyBindings { get; set; } = new();
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Dictionary<string, string> TerminalCustomKeyBindings { get; } = new();
 
     /// <summary>Whether a new PowerShell tab loads the user's profile (oh-my-posh, Starship,
     /// PSReadLine config, ...). Off trades a faster tab-open for a bare, un-customized prompt -
@@ -102,7 +121,8 @@ public sealed class AppSettings
     /// <summary>Saved remote connections. Contains no secrets by construction - see
     /// <see cref="Models.ConnectionProfile"/>; passwords live in <see cref="CredentialStore"/>,
     /// keyed by profile id, because this file is plain text.</summary>
-    public List<Models.ConnectionProfile> Connections { get; set; } = new();
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<Models.ConnectionProfile> Connections { get; } = new();
 }
 
 /// <summary>
@@ -110,9 +130,7 @@ public sealed class AppSettings
 /// </summary>
 public static class SettingsService
 {
-    private static readonly string SettingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "CoderCommander", "settings.json");
+    private static readonly string SettingsPath = Path.Combine(DataDirectory.Root, "settings.json");
 
     internal static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -143,13 +161,47 @@ public static class SettingsService
                     _cached = new AppSettings();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // Falling back to defaults here is the right recovery - an app that refuses to
+                // start over a corrupt settings file is worse than one that starts with defaults -
+                // but silently doing so was its own defect: the user loses every saved setting with
+                // no record of what happened, and the very next Save() (on any change, or on close)
+                // overwrites the only copy of whatever was actually in the file, so there would be
+                // nothing left to look at even if someone thought to ask.
+                LogService.Error("settings.json could not be read; falling back to defaults", ex);
+                BackUpCorruptFile(SettingsPath);
                 _cached = new AppSettings();
             }
 
             Validate(_cached);
             return _cached;
+        }
+    }
+
+    /// <summary>
+    /// Copies the unreadable file aside before it gets overwritten by the in-memory defaults on the
+    /// next <see cref="Save"/>. Best-effort: a failure here (disk full, permission denied) is
+    /// logged but must not replace or hide the original read failure that's already been logged by
+    /// the caller.
+    ///
+    /// Internal and parameterized on the path, rather than reading <see cref="SettingsPath"/>
+    /// itself, so it can be tested directly against a throwaway file - no test here may write to
+    /// the operator's real settings file, and <see cref="Load"/> itself always reads that real
+    /// path, leaving no other way to exercise this logic honestly.
+    /// </summary>
+    internal static void BackUpCorruptFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            var backupPath = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+            File.Copy(path, backupPath, overwrite: true);
+            LogService.Warning($"Corrupt settings file preserved at {backupPath}");
+        }
+        catch (Exception ex)
+        {
+            LogService.Warning($"Could not back up corrupt settings file: {ex.Message}");
         }
     }
 

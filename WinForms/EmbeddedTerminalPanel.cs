@@ -329,10 +329,16 @@ public sealed class EmbeddedTerminalPanel : Panel
             SwitchToTab(_sessionManager.Tabs[prevIndex].Id);
     }
 
+    // The _tabControl null checks in this handler and the five below are unreachable in practice:
+    // every one of them is only ever invoked through an event subscribed inside
+    // InitializeComponents() *after* _tabControl is assigned, so a null _tabControl (the
+    // ConPTY-unsupported early return) means the handler was never wired at all. They are here
+    // because that is a non-local invariant the compiler cannot see - and because no-op-when-the-
+    // terminal-never-initialized is already this panel's documented behaviour (see
+    // OnLanguageChanged, which needs its guard for real: it is subscribed unconditionally).
     private void TabControl_SelectedIndexChanged(object? sender, EventArgs e)
     {
-        var page = _tabControl.SelectedPage;
-        if (page == null)
+        if (_tabControl?.SelectedPage is not { } page)
             return;
 
         var tabId = _tabPagesByGuid.FirstOrDefault(kv => kv.Value == page).Key;
@@ -344,7 +350,7 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void TabControl_TabRightClicked(object? sender, int index)
     {
-        if (index < 0 || index >= _tabControl.Pages.Count)
+        if (_tabControl == null || index < 0 || index >= _tabControl.Pages.Count)
             return;
 
         var page = _tabControl.Pages[index];
@@ -364,7 +370,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// the tab down through the same path as the hotkey/menu Close Tab command.</summary>
     private void TabControl_TabCloseClicked(object? sender, int index)
     {
-        if (index < 0 || index >= _tabControl.Pages.Count)
+        if (_tabControl == null || index < 0 || index >= _tabControl.Pages.Count)
             return;
 
         var page = _tabControl.Pages[index];
@@ -388,7 +394,8 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void OnTabCreated(object? sender, Guid tabId)
     {
-        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab || !_sessions.TryGetValue(tabId, out var session))
+        if (_tabControl == null || _sessionManager?.GetTab(tabId) is not TerminalTab tab
+            || !_sessions.TryGetValue(tabId, out var session))
             return;
 
         var view = new TerminalTabView(session, LoadKeyBindings());
@@ -421,7 +428,7 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void OnTabClosed(object? sender, Guid tabId)
     {
-        if (_tabPagesByGuid.TryGetValue(tabId, out var page))
+        if (_tabControl != null && _tabPagesByGuid.TryGetValue(tabId, out var page))
         {
             // RemovePage first, so ThemedTabControl un-parents (and stops referencing) this page's
             // Content before it's disposed - disposing a still-parented control out from under a
@@ -435,7 +442,7 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void OnTabActivated(object? sender, Guid tabId)
     {
-        if (_tabPagesByGuid.TryGetValue(tabId, out var page))
+        if (_tabControl != null && _tabPagesByGuid.TryGetValue(tabId, out var page))
         {
             for (var i = 0; i < _tabControl.Pages.Count; i++)
             {

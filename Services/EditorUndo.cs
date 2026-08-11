@@ -103,7 +103,7 @@ public sealed class UndoStack
 
         var topIsPureInsert = topEdit.OldText.Length == 0;
         var thisIsPureInsert = oldText.Length == 0;
-        if (topIsPureInsert && thisIsPureInsert && !topEdit.NewText.Contains('\n') && !newText.Contains('\n'))
+        if (topIsPureInsert && thisIsPureInsert && !topEdit.NewText.Contains('\n', StringComparison.Ordinal) && !newText.Contains('\n', StringComparison.Ordinal))
         {
             var topEnd = new TextPosition(topEdit.Start.Line, topEdit.Start.Column + topEdit.NewText.Length);
             if (topEnd == start)
@@ -117,7 +117,7 @@ public sealed class UndoStack
 
         var topIsPureDelete = topEdit.NewText.Length == 0;
         var thisIsPureDelete = newText.Length == 0;
-        if (topIsPureDelete && thisIsPureDelete && !topEdit.OldText.Contains('\n') && !oldText.Contains('\n'))
+        if (topIsPureDelete && thisIsPureDelete && !topEdit.OldText.Contains('\n', StringComparison.Ordinal) && !oldText.Contains('\n', StringComparison.Ordinal))
         {
             var thisEnd = new TextPosition(start.Line, start.Column + oldText.Length);
             if (thisEnd == topEdit.Start)

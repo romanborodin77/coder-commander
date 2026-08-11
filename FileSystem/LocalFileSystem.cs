@@ -68,7 +68,10 @@ public sealed class LocalFileSystem : IFileSystem
             {
                 IgnoreInaccessible = true,
                 RecurseSubdirectories = true,
-                AttributesToSkip = includeHidden ? 0 : FileAttributes.Hidden
+                // ReparsePointGuard.SkipRecursion: a junction inside the tree is listed as itself,
+                // never followed - see that type for why this matters for a recursive walk
+                // specifically (a single-level listing, above, has no such flag and is unaffected).
+                AttributesToSkip = (includeHidden ? 0 : FileAttributes.Hidden) | ReparsePointGuard.SkipRecursion
             };
 
             foreach (var entry in dir.EnumerateFileSystemInfos("*", enumOptions))
@@ -84,16 +87,21 @@ public sealed class LocalFileSystem : IFileSystem
         Task.Run<FileEntry?>(() =>
         {
             ct.ThrowIfCancellationRequested();
+            // The OS call gets the (possibly \\?\-prefixed) accessible path; the FileEntry
+            // returned to the caller always carries the original, unprefixed one - see LongPath's
+            // own doc comment for why leaking the prefix into a path shown/reused elsewhere
+            // would be its own bug, not a fix.
+            var accessible = LongPath.EnsureAccessible(path);
 
-            if (Directory.Exists(path))
+            if (Directory.Exists(accessible))
             {
-                var di = new DirectoryInfo(path);
+                var di = new DirectoryInfo(accessible);
                 return FileEntry.FromFileSystemInfo(path, di);
             }
 
-            if (File.Exists(path))
+            if (File.Exists(accessible))
             {
-                var fi = new FileInfo(path);
+                var fi = new FileInfo(accessible);
                 return FileEntry.FromFileSystemInfo(path, fi);
             }
 
@@ -104,31 +112,34 @@ public sealed class LocalFileSystem : IFileSystem
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
-            return File.Exists(path) || Directory.Exists(path);
+            var accessible = LongPath.EnsureAccessible(path);
+            return File.Exists(accessible) || Directory.Exists(accessible);
         }, ct);
 
     public Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default) =>
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
-            File.Copy(source, destination, overwrite);
+            File.Copy(LongPath.EnsureAccessible(source), LongPath.EnsureAccessible(destination), overwrite);
         }, ct);
 
     public Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default) =>
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
+            var s = LongPath.EnsureAccessible(source);
+            var d = LongPath.EnsureAccessible(destination);
 
             try
             {
-                if (Directory.Exists(source))
-                    Directory.Move(source, destination);
+                if (Directory.Exists(s))
+                    Directory.Move(s, d);
                 else
-                    File.Move(source, destination, overwrite);
+                    File.Move(s, d, overwrite);
             }
             catch (IOException) when (overwrite)
             {
-                MoveWithBackupSwap(source, destination);
+                MoveWithBackupSwap(s, d);
             }
         }, ct);
 
@@ -195,6 +206,7 @@ public sealed class LocalFileSystem : IFileSystem
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
+            path = LongPath.EnsureAccessible(path);
 
             if (Directory.Exists(path))
             {
@@ -206,7 +218,27 @@ public sealed class LocalFileSystem : IFileSystem
                 // applies) lets the whole tree go in one pass instead.
                 if (recursive)
                     ClearReadOnlyRecursive(path);
-                Directory.Delete(path, recursive);
+
+                try
+                {
+                    Directory.Delete(path, recursive);
+                }
+                catch (UnauthorizedAccessException) when (recursive)
+                {
+                    // .NET 8's Directory.Delete(recursive: true) can throw UnauthorizedAccessException
+                    // for a directory containing a junction or a symlinked directory, even though it
+                    // has by then already finished removing every child correctly - including safely
+                    // un-linking the reparse-point child rather than following it into whatever it
+                    // points at (confirmed empirically with a real junction: the linked target
+                    // survives, untouched, either way). What the exception actually signals is that
+                    // the now-empty top-level directory itself was not removed - also confirmed
+                    // empirically: a second, non-recursive delete of it always succeeds immediately
+                    // afterward. Retried here rather than swallowed blindly, so a genuine permission
+                    // problem (a file that could not actually be removed, leaving the directory
+                    // non-empty) still fails this retry and surfaces as a real error instead of being
+                    // hidden by this catch.
+                    Directory.Delete(path, recursive: false);
+                }
             }
             else if (File.Exists(path))
             {
@@ -236,7 +268,18 @@ public sealed class LocalFileSystem : IFileSystem
     {
         try
         {
-            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            // The SearchOption.AllDirectories shorthand has no way to skip reparse points, so this
+            // is spelled out as EnumerationOptions instead - see ReparsePointGuard. Without it, a
+            // junction inside the tree being deleted had its target's files silently stripped of
+            // ReadOnly, which is a real attribute change outside the tree the caller asked to
+            // delete, confirmed with a real junction before this fix.
+            var options = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+            };
+            foreach (var file in Directory.EnumerateFiles(root, "*", options))
                 ClearReadOnlyIfSet(file);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -250,14 +293,14 @@ public sealed class LocalFileSystem : IFileSystem
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
-            Directory.CreateDirectory(path);
+            Directory.CreateDirectory(LongPath.EnsureAccessible(path));
         }, ct);
 
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
         Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
-            File.SetAttributes(path, attributes);
+            File.SetAttributes(LongPath.EnsureAccessible(path), attributes);
         }, ct);
 
     /// <summary>
@@ -278,7 +321,7 @@ public sealed class LocalFileSystem : IFileSystem
             {
                 // GetDiskFreeSpaceExW needs an existing directory - walk up to the nearest
                 // ancestor that exists (the destination itself may not have been created yet).
-                var existing = FindExistingAncestor(path);
+                var existing = FindExistingAncestor(LongPath.EnsureAccessible(path));
                 if (existing != null &&
                     GetDiskFreeSpaceEx(existing, out var freeAvailable, out var total, out _))
                 {
@@ -303,12 +346,14 @@ public sealed class LocalFileSystem : IFileSystem
     public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        path = LongPath.EnsureAccessible(path);
         return Task.FromResult<Stream>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan));
     }
 
     public async Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        destinationPath = LongPath.EnsureAccessible(destinationPath);
         var dir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);

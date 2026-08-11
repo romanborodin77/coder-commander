@@ -107,7 +107,11 @@ public static class FileIcons
     private static Bitmap Draw(FileIconType type, int px)
     {
         var baseSize = Math.Max(16, px);
+        // Cached in _sizedCache and disposed one generation later by ClearCache() (see its doc
+        // comment) - the analyzer can't see that far-delayed disposal path.
+#pragma warning disable CA2000
         var bmp = new Bitmap(baseSize, baseSize);
+#pragma warning restore CA2000
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;

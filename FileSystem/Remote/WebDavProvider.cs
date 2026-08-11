@@ -41,6 +41,10 @@ public sealed class WebDavProvider : IFileSystemProvider
             LogService.Warning($"WebDAV: connecting to {baseUri.Host} without TLS; credentials are sent unencrypted");
         }
 
+        // Ownership passes to HttpClient below via disposeHandler: true - the analyzer can't see
+        // across that constructor boundary, so it flags a leak that isn't one; WebDavFileSystem.
+        // Dispose() disposes _http, which cascades to this handler.
+#pragma warning disable CA2000
         var handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = true,
@@ -68,6 +72,7 @@ public sealed class WebDavProvider : IFileSystemProvider
         {
             Timeout = RemoteLimits.RequestTimeout,
         };
+#pragma warning restore CA2000
         http.DefaultRequestHeaders.UserAgent.ParseAdd("CoderCommander");
 
         var authority = baseUri.IsDefaultPort ? baseUri.Host : $"{baseUri.Host}:{baseUri.Port}";

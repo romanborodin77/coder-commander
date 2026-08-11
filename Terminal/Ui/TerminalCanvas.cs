@@ -831,6 +831,10 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     {
         var L = LocalizationService.Current;
         var p = ThemeService.Current;
+        // Built fresh on every right-click and never stored - self-disposes once closed (via
+        // Closed below) instead of leaking a ContextMenuStrip per click. The analyzer can't trace
+        // disposal happening inside the control's own event handler.
+#pragma warning disable CA2000
         var menu = new ContextMenuStrip
         {
             Renderer = new ThemeRenderer(),
@@ -838,6 +842,8 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             ForeColor = p.Foreground,
             Font = p.GridFont
         };
+#pragma warning restore CA2000
+        menu.Closed += (_, _) => menu.Dispose();
 
         var linkId = GetLinkIdAtPixel(location.X, location.Y);
         if (linkId != 0)
@@ -1135,7 +1141,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         // Strip any literal bracketed-paste markers from the payload itself - otherwise clipboard
         // content containing a forged "ESC[201~" could end the paste envelope early and make the
         // rest of the payload land on the shell's command line as if typed.
-        text = text.Replace("\x1b[200~", "").Replace("\x1b[201~", "");
+        text = text.Replace("\x1b[200~", "", StringComparison.Ordinal).Replace("\x1b[201~", "", StringComparison.Ordinal);
         var bytes = Encoding.UTF8.GetBytes(text);
 
         bool bracketedPaste;

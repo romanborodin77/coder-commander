@@ -47,5 +47,6 @@ internal sealed class NonDisposingStream : Stream
             catch { /* best effort - a broken reader can't do much worse than skip forward wrong */ }
         }
         // the real reader (TarReader/SharpCompress IReader) owns actually closing _inner
+        base.Dispose(disposing);
     }
 }

@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using System.Globalization;
 
 namespace CoderCommander.Operations;
 
@@ -89,7 +90,7 @@ internal static class ConflictResolver
 
         for (var counter = 1; ; counter++)
         {
-            var candidatePath = VfsPath.ChangeName(destPath, $"{baseName} ({counter}){ext}");
+            var candidatePath = VfsPath.ChangeName(destPath, $"{baseName} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
             if (!await destFs.ExistsAsync(candidatePath, ct).ConfigureAwait(false))
                 return candidatePath;
         }

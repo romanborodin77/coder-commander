@@ -23,10 +23,10 @@ public static class ArchivePath
     /// <summary>Splits a virtual path into its archive path and inner path components.</summary>
     public static (string archivePath, string innerPath) SplitPath(string fullPath)
     {
-        var idx = fullPath.IndexOf(Separator);
+        var idx = fullPath.IndexOf(Separator, StringComparison.Ordinal);
         return idx < 0 ? (fullPath, "") : (fullPath[..idx], fullPath[(idx + 1)..]);
     }
 
     /// <summary>Returns true when <paramref name="path"/> is a virtual archive path (contains the <see cref="Separator"/>).</summary>
-    public static bool IsArchivePath(string path) => path.Contains(Separator);
+    public static bool IsArchivePath(string path) => path.Contains(Separator, StringComparison.Ordinal);
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace CoderCommander.Services;
@@ -43,7 +44,7 @@ public sealed class LocalizationService
 
         if (args.Length > 0)
         {
-            try { return string.Format(value, args); }
+            try { return string.Format(CultureInfo.InvariantCulture, value, args); }
             catch { return value; }
         }
         return value;
@@ -130,11 +131,11 @@ public sealed class LocalizationService
         foreach (var line in File.ReadAllLines(path, Encoding.UTF8))
         {
             if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#')) continue;
-            var eq = line.IndexOf('=');
+            var eq = line.IndexOf('=', StringComparison.Ordinal);
             if (eq <= 0) continue;
             var key = line[..eq].Trim();
             var val = line[(eq + 1)..].Trim();
-            val = val.Replace("\\n", "\n");
+            val = val.Replace("\\n", "\n", StringComparison.Ordinal);
             _strings[key] = val;
         }
     }

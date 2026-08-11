@@ -99,7 +99,7 @@ public static class FtpReplyParser
     /// </summary>
     public static int ParseEpsvPort(string text)
     {
-        var open = text.IndexOf('(');
+        var open = text.IndexOf('(', StringComparison.Ordinal);
         var close = text.IndexOf(')', open + 1);
         if (open < 0 || close < open + 2) return 0;
 
@@ -123,7 +123,7 @@ public static class FtpReplyParser
     /// </summary>
     public static string ParseQuotedPath(string text)
     {
-        var start = text.IndexOf('"');
+        var start = text.IndexOf('"', StringComparison.Ordinal);
         if (start < 0) return text.Trim();
 
         var result = new System.Text.StringBuilder();

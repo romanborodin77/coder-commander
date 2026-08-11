@@ -69,13 +69,19 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => RefreshTheme();
 
-    /// <summary>Unsubscribes from the <see cref="ThemeService.ThemeChanged"/> event.</summary>
+    /// <summary>Unsubscribes from the <see cref="ThemeService.ThemeChanged"/> event and disposes
+    /// every page's content - not just the selected one. Only the selected page's Content is ever
+    /// parented into _contentPanel.Controls (see UpdateTabs()), so base.Dispose()'s recursive walk
+    /// alone would leak the content of every other page. Control.Dispose() is idempotent, so
+    /// disposing the (already-parented) selected page's content here too is harmless.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             ThemeService.ThemeChanged -= OnThemeChanged;
             _closeButtonTip.Dispose();
+            foreach (var page in _pages)
+                page.Content.Dispose();
         }
         base.Dispose(disposing);
     }

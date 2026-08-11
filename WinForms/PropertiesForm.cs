@@ -1,5 +1,7 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
+using System.Globalization;
 
 namespace CoderCommander.WinForms;
 
@@ -75,7 +77,7 @@ public class PropertiesForm : ThemedForm
         var p = ThemeService.Current;
         Text = _isSingle
             ? $"{L.GetString("Props.Title")} — {_items[0].Name}"
-            : string.Format(L.GetString("Props.MultiTitle"), items.Count);
+            : string.Format(CultureInfo.InvariantCulture, L.GetString("Props.MultiTitle"), items.Count);
 
         // ── Bottom button bar (added first so it docks Bottom) ──
         var bottom = new Panel
@@ -206,8 +208,8 @@ public class PropertiesForm : ThemedForm
         {
             int fc = 0, dc = 0;
             foreach (var it in _items) { if (it.IsDirectory) dc++; else fc++; }
-            nameText = string.Format(L.GetString("Props.MultiTitle"), _items.Count);
-            typeText = string.Format(L.GetString("Props.CountFilesDirs"), fc, dc);
+            nameText = string.Format(CultureInfo.InvariantCulture, L.GetString("Props.MultiTitle"), _items.Count);
+            typeText = string.Format(CultureInfo.InvariantCulture, L.GetString("Props.CountFilesDirs"), fc, dc);
             iconType = FileIconType.File;
         }
 
@@ -336,9 +338,9 @@ public class PropertiesForm : ThemedForm
             AddPlain("Props.Path", TrimPath(item.FullPath, 60));
             AddPlain("Props.Size", UiHelpers.FormatSize(item.Size));
             AddPlain("Props.Type", item.IsDirectory ? L.GetString("Props.Folder") : L.GetString("Props.File"));
-            AddPlain("Props.Modified", item.Modified.ToString("yyyy-MM-dd HH:mm:ss"));
-            AddPlain("Props.Created", item.Created.ToString("yyyy-MM-dd HH:mm:ss"));
-            AddPlain("Props.Accessed", LocalAccessed(item).ToString("yyyy-MM-dd HH:mm:ss"));
+            AddPlain("Props.Modified", item.Modified.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            AddPlain("Props.Created", item.Created.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            AddPlain("Props.Accessed", LocalAccessed(item).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
             AddPlain("Props.Attributes", FormatAttributes(item.Attributes));
 
             if (item.IsDirectory)
@@ -359,10 +361,10 @@ public class PropertiesForm : ThemedForm
                 else { fileCount++; totalBytes += it.Size; }
             }
 
-            AddPlain("Props.Type", string.Format(L.GetString("Props.CountFilesDirs"), fileCount, dirCount));
+            AddPlain("Props.Type", string.Format(CultureInfo.InvariantCulture, L.GetString("Props.CountFilesDirs"), fileCount, dirCount));
             AddPlain("Props.TotalSize", UiHelpers.FormatSize(totalBytes));
             AddPlain("Props.Size", UiHelpers.FormatSize(totalBytes));
-            AddPlain("Props.Name", string.Format(L.GetString("Props.MultiTitle"), _items.Count));
+            AddPlain("Props.Name", string.Format(CultureInfo.InvariantCulture, L.GetString("Props.MultiTitle"), _items.Count));
         }
 
         root.RowCount++;
@@ -696,10 +698,13 @@ public class PropertiesForm : ThemedForm
             try
             {
                 var di = new DirectoryInfo(path);
+                // ReparsePointGuard.SkipRecursion: without it a junction inside the scanned folder
+                // pulls in the size/count of whatever it points at.
                 var opts = new EnumerationOptions
                 {
                     IgnoreInaccessible = true,
-                    RecurseSubdirectories = true
+                    RecurseSubdirectories = true,
+                    AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
                 };
                 await Task.Run(() =>
                 {
@@ -722,8 +727,8 @@ public class PropertiesForm : ThemedForm
                 if (IsDisposed || !IsHandleCreated) return;
                 BeginInvoke(() =>
                 {
-                    if (_filesLabel != null) _filesLabel.Text = files.ToString();
-                    if (_subdirsLabel != null) _subdirsLabel.Text = dirs.ToString();
+                    if (_filesLabel != null) _filesLabel.Text = files.ToString(CultureInfo.InvariantCulture);
+                    if (_subdirsLabel != null) _subdirsLabel.Text = dirs.ToString(CultureInfo.InvariantCulture);
                     if (_totalSizeLabel != null) _totalSizeLabel.Text = UiHelpers.FormatSize(totalSize);
                 });
             }
@@ -754,10 +759,15 @@ public class PropertiesForm : ThemedForm
 
                 if (_isSingle && _isDirectory && _recursiveCheckbox?.Checked == true)
                 {
+                    // ReparsePointGuard.SkipRecursion: without it, applying attributes recursively
+                    // rewrote the read-only/hidden/system flags of files reachable only through a
+                    // junction inside the selected folder - files the user never selected -
+                    // confirmed with a real junction before this fix.
                     var opts = new EnumerationOptions
                     {
                         IgnoreInaccessible = true,
-                        RecurseSubdirectories = true
+                        RecurseSubdirectories = true,
+                        AttributesToSkip = ReparsePointGuard.SkipRecursion
                     };
                     foreach (var entry in new DirectoryInfo(target).EnumerateFileSystemInfos("*", opts))
                     {
@@ -815,7 +825,7 @@ public class PropertiesForm : ThemedForm
         else if (_isSingle)
             SetStatus(L.GetString("Props.Applied"));
         else
-            SetStatus(string.Format(L.GetString("Props.ApplyToAll"), success));
+            SetStatus(string.Format(CultureInfo.InvariantCulture, L.GetString("Props.ApplyToAll"), success));
     }
 
     /// <summary>Builds a new attribute mask by applying three-state checkbox states to the original attributes.</summary>
@@ -858,10 +868,14 @@ public class PropertiesForm : ThemedForm
 
         if (recursive && Directory.Exists(path))
         {
+            // ReparsePointGuard.SkipRecursion: without it, applying a timestamp recursively
+            // rewrote the last-write/creation/access time of files reachable only through a
+            // junction inside the selected folder - confirmed with a real junction before this fix.
             var opts = new EnumerationOptions
             {
                 IgnoreInaccessible = true,
-                RecurseSubdirectories = true
+                RecurseSubdirectories = true,
+                AttributesToSkip = ReparsePointGuard.SkipRecursion
             };
             foreach (var entry in new DirectoryInfo(path).EnumerateFileSystemInfos("*", opts))
             {

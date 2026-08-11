@@ -29,7 +29,7 @@ public static class ArchiveTree
             if (rest.Length == 0)
                 continue;
 
-            var slashIdx = rest.IndexOf('/');
+            var slashIdx = rest.IndexOf('/', StringComparison.Ordinal);
             if (slashIdx >= 0)
             {
                 var dirName = rest[..slashIdx];

@@ -87,6 +87,12 @@ public sealed class OperationManager : IDisposable
                     {
                         _operations.TryRemove(id, out var _);
                         OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
+                        // Audit Phase 6 (AUDIT-FINDINGS.md §3, CA2000): every operation this
+                        // manager runs is constructed by its caller and handed straight to
+                        // RunAsync - nothing else ever owned disposing it. State is guaranteed
+                        // terminal here (this branch only runs for Completed/Canceled/Failed), so
+                        // nothing will touch the operation again after this.
+                        (operation as IDisposable)?.Dispose();
                     }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
                 }
                 catch (ObjectDisposedException)
@@ -123,6 +129,10 @@ public sealed class OperationManager : IDisposable
             lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
             if (operation is FileOperation fo)
                 fo.MarkCanceledWithoutRunning();
+            // Never reached ExecuteAsync, so FileOperation's own _cts field is still null and this
+            // is a cheap no-op - included anyway so every exit from RunAsync disposes what it owns,
+            // not just the ones that got far enough to actually need it.
+            (operation as IDisposable)?.Dispose();
             throw;
         }
 
@@ -182,6 +192,10 @@ public sealed class OperationManager : IDisposable
             {
                 _operations.TryRemove(kv.Key, out _);
                 OperationChanged?.Invoke(this, new OperationManagerEventArgs(kv.Key, kv.Value, OperationChangeType.Removed));
+                // A user-triggered "clear finished" removal reaches the same terminal-state
+                // operations the delayed removal above would have disposed eventually - dispose
+                // immediately here too rather than leaving it to whichever path runs first.
+                (kv.Value.Operation as IDisposable)?.Dispose();
             }
         }
     }

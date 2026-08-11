@@ -1,0 +1,67 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.cs]
+# Audit Phase 3 ("детекторы и отчёт"): the .NET SDK's built-in analyzers are scoped in
+# CoderCommander.csproj to Security/Reliability/Usage/Globalization/Interoperability at full
+# strength (see the AnalysisMode* properties there for why Design/Naming/Documentation are off
+# outright - they're public-API-surface advice for library authors, not an internal .exe's
+# classes). The two overrides below are rules that survived that scoping but produce
+# false positives for THIS specific app shape rather than surfacing real defects - verified by
+# reading actual call sites, not assumed from the rule's general reputation. See
+# AUDIT-FINDINGS.md for the full catalog of what analyzers found, including everything left
+# enabled as a genuine baseline for Phase 6 to triage and fix by priority.
+
+# CA2007 (ConfigureAwait(false) missing): correct advice for a library, wrong for this app.
+# CoderCommander is a WinForms .exe - every await in UI-reachable code WANTS to resume on the
+# captured SynchronizationContext (the UI thread), which is exactly what omitting
+# ConfigureAwait(false) already does by default. Enabling this rule here would mean either
+# scattering ConfigureAwait(true) everywhere (redundant with the default) or, worse, training
+# reviewers to accept ConfigureAwait(false) additions that would silently move continuations off
+# the UI thread. Confirmed 63 hits under the scoped analyzer config, all in ordinary
+# UI-thread-reached async methods - not spot-checked file-by-file since the rule's premise
+# (library code, unknown calling context) simply does not hold anywhere in this app.
+dotnet_diagnostic.CA2007.severity = none
+
+# CA1303 (string literal passed where a localized resource is expected): built for the standard
+# resx/IStringLocalizer localization pattern. This repo's LocalizationService (lang/*.lng) is a
+# custom system the analyzer has no visibility into, so it flags routine literals - log
+# messages, exception text, non-UI strings - that were never candidates for localization in the
+# first place, rather than genuine untranslated user-facing text (that class of bug is instead
+# covered by LocalizationTests.cs, which checks real .lng round-trips). Confirmed 14 hits, spot
+# checked: none were an actual localization gap.
+dotnet_diagnostic.CA1303.severity = none
+
+# Audit, continued (AUDIT-FINDINGS.md §18): TreatWarningsAsErrors is now on
+# (CoderCommander.csproj), with CA2213/CA1308 carved out via WarningsNotAsErrors rather than
+# left as ordinary warnings by omission - every one of their current occurrences was read and
+# individually confirmed not to be a defect (see §13/§17), so the carve-out is a recorded decision
+# about those two rules specifically, not a gap nobody looked at. The severity overrides below
+# predate that switch, from when rules were promoted to `error` one at a time as each was
+# confirmed fully closed - now redundant with the blanket switch (a bare warning is already an
+# error unless explicitly listed in WarningsNotAsErrors), kept only as a record of when and why
+# each was individually verified clean.
+#
+# CA5392 (DllImport/LibraryImport without DefaultDllImportSearchPaths - DLL-planting, CWE-427):
+# closed assembly-wide via Properties/AssemblyInfo.cs's [assembly: DefaultDllImportSearchPaths].
+# Confirmed zero remaining occurrences before promoting.
+dotnet_diagnostic.CA5392.severity = error
+
+# CA1816 (Dispose() not calling GC.SuppressFinalize): the one occurrence
+# (Operations/FileOperation.cs) is fixed. Confirmed zero remaining occurrences before promoting.
+dotnet_diagnostic.CA1816.severity = error
+
+# CA2215 (Dispose(bool)/DisposeAsync() not calling base.Dispose(bool)/base.DisposeAsync()): all
+# three occurrences (Archives/NonDisposingStream.cs, FileSystem/Remote/Ftp/FtpDataStream.cs x2)
+# read and fixed - base Stream.Dispose(bool) is empirically confirmed a no-op (it does not even
+# dispose Stream's own lazily-created _asyncActiveSemaphore field), so calling it is free; the one
+# DisposeAsync() site is a suppressed, documented exception (calling base.DisposeAsync() there
+# would reintroduce the exact synchronous Dispose(bool) block the override exists to avoid).
+# Confirmed zero remaining occurrences before promoting.
+dotnet_diagnostic.CA2215.severity = error

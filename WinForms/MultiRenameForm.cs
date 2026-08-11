@@ -1,5 +1,6 @@
 using CoderCommander.Models;
 using CoderCommander.Services;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace CoderCommander.WinForms;
@@ -281,8 +282,8 @@ public class MultiRenameForm : ThemedForm
                 'E' => ext,
                 'P' => Path.GetFileName(Path.GetDirectoryName(item.FullPath)) ?? "",
                 'C' => ComputeCounter(num1Str, num2Str, startValue, step, index),
-                'D' => DateTime.Now.ToString("yyyy-MM-dd"),
-                'T' => DateTime.Now.ToString("HHmmss"),
+                'D' => DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                'T' => DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture),
                 _ => m.Value
             };
         });
@@ -327,8 +328,8 @@ public class MultiRenameForm : ThemedForm
         var value = start + index * step;
 
         return width > 0
-            ? value.ToString($"D{width}")
-            : value.ToString();
+            ? value.ToString($"D{width}", CultureInfo.InvariantCulture)
+            : value.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>Returns <c>true</c> if the name contains no invalid filename characters and

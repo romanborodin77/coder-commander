@@ -100,6 +100,10 @@ internal sealed class PtySession : IAsyncDisposable
         var rollbacks = new Stack<Action>();
         try
         {
+            // inputWrite/outputRead below: ownership moves into the FileStreams built further
+            // down (see the comment there) or into the rollback stack on a failure path - the
+            // analyzer can't see either destination from the out-var declaration site.
+#pragma warning disable CA2000
             if (!ConPtyInterop.CreatePipe(out var inputRead, out var inputWrite, 0, 0))
                 throw new PtyNativeException("CreatePipe (input)");
             rollbacks.Push(() => inputWrite.Dispose());
@@ -112,6 +116,7 @@ internal sealed class PtySession : IAsyncDisposable
                 throw new PtyNativeException("CreatePipe (output)");
             }
             rollbacks.Push(() => outputRead.Dispose());
+#pragma warning restore CA2000
             // outputWrite: same story as inputRead - consumed by CreatePseudoConsole, closed
             // immediately after, never separately rolled back.
 

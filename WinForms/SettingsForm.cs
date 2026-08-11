@@ -423,11 +423,15 @@ public class SettingsForm : ThemedForm
         s.ConfirmOverwrite = _confirmOverwriteCheck.Checked;
         s.CopyAttributes = _copyAttrsCheck.Checked;
         s.CopyTimestamps = _copyTsCheck.Checked;
-        s.ArchiveCompression = _workingCompression.ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+        s.ArchiveCompression.Clear();
+        foreach (var kv in _workingCompression)
+            s.ArchiveCompression[kv.Key] = kv.Value.ToString();
         if (_defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count)
             s.DefaultShellType = _availableShells[_defaultShellCombo.SelectedIndex].Id;
         s.TerminalKeyBindingPreset = _keyBindingPresetCombo.SelectedIndex switch { 1 => "Classic", 2 => "Custom", _ => "WindowsTerminal" };
-        s.TerminalCustomKeyBindings = _customKeyBindings;
+        s.TerminalCustomKeyBindings.Clear();
+        foreach (var kv in _customKeyBindings)
+            s.TerminalCustomKeyBindings[kv.Key] = kv.Value;
         s.TerminalFollowPanelCwd = _followPanelCwdCombo.SelectedIndex switch { 0 => "Never", 2 => "Always", _ => "OnOpen" };
         s.TerminalLoadShellProfile = _loadShellProfileCheck.Checked;
         SettingsService.Save(s);

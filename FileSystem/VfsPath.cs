@@ -20,7 +20,7 @@ public static class VfsPath
 {
     /// <summary>True when the path points inside an archive.</summary>
     public static bool IsArchive(string path) =>
-        !string.IsNullOrEmpty(path) && path.IndexOf(ArchivePath.Separator) >= 0;
+        !string.IsNullOrEmpty(path) && path.Contains(ArchivePath.Separator, StringComparison.Ordinal);
 
     /// <summary>Host file of an archive path; the path itself when it is a plain path.</summary>
     public static string GetArchiveFile(string path) =>

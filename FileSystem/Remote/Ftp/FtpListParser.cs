@@ -45,7 +45,7 @@ public static class FtpListParser
 
             // The name is everything after the first space that follows the facts. A name may itself
             // contain spaces, so the split is on the first one only.
-            var split = line.IndexOf(' ');
+            var split = line.IndexOf(' ', StringComparison.Ordinal);
             if (split < 0) continue;
 
             var name = line[(split + 1)..];
@@ -59,7 +59,7 @@ public static class FtpListParser
             string? type = null, sizeText = null, modifyText = null;
             foreach (var fact in line[..split].Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
-                var eq = fact.IndexOf('=');
+                var eq = fact.IndexOf('=', StringComparison.Ordinal);
                 if (eq <= 0) continue;
 
                 var key = fact[..eq];
@@ -259,7 +259,7 @@ public static class FtpListParser
 
         try
         {
-            if (yearOrTime.Contains(':'))
+            if (yearOrTime.Contains(':', StringComparison.Ordinal))
             {
                 var parts = yearOrTime.Split(':');
                 if (parts.Length < 2 || !int.TryParse(parts[0], out var hour) || !int.TryParse(parts[1], out var minute))

@@ -54,7 +54,7 @@ internal static class ShellCwdQuoting
 
             case ShellFamily.WindowsPowerShell:
             case ShellFamily.PowerShellCore:
-                command = $"Set-Location -LiteralPath '{path.Replace("'", "''")}'\r";
+                command = $"Set-Location -LiteralPath '{path.Replace("'", "''", StringComparison.Ordinal)}'\r";
                 return true;
 
             case ShellFamily.Bash:
@@ -70,5 +70,5 @@ internal static class ShellCwdQuoting
     /// <summary>POSIX single-quote escaping: close the quote, emit an escaped literal quote,
     /// reopen the quote. Provably closed - there is no byte sequence that breaks out of the
     /// resulting string, unlike a denylist of "dangerous" characters.</summary>
-    private static string EscapeSingleQuoted(string s) => s.Replace("'", "'\\''");
+    private static string EscapeSingleQuoted(string s) => s.Replace("'", "'\\''", StringComparison.Ordinal);
 }

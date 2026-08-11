@@ -218,10 +218,16 @@ public sealed class WipeOperation : FileOperation
         if (!dir.Exists)
             return true;
 
+        // ReparsePointGuard.SkipRecursion is not optional here. Without it this walk follows a
+        // junction placed inside the directory being wiped and overwrites the linked target's file
+        // contents with zeros - confirmed with a real junction before this fix. That is precisely
+        // the kind of irreversible destruction a secure wipe promises, aimed at files the user
+        // never selected.
         var options = new EnumerationOptions
         {
             IgnoreInaccessible = true,
-            RecurseSubdirectories = true
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
         };
 
         var allOk = true;

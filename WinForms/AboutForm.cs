@@ -298,7 +298,11 @@ public class AboutForm : ThemedForm
         var original = button.Text;
         button.Text = L.GetString("About.Copied");
         button.Enabled = false;
+        // Self-disposes from its own Tick handler below, at most 1400ms after this call - the
+        // analyzer can't trace disposal happening inside the timer's own event.
+#pragma warning disable CA2000
         var revert = new System.Windows.Forms.Timer { Interval = 1400 };
+#pragma warning restore CA2000
         revert.Tick += (s, _) =>
         {
             revert.Stop();

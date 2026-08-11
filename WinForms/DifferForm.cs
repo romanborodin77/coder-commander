@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using System.Globalization;
 
 namespace CoderCommander.WinForms;
 
@@ -197,17 +198,17 @@ public class DifferForm : ThemedForm
             {
                 var l = i < leftLines.Length ? leftLines[i] : "";
                 var r = i < rightLines.Length ? rightLines[i] : "";
-                var lineNum = (i + 1).ToString().PadLeft(5);
+                var lineNum = (i + 1).ToString(CultureInfo.InvariantCulture).PadLeft(5);
 
                 if (string.Equals(l, r, StringComparison.Ordinal))
                 {
-                    sbLeft.AppendLine($" {lineNum}: {l}");
-                    sbRight.AppendLine($" {lineNum}: {r}");
+                    sbLeft.AppendLine(CultureInfo.InvariantCulture, $" {lineNum}: {l}");
+                    sbRight.AppendLine(CultureInfo.InvariantCulture, $" {lineNum}: {r}");
                 }
                 else
                 {
-                    sbLeft.AppendLine($">{lineNum}: {l}");
-                    sbRight.AppendLine($">{lineNum}: {r}");
+                    sbLeft.AppendLine(CultureInfo.InvariantCulture, $">{lineNum}: {l}");
+                    sbRight.AppendLine(CultureInfo.InvariantCulture, $">{lineNum}: {r}");
                     diffCount++;
                 }
             }

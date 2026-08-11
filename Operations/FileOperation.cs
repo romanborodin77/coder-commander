@@ -138,5 +138,9 @@ public abstract class FileOperation : IFileOperation, IDisposable
             _cts?.Dispose();
             _cts = null;
         }
+        // No finalizer on this class today, so this costs nothing either way - but it's the
+        // correct defensive default (CA1816) if a derived type ever adds one: without it, that
+        // finalizer would still run and re-queue for finalization needlessly on every instance.
+        GC.SuppressFinalize(this);
     }
 }

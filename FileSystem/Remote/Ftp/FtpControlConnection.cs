@@ -242,7 +242,7 @@ internal sealed class FtpControlConnection : IDisposable
         // listing - would end the command early and inject whatever follows as a new one. The
         // listing parser already rejects such names; this is the second layer, on the path that
         // every command without exception goes through.
-        if (command.Contains('\r') || command.Contains('\n'))
+        if (command.Contains('\r', StringComparison.Ordinal) || command.Contains('\n', StringComparison.Ordinal))
             throw new ArgumentException("FTP command may not contain a line break", nameof(command));
 
         LogService.Debug($"FTP > {logAs}");

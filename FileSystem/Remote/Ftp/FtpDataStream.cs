@@ -72,11 +72,19 @@ internal sealed class FtpDataStream : Stream
 
     protected override void Dispose(bool disposing)
     {
-        if (!disposing) return;
-        FinishAsync().GetAwaiter().GetResult();
+        if (disposing)
+            FinishAsync().GetAwaiter().GetResult();
+        base.Dispose(disposing);
     }
 
+    // Deliberately does NOT call base.DisposeAsync(): that default implementation is
+    // Dispose() -> Dispose(true) -> FinishAsync().GetAwaiter().GetResult() - the exact synchronous
+    // block this override exists to avoid. Safe today only because _finished makes a second
+    // FinishAsync() call return an already-completed task, which is a fragile thing to depend on
+    // for correctness rather than a reason to add the call.
+#pragma warning disable CA2215
     public override async ValueTask DisposeAsync() => await FinishAsync().ConfigureAwait(false);
+#pragma warning restore CA2215
 
     /// <summary>
     /// Ends the transfer: closes the data connection, then reads the server's verdict.

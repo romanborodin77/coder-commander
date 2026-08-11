@@ -98,6 +98,7 @@ internal static class CwdReport
             return input.ToString();
 
         var bytes = new List<byte>(input.Length);
+        Span<byte> encoded = stackalloc byte[4];
         for (var i = 0; i < input.Length; i++)
         {
             if (input[i] == '%' && i + 2 < input.Length && Uri.IsHexDigit(input[i + 1]) && Uri.IsHexDigit(input[i + 2]))
@@ -108,7 +109,6 @@ internal static class CwdReport
             else
             {
                 Span<char> oneChar = [input[i]];
-                Span<byte> encoded = stackalloc byte[4];
                 var n = Encoding.UTF8.GetBytes(oneChar, encoded);
                 for (var j = 0; j < n; j++)
                     bytes.Add(encoded[j]);

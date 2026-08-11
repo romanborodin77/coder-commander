@@ -173,6 +173,10 @@ public class EditorForm : ThemedForm
 
         var L = LocalizationService.Current;
         var p = ThemeService.Current;
+        // Built fresh on every right-click and never stored - self-disposes once closed (via
+        // Closed below) instead of leaking a ContextMenuStrip per click. The analyzer can't trace
+        // disposal happening inside the control's own event handler.
+#pragma warning disable CA2000
         var ctx = new ContextMenuStrip
         {
             Renderer = new ThemeRenderer(),
@@ -180,6 +184,8 @@ public class EditorForm : ThemedForm
             ForeColor = p.Foreground,
             Font = p.GridFont
         };
+#pragma warning restore CA2000
+        ctx.Closed += (_, _) => ctx.Dispose();
 
         var closeItem = new ToolStripMenuItem(L.GetString("Edit.TabClose"))
         {

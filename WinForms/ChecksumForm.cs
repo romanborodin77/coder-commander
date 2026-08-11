@@ -167,12 +167,20 @@ public class ChecksumForm : ThemedForm
                     var hash = await Task.Run(() =>
                     {
                         using var stream = File.OpenRead(file);
+                        // MD5/SHA1 here are user-selectable file-identity checksums (comparing/
+                        // verifying file contents), never a security boundary - not password
+                        // hashing, signing, or anything an attacker could exploit by finding a
+                        // collision. CA5350/CA5351 assume every use of these algorithms is
+                        // cryptographic; this one isn't, so the warning is suppressed rather than
+                        // the user-facing algorithm choice removed.
+#pragma warning disable CA5350, CA5351
                         using var algorithm = algoName switch
                         {
                             "MD5" => (HashAlgorithm)MD5.Create(),
                             "SHA1" => SHA1.Create(),
                             _ => SHA256.Create()
                         };
+#pragma warning restore CA5350, CA5351
                         var hashBytes = algorithm.ComputeHash(stream);
                         return Convert.ToHexString(hashBytes).ToLowerInvariant();
                     });

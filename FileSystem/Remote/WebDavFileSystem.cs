@@ -197,7 +197,7 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
 
     public async Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, ToUri(path));
+        using var request = new HttpRequestMessage(HttpMethod.Get, ToUri(path));
         // ResponseHeadersRead so the body streams instead of being buffered whole - a 4 GB file
         // must not become a 4 GB byte[].
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)

@@ -213,8 +213,15 @@ public sealed class TerminalKeyBindingsForm : ThemedForm
         RebuildRows();
     }
 
-    private void ApplyTheme()
+    /// <summary>Must be <c>override</c>, not a same-named private method: <see cref="ThemedForm"/>
+    /// re-themes on a live theme switch through <c>RefreshTheme() -&gt; ApplyTheme()</c>, so a
+    /// method that merely *hides* the base one is never reached by that path - it only ever ran
+    /// from <see cref="RebuildRows"/>. Harmless while this body stayed a subset of what
+    /// <c>ControlThemer</c>'s ListView case already does for us, but the declaration said
+    /// "per-dialog theme hook" while behaving like a one-shot constructor helper.</summary>
+    protected override void ApplyTheme()
     {
+        base.ApplyTheme();
         var p = ThemeService.Current;
         _list.BackColor = p.PanelBackground;
         _list.ForeColor = p.Foreground;

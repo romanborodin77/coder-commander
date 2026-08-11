@@ -119,7 +119,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                             finalWriter.WriteDirectory(item.Entry.FullName, item.Entry.LastWriteTimeUtc);
                         else
                             await finalWriter.WriteFileAsync(item.Entry.FullName, content, item.Entry.Size,
-                                item.Entry.LastWriteTimeUtc, ArchiveCompressionSpec.Balanced, ct).ConfigureAwait(false);
+                                item.Entry.LastWriteTimeUtc, DefaultCompression, ct).ConfigureAwait(false);
                     }
                 }
             }
@@ -145,9 +145,27 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                 finalWriter.WriteDirectory(item.Entry.FullName, item.Entry.LastWriteTimeUtc);
             else
                 await finalWriter.WriteFileAsync(item.Entry.FullName, content, item.Entry.Size,
-                    item.Entry.LastWriteTimeUtc, ArchiveCompressionSpec.Balanced, ct).ConfigureAwait(false);
+                    item.Entry.LastWriteTimeUtc, DefaultCompression, ct).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Audit finding S2 (AUDIT-FINDINGS.md): both write sites above used to hardcode
+    /// <c>ArchiveCompressionSpec.Balanced</c> regardless of <see cref="_format"/>. Investigated
+    /// before fixing rather than taken at face value - the seed finding's framing ("compression
+    /// preset lost on add/delete") turned out not to describe real data loss: every
+    /// <see cref="ISequentialArchiveWriter"/> this class wraps (<c>TarSequentialWriter</c>,
+    /// <c>SharpCompressTarWriter</c>) ignores the per-call <c>compression</c> parameter outright -
+    /// TAR-family compression is a whole-container decision made once when the writer/stream is
+    /// constructed, not a per-entry one (see <c>TarGzArchiveFormat</c>'s own doc comment). So the
+    /// hardcoded value never actually changed a single byte of output for TAR.GZ or TAR.BZ2, whose
+    /// <see cref="IArchiveFormat.SupportedPresets"/> is <c>[Balanced]</c> anyway - the one real,
+    /// if inert, mismatch was plain TAR, whose <c>SupportedPresets</c> is <c>[Store]</c>: the code
+    /// said "Balanced" for a format that has no compression at all. Deriving the spec from
+    /// <see cref="_format"/> instead removes the mismatch and stays correct automatically if a
+    /// future format routed through this writer ever supports more than one preset.
+    /// </summary>
+    private ArchiveCompressionSpec DefaultCompression => new(_format.SupportedPresets[0]);
 
     // Case-sensitive on purpose: TAR (and TAR.GZ/TAR.BZ2, the only formats routed through this
     // writer) can legitimately contain both "README.txt" and "readme.txt" as distinct entries -

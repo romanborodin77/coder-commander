@@ -53,7 +53,6 @@ internal sealed class VtParser
     private readonly int[] _params = new int[VtLimits.MaxParams];
     private readonly bool[] _subParamStart = new bool[VtLimits.MaxParams];
     private int _paramCount;
-    private bool _currentParamHasDigits;
 
     private readonly char[] _intermediates = new char[2];
     private int _intermediateCount;
@@ -420,7 +419,6 @@ internal sealed class VtParser
     private void ClearParams()
     {
         _paramCount = 0;
-        _currentParamHasDigits = false;
         _privateMarker = '\0';
         Array.Clear(_params);
         Array.Clear(_subParamStart);
@@ -448,7 +446,6 @@ internal sealed class VtParser
         // Clamp DURING accumulation - clamping only after would let a long enough digit run
         // overflow a 32-bit int first (CSI 99999999999999b).
         _params[idx] = next > VtLimits.MaxParamValue || next < _params[idx] ? VtLimits.MaxParamValue : next;
-        _currentParamHasDigits = true;
     }
 
     private void ParamSeparator(bool subParam)
@@ -458,7 +455,6 @@ internal sealed class VtParser
 
         _paramCount++;
         _subParamStart[_paramCount - 1] = !subParam;
-        _currentParamHasDigits = false;
     }
 
     private void ClearString()

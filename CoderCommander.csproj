@@ -24,6 +24,40 @@
          monitor's startup DPI and Windows bitmap-stretches the window on any other monitor,
          instead of raising DpiChanged and letting the app rescale itself. -->
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Audit Phase 3: analyzers scoped to the categories this audit actually cares about for an
+         application (not a published library) - Security/Reliability/Usage/Globalization/
+         Interoperability at full strength, Design/Naming/Documentation off outright (CA1002/CA1034/
+         CA1051/CA1056/CA1063 etc. are public-API-surface advice for NuGet package authors and have
+         no bearing on an internal .exe's own classes; naming/doc-comment style is a maintainability
+         call, not a defect class, and CLAUDE.md already sets this repo's own comment conventions).
+         Performance/Maintainability at the SDK default so genuine perf smells (CA1859/CA1849) still
+         surface without the low-value noise (CA1822 "can be static" etc.) drowning them out. -->
+    <AnalysisMode>Default</AnalysisMode>
+    <AnalysisModeSecurity>All</AnalysisModeSecurity>
+    <AnalysisModeReliability>All</AnalysisModeReliability>
+    <AnalysisModeUsage>All</AnalysisModeUsage>
+    <AnalysisModeGlobalization>All</AnalysisModeGlobalization>
+    <AnalysisModeInteroperability>All</AnalysisModeInteroperability>
+    <AnalysisModeDesign>None</AnalysisModeDesign>
+    <AnalysisModeNaming>None</AnalysisModeNaming>
+    <AnalysisModeDocumentation>None</AnalysisModeDocumentation>
+    <!-- Audit, continued (see AUDIT-FINDINGS.md §18): every warning category in this scoped
+         analyzer configuration has now been read file-by-file, not just triaged by rule name -
+         CA1305/CA1307/CA1310 (§10-11), CA2000 (§12), CA2213 (§13), every compiler CS warning
+         (§14), CA2227 (§15), CA2215 (§16), and CA1308 (§10.4, requantified in §17). Two rules
+         remain warnings rather than errors below via WarningsNotAsErrors, not because they were
+         skipped, but because every one of their current occurrences was individually confirmed to
+         be either a structural false positive the analyzer cannot model (CA2213 - four documented
+         ownership patterns, all 197 sites read) or a fix that would be actively wrong for this
+         codebase (CA1308 - all 8 sites either risk a real regression or aren't a comparison at
+         all). Suppressing either wholesale (like CA2007/CA1303 in this file below) would hide a
+         genuinely new leak or an unrelated new ToLowerInvariant call at a site that DOES need
+         ToUpperInvariant; leaving them as ordinary (non-fatal) warnings keeps them visible on
+         every build without blocking one over a diagnosis already on record.-->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA2213;CA1308</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

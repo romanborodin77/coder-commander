@@ -70,6 +70,16 @@ public sealed class UnpackOperation : FileOperation
         using (var reader = format.OpenRead(_archivePath))
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
+            // Audit Phase 5/6 (AUDIT-FINDINGS.md §7.1, archive_fuzz): IsValid is false only when
+            // the container itself couldn't be read (corrupt/truncated/locked) - ArchiveDirectory's
+            // own doc comment says as much. Before this check, that case fell through to the
+            // selected.Count == 0 branch below exactly like a genuinely empty archive, silently
+            // completing with nothing extracted and no error at all - confirmed with a truncated
+            // ZIP: State ended up Completed, LastError null. Distinguishing them here is what makes
+            // "archive never actually opened" surface as a real, reported failure.
+            if (!directory.IsValid)
+                throw new IOException($"Archive could not be read (corrupt, truncated, or locked): {_archivePath}");
+
             var selected = SelectRecords(directory.Entries);
             if (selected.Count == 0)
                 return;
@@ -77,6 +87,7 @@ public sealed class UnpackOperation : FileOperation
             _filesTotal = selected.Count;
             _bytesTotal = selected.Where(r => !r.IsDirectory).Sum(r => r.Size);
 
+            RejectIfBombLike(selected);
             await RejectIfWouldExhaustDisk(ct).ConfigureAwait(false);
 
             await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
@@ -230,6 +241,51 @@ public sealed class UnpackOperation : FileOperation
 
         var cut = name.LastIndexOf('/');
         return cut < 0 ? name : name[(cut + 1)..];
+    }
+
+    /// <summary>
+    /// Refuses to start extraction when the selection is pathological in a way the free-space
+    /// check below cannot see: too many entries, too extreme a compression ratio, or path
+    /// nesting deep enough that no legitimate archive would produce it. See
+    /// <see cref="UnpackLimits"/> for the thresholds and why each exists.
+    ///
+    /// <para>Entirely from metadata already read into <paramref name="selected"/> - nothing here
+    /// opens or inflates a single entry, so a hostile archive is rejected at the same "before one
+    /// byte is written" point the free-space check already achieves.</para>
+    ///
+    /// <para>Internal, not private: the entry-count threshold is 200,000, and building a real
+    /// archive with that many entries just to exercise one comparison would make the test suite
+    /// slower for no benefit - this method reads nothing but the list it's given, so a synthetic
+    /// one is a faithful test of the real decision.</para>
+    /// </summary>
+    internal static void RejectIfBombLike(IReadOnlyList<ArchiveEntryRecord> selected)
+    {
+        if (selected.Count > UnpackLimits.MaxEntries)
+            throw new IOException(
+                $"This archive has {selected.Count:N0} entries, more than the {UnpackLimits.MaxEntries:N0} this app will extract in one operation.");
+
+        long uncompressed = 0, compressed = 0;
+        foreach (var record in selected)
+        {
+            if (record.IsDirectory || record.PackedSize <= 0) continue;
+            uncompressed += record.Size;
+            compressed += record.PackedSize;
+        }
+        // compressed == 0 means no selected entry reports a packed size at all (TAR and TAR.GZ
+        // entries don't - the format compresses the whole stream, not per entry) - nothing to
+        // compute a ratio from, so this check is skipped rather than guessed at, the same
+        // "can't determine" philosophy the free-space check below already follows.
+        if (compressed > 0 && uncompressed / compressed > UnpackLimits.MaxRatio)
+            throw new IOException(
+                $"This archive would expand {uncompressed / compressed:N0}x, more than the {UnpackLimits.MaxRatio}x this app will extract - it has the shape of a decompression bomb.");
+
+        foreach (var record in selected)
+        {
+            var depth = record.FullName.Count(c => c is '/' or '\\');
+            if (depth > UnpackLimits.MaxPathDepth)
+                throw new IOException(
+                    $"\"{record.FullName}\" is nested {depth} levels deep, more than the {UnpackLimits.MaxPathDepth} this app will extract.");
+        }
     }
 
     /// <summary>

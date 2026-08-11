@@ -275,6 +275,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // CA2000 flags every "new XxxOperation(...)" below because it can't see across the
+        // Operations.RunAsync(op, ...) call at the bottom of this method - RunAsync (and the
+        // OperationManager it queues into) now disposes the operation once it reaches a terminal
+        // state (audit Phase 6, AUDIT-FINDINGS.md §3: this used to be a real, unfixed leak - every
+        // operation's CancellationTokenSource lived until the app closed). Ownership genuinely
+        // transfers to RunAsync here; the warning is a false positive after that fix, not before it.
+#pragma warning disable CA2000
         IFileOperation op;
 
         if (intoArchive)
@@ -335,6 +342,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         _ = Operations.RunAsync(op, $"{verb} {entries.Count} item(s) to {destPath}");
+#pragma warning restore CA2000
     }
 
     /// <summary>
@@ -456,6 +464,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var fs = ActivePanel.CurrentFileSystem;
         var entries = files.Select(f => f.Entry).ToList();
         // The shell Recycle Bin only understands real paths.
+        // CA2000: ownership transfers to Operations.RunAsync, which disposes it on completion -
+        // see the longer explanation at ExecuteTransfer's own CA2000 suppression.
+#pragma warning disable CA2000
         var op = new DeleteOperation(fs, entries)
         {
             UseRecycleBin = fs.Capabilities.HasFlag(FileSystemCapabilities.RecycleBin),
@@ -468,6 +479,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
         };
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayDelete", files.Count));
+#pragma warning restore CA2000
     }
 
     /// <summary>Securely wipes selected items (bypasses Recycle Bin). Not supported inside archives.</summary>
@@ -491,8 +503,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ExecuteWipe(IReadOnlyList<Models.FileSystemItem> files)
     {
         var entries = files.Select(f => f.Entry).ToList();
+        // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
+#pragma warning disable CA2000
         var op = new WipeOperation(ActivePanel.CurrentFileSystem, entries);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayWipe", files.Count));
+#pragma warning restore CA2000
     }
 
     /// <summary>
@@ -541,7 +556,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private static long ComputeDirectorySize(string path)
     {
         long total = 0;
-        var options = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true };
+        // ReparsePointGuard.SkipRecursion: without it a junction inside the folder being measured
+        // pulls in the size of whatever it points at, inflating the reported total with bytes that
+        // are not really inside the selected folder.
+        var options = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+        };
         try
         {
             foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", options))
@@ -672,9 +695,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (files.Count == 0) return;
         var entries = files.Select(f => f.Entry).ToList();
+        // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
+#pragma warning disable CA2000
         var op = new PackOperation(ActivePanel.CurrentFileSystem, entries, ActivePanel.CurrentPath,
             archivePath, "", options, removeSource: move);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayPack", entries.Count, Path.GetFileName(archivePath)));
+#pragma warning restore CA2000
     }
 
     /// <summary>Raises <see cref="UnpackRequested"/> for selected archive files.</summary>
@@ -704,11 +730,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
+#pragma warning disable CA2000
         foreach (var archive in archives)
         {
             var op = new UnpackOperation(archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options);
             _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayUnpack", archive.Name, destPath));
         }
+#pragma warning restore CA2000
     }
 
     private async Task SafeExecuteAsync(Func<Task> action, string operationName)

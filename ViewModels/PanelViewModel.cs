@@ -227,7 +227,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         // of C: rather than the process's current directory on C:). Neither virtual flavour uses
         // it, and appending a backslash to "dav://host" would put one inside the host component -
         // where RemotePath.HostOf would then read it as part of the host name.
-        bool isVirtualPath = FileSystem.ZipArchiveFileSystem.IsArchivePath(path)
+        bool isVirtualPath = FileSystem.ArchivePath.IsArchivePath(path)
             || FileSystem.RemotePath.IsRemote(path);
         if (!isVirtualPath)
             path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
@@ -311,7 +311,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
         // An archive path is served by the filesystem that was installed when the archive was
         // entered; that machinery swaps it back on the way out and is none of this method's business.
-        if (FileSystem.ZipArchiveFileSystem.IsArchivePath(path)) return true;
+        if (FileSystem.ArchivePath.IsArchivePath(path)) return true;
 
         // Leaving a connection for an ordinary path. Keyed off the filesystem being one the
         // connection manager has open - not off the current path, which is the mistake that made
@@ -367,9 +367,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (FileSystem.ZipArchiveFileSystem.IsArchivePath(CurrentPath))
+        if (FileSystem.ArchivePath.IsArchivePath(CurrentPath))
         {
-            var (archivePath, innerPath) = FileSystem.ZipArchiveFileSystem.SplitPath(CurrentPath);
+            var (archivePath, innerPath) = FileSystem.ArchivePath.SplitPath(CurrentPath);
             innerPath = innerPath.Replace('\\', '/').Trim('/');
 
             if (string.IsNullOrEmpty(innerPath))
@@ -384,7 +384,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
             var lastSlash = innerPath.LastIndexOf('/');
             var parentInner = lastSlash > 0 ? innerPath[..lastSlash] : "";
-            var parentPath = FileSystem.ZipArchiveFileSystem.MakePath(archivePath, parentInner);
+            var parentPath = FileSystem.ArchivePath.MakePath(archivePath, parentInner);
             await NavigateAsync(parentPath);
         }
         else
@@ -682,7 +682,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (string.IsNullOrEmpty(pattern)) return true;
         // Convert wildcard to regex
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
-            .Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            .Replace("\\*", ".*", StringComparison.Ordinal).Replace("\\?", ".", StringComparison.Ordinal) + "$";
         return System.Text.RegularExpressions.Regex.IsMatch(name, regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 

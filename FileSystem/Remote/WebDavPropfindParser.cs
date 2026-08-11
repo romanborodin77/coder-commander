@@ -166,7 +166,7 @@ public static class WebDavPropfindParser
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absolute))
             return absolute.AbsolutePath;
 
-        var query = trimmed.IndexOf('?');
+        var query = trimmed.IndexOf('?', StringComparison.Ordinal);
         if (query >= 0) trimmed = trimmed[..query];
         return trimmed;
     }
@@ -194,7 +194,7 @@ public static class WebDavPropfindParser
     /// <summary>Trailing slash and case are not meaningful when deciding whether two hrefs name
     /// the same resource.</summary>
     private static string NormalizeForComparison(string path) =>
-        path.TrimEnd('/').ToLowerInvariant();
+        path.TrimEnd('/').ToUpperInvariant();
 
     private static long ParseLong(string? value) =>
         long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0

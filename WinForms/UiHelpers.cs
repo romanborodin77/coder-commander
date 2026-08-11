@@ -407,11 +407,11 @@ public sealed class ThemedCheckBox : Control
 public static class UiHelpers
 {
     /// <summary>Creates a themed button via <see cref="ThemedForm.CreateThemedButton"/>.</summary>
-    public static Button CreateButton(string text, bool accent = false)
+    public static Button CreateButton(string text, bool accent = false, string? name = null)
     {
         // Delegate to the canonical themed button factory to keep theming consistent.
         // (Used by legacy call sites — prefer ThemedForm.CreateThemedButton in new code.)
-        return ThemedForm.CreateThemedButton(text, accent);
+        return ThemedForm.CreateThemedButton(text, accent, name);
     }
 
     /// <summary>No-op kept for backward compatibility; <see cref="RoundedButton"/> handles its own painting.</summary>
@@ -421,11 +421,12 @@ public static class UiHelpers
     }
 
     /// <summary>Creates a themed label with optional bold font via <see cref="ThemeRole"/> tag.</summary>
-    public static Label CreateLabel(string text, bool bold = false)
+    public static Label CreateLabel(string text, bool bold = false, string? name = null)
     {
         var p = ThemeService.Current;
         return new Label
         {
+            Name = name ?? "",
             Text = text,
             Font = bold ? p.HeaderFont : p.GridFont,
             ForeColor = p.Foreground,
@@ -440,11 +441,12 @@ public static class UiHelpers
     }
 
     /// <summary>Creates a themed text box with the current theme font and colors.</summary>
-    public static TextBox CreateTextBox(string? value = null)
+    public static TextBox CreateTextBox(string? value = null, string? name = null)
     {
         var p = ThemeService.Current;
         return new TextBox
         {
+            Name = name ?? "",
             Text = value ?? "",
             Font = p.GridFont,
             BackColor = p.PanelBackground,
@@ -454,6 +456,9 @@ public static class UiHelpers
     }
 
     /// <summary>Creates a themed detail-view ListView with the specified columns.</summary>
+    /// <remarks><c>params</c> must be the last parameter, so unlike the other <c>Create*</c>
+    /// factories there is no leading optional <c>name</c> here - set <see cref="Control.Name"/> on
+    /// the returned instance directly when a call site needs a stable <c>AutomationId</c>.</remarks>
     public static ListView CreateListView(params (string name, int width)[] columns)
     {
         var p = ThemeService.Current;
@@ -476,11 +481,12 @@ public static class UiHelpers
     public static string FormatSize(long bytes) => CoderCommander.Utils.FormatUtils.FormatSize(bytes);
 
     /// <summary>Creates a themed checkbox with the specified text and initial state.</summary>
-    public static ThemedCheckBox CreateCheckBox(string text, bool checked_ = false)
+    public static ThemedCheckBox CreateCheckBox(string text, bool checked_ = false, string? name = null)
     {
         var p = ThemeService.Current;
         return new ThemedCheckBox
         {
+            Name = name ?? "",
             Text = text,
             Font = p.GridFont,
             ForeColor = p.Foreground,

@@ -2,6 +2,7 @@ using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace CoderCommander.Models;
@@ -144,7 +145,7 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     {
         Entry = entry;
         IsParent = isParent;
-        ModifiedDisplay = isParent ? "" : entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm");
+        ModifiedDisplay = isParent ? "" : entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         AttributesDisplay = isParent ? "" : FormatAttributes(entry.Attributes);
         if (isParent)
         {
@@ -165,9 +166,9 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     public static FileSystemItem CreateParent(string currentDir)
     {
         string parent;
-        if (FileSystem.ZipArchiveFileSystem.IsArchivePath(currentDir))
+        if (ArchivePath.IsArchivePath(currentDir))
         {
-            var (archivePath, innerPath) = FileSystem.ZipArchiveFileSystem.SplitPath(currentDir);
+            var (archivePath, innerPath) = ArchivePath.SplitPath(currentDir);
             innerPath = innerPath.Replace('\\', '/').Trim('/');
             var lastSlash = innerPath.LastIndexOf('/');
             var parentInner = lastSlash > 0 ? innerPath[..lastSlash] : "";
@@ -178,7 +179,7 @@ public sealed class FileSystemItem : INotifyPropertyChanged
             }
             else
             {
-                parent = FileSystem.ZipArchiveFileSystem.MakePath(archivePath, parentInner);
+                parent = ArchivePath.MakePath(archivePath, parentInner);
             }
         }
         else

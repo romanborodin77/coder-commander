@@ -113,6 +113,10 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
         var layoutParent = lv.Parent!;
         var originalDock = lv.Dock;
 
+        // Added to tlp.Controls or flp.Controls a few lines below (one of the two branches always
+        // runs - see the guard in Attach() above) - disposed recursively with its new parent, the
+        // same as any other Controls-collection child.
+#pragma warning disable CA2000
         var host = new Panel
         {
             BackColor = Color.Transparent, // ControlThemer's Panel/FlowLayoutPanel case skips
@@ -121,6 +125,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
             Margin = lv.Margin,
             Dock = originalDock
         };
+#pragma warning restore CA2000
 
         if (layoutParent is TableLayoutPanel tlp)
         {

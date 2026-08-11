@@ -76,7 +76,7 @@ public static class RemotePath
     public static string HostOf(string path)
     {
         var body = BodyOf(path);
-        var slash = body.IndexOf('/');
+        var slash = body.IndexOf('/', StringComparison.Ordinal);
         return slash < 0 ? body : body[..slash];
     }
 
@@ -84,7 +84,7 @@ public static class RemotePath
     public static string PathOf(string path)
     {
         var body = BodyOf(path);
-        var slash = body.IndexOf('/');
+        var slash = body.IndexOf('/', StringComparison.Ordinal);
         return slash < 0 ? "" : Normalize(body[(slash + 1)..]);
     }
 

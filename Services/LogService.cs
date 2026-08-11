@@ -6,9 +6,7 @@ namespace CoderCommander.Services;
 /// </summary>
 public static class LogService
 {
-    private static readonly string LogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "CoderCommander", "app.log");
+    private static readonly string LogPath = Path.Combine(DataDirectory.Root, "app.log");
 
     private static readonly object _lock = new();
 
@@ -32,7 +30,15 @@ public static class LogService
                 Info("--- Log started ---", "System");
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // app.log can't log its own failure to write app.log - System.Diagnostics.Debug is
+            // the only channel left that doesn't depend on this method already working (same
+            // reasoning as Program.LogCrash's own catch block). Silent before this (S10,
+            // AUDIT-FINDINGS.md §1) meant a locked/inaccessible log file failed with zero trace
+            // anywhere, not even in a debugger.
+            System.Diagnostics.Debug.WriteLine($"LogService.ClearLog failed: {ex}");
+        }
     }
 
     /// <summary>Logs a debug-level message.</summary>
@@ -142,7 +148,12 @@ public static class LogService
                 File.AppendAllText(LogPath, line + "\n");
             }
         }
-        catch { }
+        catch (Exception writeEx)
+        {
+            // Same reasoning as ClearLog's catch above - this IS the log writer, so a write
+            // failure has nowhere else to go but a channel that doesn't depend on it.
+            System.Diagnostics.Debug.WriteLine($"LogService.Write failed: {writeEx}");
+        }
     }
 
     /// <summary>Rotates app.log to app.log.old (overwriting any previous one) once it passes
@@ -151,14 +162,7 @@ public static class LogService
     {
         try
         {
-            var info = new FileInfo(LogPath);
-            if (!info.Exists || info.Length < MaxLogSizeBytes)
-                return;
-
-            var oldPath = LogPath + ".old";
-            if (File.Exists(oldPath))
-                File.Delete(oldPath);
-            File.Move(LogPath, oldPath);
+            Utils.LogRotation.RotateIfTooLarge(LogPath, MaxLogSizeBytes);
         }
         catch { /* best effort - a failed rotation shouldn't stop logging */ }
     }

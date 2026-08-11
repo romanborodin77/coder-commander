@@ -7,6 +7,7 @@ using CoderCommander.Services;
 using CoderCommander.ViewModels;
 using CoderCommander.WinForms;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace CoderCommander.Views;
@@ -423,8 +424,8 @@ public sealed class MainForm : Form
         _mainSplit.Panel1.BackColor = p.Background;
         _mainSplit.Panel2.BackColor = p.Background;
 
-        _leftPanel = new FilePanelUserControl(_vm.LeftPanel);
-        _rightPanel = new FilePanelUserControl(_vm.RightPanel);
+        _leftPanel = new FilePanelUserControl(_vm.LeftPanel, "LeftPanel");
+        _rightPanel = new FilePanelUserControl(_vm.RightPanel, "RightPanel");
 
         _mainSplit.Panel1.Controls.Add(_leftPanel);
         _mainSplit.Panel2.Controls.Add(_rightPanel);
@@ -833,9 +834,16 @@ public sealed class MainForm : Form
         }
     }
 
+    // The six non-modal dialogs below (as opposed to OpenAbout()'s using+ShowDialog, which is
+    // modal) all follow the same self-disposal idiom: FormClosed disposes the form once the user
+    // closes it. CA2000's escape analysis can't trace disposal through an event subscription, so
+    // it flags every one of them as leaked - they aren't; each is disposed exactly once, from the
+    // FormClosed handler registered two lines below its construction.
     private void OpenDirectoryTree()
     {
+#pragma warning disable CA2000
         var dlg = new DirectoryTreeForm(_vm.ActivePanel.CurrentPath);
+#pragma warning restore CA2000
         dlg.NavigateRequested += (_, path) => _ = _vm.ActivePanel.NavigateAsync(path);
         dlg.FormClosed += (_, _) => dlg.Dispose();
         dlg.Show(this);
@@ -851,7 +859,9 @@ public sealed class MainForm : Form
     {
         if (!IsHandleCreated) return;
 
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
         var dlg = new OperationDialogForm(e.operation, e.displayName);
+#pragma warning restore CA2000
         EventHandler<OperationProgress> progressHandler = (_, p) => dlg.UpdateProgress(p);
         e.operation.ProgressChanged += progressHandler;
         dlg.FormClosed += (_, _) =>
@@ -864,7 +874,9 @@ public sealed class MainForm : Form
 
     private void OpenOperationQueue()
     {
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
         var dlg = new OperationQueueForm(_vm.Operations);
+#pragma warning restore CA2000
         dlg.FormClosed += (_, _) => dlg.Dispose();
         dlg.Show(this);
     }
@@ -1034,9 +1046,13 @@ public sealed class MainForm : Form
             // The continuation is the difference between "not awaited" and "not observed": an
             // exception the manager did not absorb would otherwise vanish into an unobserved task
             // and leave no trace anywhere.
+            // TaskScheduler.Default, not the implicit TaskScheduler.Current: this runs inside
+            // InitializeAsync, itself a continuation of the startup path - TaskScheduler.Current
+            // is not guaranteed to be Default there, and this continuation only logs, with no
+            // reason to run on whatever scheduler happened to be ambient at the call site.
             _ = ConnectionManager.Instance.AutoConnectAllAsync()
                 .ContinueWith(t => LogService.Error("Auto-connect failed", t.Exception),
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         }
         catch (Exception ex)
         {
@@ -1073,13 +1089,55 @@ public sealed class MainForm : Form
 
         if (_vm.Hotkeys.HandleKey(e))
             return;
+    }
 
-        if (e.KeyCode == Keys.Tab)
+    /// <summary>
+    /// Switches the active panel on a bare Tab.
+    ///
+    /// <para><b>Why this cannot live in <see cref="OnFormKeyDown"/>, where it used to be.</b>
+    /// Confirmed empirically while investigating a test failure this same audit pass surfaced
+    /// (see <c>AUDIT-FINDINGS.md</c>, "Tab did not reliably switch panels"): WinForms treats a bare
+    /// Tab as a dialog navigation key and resolves it via <c>Control.ProcessDialogKey</c> /
+    /// <c>SelectNextControl</c> - a stage that runs <i>before</i> <c>KeyDown</c> is ever raised.
+    /// <see cref="Form.KeyPreview"/> reorders <c>KeyDown</c> among the controls that do receive it;
+    /// it does not pull Tab into that path at all. The old <c>KeyDown</c>-based branch therefore
+    /// never fired for a real keypress. What made panel-switching look like it worked in ordinary
+    /// use was native tab-order focus cycling coincidentally landing on the other panel's file
+    /// list and triggering its own <c>GotFocus</c> handler - which depends on the exact tab order
+    /// of every control currently on the form (how many toolbar buttons, whether the terminal panel
+    /// is visible, ...), not on anything deliberate. <c>ProcessCmdKey</c> runs earlier than dialog-key
+    /// processing, which is why <see cref="Terminal.Ui.TerminalCanvas"/> already uses it to claim
+    /// Tab for the shell - the same mechanism, used here for the same reason.</para>
+    ///
+    /// <para>Runs before <see cref="OnFormKeyDown"/>'s text-field guard even exists, so the
+    /// equivalent check is inline here: everything the old code let Tab through for
+    /// (TextBox/ComboBox/etc.) still lets it through, and only <see cref="IKeyboardGreedyControl"/>
+    /// (the terminal) can refuse it - matching the original carve-out exactly. In practice the
+    /// terminal's own <c>ProcessCmdKey</c> already claims Tab for the shell before this override is
+    /// even reached, since WinForms calls the focused control's <c>ProcessCmdKey</c> before walking
+    /// up to the form's; the check here is the same defense-in-depth backstop
+    /// <see cref="OnFormKeyDown"/> already keeps for the analogous case.</para>
+    /// </summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Tab && CanTabSwitchPanels())
         {
-            _vm.SetActivePanel(_vm.InactivePanel);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
+            var target = _vm.InactivePanel;
+            _vm.SetActivePanel(target);
+            (target == _vm.LeftPanel ? _leftPanel : _rightPanel).FocusFileList();
+            return true;
         }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool CanTabSwitchPanels()
+    {
+        var focused = ActiveControl;
+        while (focused is ContainerControl container && container.ActiveControl != null)
+            focused = container.ActiveControl;
+
+        return focused is not IKeyboardGreedyControl greedy || greedy.AllowsAppHotkey(Keys.Tab);
     }
 
     // ═══════════════════════════════════════════
@@ -1257,7 +1315,7 @@ public sealed class MainForm : Form
         string candidate;
         do
         {
-            candidate = Path.Combine(dir, $"{name} ({counter}){ext}");
+            candidate = Path.Combine(dir, $"{name} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
             counter++;
         }
         while (File.Exists(candidate) || Directory.Exists(candidate));
@@ -1316,7 +1374,9 @@ public sealed class MainForm : Form
                 .ToList();
             var currentIndex = files.IndexOf(item.FullPath);
 
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
             var dlg = new ViewerForm(item.FullPath, panel.CurrentPath, files, currentIndex);
+#pragma warning restore CA2000
             dlg.FormClosed += (_, _) => dlg.Dispose();
             dlg.Show(this);
         }
@@ -1331,7 +1391,9 @@ public sealed class MainForm : Form
     {
         try
         {
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
             var dlg = new EditorForm(item.FullPath);
+#pragma warning restore CA2000
             dlg.FormClosed += (_, _) => dlg.Dispose();
             dlg.Show(this);
         }
@@ -1457,13 +1519,25 @@ public sealed class MainForm : Form
 
     private static void CopyDirectoryRecursive(string source, string dest)
     {
+        // The SearchOption.AllDirectories shorthand has no way to skip reparse points, so this is
+        // spelled out as EnumerationOptions instead - see ReparsePointGuard. Without it, a junction
+        // inside the folder being synced pulled the linked target's files into the destination
+        // tree, materializing content that was never part of the source folder - confirmed with a
+        // real junction before this fix.
+        var options = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+        };
+
         Directory.CreateDirectory(dest);
-        foreach (var dir in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+        foreach (var dir in Directory.EnumerateDirectories(source, "*", options))
         {
             var rel = Path.GetRelativePath(source, dir);
             Directory.CreateDirectory(Path.Combine(dest, rel));
         }
-        foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        foreach (var file in Directory.EnumerateFiles(source, "*", options))
         {
             var rel = Path.GetRelativePath(source, file);
             File.Copy(file, Path.Combine(dest, rel), overwrite: true);
@@ -1716,7 +1790,9 @@ public sealed class MainForm : Form
 
     private void OpenEditorNew()
     {
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
         var dlg = new EditorForm(null);
+#pragma warning restore CA2000
         dlg.FormClosed += (_, _) => dlg.Dispose();
         dlg.Show(this);
     }
@@ -1928,9 +2004,10 @@ public sealed class MainForm : Form
         // when the user drags _terminalSplitter (a standard Splitter resizes the docked
         // control directly without notifying app code).
         s.TerminalHeight = _terminalPanel.Height > 0 ? _terminalPanel.Height : s.TerminalHeight;
-        s.OpenTerminalTabs = _terminalPanel.SessionManager?.Tabs
-            .Select(t => $"{t.Shell.Id}|{t.CurrentPath}")
-            .ToList() ?? new List<string>();
+        s.OpenTerminalTabs.Clear();
+        if (_terminalPanel.SessionManager != null)
+            s.OpenTerminalTabs.AddRange(_terminalPanel.SessionManager.Tabs
+                .Select(t => $"{t.Shell.Id}|{t.CurrentPath}"));
         s.LastTerminalPath = _terminalPanel.SessionManager?.ActiveTab?.CurrentPath;
 
         SettingsService.Save(s);

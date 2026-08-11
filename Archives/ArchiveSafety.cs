@@ -18,7 +18,7 @@ public static class ArchiveSafety
     /// rather than a narrower Windows-only check.</summary>
     public static bool EscapesTarget(string relativeEntryPath) =>
         Path.IsPathRooted(relativeEntryPath) ||
-        relativeEntryPath.Split('/').Any(part => part == ".." || part.Contains(':'));
+        relativeEntryPath.Split('/').Any(part => part == ".." || part.Contains(':', StringComparison.Ordinal));
 
     /// <summary>True if resolving <paramref name="entryName"/> against <paramref name="targetRoot"/>
     /// would land outside <paramref name="targetRoot"/>. Real path resolution, as a second layer

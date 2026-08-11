@@ -219,13 +219,21 @@ public class SearchDialogForm : ThemedForm
             var useRegex = _regexCheck.Checked;
             var ct = _cts.Token;
 
-            var searchOpt = subdirs ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            // ReparsePointGuard.SkipRecursion: the SearchOption shorthand has no way to skip
+            // reparse points, so this is EnumerationOptions instead - without it a subdirectory
+            // search followed a junction and reported matches from outside the searched folder.
+            var searchOpts = new EnumerationOptions
+            {
+                IgnoreInaccessible = true,
+                RecurseSubdirectories = subdirs,
+                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+            };
             var dir = new DirectoryInfo(path);
             int found = 0;
 
             await Task.Run(() =>
             {
-                foreach (var fsi in dir.EnumerateFileSystemInfos("*", searchOpt))
+                foreach (var fsi in dir.EnumerateFileSystemInfos("*", searchOpts))
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -299,7 +307,7 @@ public class SearchDialogForm : ThemedForm
             catch { return false; }
         }
 
-        var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+        var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal).Replace("\\?", ".", StringComparison.Ordinal) + "$";
         var opts2 = caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
         return Regex.IsMatch(name, regexPattern, opts2);
     }
