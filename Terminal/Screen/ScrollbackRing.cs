@@ -54,6 +54,7 @@ internal sealed class ScrollbackRing
         Array.Clear(_rows);
         _head = 0;
         _count = 0;
-        TotalPushed = 0;
+        // TotalPushed is intentionally NOT reset — it must remain monotonically increasing
+        // so that ReanchorForScrollbackGrowth can detect the discontinuity and snap to live.
     }
 }

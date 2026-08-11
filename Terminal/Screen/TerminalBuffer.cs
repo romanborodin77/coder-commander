@@ -19,7 +19,7 @@ internal sealed class TerminalBuffer
     public int ScrollTop { get; set; }
     public int ScrollBottom { get; set; }
 
-    public bool[] TabStops { get; private set; }
+    public bool[] TabStops { get; internal set; }
 
     public TerminalBuffer(int rows, int cols, bool withScrollback, int scrollbackCapacity, CellColor bg)
     {
@@ -37,7 +37,7 @@ internal sealed class TerminalBuffer
 
     public bool IsFullScreenRegion => ScrollTop == 0 && ScrollBottom == Rows - 1;
 
-    private static bool[] BuildDefaultTabStops(int cols)
+    internal static bool[] BuildDefaultTabStops(int cols)
     {
         var stops = new bool[cols];
         for (var i = 0; i < cols; i += 8) stops[i] = true;

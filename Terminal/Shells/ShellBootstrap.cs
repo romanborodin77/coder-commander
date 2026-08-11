@@ -62,14 +62,23 @@ internal static class ShellBootstrap
         ["PROMPT_COMMAND"] = BashPromptCommand
     };
 
-    private static IReadOnlyDictionary<string, string> BuildWslEnvironment() => new Dictionary<string, string>
+    private static IReadOnlyDictionary<string, string> BuildWslEnvironment()
     {
-        ["PROMPT_COMMAND"] = BashPromptCommand,
-        // Governs which Windows-side environment variables wsl.exe imports into the Linux session -
-        // without this, PROMPT_COMMAND never crosses the boundary. "/u" = Windows -> Linux only,
-        // untranslated (PROMPT_COMMAND is a shell snippet, not a path, so no "p" translation flag).
-        ["WSLENV"] = "PROMPT_COMMAND/u"
-    };
+        // Read existing WSLENV to preserve user-configured forwarding (DISPLAY, WAYLAND_DISPLAY, etc.)
+        var existing = Environment.GetEnvironmentVariable("WSLENV") ?? "";
+        var wslenv = existing.Contains("PROMPT_COMMAND", StringComparison.Ordinal)
+            ? existing
+            : string.IsNullOrEmpty(existing) ? "PROMPT_COMMAND/u" : $"{existing}:PROMPT_COMMAND/u";
+
+        return new Dictionary<string, string>
+        {
+            ["PROMPT_COMMAND"] = BashPromptCommand,
+            // Governs which Windows-side environment variables wsl.exe imports into the Linux session -
+            // without this, PROMPT_COMMAND never crosses the boundary. "/u" = Windows -> Linux only,
+            // untranslated (PROMPT_COMMAND is a shell snippet, not a path, so no "p" translation flag).
+            ["WSLENV"] = wslenv
+        };
+    }
 
     private static readonly string EncodedBootstrapScript =
         Convert.ToBase64String(Encoding.Unicode.GetBytes(PowerShellBootstrapScript));

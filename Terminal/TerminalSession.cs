@@ -29,20 +29,30 @@ internal sealed class TerminalSession : IAsyncDisposable
     private int _cols;
     private int _rows;
 
-    /// <summary>Cached write delegate so the screen's PTY callback stays valid even though the
-    /// PTY is created in a second phase. The lambda <c>bytes => _pty.Write(bytes)</c> captures
-    /// this field by reference.</summary>
-    private Action<byte[]> _ptyWriter = _ => { };
+    /// <summary>Mutable bridge: TerminalScreen captures this at construction, and StartPty wires
+    /// it to the real PTY writer. This lets VtResponder send DA/CPR responses after the PTY is
+    /// created.</summary>
+    private sealed class PtyWriterBridge
+    {
+        private Action<byte[]> _write = _ => { };
+        public void SetWriter(Action<byte[]> writer) => _write = writer;
+        public void Write(byte[] data) => _write(data);
+    }
+
+    private readonly PtyWriterBridge _ptyWriterBridge = new();
 
     private readonly ShellDescriptor _shell;
     private readonly Func<string, string?>? _posixCwdTranslator;
     private readonly int _scrollbackLines;
 
+    private volatile string _currentPath = "";
+    private volatile bool _isExited;
+
     public Guid Id { get; } = Guid.NewGuid();
     public ShellDescriptor Shell => _shell;
     public TerminalScreen Screen { get; }
-    public string CurrentPath { get; private set; }
-    public bool IsExited { get; private set; }
+    public string CurrentPath { get => _currentPath; private set => _currentPath = value; }
+    public bool IsExited { get => _isExited; private set => _isExited = value; }
 
     /// <summary>Tab display name - starts from the shell's localized display name, user-renamable
     /// afterward (right-click a tab header).</summary>
@@ -59,11 +69,12 @@ internal sealed class TerminalSession : IAsyncDisposable
     /// <summary>Raised when the shell process exits on its own (not via <see cref="DisposeAsync"/>).</summary>
     public event Action<int>? Exited;
 
-    private TerminalSession(ShellDescriptor shell, TerminalScreen screen, string workingDirectory,
-        int cols, int rows, int scrollbackLines, Func<string, string?>? posixCwdTranslator)
+    private TerminalSession(ShellDescriptor shell, TerminalScreen screen, PtyWriterBridge ptyWriterBridge,
+        string workingDirectory, int cols, int rows, int scrollbackLines, Func<string, string?>? posixCwdTranslator)
     {
         _shell = shell;
         Screen = screen;
+        _ptyWriterBridge = ptyWriterBridge;
         CurrentPath = workingDirectory;
         Name = FormatDisplayName(shell);
         _cols = cols;
@@ -91,10 +102,11 @@ internal sealed class TerminalSession : IAsyncDisposable
         // Initial size 80x24 — will be corrected by StartPty before any output is read.
         const int initialCols = 80;
         const int initialRows = 24;
+        var bridge = new PtyWriterBridge();
         var screen = new TerminalScreen(initialRows, initialCols, scrollbackLines,
-            _ => { }, posixCwdTranslator);
+            bridge.Write, posixCwdTranslator);
 
-        return new TerminalSession(shell, screen, workingDirectory,
+        return new TerminalSession(shell, screen, bridge, workingDirectory,
             initialCols, initialRows, scrollbackLines, posixCwdTranslator);
     }
 
@@ -118,7 +130,7 @@ internal sealed class TerminalSession : IAsyncDisposable
             (short)cols, (short)rows);
 
         _pty = pty;
-        _ptyWriter = bytes => pty.Write(bytes);
+        _ptyWriterBridge.SetWriter(bytes => pty.Write(bytes));
         _cols = cols;
         _rows = rows;
 

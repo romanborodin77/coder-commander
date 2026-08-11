@@ -62,8 +62,9 @@ internal sealed class PtySession : IAsyncDisposable
         // dispatched to a still-empty event with no subscribers and silently lost.
         _readerThread = new Thread(ReadLoop) { IsBackground = true, Name = $"pty-read-{process.Id}" };
 
-        _process.EnableRaisingEvents = true;
+        // Subscribe BEFORE EnableRaisingEvents to avoid missing a fast exit
         _process.Exited += OnProcessExited;
+        _process.EnableRaisingEvents = true;
     }
 
     /// <summary>

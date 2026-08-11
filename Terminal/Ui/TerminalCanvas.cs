@@ -307,7 +307,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
 
         if (_scrollOffset > 0)
         {
-            _scrollOffset = (int)Math.Min(_scrollOffset + delta, int.MaxValue);
+            _scrollOffset = (int)Math.Clamp(_scrollOffset + (long)delta, 0, int.MaxValue);
             lock (_session.Screen.SyncRoot)
                 _scrollOffset = Math.Min(_scrollOffset, MaxScrollOffset(_session.Screen));
         }
@@ -945,6 +945,8 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             if (!ShellCwdQuoting.TryFormatPathForInsertion(family, insertPath, out var formatted))
                 continue;
 
+            if (sb.Length > 0 && formatted.Length > 0 && formatted[0] != ' ')
+                sb.Append(' ');
             sb.Append(formatted);
         }
 
@@ -958,7 +960,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        var notches = e.Delta / 120;
+        var notches = Math.Sign(e.Delta); // handle high-resolution wheels: any non-zero delta scrolls one notch
         if (notches == 0) return;
 
         if (TryGetMouseReportModes(out _, out _))

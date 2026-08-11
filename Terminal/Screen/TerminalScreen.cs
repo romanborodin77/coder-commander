@@ -137,14 +137,28 @@ internal sealed class TerminalScreen : IVtSink
         }
 
         var row = CurrentRow();
+
+        // IRM (Insert Mode, CSI 4h): shift existing content right before writing
+        if (Modes.InsertMode)
+        {
+            var limit = _active.Cols;
+            for (var c = limit - 1; c >= _cursor.Col + width; c--)
+                row.Cells[c] = row.Cells[c - width];
+            row.ClearRange(_cursor.Col, _cursor.Col + width, _cursor.Bg);
+        }
+
         WriteCell(row, _cursor.Col, rune, width);
         _lastPrintedRune = rune;
 
         var newCol = _cursor.Col + width;
         if (newCol >= _active.Cols)
         {
-            _cursor.Col = _active.Cols - 1;
-            _cursor.PendingWrap = true;
+            if (Modes.AutoWrap)
+            {
+                _cursor.Col = _active.Cols - 1;
+                _cursor.PendingWrap = true;
+            }
+            // else: AutoWrap disabled — cursor stays at right margin, overwrite mode
         }
         else
         {
@@ -555,6 +569,8 @@ internal sealed class TerminalScreen : IVtSink
         for (var r = 0; r < _alt.Rows; r++) _alt[r].ClearAll(CellColor.Default);
         _main.ScrollTop = 0; _main.ScrollBottom = _main.Rows - 1;
         _alt.ScrollTop = 0; _alt.ScrollBottom = _alt.Rows - 1;
+        _main.TabStops = TerminalBuffer.BuildDefaultTabStops(_main.Cols);
+        _alt.TabStops = TerminalBuffer.BuildDefaultTabStops(_alt.Cols);
         _cursor = CursorState.Initial(CellColor.Default, CellColor.Default);
         _savedCursorMain = _cursor;
         _savedCursorAlt = _cursor;
@@ -819,7 +835,13 @@ internal sealed class TerminalScreen : IVtSink
 
         var id = _nextHyperlinkId;
         _nextHyperlinkId = (ushort)(_nextHyperlinkId + 1);
-        if (_nextHyperlinkId == 0) _nextHyperlinkId = 1; // wrap past ushort.MaxValue, 0 stays reserved
+        if (_nextHyperlinkId == 0) _nextHyperlinkId = 1;
+
+        // Evict stale entry if this id was already used (after ushort wrap-around)
+        if (_hyperlinksById.TryGetValue(id, out var oldUri))
+        {
+            _hyperlinkIdsByUri.Remove(oldUri);
+        }
 
         _hyperlinksById[id] = uriString;
         _hyperlinkIdsByUri[uriString] = id;

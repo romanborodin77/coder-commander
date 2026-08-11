@@ -19,6 +19,8 @@ public sealed class EmbeddedTerminalPanel : Panel
     private TerminalSessionManager? _sessionManager;
     private readonly Dictionary<Guid, TerminalSession> _sessions = new();
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
+    /// <summary>Event handler delegates per tab, for proper unsubscription when closing.</summary>
+    private readonly Dictionary<Guid, (TerminalSession Session, Action<int> Exited, Action<string> CwdReported, Action TitleChanged)> _tabEventHandlers = new();
     private ThemedTabControl? _tabControl;
     private RoundedButton? _newTabButton;
     private readonly ToolTip _newTabTooltip = new();
@@ -38,6 +40,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     private readonly Dictionary<Guid, (string NormalizedPath, DateTime UntilUtc)> _suppressCwdReport = new();
     private static readonly TimeSpan CwdReportSuppressWindow = TimeSpan.FromSeconds(3);
     private readonly System.Windows.Forms.Timer _cwdSweepTimer;
+    private bool _newTabDialogOpen;
 
     /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
@@ -209,7 +212,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     }
 
     private static string NormalizePath(string path) =>
-        path.TrimEnd('\\').ToUpperInvariant();
+        path.Replace('/', '\\').TrimEnd('\\').ToUpperInvariant();
 
     /// <summary>Removes expired entries from the cwd-report loop-guard dictionary. Called before
     /// each new insertion to prevent unbounded growth when the shell doesn't report back.</summary>
@@ -289,8 +292,16 @@ public sealed class EmbeddedTerminalPanel : Panel
         var tab = _sessionManager.CreateTab(shell, session.Name, seedPath, beforeNotify: tabId =>
         {
             _sessions[tabId] = session;
-            session.Exited += _ => OnSessionExited(tabId);
-            session.Screen.CwdReported += path => OnSessionCwdReported(tabId, path);
+
+            // Store handlers for unsubscription on tab close
+            Action<int> exitedHandler = _ => OnSessionExited(tabId);
+            Action<string> cwdHandler = path => OnSessionCwdReported(tabId, path);
+            Action titleHandler = () => OnScreenTitleChanged(tabId);
+            _tabEventHandlers[tabId] = (session, exitedHandler, cwdHandler, titleHandler);
+
+            session.Exited += exitedHandler;
+            session.Screen.CwdReported += cwdHandler;
+            session.Screen.TitleChanged += titleHandler;
         });
         if (tab == null)
         {
@@ -452,7 +463,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         var view = new TerminalTabView(session, LoadKeyBindings());
         view.Canvas.ActionRequested += (_, action) => OnCanvasActionRequested(tabId, action);
         view.Canvas.ShowPathInPanelRequested += (_, path) => ShowPathInPanelRequested?.Invoke(this, path);
-        session.Screen.TitleChanged += () => OnScreenTitleChanged(tabId);
+        // TitleChanged handler already subscribed in AddTerminalTab's beforeNotify callback
 
         var page = new ThemedTabPage(tab.GetDisplayName(), view);
         _tabPagesByGuid[tabId] = page;
@@ -492,6 +503,17 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void OnTabClosed(object? sender, Guid tabId)
     {
+        // Unsubscribe session/screen events to prevent callbacks into a disposed panel.
+        // Session may already be removed from _sessions by CloseTerminalTab, so we use the
+        // reference stored in _tabEventHandlers instead.
+        if (_tabEventHandlers.TryGetValue(tabId, out var handlers))
+        {
+            handlers.Session.Exited -= handlers.Exited;
+            handlers.Session.Screen.CwdReported -= handlers.CwdReported;
+            handlers.Session.Screen.TitleChanged -= handlers.TitleChanged;
+        }
+        _tabEventHandlers.Remove(tabId);
+
         if (_tabControl != null && _tabPagesByGuid.TryGetValue(tabId, out var page))
         {
             // RemovePage first, so ThemedTabControl un-parents (and stops referencing) this page's
@@ -577,7 +599,8 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Show dialog to create new terminal tab.</summary>
     public async void ShowNewTabDialog()
     {
-        if (_sessionManager == null) return; // unsupported OS - see InitializeComponents
+        if (_sessionManager == null || _newTabDialogOpen) return;
+        _newTabDialogOpen = true;
 
         try
         {
@@ -601,6 +624,10 @@ public sealed class EmbeddedTerminalPanel : Panel
             // async void: this is the top of the call stack, so an unhandled exception here would
             // surface as WinForms' raw crash dialog instead of the app's own error handling.
             LogService.Error("ShowNewTabDialog failed", ex);
+        }
+        finally
+        {
+            _newTabDialogOpen = false;
         }
     }
 
@@ -671,6 +698,7 @@ public sealed class EmbeddedTerminalPanel : Panel
                 Services.LogService.Error("Terminal panel bulk disposal failed", ex);
             }
             _sessions.Clear();
+            _tabEventHandlers.Clear();
 
             foreach (var page in _tabPagesByGuid.Values)
                 page.Content.Dispose();
