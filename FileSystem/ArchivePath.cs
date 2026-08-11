@@ -5,8 +5,8 @@ namespace CoderCommander.FileSystem;
 /// <c>C:\dir\file.zip|inner/dir/name</c>. Previously lived on <see cref="ZipArchiveFileSystem"/>
 /// as ZIP-specific statics; the "<c>|</c>-separated host-path + inner-path" convention itself
 /// isn't ZIP-specific, so it moved here where any archive format's file system can use it.
-/// <see cref="ZipArchiveFileSystem"/> keeps <c>[Obsolete]</c> one-line forwarders to these for
-/// source compatibility.
+/// The <c>[Obsolete]</c> forwarders <see cref="ZipArchiveFileSystem"/> briefly kept for source
+/// compatibility are gone - every call site was migrated to these (audit finding S9, DEBUG.md §0.1).
 /// </summary>
 public static class ArchivePath
 {

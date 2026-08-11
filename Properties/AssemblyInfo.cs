@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyFileVersion("1.0.0.0")]
 [assembly: ComVisible(false)]
 
-// Audit Phase 6, CA5392 (AUDIT-FINDINGS.md §3): every P/Invoke in this app targets a well-known
+// Audit Phase 6, CA5392 (DEBUG.md §0.4): every P/Invoke in this app targets a well-known
 // Windows system DLL (kernel32/shell32/user32/imm32/dwmapi/uxtheme) by bare name with no path -
 // without this, the OS default search order can be tricked into loading a same-named DLL planted
 // in the process's working directory or an earlier PATH entry instead of the real system one

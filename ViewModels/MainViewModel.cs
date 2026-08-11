@@ -278,7 +278,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // CA2000 flags every "new XxxOperation(...)" below because it can't see across the
         // Operations.RunAsync(op, ...) call at the bottom of this method - RunAsync (and the
         // OperationManager it queues into) now disposes the operation once it reaches a terminal
-        // state (audit Phase 6, AUDIT-FINDINGS.md §3: this used to be a real, unfixed leak - every
+        // state (audit Phase 6, DEBUG.md §0.4: this used to be a real, unfixed leak - every
         // operation's CancellationTokenSource lived until the app closed). Ownership genuinely
         // transfers to RunAsync here; the warning is a false positive after that fix, not before it.
 #pragma warning disable CA2000

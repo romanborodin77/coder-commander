@@ -43,10 +43,11 @@
     <AnalysisModeDesign>None</AnalysisModeDesign>
     <AnalysisModeNaming>None</AnalysisModeNaming>
     <AnalysisModeDocumentation>None</AnalysisModeDocumentation>
-    <!-- Audit, continued (see AUDIT-FINDINGS.md §18): every warning category in this scoped
-         analyzer configuration has now been read file-by-file, not just triaged by rule name -
-         CA1305/CA1307/CA1310 (§10-11), CA2000 (§12), CA2213 (§13), every compiler CS warning
-         (§14), CA2227 (§15), CA2215 (§16), and CA1308 (§10.4, requantified in §17). Two rules
+    <!-- Audit, continued (see DEBUG.md §0 - a summary preserved after AUDIT-FINDINGS.md was
+         removed from the repo along with the test project; full detail is in git history):
+         every warning category in this scoped analyzer configuration has been read file-by-file,
+         not just triaged by rule name - CA1305/CA1307/CA1310, CA2000, CA2213 (§0.2), every
+         compiler CS warning, CA2227, CA2215, and CA1308 (§0.3). Two rules
          remain warnings rather than errors below via WarningsNotAsErrors, not because they were
          skipped, but because every one of their current occurrences was individually confirmed to
          be either a structural false positive the analyzer cannot model (CA2213 - four documented

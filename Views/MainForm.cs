@@ -1096,7 +1096,7 @@ public sealed class MainForm : Form
     ///
     /// <para><b>Why this cannot live in <see cref="OnFormKeyDown"/>, where it used to be.</b>
     /// Confirmed empirically while investigating a test failure this same audit pass surfaced
-    /// (see <c>AUDIT-FINDINGS.md</c>, "Tab did not reliably switch panels"): WinForms treats a bare
+    /// (see <c>DEBUG.md §0</c>, "Tab did not reliably switch panels"): WinForms treats a bare
     /// Tab as a dialog navigation key and resolves it via <c>Control.ProcessDialogKey</c> /
     /// <c>SelectNextControl</c> - a stage that runs <i>before</i> <c>KeyDown</c> is ever raised.
     /// <see cref="Form.KeyPreview"/> reorders <c>KeyDown</c> among the controls that do receive it;

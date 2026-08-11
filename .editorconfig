@@ -15,8 +15,9 @@ indent_size = 4
 # classes). The two overrides below are rules that survived that scoping but produce
 # false positives for THIS specific app shape rather than surfacing real defects - verified by
 # reading actual call sites, not assumed from the rule's general reputation. See
-# AUDIT-FINDINGS.md for the full catalog of what analyzers found, including everything left
-# enabled as a genuine baseline for Phase 6 to triage and fix by priority.
+# DEBUG.md §0 for the full catalog of what analyzers found (AUDIT-FINDINGS.md itself was removed
+# from the repo along with the test project; its content is preserved there and in git history),
+# including everything left enabled as a genuine baseline for Phase 6 to triage and fix by priority.
 
 # CA2007 (ConfigureAwait(false) missing): correct advice for a library, wrong for this app.
 # CoderCommander is a WinForms .exe - every await in UI-reachable code WANTS to resume on the
@@ -38,10 +39,10 @@ dotnet_diagnostic.CA2007.severity = none
 # checked: none were an actual localization gap.
 dotnet_diagnostic.CA1303.severity = none
 
-# Audit, continued (AUDIT-FINDINGS.md §18): TreatWarningsAsErrors is now on
+# Audit, continued (see DEBUG.md §0.2/§0.3): TreatWarningsAsErrors is now on
 # (CoderCommander.csproj), with CA2213/CA1308 carved out via WarningsNotAsErrors rather than
 # left as ordinary warnings by omission - every one of their current occurrences was read and
-# individually confirmed not to be a defect (see §13/§17), so the carve-out is a recorded decision
+# individually confirmed not to be a defect (see DEBUG.md §0.2/§0.3), so the carve-out is a recorded decision
 # about those two rules specifically, not a gap nobody looked at. The severity overrides below
 # predate that switch, from when rules were promoted to `error` one at a time as each was
 # confirmed fully closed - now redundant with the blanket switch (a bare warning is already an

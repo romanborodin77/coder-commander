@@ -26,14 +26,4 @@ AGENTS.md
 CLAUDE.md
 .claude/
 
-## Debugging infrastructure and its docs (developer-only, not in repo)
-debug.ps1
-DEBUG.md
-DEBUGGING_QUICKSTART.md
-DEBUGGING_REPORT.md
-DEBUG_TOOLS_SUMMARY.md
-SETUP_DEBUGGING.md
-INDEX.md
-screenshots/
-
 

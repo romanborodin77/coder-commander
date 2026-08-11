@@ -139,7 +139,7 @@ public sealed class SharpCompressReader : IArchiveReader
                 yield return new ArchiveEntryStream(record, content);
 
                 // SharpCompress is fully synchronous; yield the thread periodically (not on every
-                // single entry - audit finding S8, AUDIT-FINDINGS.md) so cancellation and the
+                // single entry - audit finding S8, DEBUG.md §0.1) so cancellation and the
                 // caller's own async work get a fair chance to run. Every-entry yielding meant an
                 // archive at UnpackLimits.MaxEntries (200,000) forced 200,000 thread-pool
                 // suspend/resume round trips for no benefit over checking in every YieldEveryNEntries -

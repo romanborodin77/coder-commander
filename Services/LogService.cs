@@ -36,7 +36,7 @@ public static class LogService
             // app.log can't log its own failure to write app.log - System.Diagnostics.Debug is
             // the only channel left that doesn't depend on this method already working (same
             // reasoning as Program.LogCrash's own catch block). Silent before this (S10,
-            // AUDIT-FINDINGS.md §1) meant a locked/inaccessible log file failed with zero trace
+            // DEBUG.md §0.1) meant a locked/inaccessible log file failed with zero trace
             // anywhere, not even in a debugger.
             System.Diagnostics.Debug.WriteLine($"LogService.ClearLog failed: {ex}");
         }

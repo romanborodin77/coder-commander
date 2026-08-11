@@ -70,7 +70,7 @@ public sealed class UnpackOperation : FileOperation
         using (var reader = format.OpenRead(_archivePath))
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
-            // Audit Phase 5/6 (AUDIT-FINDINGS.md §7.1, archive_fuzz): IsValid is false only when
+            // Audit Phase 5/6 (DEBUG.md §0, archive_fuzz): IsValid is false only when
             // the container itself couldn't be read (corrupt/truncated/locked) - ArchiveDirectory's
             // own doc comment says as much. Before this check, that case fell through to the
             // selected.Count == 0 branch below exactly like a genuinely empty archive, silently

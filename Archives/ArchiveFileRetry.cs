@@ -12,8 +12,8 @@ namespace CoderCommander.Archives;
 public static class ArchiveFileRetry
 {
     /// <summary>Backoff delays (in milliseconds) applied between retries when the archive file is locked.
-    /// Widened from {150, 300, 600} (~1.05s total) after UiTests showed real, reproducible failures under
-    /// this budget - Commit_AddingToExistingArchive_PreservesPriorEntries and its siblings would
+    /// Widened from {150, 300, 600} (~1.05s total) after testing showed real, reproducible failures under
+    /// this budget - a "commit while adding to an existing archive" scenario and its siblings would
     /// occasionally exhaust all 3 retries against a lock that cleared shortly after (almost certainly
     /// Windows Defender's real-time scan of a just-written temp archive; the same failure mode also hit
     /// PackOperation silently, since FileOperation.ExecuteAsync catches and reports it as State=Failed

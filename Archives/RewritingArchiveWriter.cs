@@ -150,7 +150,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     }
 
     /// <summary>
-    /// Audit finding S2 (AUDIT-FINDINGS.md): both write sites above used to hardcode
+    /// Audit finding S2 (DEBUG.md §0.1): both write sites above used to hardcode
     /// <c>ArchiveCompressionSpec.Balanced</c> regardless of <see cref="_format"/>. Investigated
     /// before fixing rather than taken at face value - the seed finding's framing ("compression
     /// preset lost on add/delete") turned out not to describe real data loss: every

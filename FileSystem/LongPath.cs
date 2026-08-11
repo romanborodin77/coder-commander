@@ -1,7 +1,7 @@
 namespace CoderCommander.FileSystem;
 
 /// <summary>
-/// Audit finding S7 (AUDIT-FINDINGS.md): no <c>\\?\</c> long-path prefix existed anywhere in
+/// Audit finding S7 (DEBUG.md §0.1): no <c>\\?\</c> long-path prefix existed anywhere in
 /// <c>FileSystem/</c>, so any local path past Windows' historical MAX_PATH (260 characters) fails
 /// with <see cref="PathTooLongException"/>/<see cref="DirectoryNotFoundException"/> on a machine
 /// that hasn't opted into the modern <c>LongPathsEnabled</c> registry policy - which is most

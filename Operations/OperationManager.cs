@@ -87,7 +87,7 @@ public sealed class OperationManager : IDisposable
                     {
                         _operations.TryRemove(id, out var _);
                         OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
-                        // Audit Phase 6 (AUDIT-FINDINGS.md §3, CA2000): every operation this
+                        // Audit Phase 6 (DEBUG.md §0.4, CA2000): every operation this
                         // manager runs is constructed by its caller and handed straight to
                         // RunAsync - nothing else ever owned disposing it. State is guaranteed
                         // terminal here (this branch only runs for Completed/Canceled/Failed), so
