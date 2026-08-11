@@ -397,7 +397,10 @@ public sealed class EmbeddedTerminalPanel : Panel
             return;
 
         var L = LocalizationService.Current;
-        using var menu = new ContextMenuStrip();
+#pragma warning disable CA2000 // Ownership transferred to Closed event handler
+        var menu = new ContextMenuStrip();
+#pragma warning restore CA2000
+        menu.Closed += (_, _) => menu.Dispose();
         menu.Items.Add(new ToolStripMenuItem(L.GetString("Input.Rename"), null, (_, _) =>
         {
             using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), tab.Name);
