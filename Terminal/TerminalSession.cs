@@ -12,18 +12,34 @@ namespace CoderCommander.Terminal;
 /// characters through <see cref="VtParser"/> into a <see cref="TerminalScreen"/>, and exposes the
 /// result for a UI layer to render. Deliberately free of any WinForms dependency - everything here
 /// runs correctly headless, which is what makes it directly unit-testable.
+/// <para>
+/// Two-phase initialization: <see cref="Create"/> builds the session infrastructure (screen,
+/// parser, decoder) without spawning a shell. <see cref="StartPty"/> creates the ConPTY at the
+/// canvas's actual size and starts reading — this guarantees the shell's initial output is
+/// generated at the correct dimensions, preventing the startup text from being pushed to
+/// scrollback on the first resize.
+/// </para>
 /// </summary>
 internal sealed class TerminalSession : IAsyncDisposable
 {
-    private readonly PtySession _pty;
+    private PtySession? _pty;
     private readonly Utf8ChunkDecoder _decoder = new();
     private readonly char[] _decodeScratch = new char[4096];
     private readonly VtParser _parser = new();
     private int _cols;
     private int _rows;
 
+    /// <summary>Cached write delegate so the screen's PTY callback stays valid even though the
+    /// PTY is created in a second phase. The lambda <c>bytes => _pty.Write(bytes)</c> captures
+    /// this field by reference.</summary>
+    private Action<byte[]> _ptyWriter = _ => { };
+
+    private readonly ShellDescriptor _shell;
+    private readonly Func<string, string?>? _posixCwdTranslator;
+    private readonly int _scrollbackLines;
+
     public Guid Id { get; } = Guid.NewGuid();
-    public ShellDescriptor Shell { get; }
+    public ShellDescriptor Shell => _shell;
     public TerminalScreen Screen { get; }
     public string CurrentPath { get; private set; }
     public bool IsExited { get; private set; }
@@ -43,19 +59,76 @@ internal sealed class TerminalSession : IAsyncDisposable
     /// <summary>Raised when the shell process exits on its own (not via <see cref="DisposeAsync"/>).</summary>
     public event Action<int>? Exited;
 
-    private TerminalSession(PtySession pty, ShellDescriptor shell, TerminalScreen screen, string workingDirectory, int cols, int rows)
+    private TerminalSession(ShellDescriptor shell, TerminalScreen screen, string workingDirectory,
+        int cols, int rows, int scrollbackLines, Func<string, string?>? posixCwdTranslator)
     {
-        _pty = pty;
-        Shell = shell;
+        _shell = shell;
         Screen = screen;
         CurrentPath = workingDirectory;
         Name = FormatDisplayName(shell);
         _cols = cols;
         _rows = rows;
+        _scrollbackLines = scrollbackLines;
+        _posixCwdTranslator = posixCwdTranslator;
 
-        _pty.OutputReceived += OnPtyOutput;
-        _pty.Exited += OnPtyExited;
         Screen.CwdReported += OnCwdReported;
+    }
+
+    /// <summary>Phase 1: create the session infrastructure (screen, parser, decoder) without
+    /// spawning a shell. The PTY is created later by <see cref="StartPty"/> once the canvas
+    /// reports its actual dimensions.</summary>
+    public static TerminalSession Create(ShellDescriptor shell, string workingDirectory,
+        int scrollbackLines)
+    {
+        // WSL's OSC 7 payload is a POSIX path ($(pwd) inside the distro), not a Windows one.
+        Func<string, string?>? posixCwdTranslator = null;
+        if (shell.Family == ShellFamily.Wsl)
+        {
+            var mapper = new WslPathMapper(ShellIds.DistroNameFromShellId(shell.Id));
+            posixCwdTranslator = posixPath => mapper.TryToWindows(posixPath, out var winPath) ? winPath : null;
+        }
+
+        // Initial size 80x24 — will be corrected by StartPty before any output is read.
+        const int initialCols = 80;
+        const int initialRows = 24;
+        var screen = new TerminalScreen(initialRows, initialCols, scrollbackLines,
+            _ => { }, posixCwdTranslator);
+
+        return new TerminalSession(shell, screen, workingDirectory,
+            initialCols, initialRows, scrollbackLines, posixCwdTranslator);
+    }
+
+    /// <summary>Phase 2: spawn the ConPTY at the canvas's actual size and start reading. Must be
+    /// called after the canvas has been created and sized — this guarantees the shell's initial
+    /// output (version string, copyright, prompt) is generated at the correct dimensions and is
+    /// never pushed to scrollback on a subsequent resize.</summary>
+    public void StartPty(int cols, int rows)
+    {
+        if (_pty != null) return; // already started — guard against double-call
+
+        var loadProfile = SettingsService.Load().TerminalLoadShellProfile;
+        var arguments = _shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(_shell.Family, loadProfile)).ToList();
+
+        var environment = new Dictionary<string, string>(ExtraEnvironment);
+        foreach (var (key, value) in ShellBootstrap.BuildEnvironment(_shell.Family))
+            environment[key] = value;
+
+        var pty = PtySession.Start(
+            _shell.ExecutablePath, arguments, CurrentPath, environment,
+            (short)cols, (short)rows);
+
+        _pty = pty;
+        _ptyWriter = bytes => pty.Write(bytes);
+        _cols = cols;
+        _rows = rows;
+
+        // Update screen to actual size (no scrollback push — screen is still empty).
+        lock (Screen.SyncRoot)
+            Screen.Resize(rows, cols);
+
+        pty.OutputReceived += OnPtyOutput;
+        pty.Exited += OnPtyExited;
+        pty.BeginReading();
     }
 
     private static string FormatDisplayName(ShellDescriptor shell)
@@ -76,39 +149,8 @@ internal sealed class TerminalSession : IAsyncDisposable
         ["COLORTERM"] = "truecolor",
     };
 
-    public static TerminalSession Start(ShellDescriptor shell, string workingDirectory, int cols, int rows, int scrollbackLines)
-    {
-        var loadProfile = SettingsService.Load().TerminalLoadShellProfile;
-        var arguments = shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(shell.Family, loadProfile)).ToList();
-
-        // ShellBootstrap's entries (cwd-report PROMPT/PROMPT_COMMAND injection) are layered on top
-        // of the base TERM/COLORTERM set; a family with nothing to add contributes an empty dict.
-        var environment = new Dictionary<string, string>(ExtraEnvironment);
-        foreach (var (key, value) in ShellBootstrap.BuildEnvironment(shell.Family))
-            environment[key] = value;
-
-        var pty = PtySession.Start(
-            shell.ExecutablePath, arguments, workingDirectory, environment,
-            (short)cols, (short)rows);
-
-        // WSL's OSC 7 payload is a POSIX path ($(pwd) inside the distro), not a Windows one - the
-        // plain CwdReport interpretation would just backslash-replace it and fail Directory.Exists
-        // every time, silently breaking cwd sync for every WSL tab.
-        Func<string, string?>? posixCwdTranslator = null;
-        if (shell.Family == ShellFamily.Wsl)
-        {
-            var mapper = new WslPathMapper(ShellIds.DistroNameFromShellId(shell.Id));
-            posixCwdTranslator = posixPath => mapper.TryToWindows(posixPath, out var winPath) ? winPath : null;
-        }
-
-        var screen = new TerminalScreen(rows, cols, scrollbackLines, bytes => pty.Write(bytes), posixCwdTranslator);
-        var session = new TerminalSession(pty, shell, screen, workingDirectory, cols, rows);
-        pty.BeginReading();
-        return session;
-    }
-
     /// <summary>Sends raw bytes (already VT-encoded) to the shell's stdin.</summary>
-    public void SendInput(ReadOnlySpan<byte> bytes) => _pty.Write(bytes);
+    public void SendInput(ReadOnlySpan<byte> bytes) => _pty?.Write(bytes);
 
     public void Resize(int cols, int rows)
     {
@@ -119,7 +161,7 @@ internal sealed class TerminalSession : IAsyncDisposable
         // buffers - both must go through Screen.SyncRoot.
         lock (Screen.SyncRoot)
             Screen.Resize(rows, cols);
-        _pty.Resize((short)cols, (short)rows);
+        _pty?.Resize((short)cols, (short)rows);
     }
 
     private void OnPtyOutput(ReadOnlyMemory<byte> bytes)
@@ -141,9 +183,12 @@ internal sealed class TerminalSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _pty.OutputReceived -= OnPtyOutput;
-        _pty.Exited -= OnPtyExited;
         Screen.CwdReported -= OnCwdReported;
-        await _pty.DisposeAsync().ConfigureAwait(false);
+        if (_pty != null)
+        {
+            _pty.OutputReceived -= OnPtyOutput;
+            _pty.Exited -= OnPtyExited;
+            await _pty.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

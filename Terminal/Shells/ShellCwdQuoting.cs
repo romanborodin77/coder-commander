@@ -71,4 +71,43 @@ internal static class ShellCwdQuoting
     /// reopen the quote. Provably closed - there is no byte sequence that breaks out of the
     /// resulting string, unlike a denylist of "dangerous" characters.</summary>
     private static string EscapeSingleQuoted(string s) => s.Replace("'", "'\\''", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Formats a single file/directory path for insertion into the terminal at the current cursor
+    /// position (drag-and-drop, paste). The path is quoted per shell family to prevent injection.
+    /// A trailing space is appended so the user can continue typing. Returns false if the path
+    /// fails validation (too long, contains injection characters for cmd).
+    /// </summary>
+    public static bool TryFormatPathForInsertion(ShellFamily family, string path, out string formatted)
+    {
+        formatted = "";
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+        if (path.Length > MaxPathLength)
+            return false;
+        if (path.IndexOfAny(['\r', '\n', '\0']) >= 0)
+            return false;
+
+        switch (family)
+        {
+            case ShellFamily.Cmd:
+                if (path.IndexOfAny(CmdUnsafeChars) >= 0)
+                    return false;
+                formatted = $"\"{path}\" ";
+                return true;
+
+            case ShellFamily.WindowsPowerShell:
+            case ShellFamily.PowerShellCore:
+                formatted = $"'{path.Replace("'", "''", StringComparison.Ordinal)}' ";
+                return true;
+
+            case ShellFamily.Bash:
+            case ShellFamily.Wsl:
+                formatted = $"'{EscapeSingleQuoted(path)}' ";
+                return true;
+
+            default:
+                return false;
+        }
+    }
 }

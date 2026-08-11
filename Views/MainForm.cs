@@ -45,6 +45,9 @@ public sealed class MainForm : Form
     /// <summary>Guards the "OnOpen" <c>TerminalFollowPanelCwd</c> setting - reset to false each
     /// time the terminal panel becomes visible; see <see cref="PushActivePathToTerminal"/>.</summary>
     private bool _terminalFollowedOnceSinceOpen;
+    /// <summary>Cached value of <see cref="AppSettings.TerminalFollowPanelCwd"/> to avoid a
+    /// <see cref="SettingsService.Load"/> call on every panel navigation.</summary>
+    private string _cachedTerminalFollow = "OnOpen";
 
     // Menu items that need re-localization
     private readonly List<Action> _relocalizeActions = new();
@@ -94,6 +97,7 @@ public sealed class MainForm : Form
         _terminalVisible = settings.TerminalVisible;
         _terminalPanel.Visible = _terminalVisible;
         _terminalSplitter.Visible = _terminalVisible;
+        _cachedTerminalFollow = settings.TerminalFollowPanelCwd;
 
         if (settings.WindowMaximized)
             WindowState = FormWindowState.Maximized;
@@ -786,6 +790,7 @@ public sealed class MainForm : Form
             _vm.RightPanel.IsFlatView = s.FlatView;
             _leftPanel.RefreshFromViewModel();
             _rightPanel.RefreshFromViewModel();
+            _cachedTerminalFollow = s.TerminalFollowPanelCwd;
         };
         dlg.ShowDialog(this);
     }
@@ -1019,9 +1024,8 @@ public sealed class MainForm : Form
         _terminalPanel.DefaultPath = path;
         if (!_terminalVisible) return;
 
-        var follow = SettingsService.Load().TerminalFollowPanelCwd;
-        if (follow == "Never") return;
-        if (follow == "OnOpen" && _terminalFollowedOnceSinceOpen) return;
+        if (_cachedTerminalFollow == "Never") return;
+        if (_cachedTerminalFollow == "OnOpen" && _terminalFollowedOnceSinceOpen) return;
 
         _terminalPanel.SetWorkingDirectory(path);
         _terminalFollowedOnceSinceOpen = true;

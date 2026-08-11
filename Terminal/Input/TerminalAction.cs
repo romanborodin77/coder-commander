@@ -40,4 +40,17 @@ internal enum TerminalAction
     ResetFont,
 
     ToggleTerminalPanel,
+
+    /// <summary>F5 — delegated to the app's Copy command (file panel).</summary>
+    AppCopy,
+    /// <summary>F6 — delegated to the app's Move/Rename command (file panel).</summary>
+    AppMove,
+    /// <summary>F7 — delegated to the app's MakeDir command (file panel).</summary>
+    AppMakeDir,
+    /// <summary>F8 — delegated to the app's Delete command (file panel).</summary>
+    AppDelete,
+    /// <summary>Ctrl+R — delegated to the app's Refresh command (file panel).</summary>
+    AppRefresh,
+    /// <summary>Ctrl+L — delegated to the app's ChangeDir command (file panel).</summary>
+    AppChangeDir,
 }

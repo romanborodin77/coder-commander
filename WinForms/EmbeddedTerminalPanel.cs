@@ -37,6 +37,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// another panel navigation. Keyed by tab id; cleared once consumed or once it expires.</summary>
     private readonly Dictionary<Guid, (string NormalizedPath, DateTime UntilUtc)> _suppressCwdReport = new();
     private static readonly TimeSpan CwdReportSuppressWindow = TimeSpan.FromSeconds(3);
+    private readonly System.Windows.Forms.Timer _cwdSweepTimer;
 
     /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
@@ -57,6 +58,10 @@ public sealed class EmbeddedTerminalPanel : Panel
         ApplyTheme();
         ThemeService.ThemeChanged += OnThemeChanged;
         LocalizationService.Current.LanguageChanged += OnLanguageChanged;
+
+        _cwdSweepTimer = new System.Windows.Forms.Timer { Interval = 10_000 };
+        _cwdSweepTimer.Tick += (_, _) => SweepExpiredCwdGuards();
+        _cwdSweepTimer.Start();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
@@ -198,12 +203,28 @@ public sealed class EmbeddedTerminalPanel : Panel
             return;
 
         activeTab.CurrentPath = path;
+        SweepExpiredCwdGuards();
         _suppressCwdReport[activeTab.Id] = (NormalizePath(path), DateTime.UtcNow + CwdReportSuppressWindow);
         session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
     }
 
     private static string NormalizePath(string path) =>
         path.TrimEnd('\\').ToUpperInvariant();
+
+    /// <summary>Removes expired entries from the cwd-report loop-guard dictionary. Called before
+    /// each new insertion to prevent unbounded growth when the shell doesn't report back.</summary>
+    private void SweepExpiredCwdGuards()
+    {
+        var now = DateTime.UtcNow;
+        var expired = new List<Guid>();
+        foreach (var (id, entry) in _suppressCwdReport)
+        {
+            if (now > entry.UntilUtc)
+                expired.Add(id);
+        }
+        foreach (var id in expired)
+            _suppressCwdReport.Remove(id);
+    }
 
     /// <summary>Restore previously saved tabs (shell id + working directory) on startup. Unknown
     /// shell ids (e.g. a WSL distro that's since been uninstalled) are silently skipped.</summary>
@@ -246,7 +267,11 @@ public sealed class EmbeddedTerminalPanel : Panel
         TerminalSession session;
         try
         {
-            session = TerminalSession.Start(shell, seedPath, cols: 80, rows: 24, scrollbackLines: 5000);
+            // Ownership transfers to _sessions[tabId] inside CreateTab's beforeNotify callback;
+            // if CreateTab fails, the session is disposed in the null-check below.
+#pragma warning disable CA2000 // Dispose owned by _sessions dictionary or explicitly disposed below
+            session = TerminalSession.Create(shell, seedPath, scrollbackLines: 5000);
+#pragma warning restore CA2000
         }
         catch (Exception ex)
         {
@@ -284,7 +309,17 @@ public sealed class EmbeddedTerminalPanel : Panel
             _sessions.Remove(tabId);
             // Teardown blocks up to a few seconds waiting on the process tree; run it in the
             // background so closing a single tab doesn't freeze the window.
-            _ = Task.Run(() => session.DisposeAsync().AsTask());
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await session.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Services.LogService.Error($"Terminal session {tabId} teardown failed", ex);
+                }
+            });
         }
         _suppressCwdReport.Remove(tabId);
 
@@ -358,10 +393,23 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (tabId == Guid.Empty || _sessionManager?.GetTab(tabId) is not TerminalTab tab)
             return;
 
+        if (!_sessions.TryGetValue(tabId, out var session))
+            return;
+
         var L = LocalizationService.Current;
-        using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), tab.Name);
-        if (dlg.ShowDialog(FindForm()) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value) && dlg.Value != tab.Name)
-            _sessionManager.RenameTab(tabId, dlg.Value);
+        using var menu = new ContextMenuStrip();
+        menu.Items.Add(new ToolStripMenuItem(L.GetString("Input.Rename"), null, (_, _) =>
+        {
+            using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), tab.Name);
+            if (dlg.ShowDialog(FindForm()) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value) && dlg.Value != tab.Name)
+                _sessionManager.RenameTab(tabId, dlg.Value);
+        }));
+        menu.Items.Add(new ToolStripMenuItem(L.GetString("Terminal.CopyPath"), null, (_, _) =>
+        {
+            if (!string.IsNullOrEmpty(session.CurrentPath))
+                ClipboardHelper.TrySetClipboard(session.CurrentPath);
+        }));
+        menu.Show(_tabControl, _tabControl.PointToClient(Cursor.Position));
     }
 
     /// <summary>Handles a click on a tab's own close ("x") button - resolves the button strip
@@ -414,6 +462,19 @@ public sealed class EmbeddedTerminalPanel : Panel
             _sessionManager.SwitchTab(tabId);
 
         view.Canvas.Focus();
+
+        // Spawn the ConPTY and start reading AFTER the canvas has its final size. BeginInvoke
+        // defers execution until all pending layout messages are processed — without this, a late
+        // layout pass can resize the canvas AFTER the PTY was created at the wrong dimensions,
+        // causing the shell's initial output (version string, copyright) to be parsed into a
+        // stale-sized buffer and pushed to scrollback on the first resize.
+        view.Canvas.BeginInvoke(() =>
+        {
+            if (IsDisposed || session.IsExited) return;
+            var (cols, rows) = view.Canvas.GetTerminalSize();
+            session.StartPty(cols, rows);
+        });
+
         TabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -581,11 +642,31 @@ public sealed class EmbeddedTerminalPanel : Panel
             ThemeService.ThemeChanged -= OnThemeChanged;
             LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
 
+            _cwdSweepTimer.Stop();
+            _cwdSweepTimer.Dispose();
+
             // Each session's teardown blocks up to a few seconds waiting for its process tree to
             // exit; doing that one tab at a time could stall closing the app for several seconds
             // with multiple terminal tabs open. Run them concurrently instead.
-            var disposeTasks = _sessions.Values.Select(s => Task.Run(() => s.DisposeAsync().AsTask())).ToArray();
-            Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(5));
+            try
+            {
+                var disposeTasks = _sessions.Values.Select(s => Task.Run(async () =>
+                {
+                    try
+                    {
+                        await s.DisposeAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        Services.LogService.Error("Terminal session disposal failed", ex);
+                    }
+                })).ToArray();
+                Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                Services.LogService.Error("Terminal panel bulk disposal failed", ex);
+            }
             _sessions.Clear();
 
             foreach (var page in _tabPagesByGuid.Values)

@@ -705,6 +705,7 @@ public sealed class LocalizationService
         _strings["Terminal.CloseTab"] = "Close Tab";
         _strings["Terminal.NextTab"] = "Next Tab";
         _strings["Terminal.PreviousTab"] = "Previous Tab";
+        _strings["Terminal.CopyPath"] = "Copy Path";
         _strings["Terminal.MaxTabsReached"] = "Maximum number of terminal tabs reached ({0})";
         _strings["Terminal.ProcessTerminated"] = "Process terminated";
         _strings["Terminal.NoShellAvailable"] = "No terminal shell (cmd.exe or PowerShell) is available on this system";

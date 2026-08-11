@@ -91,8 +91,7 @@ internal static class ShellBootstrap
         $__ccPrevPrompt = $function:prompt
         function global:prompt {
             try {
-                $__ccPath = $executionContext.SessionState.Path.CurrentLocation.Path
-                [Console]::Out.Write("`e]9;9;$__ccPath`a")
+                [Console]::Out.Write([char]27 + "]9;9;" + $PWD.Path + [char]7)
             } catch {}
             & $__ccPrevPrompt
         }

@@ -3,6 +3,7 @@ using System.Text;
 using CoderCommander.Services;
 using CoderCommander.Terminal.Input;
 using CoderCommander.Terminal.Screen;
+using CoderCommander.Terminal.Shells;
 using CoderCommander.WinForms;
 
 namespace CoderCommander.Terminal.Ui;
@@ -136,6 +137,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         AccessibleName = session.Shell.DisplayNameArg != null
             ? LocalizationService.Current.GetString(session.Shell.DisplayNameKey, session.Shell.DisplayNameArg)
             : LocalizationService.Current.GetString(session.Shell.DisplayNameKey);
+        AllowDrop = true;
 
         RescaleMetrics();
 
@@ -254,6 +256,15 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     {
         base.OnResize(e);
         ResizeSessionToClientArea();
+    }
+
+    /// <summary>Returns the terminal dimensions (cols, rows) that the canvas's current client
+    /// size corresponds to, using the same integer cell metrics as <see cref="ResizeSessionToClientArea"/>.</summary>
+    public (int Cols, int Rows) GetTerminalSize()
+    {
+        if (ClientSize.Width <= 0 || ClientSize.Height <= 0 || _charWidth <= 0 || _lineHeight <= 0)
+            return (80, 24);
+        return (Math.Max(2, ClientSize.Width / _charWidth), Math.Max(1, ClientSize.Height / _lineHeight));
     }
 
     private void ResizeSessionToClientArea()
@@ -887,6 +898,63 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         menu.Show(this, location);
     }
 
+    // -- Drag and drop --
+
+    private const int MaxDragDropPaths = 50;
+
+    protected override void OnDragEnter(DragEventArgs e)
+    {
+        base.OnDragEnter(e);
+        e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+            ? DragDropEffects.Link
+            : DragDropEffects.None;
+    }
+
+    protected override void OnDragOver(DragEventArgs e)
+    {
+        base.OnDragOver(e);
+        e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+            ? DragDropEffects.Link
+            : DragDropEffects.None;
+    }
+
+    protected override void OnDragDrop(DragEventArgs e)
+    {
+        base.OnDragDrop(e);
+        if (e.Data?.GetDataPresent(DataFormats.FileDrop) != true) return;
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0) return;
+
+        var count = Math.Min(paths.Length, MaxDragDropPaths);
+        var sb = new System.Text.StringBuilder(capacity: count * 128);
+        var family = _session.Shell.Family;
+
+        for (var i = 0; i < count; i++)
+        {
+            var path = paths[i];
+            if (string.IsNullOrWhiteSpace(path)) continue;
+
+            // WSL shells expect POSIX paths
+            var insertPath = path;
+            if (family is ShellFamily.Wsl)
+            {
+                var distro = Shells.ShellIds.DistroNameFromShellId(_session.Shell.Id);
+                if (new Shells.WslPathMapper(distro).TryToWsl(path, out var posix))
+                    insertPath = posix;
+            }
+
+            if (!ShellCwdQuoting.TryFormatPathForInsertion(family, insertPath, out var formatted))
+                continue;
+
+            sb.Append(formatted);
+        }
+
+        if (sb.Length == 0) return;
+
+        ScrollToLiveOnInput();
+        _session.SendInput(System.Text.Encoding.UTF8.GetBytes(sb.ToString()));
+        Focus();
+    }
+
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
@@ -955,13 +1023,35 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
 
     // -- Keyboard --
 
-    /// <summary>Only F9 (bare, no modifiers) is allowed to reach app-level hotkeys while this
-    /// canvas has focus - see the class doc comment.</summary>
-    public bool AllowsAppHotkey(Keys keyCode) => keyCode == Keys.F9;
+    /// <summary>Keys that are allowed to reach app-level hotkey handling while this canvas has
+    /// focus. F9 toggles the terminal panel; F5-F8 delegate to file-panel operations (Copy/Move/
+    /// MakeDir/Delete); Ctrl+R refreshes the panel; Ctrl+L opens the ChangeDir dialog.</summary>
+    public bool AllowsAppHotkey(Keys keyCode) => keyCode is Keys.F9 or Keys.F5 or Keys.F6
+        or Keys.F7 or Keys.F8 || keyCode == (Keys.Control | Keys.R) || keyCode == (Keys.Control | Keys.L);
+
+    /// <summary>Keys that must bypass terminal chord binding and VT encoding to reach the app's
+    /// <see cref="Commands.HotkeyManager"/>. Used in both <see cref="AllowsAppHotkey"/> (defense
+    /// in depth) and <see cref="ProcessCmdKey"/> (primary gate).</summary>
+    private static bool IsAppPassthroughKey(Keys keyData)
+    {
+        var keyCode = keyData & Keys.KeyCode;
+        var control = keyData.HasFlag(Keys.Control);
+        var shift = keyData.HasFlag(Keys.Shift);
+        var alt = keyData.HasFlag(Keys.Alt);
+        if (alt || shift) return false;
+        return keyCode is Keys.F5 or Keys.F6 or Keys.F7 or Keys.F8
+            || (control && keyCode is Keys.R or Keys.L);
+    }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         if (keyData == Keys.F9)
+            return false;
+
+        // F5-F8 (file operations) and Ctrl+R/Ctrl+L (refresh/chdir) pass through to the app's
+        // hotkey system — these must be checked before terminal chord binding so the shell
+        // doesn't consume them.
+        if (IsAppPassthroughKey(keyData))
             return false;
 
         var keyCode = keyData & Keys.KeyCode;

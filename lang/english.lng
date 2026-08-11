@@ -566,6 +566,7 @@ Terminal.NewTab=New Terminal Tab
 Terminal.CloseTab=Close Tab
 Terminal.NextTab=Next Tab
 Terminal.PreviousTab=Previous Tab
+Terminal.CopyPath=Copy Path
 Terminal.MaxTabsReached=Maximum number of terminal tabs reached ({0})
 Terminal.ProcessTerminated=Process terminated
 Terminal.NoShellAvailable=No terminal shell (cmd.exe or PowerShell) is available on this system
