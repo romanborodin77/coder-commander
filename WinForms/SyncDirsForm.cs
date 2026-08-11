@@ -57,9 +57,8 @@ public class SyncDirsForm : ThemedForm
         // would give it ~100px, and this used to be 80 (RoundedButton's EndEllipsis then silently
         // truncated it to "Brows..."). 100 wasn't enough once this same column started also
         // holding _compareBtn ("Compare" - longer than "Browse…"), which silently truncated to
-        // "Comp..." the same way (found via the dotnet-debugger MCP server's check_layout(),
-        // confirmed by looking at the actual screenshot - text truncation isn't something a
-        // Bounds-based checker catches on its own).
+        // "Comp..." the same way - text truncation isn't something a Bounds-based check catches
+        // on its own, only an actual rendered screenshot shows it.
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         for (int i = 0; i < 4; i++) top.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
 

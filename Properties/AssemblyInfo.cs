@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Coder Commander")]
@@ -18,8 +17,3 @@ using System.Runtime.InteropServices;
 // assembly at once, including the source-generated LibraryImport sites - this attribute is honored
 // by both, not just classic DllImport.
 [assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-
-// Lets UiTests call internal-only members that operate purely on in-memory objects (no file I/O)
-// directly, instead of exercising them through SettingsService.Load()/Save() - which would read
-// and write the real %AppData%\CoderCommander\settings.json on whatever machine runs the tests.
-[assembly: InternalsVisibleTo("CoderCommander.UiTests")]

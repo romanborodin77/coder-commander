@@ -6,7 +6,8 @@ namespace CoderCommander.Services;
 /// </summary>
 public static class LogService
 {
-    private static readonly string LogPath = Path.Combine(DataDirectory.Root, "app.log");
+    private static readonly string LogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander", "app.log");
 
     private static readonly object _lock = new();
 

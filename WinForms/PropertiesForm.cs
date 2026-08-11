@@ -231,9 +231,8 @@ public class PropertiesForm : ThemedForm
 
         // Width reduced from the original 418: headerPanel's actual runtime width (it's
         // Dock=Fill inside a TableLayoutPanel cell) came out a few px narrower than 418+60
-        // assumed, so the label's right edge extended past headerPanel's own bounds (found via
-        // the dotnet-debugger MCP server's check_layout(), confirmed against the exact Bounds
-        // numbers before fixing). Anchor=Left|Right was tried first but made it worse - the
+        // assumed, so the label's right edge extended past headerPanel's own bounds.
+        // Anchor=Left|Right was tried first but made it worse - the
         // TableLayoutPanel cell's multi-pass layout captures the anchor's distance-from-right
         // against an earlier, narrower layout pass, so the label overshot to 674px wide instead
         // of shrinking to fit. A fixed, comfortably-under-budget Width is the reliable fix here.

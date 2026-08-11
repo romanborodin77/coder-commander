@@ -580,9 +580,8 @@ internal sealed class StyledMessageBoxForm : ThemedForm
         // ForeColor was never set here before - the glyph fell back to Label's plain default
         // (SystemColors.ControlText), rendering as a flat, unthemed gray regardless of icon
         // severity instead of the Warning/Danger/Accent color a message box icon normally
-        // conveys (found via the dotnet-debugger MCP server's check_layout(), then confirmed
-        // with a live get_pixel() sample against the actually rendered glyph before fixing).
-        // Actual coloring happens in ApplyTheme() below, not here - see its doc comment for why.
+        // conveys. Actual coloring happens in ApplyTheme() below, not here - see its doc comment
+        // for why.
         _iconLabel = new Label
         {
             Dock = DockStyle.Fill,

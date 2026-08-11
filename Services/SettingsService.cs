@@ -80,10 +80,9 @@ public sealed class AppSettings
     public string DefaultShellType { get; set; } = "cmd";
 
     /// <summary>Restored tabs as <c>"{ShellId}|{Path}"</c> entries.</summary>
-    /// <remarks><c>init</c>, not a plain get-only property like its four siblings above/below:
-    /// <c>UiTests/TerminalSettingsMigrationTests.cs</c> constructs test fixtures with
-    /// <c>new AppSettings { OpenTerminalTabs = [...] }</c>, which needs an accessor object-
-    /// initializer syntax can target. Confirmed empirically that this does not reopen CA2227 (init
+    /// <remarks><c>init</c>, not a plain get-only property like its four siblings above/below: an
+    /// object-initializer construction site (<c>new AppSettings { OpenTerminalTabs = [...] }</c>)
+    /// needs an accessor it can target. Confirmed empirically that this does not reopen CA2227 (init
     /// still isn't a public mutator reachable after construction) and does not fight
     /// <see cref="JsonObjectCreationHandlingAttribute"/> - <c>System.Text.Json</c> still populates
     /// this exact instance via <c>Add</c> during deserialization rather than calling <c>init</c>.</remarks>
@@ -130,7 +129,8 @@ public sealed class AppSettings
 /// </summary>
 public static class SettingsService
 {
-    private static readonly string SettingsPath = Path.Combine(DataDirectory.Root, "settings.json");
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander", "settings.json");
 
     internal static readonly JsonSerializerOptions JsonOpts = new()
     {

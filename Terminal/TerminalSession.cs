@@ -76,12 +76,6 @@ internal sealed class TerminalSession : IAsyncDisposable
         ["COLORTERM"] = "truecolor",
     };
 
-    /// <summary>Environment keys that must never reach an interactive shell the user can inspect
-    /// (e.g. via "set"/"$env:") - the UI-automation test flag and the test sandbox's data-directory
-    /// override chief among them.</summary>
-    private static readonly IReadOnlyCollection<string> ExcludedEnvironment =
-        ["CODERCOMMANDER_UI_DEBUG", Services.DataDirectory.OverrideEnvironmentVariable];
-
     public static TerminalSession Start(ShellDescriptor shell, string workingDirectory, int cols, int rows, int scrollbackLines)
     {
         var loadProfile = SettingsService.Load().TerminalLoadShellProfile;
@@ -95,7 +89,7 @@ internal sealed class TerminalSession : IAsyncDisposable
 
         var pty = PtySession.Start(
             shell.ExecutablePath, arguments, workingDirectory, environment,
-            (short)cols, (short)rows, ExcludedEnvironment);
+            (short)cols, (short)rows);
 
         // WSL's OSC 7 payload is a POSIX path ($(pwd) inside the distro), not a Windows one - the
         // plain CwdReport interpretation would just backslash-replace it and fail Directory.Exists

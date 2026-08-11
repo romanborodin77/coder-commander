@@ -71,15 +71,6 @@
     <None Include="app.ico" Pack="false" />
   </ItemGroup>
 
-  <!-- UiTests is a separate FlaUI/NUnit test project nested under this folder for convenience -
-       exclude it from this project's default SDK-style globbing so its packages/attributes don't
-       leak into the main app's compilation. -->
-  <ItemGroup>
-    <Compile Remove="UiTests\**" />
-    <EmbeddedResource Remove="UiTests\**" />
-    <None Remove="UiTests\**" />
-  </ItemGroup>
-
   <ItemGroup>
     <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
   </ItemGroup>
