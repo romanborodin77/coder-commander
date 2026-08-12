@@ -495,6 +495,35 @@ public static class UiHelpers
             Height = 32
         };
     }
+
+    /// <summary>
+    /// Wires a <see cref="ContextMenuStrip"/> built fresh for a single show (never stored in a
+    /// field) to dispose itself once closed - the safe version of <c>menu.Closed += (_, _) =>
+    /// menu.Dispose();</c>. Disposing directly inside the <c>Closed</c> handler is NOT safe:
+    /// <c>Closed</c> fires partway through <c>ToolStripDropDown.SetVisibleCore(false)</c>, which
+    /// still touches <c>Handle</c> afterward (to finish tearing down the dropdown window) -
+    /// disposing first makes that access throw <see cref="ObjectDisposedException"/> straight out
+    /// of the message loop. Hit twice with two different stack traces: dismissing via a menu item
+    /// click (<c>ToolStripDropDown.OnItemClicked</c>) and dismissing by clicking elsewhere
+    /// (<c>ToolStripManager.ModalMenuFilter.CloseActiveDropDown</c>) - both call
+    /// <c>SetVisibleCore(false)</c> the same way, so both need this deferral, not just one.
+    /// Posting the actual <c>Dispose()</c> through <paramref name="host"/>'s <c>BeginInvoke</c>
+    /// lets <c>SetVisibleCore</c> finish unwinding first; <paramref name="host"/> must be a
+    /// control that stays alive at least as long as the menu (the panel/canvas that owns it, not
+    /// the menu itself - its own handle is mid-teardown at the point <c>Closed</c> fires).
+    /// </summary>
+    public static void AutoDisposeOnClose(ContextMenuStrip menu, Control host)
+    {
+        menu.Closed += (_, _) =>
+        {
+            if (host.IsDisposed || !host.IsHandleCreated)
+                return;
+            host.BeginInvoke(new Action(() =>
+            {
+                if (!menu.IsDisposed) menu.Dispose();
+            }));
+        };
+    }
 }
 
 /// <summary>

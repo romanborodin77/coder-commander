@@ -87,8 +87,9 @@ public sealed class TarArchiveReader : IArchiveReader
     {
         var name = entry.Name.Replace('\\', '/');
         // GNU tar and many other tools prefix entries with "./" (e.g. "./.claude/").
-        // Strip it so ArchiveTree and downstream code see clean names.
-        if (name.StartsWith("./", StringComparison.Ordinal))
+        // Some double it up ("././file.txt"). Strip every leading "./", not just one,
+        // so downstream code sees clean names.
+        while (name.StartsWith("./", StringComparison.Ordinal))
             name = name[2..];
 
         var isDirectory = entry.EntryType == TarEntryType.Directory || name.EndsWith('/');

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Microsoft.Win32;
 
 namespace CoderCommander.Services;
 
@@ -72,6 +73,8 @@ public sealed class GitStatusSnapshot
 public static class GitStatusService
 {
     private static bool? _gitAvailable;
+    private static string? _gitExecutable;
+    private static bool _gitExecutableResolved;
 
     /// <summary>
     /// Returns a status snapshot for the repository containing <paramref name="directory"/>, or
@@ -162,9 +165,12 @@ public static class GitStatusService
 
     private static string RunGit(string workingDirectory, string arguments)
     {
+        var gitExecutable = ResolveGitExecutable()
+            ?? throw new InvalidOperationException("git.exe not found in any known install location");
+
         var psi = new ProcessStartInfo
         {
-            FileName = "git",
+            FileName = gitExecutable,
             Arguments = arguments,
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
@@ -193,5 +199,89 @@ public static class GitStatusService
 
         Task.WaitAll(stdoutTask, stderrTask);
         return stdoutTask.Result;
+    }
+
+    /// <summary>
+    /// Absolute path to <c>git.exe</c>, resolved once per process and cached (git doesn't get
+    /// installed/uninstalled mid-session). Resolves through the registry key Git for Windows'
+    /// installer writes and a couple of known Program Files locations - never through a bare
+    /// "git" <see cref="ProcessStartInfo.FileName"/>, which Win32's <c>CreateProcess</c> would
+    /// otherwise resolve by searching the launch directory, System32, Windows, then every
+    /// <c>%PATH%</c> entry in order. That search order is exactly the risk
+    /// <c>Terminal/Shells/ShellCatalog.cs</c> already documents and avoids for every built-in
+    /// shell: a poisoned or user-writable PATH/launch-directory entry could substitute a
+    /// different binary for "git" - and this runs on effectively every panel navigation into a
+    /// git repository, not a one-off action.
+    /// </summary>
+    private static string? ResolveGitExecutable()
+    {
+        if (_gitExecutableResolved)
+            return _gitExecutable;
+
+        _gitExecutable = FindGitExecutable();
+        _gitExecutableResolved = true;
+        return _gitExecutable;
+    }
+
+    private static string? FindGitExecutable()
+    {
+        var installPath = ReadGitInstallPathFromRegistry();
+        if (!string.IsNullOrEmpty(installPath))
+        {
+            var candidate = Path.Combine(installPath, "cmd", "git.exe");
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        foreach (var programFilesVar in new[] { "ProgramFiles", "ProgramFiles(x86)" })
+        {
+            var programFiles = Environment.GetEnvironmentVariable(programFilesVar);
+            if (string.IsNullOrEmpty(programFiles))
+                continue;
+
+            var candidate = Path.Combine(programFiles, "Git", "cmd", "git.exe");
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    /// <summary>Same registry key <c>Terminal/Shells/ShellCatalog.ReadGitInstallPathFromRegistry</c>
+    /// reads for Git Bash discovery - kept as an independent copy rather than a shared call because
+    /// <c>Services</c> must not depend on <c>Terminal.Shells</c> (wrong direction for this project's
+    /// layering).</summary>
+    private static string? ReadGitInstallPathFromRegistry()
+    {
+        string[] keyPaths = [@"SOFTWARE\GitForWindows", @"SOFTWARE\WOW6432Node\GitForWindows"];
+
+        foreach (var keyPath in keyPaths)
+        {
+            var fromMachine = TryReadInstallPath(RegistryHive.LocalMachine, keyPath);
+            if (fromMachine != null)
+                return fromMachine;
+
+            var fromUser = TryReadInstallPath(RegistryHive.CurrentUser, keyPath);
+            if (fromUser != null)
+                return fromUser;
+        }
+
+        return null;
+    }
+
+    private static string? TryReadInstallPath(RegistryHive hive, string keyPath)
+    {
+        try
+        {
+            using var root = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
+            using var key = root.OpenSubKey(keyPath);
+            return key?.GetValue("InstallPath") as string;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            // Registry access can legitimately fail in locked-down/sandboxed environments -
+            // treat as "not found", not a discovery failure.
+            return null;
+        }
     }
 }

@@ -1,3 +1,4 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Globalization;
@@ -335,13 +336,25 @@ public class MultiRenameForm : ThemedForm
     /// <summary>Returns <c>true</c> if the name contains no invalid filename characters and
     /// isn't the reserved "." or ".." (which <see cref="Path.GetInvalidFileNameChars"/> alone
     /// doesn't reject) - a pattern that evaluates to exactly ".." would otherwise resolve to the
-    /// parent directory via <c>Path.Combine(dir, "..")</c>.</summary>
+    /// parent directory via <c>Path.Combine(dir, "..")</c>.
+    /// <para>
+    /// Also runs <see cref="RemotePath.IsSafeEntryName"/> - the same gap this closes for
+    /// <see cref="FileSystem.VfsPath.ChangeName"/> exists here too, as an independent call site:
+    /// <see cref="Path.GetInvalidFileNameChars"/> alone doesn't reject a reserved DOS device name
+    /// (<c>CON</c>/<c>COM1</c>/...), a trailing dot/space that Windows silently strips (which could
+    /// collapse two distinct previewed names into one on disk), or a display-spoofing bidi/
+    /// zero-width character. <c>IsSafeEntryName</c> in turn doesn't reject <c>"</c>/<c>&lt;</c>/
+    /// <c>&gt;</c>/<c>*</c>/<c>?</c> the way <see cref="Path.GetInvalidFileNameChars"/> does, so
+    /// neither check alone is a superset of the other - both are needed.
+    /// </para>
+    /// </summary>
     private static bool IsValidFileName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
         if (name is "." or "..") return false;
         var invalid = Path.GetInvalidFileNameChars();
-        return !name.Any(c => invalid.Contains(c));
+        if (name.Any(c => invalid.Contains(c))) return false;
+        return RemotePath.IsSafeEntryName(name);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

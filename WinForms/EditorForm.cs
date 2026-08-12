@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using System.Text;
 
 namespace CoderCommander.WinForms;
@@ -8,6 +9,12 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public class EditorForm : ThemedForm
 {
+    /// <summary>Above this, opening a file means loading the whole thing into memory via
+    /// <see cref="EditorTab.LoadFile"/> (<c>File.ReadAllBytes</c>, no streaming) - large enough to
+    /// freeze the UI thread for seconds or throw <see cref="OutOfMemoryException"/> on a multi-GB
+    /// log/dump. Same threshold <see cref="ViewerForm"/> uses for its own text mode.</summary>
+    private const long LargeFileConfirmBytes = 16 * 1024 * 1024;
+
     private readonly List<EditorTab> _tabs = new();
     private readonly List<ThemedTabPage> _tabPages = new();
     private ThemedTabControl _tabControl = null!;
@@ -382,6 +389,15 @@ public class EditorForm : ThemedForm
             StyledMessageBox.Show(L.GetString("Err.PathNotFound", path),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
             return;
+        }
+
+        var fileSize = new FileInfo(path).Length;
+        if (fileSize > LargeFileConfirmBytes)
+        {
+            var confirmed = StyledMessageBox.Show(
+                L.GetString("Edit.ConfirmLargeFile", FormatUtils.FormatSize(fileSize), FormatUtils.FormatSize(LargeFileConfirmBytes)),
+                L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
+            if (!confirmed) return;
         }
 
         var tab = new EditorTab(path);

@@ -161,6 +161,11 @@ public static class RemotePath
     /// identity, and quietly altering it would make two different entries look like one.</item>
     /// <item>Trailing dot or space - Windows silently strips those when creating a file, so
     /// <c>evil.exe.</c> and <c>evil.exe</c> would collide after a download.</item>
+    /// <item>Reserved DOS device names (<c>CON</c>, <c>PRN</c>, <c>AUX</c>, <c>NUL</c>,
+    /// <c>COM1</c>-<c>COM9</c>, <c>LPT1</c>-<c>LPT9</c>), with or without an extension - Windows
+    /// treats <c>CON</c> and <c>CON.txt</c> alike as the device, not a file, so a name from a
+    /// listing that reaches local disk under one of these can silently fail to create or read back
+    /// as something else entirely.</item>
     /// </list>
     /// </summary>
     public static bool IsSafeEntryName(string? name)
@@ -178,7 +183,24 @@ public static class RemotePath
             if (char.IsControl(c)) return false;
             if (IsDisplaySpoofing(c)) return false;
         }
-        return true;
+
+        return !IsReservedDeviceName(name);
+    }
+
+    /// <summary>Reserved Windows device names, checked by their stem (before the first <c>.</c>) so
+    /// both <c>CON</c> and <c>CON.txt</c> are caught the way <c>CreateFile</c> treats them.</summary>
+    private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
+    private static bool IsReservedDeviceName(string name)
+    {
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
+        var stem = dot < 0 ? name : name[..dot];
+        return ReservedDeviceNames.Contains(stem);
     }
 
     /// <summary>Bidi and zero-width code points that let a name render as something it isn't.

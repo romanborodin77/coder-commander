@@ -165,20 +165,25 @@ public sealed class SharpCompressReader : IArchiveReader
     /// </summary>
     private IReader OpenReader(Stream stream, out IDisposable? archive)
     {
+        // LeaveStreamOpen = true prevents the reader/decompressor from disposing the underlying
+        // stream on Dispose — the caller's finally block owns that cleanup. Without this, the
+        // decompressor (GZipStream for TAR.BZ2, BZip2Stream, etc.) closes the file stream when
+        // it is disposed, and then the finally block disposes it a second time (double-dispose).
+        var options = new ReaderOptions { LeaveStreamOpen = true };
         switch (_kind)
         {
             case SharpCompressKind.SevenZip:
-                var sevenZip = SevenZipArchive.OpenArchive(stream, new ReaderOptions());
+                var sevenZip = SevenZipArchive.OpenArchive(stream, options);
                 archive = sevenZip;
                 return sevenZip.ExtractAllEntries();
             case SharpCompressKind.Rar:
-                var rar = RarArchive.OpenArchive(stream, new ReaderOptions());
+                var rar = RarArchive.OpenArchive(stream, options);
                 archive = rar;
                 return rar.ExtractAllEntries();
             case SharpCompressKind.TarBz2:
             case SharpCompressKind.TarXz:
                 archive = null;
-                return ReaderFactory.OpenReader(stream, new ReaderOptions());
+                return ReaderFactory.OpenReader(stream, options);
             default:
                 throw new NotSupportedException($"Unhandled SharpCompress kind: {_kind}");
         }

@@ -52,7 +52,15 @@ internal static class OscSanitizer
             }
 
             if (sb.Length >= VtLimits.MaxTitleLength)
+            {
+                // The truncation point can land right after a lone high surrogate when its
+                // matching low surrogate would have been the next char - char.ConvertFromUtf32
+                // elsewhere assumes well-formed pairs, so an unpaired one left dangling at the
+                // end renders as a broken glyph. Drop it rather than keep a half-written pair.
+                if (sb.Length > 0 && char.IsHighSurrogate(sb[^1]))
+                    sb.Length--;
                 break;
+            }
         }
 
         return sb.ToString().Trim();

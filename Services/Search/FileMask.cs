@@ -21,6 +21,13 @@ public sealed class FileMask
     /// people type it, and neither is legal in a Windows file name so neither is ambiguous.</summary>
     private static readonly char[] Separators = [';', ','];
 
+    /// <summary>Backstop against catastrophic backtracking: a mask with several <c>*</c>/<c>?</c>
+    /// wildcards (e.g. <c>*a*a*a*a*a*a*a*ab</c>) compiles to a sequence of <c>.*</c>/<c>.</c> groups
+    /// that is polynomial-worst-case for the backtracking regex engine against a long non-matching
+    /// name - the pattern is user-typed text, not developer-reviewed, so a pathological mask must
+    /// time out rather than hang the search/selection thread indefinitely.</summary>
+    private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
+
     private readonly Regex[] _patterns;
 
     /// <summary>Whether this mask accepts everything, in which case matching is skipped entirely.</summary>
@@ -49,7 +56,15 @@ public sealed class FileMask
 
         foreach (var pattern in _patterns)
         {
-            if (pattern.IsMatch(name)) return true;
+            try
+            {
+                if (pattern.IsMatch(name)) return true;
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                // Pathological mask against this particular name - treat as "does not match" rather
+                // than propagate and abort the whole search/selection over one bad comparison.
+            }
         }
         return false;
     }
@@ -85,6 +100,6 @@ public sealed class FileMask
         // CultureInvariant so the meaning does not shift with the machine's locale - the Turkish
         // dotless i is the standard way this bites.
         return new Regex(escaped.ToString(),
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled, MatchTimeout);
     }
 }

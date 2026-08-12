@@ -369,7 +369,7 @@ internal sealed class PtySession : IAsyncDisposable
                 _inputStream.Flush();
             }
             catch (IOException) { /* pipe gone - session is exiting/exited, nothing to do */ }
-            catch (ObjectDisposedException) { }
+            catch (ObjectDisposedException) { /* stream disposed - session is exiting/exited, nothing to do */ }
         }
     }
 
@@ -400,7 +400,7 @@ internal sealed class PtySession : IAsyncDisposable
                 _cols = cols;
                 _rows = rows;
             }
-            catch (ObjectDisposedException) { }
+            catch (ObjectDisposedException) { /* handle disposed - session is exiting/exited, nothing to do */ }
             finally
             {
                 if (refTaken) _hpc.DangerousRelease();

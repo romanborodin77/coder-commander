@@ -1,5 +1,6 @@
 using CoderCommander.Archives;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -99,7 +100,22 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
     private readonly record struct DirectoryStamp(long Length, long Ticks);
 
+    /// <summary>Distinct archive paths kept at once, evicting the least-recently-used past this -
+    /// same bound as <see cref="Archives.ArchiveDirectoryCache.MaxEntries"/>, which this mirrors.
+    /// Kept as an independent copy rather than switching to that generic cache: it works over
+    /// <see cref="ZipDirectory"/>/<see cref="ZipEntryRecord"/>, not <c>Archives.ArchiveDirectory</c>,
+    /// and its API is synchronous throughout (<see cref="ReadDirectory"/>, not
+    /// <c>GetOrReadAsync</c>) - the same "ZIP keeps its own copy" split documented at the top of
+    /// this class.</summary>
+    private const int MaxDirectoryCacheEntries = 64;
+
     private static readonly Dictionary<string, (DirectoryStamp Stamp, ZipDirectory Directory)> DirectoryCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Most-recently-used at the front (First); least-recently-used at the back (Last). Must only
+    // be touched while holding the DirectoryCache lock, same as DirectoryCache itself.
+    private static readonly LinkedList<string> DirectoryCacheLruOrder = new();
+    private static readonly Dictionary<string, LinkedListNode<string>> DirectoryCacheLruNodes =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -124,7 +140,10 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         lock (DirectoryCache)
         {
             if (DirectoryCache.TryGetValue(archivePath, out var cached) && cached.Stamp == stamp)
+            {
+                TouchDirectoryCache(archivePath);
                 return cached.Directory;
+            }
         }
 
         ZipDirectory parsed;
@@ -186,6 +205,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         lock (DirectoryCache)
         {
             DirectoryCache[archivePath] = (stamp, parsed);
+            TouchDirectoryCache(archivePath);
+            EvictLeastRecentlyUsedDirectoryCacheEntryIfOverCapacity();
         }
         return parsed;
     }
@@ -196,6 +217,28 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         lock (DirectoryCache)
         {
             DirectoryCache.Remove(archivePath);
+            if (DirectoryCacheLruNodes.Remove(archivePath, out var node))
+                DirectoryCacheLruOrder.Remove(node);
+        }
+    }
+
+    /// <summary>Moves <paramref name="archivePath"/> to the most-recently-used end. Must be called
+    /// with the <see cref="DirectoryCache"/> lock already held.</summary>
+    private static void TouchDirectoryCache(string archivePath)
+    {
+        if (DirectoryCacheLruNodes.TryGetValue(archivePath, out var existing))
+            DirectoryCacheLruOrder.Remove(existing);
+        DirectoryCacheLruNodes[archivePath] = DirectoryCacheLruOrder.AddFirst(archivePath);
+    }
+
+    /// <summary>Must be called with the <see cref="DirectoryCache"/> lock already held.</summary>
+    private static void EvictLeastRecentlyUsedDirectoryCacheEntryIfOverCapacity()
+    {
+        while (DirectoryCache.Count > MaxDirectoryCacheEntries && DirectoryCacheLruOrder.Last is { } lru)
+        {
+            DirectoryCache.Remove(lru.Value);
+            DirectoryCacheLruNodes.Remove(lru.Value);
+            DirectoryCacheLruOrder.RemoveLast();
         }
     }
 
@@ -213,16 +256,35 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         var fileSize = fs.Length;
         long eocdOffset = -1;
 
-        // Search backwards from end of file (EOCD is at least 22 bytes, comment can be up to 65535)
+        // Search backwards from end of file (EOCD is at least 22 bytes, comment can be up to
+        // 65535) - read the whole search window into memory once and scan it there. The previous
+        // byte-at-a-time version set fs.Position on every iteration, which resets FileStream's
+        // internal buffer, turning what looks like a buffered read into a separate seek+read
+        // syscall per byte (up to 65,557 of them). A non-ZIP file (signature never found) always
+        // pays the full cost, and ArchiveFormatRegistry runs signature detection on every Detect()
+        // call, not just once per archive.
         var searchStart = Math.Max(0, fileSize - 22 - 65535);
-        for (var pos = fileSize - 22; pos >= searchStart; pos--)
+        var tailLength = checked((int)(fileSize - searchStart));
+        if (tailLength >= 22)
         {
-            fs.Position = pos;
-            var sig = reader.ReadUInt32();
-            if (sig == 0x06054b50) // EOCD signature
+            fs.Position = searchStart;
+            var tail = new byte[tailLength];
+            var totalRead = 0;
+            while (totalRead < tailLength)
             {
-                eocdOffset = pos;
-                break;
+                var n = fs.Read(tail, totalRead, tailLength - totalRead);
+                if (n == 0) break;
+                totalRead += n;
+            }
+
+            // EOCD signature "PK\x05\x06", little-endian as bytes: 0x50 0x4B 0x05 0x06.
+            for (var i = totalRead - 22; i >= 0; i--)
+            {
+                if (tail[i] == 0x50 && tail[i + 1] == 0x4B && tail[i + 2] == 0x05 && tail[i + 3] == 0x06)
+                {
+                    eocdOffset = searchStart + i;
+                    break;
+                }
             }
         }
 
@@ -677,7 +739,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         var (_, srcInner) = CoderCommander.FileSystem.ArchivePath.SplitPath(source);
         srcInner = srcInner.Replace('\\', '/');
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = TempFileNaming.NextTo(_archivePath, "extract");
         try
         {
             using (var zip = ZipFile.OpenRead(_archivePath))
@@ -719,7 +781,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
         finally
         {
-            try { File.Delete(tempFile); } catch { }
+            try { File.Delete(tempFile); } catch { /* best effort cleanup */ }
         }
     }
 
@@ -822,7 +884,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         internal static ZipUpdateSession Open(string archivePath, IEnumerable<string>? newEntryNames)
         {
-            var tempPath = archivePath + ".update-" + Guid.NewGuid().ToString("N") + ".tmp";
+            var tempPath = TempFileNaming.NextTo(archivePath, "update");
             FileStream? @lock = null;
             try
             {
@@ -929,14 +991,22 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         return Cp866;
     }
 
+    // DeleteAsync/DeleteBatchAsync/CreateDirectoryAsync/CopyFromStreamAsync below all run their
+    // body via Task.Run for the same reason EnumerateAsync and friends do (see the comment above
+    // EnumerateAsync): OpenForUpdate -> ArchiveFileRetry.OpenExclusiveWithRetry blocks with a
+    // Thread.Sleep-backoff (150/300/600/1200/2400ms) if the archive is transiently locked, and
+    // GetEntries() -> ReadDirectory can add its own blocking retry on top. Without Task.Run, a
+    // caller on the UI thread would freeze for that whole retry window with no warning - the
+    // method's Task-returning signature promises asynchrony these bodies didn't actually have.
+
     /// <inheritdoc/>
-    public Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
+    public Task DeleteAsync(string path, bool recursive, CancellationToken ct = default) => Task.Run(() =>
     {
         var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
-            return Task.CompletedTask;
+            return;
 
         using var session = OpenForUpdate(_archivePath);
         var zip = session.Archive;
@@ -970,14 +1040,13 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         InvalidateCache();
         session.Commit();
-        return Task.CompletedTask;
-    }
+    }, ct);
 
     /// <summary>
     /// Batch delete: removes multiple entries in a single archive open/close cycle.
     /// More efficient than calling <see cref="DeleteAsync"/> repeatedly.
     /// </summary>
-    public async Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default)
+    public Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default) => Task.Run(() =>
     {
         if (paths.Count == 0)
             return;
@@ -1034,29 +1103,27 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         InvalidateCache();
         session.Commit();
-        await Task.CompletedTask;
-    }
+    }, ct);
 
     /// <inheritdoc/>
-    public Task CreateDirectoryAsync(string path, CancellationToken ct = default)
+    public Task CreateDirectoryAsync(string path, CancellationToken ct = default) => Task.Run(() =>
     {
         var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
-            return Task.CompletedTask;
+            return;
 
         using var session = OpenForUpdate(_archivePath, new[] { innerPath + "/" });
         var zip = session.Archive;
 
         if (FindEntry(zip, innerPath + "/") != null)
-            return Task.CompletedTask;
+            return;
 
         zip.CreateEntry(innerPath + "/");
         InvalidateCache();
         session.Commit();
-        return Task.CompletedTask;
-    }
+    }, ct);
 
     /// <inheritdoc/>
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default)
@@ -1076,7 +1143,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/');
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = TempFileNaming.NextTo(_archivePath, "extract");
         try
         {
             using (var zip = ZipFile.OpenRead(_archivePath))
@@ -1093,13 +1160,13 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
         catch
         {
-            try { File.Delete(tempFile); } catch { }
+            try { File.Delete(tempFile); } catch { /* best effort cleanup */ }
             throw;
         }
     }
 
     /// <inheritdoc/>
-    public async Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default)
+    public Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default) => Task.Run(async () =>
     {
         var innerPath = VfsPath.NormalizeInner(CoderCommander.FileSystem.ArchivePath.SplitPath(destinationPath).innerPath);
         if (innerPath.Length == 0)
@@ -1116,7 +1183,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         InvalidateCache();
         session.Commit();
-    }
+    }, ct);
 
     /// <inheritdoc/>
     public string GetRootPath(string path) => CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, "");

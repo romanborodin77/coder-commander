@@ -60,7 +60,6 @@ public sealed class FilePanelUserControl : UserControl
     private ToolStripStatusLabel _lblCursor = null!;
     private ToolStripStatusLabel _lblSelected = null!;
     private ToolStripStatusLabel _lblFree = null!;
-    private ContextMenuStrip _ctxMenu = null!;
     private ImageList _fileImageList = null!;
     private ToolStrip _driveBar = null!;
     private ListViewScrollbarOverlay? _scrollOverlay;
@@ -144,7 +143,6 @@ public sealed class FilePanelUserControl : UserControl
         DoubleBuffered = true;
 
         BuildControls();
-        BuildContextMenu();
         WireViewModel();
         ApplyTheme();
 
@@ -625,7 +623,18 @@ public sealed class FilePanelUserControl : UserControl
                 if (info.Item.Tag is FileSystemItem fsItem)
                     _vm.SelectedItem = fsItem;
             }
-            _ctxMenu.Show(_fileList, e.Location);
+            // The analyzer can't trace ownership across the BuildContextMenu() call boundary -
+            // disposal happens via AutoDisposeOnClose wired immediately below.
+#pragma warning disable CA2000
+            var menu = BuildContextMenu();
+#pragma warning restore CA2000
+            // Not menu.Closed += (_, _) => menu.Dispose() - disposing synchronously inside Closed
+            // crashes the app (ObjectDisposedException from SetVisibleCore continuing to touch
+            // Handle after Dispose already tore it down); see UiHelpers.AutoDisposeOnClose. Same
+            // class of bug this "safe" pattern was believed to avoid (F031) - it didn't, it just
+            // hadn't been hit here yet; TerminalCanvas.ShowContextMenu hit it first.
+            UiHelpers.AutoDisposeOnClose(menu, this);
+            menu.Show(_fileList, e.Location);
         }
     }
 
@@ -833,10 +842,22 @@ public sealed class FilePanelUserControl : UserControl
 
     // -- Context menu --
 
-    private void BuildContextMenu()
+    /// <summary>
+    /// Builds a fresh context menu, read against the current language/theme at call time. Built
+    /// new on every right-click and never stored - self-disposes once closed (see the
+    /// <c>Closed</c> subscription at the call site), the same pattern
+    /// <c>TerminalCanvas.ShowContextMenu</c> already uses. A persistent, rebuilt-in-place instance
+    /// (the previous design) had no safe way to be rebuilt while still open: disposing it out from
+    /// under WinForms' own dropdown-tracking/click-dismissal machinery crashed the app on the next
+    /// mouse click or item click, however carefully the dispose was ordered - only never keeping a
+    /// stale instance around at all sidesteps the whole class of bug.
+    /// </summary>
+    private ContextMenuStrip BuildContextMenu()
     {
         var L = LocalizationService.Current;
-        _ctxMenu = new ContextMenuStrip
+        // The analyzer can't trace disposal happening via the caller's Closed handler.
+#pragma warning disable CA2000
+        var menu = new ContextMenuStrip
         {
             BackColor = ThemeService.Current.HeaderBackground,
             ForeColor = ThemeService.Current.Foreground,
@@ -844,39 +865,41 @@ public sealed class FilePanelUserControl : UserControl
             ImageScalingSize = new Size(16, 16),
             Renderer = new ThemeRenderer()
         };
+#pragma warning restore CA2000
 
-        CtxItem("Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ItemActivated?.Invoke(this, item); });
-        CtxItem("Ctx.Edit", "edit", () => { if (_vm.SelectedItem is { IsParent: false } item) EditRequested?.Invoke(this, item); });
-        _ctxMenu.Items.Add(new ToolStripSeparator());
-        CtxItem("Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
-        CtxItem("Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
-        CtxItem("Ctx.Rename", "rename", () => RenameRequested?.Invoke(this, EventArgs.Empty));
-        CtxItem("Ctx.Delete", "delete", () => DeleteRequested?.Invoke(this, EventArgs.Empty));
-        _ctxMenu.Items.Add(new ToolStripSeparator());
-        CtxItem("Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ItemActivated?.Invoke(this, item); });
+        CtxItem(menu, "Ctx.Edit", "edit", () => { if (_vm.SelectedItem is { IsParent: false } item) EditRequested?.Invoke(this, item); });
+        menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.Rename", "rename", () => RenameRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.Delete", "delete", () => DeleteRequested?.Invoke(this, EventArgs.Empty));
+        menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
 
         // Copy path submenu. cpFull/cpName go into copyPathMenu.DropDownItems below, which goes
-        // into _ctxMenu.Items, which Dispose(bool) now disposes explicitly - the analyzer's
-        // dataflow doesn't follow ownership two collections deep.
+        // into menu.Items - menu.Dispose() (via the caller's Closed handler) walks both levels.
 #pragma warning disable CA2000
         var copyPathMenu = new ToolStripMenuItem(L.GetString("Ctx.CopyPath"), ToolbarIcons.Get("copy"));
         var cpFull = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Full"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.FullPath ?? ""));
         var cpName = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Name"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.Name ?? ""));
 #pragma warning restore CA2000
         copyPathMenu.DropDownItems.AddRange([cpFull, cpName]);
-        _ctxMenu.Items.Add(copyPathMenu);
+        menu.Items.Add(copyPathMenu);
 
-        _ctxMenu.Items.Add(new ToolStripSeparator());
-        CtxItem("Ctx.SelectAll", "selectall", () => _vm.SelectAll());
-        CtxItem("Ctx.InvertSelection", "invert", () => _vm.InvertSelection());
+        menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.SelectAll", "selectall", () => _vm.SelectAll());
+        CtxItem(menu, "Ctx.InvertSelection", "invert", () => _vm.InvertSelection());
+
+        return menu;
     }
 
-    private void CtxItem(string key, string iconKey, Action action)
+    private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action)
     {
         var L = LocalizationService.Current;
         var item = new ToolStripMenuItem(L.GetString(key), ToolbarIcons.Get(iconKey));
         item.Click += (_, _) => action();
-        _ctxMenu.Items.Add(item);
+        menu.Items.Add(item);
     }
 
     private static void CopyToClipboard(string text)
@@ -898,10 +921,9 @@ public sealed class FilePanelUserControl : UserControl
         _fileList.Columns[4].Text = L.GetString("Panel.Attributes");
         _fileList.GridLines = false;
         _fileList.EndUpdate();
-
-        // Rebuild context menu
-        _ctxMenu.Items.Clear();
-        BuildContextMenu();
+        // No context-menu rebuild needed here anymore - BuildContextMenu() runs fresh on every
+        // right-click (see the call site in OnFileListMouseDown) and always reads the current
+        // language at that point.
     }
 
     // -- Drive bar --
@@ -1327,22 +1349,8 @@ public sealed class FilePanelUserControl : UserControl
         PopulateFileImageList();
         PopulateDriveBar();
         RebuildList();
-        ApplyContextMenuTheme();
-    }
-
-    /// <summary>
-    /// _ctxMenu's colors used to be set once, at BuildContextMenu() time, and never touched
-    /// again by ApplyTheme() - only Relocalize() (which rebuilds the menu from scratch for
-    /// language changes) happened to also pick up the current theme. A theme switch with no
-    /// language change left its item text at the old theme's color.
-    /// </summary>
-    private void ApplyContextMenuTheme()
-    {
-        var p = ThemeService.Current;
-        _ctxMenu.BackColor = p.HeaderBackground;
-        _ctxMenu.ForeColor = p.Foreground;
-        _ctxMenu.Font = p.GridFont;
-        ControlThemer.ThemeToolStripItems(_ctxMenu.Items, p);
+        // No context-menu re-theme needed here anymore - BuildContextMenu() runs fresh on every
+        // right-click and always reads ThemeService.Current at that point.
     }
 
     private float GetToolbarScale()
@@ -1528,9 +1536,12 @@ public sealed class FilePanelUserControl : UserControl
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
             _scrollOverlay?.Dispose();
-            // ContextMenuStrip and ImageList are Components, not Controls - they're never in the
-            // Controls collection, so base.Dispose()'s recursive walk below never reaches them.
-            _ctxMenu?.Dispose();
+            // ImageList is a Component, not a Control - it's never in the Controls collection, so
+            // base.Dispose()'s recursive walk below never reaches it. The context menu built by
+            // BuildContextMenu() is not tracked here at all - each shown instance disposes itself
+            // via its own Closed handler (see OnFileListMouseDown), so there is nothing left to
+            // dispose if the panel closes while a menu happens to be open; it just finishes
+            // closing and self-disposing normally, independent of this panel's own teardown.
             _fileImageList?.Dispose();
         }
         base.Dispose(disposing);

@@ -677,13 +677,25 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         return [];
     }
 
+    /// <summary>Backstop against catastrophic backtracking: see <c>FileMask.MatchTimeout</c> for why
+    /// a user-typed wildcard mask with several <c>*</c>/<c>?</c> needs a bound here too.</summary>
+    private static readonly TimeSpan PatternMatchTimeout = TimeSpan.FromSeconds(1);
+
     private static bool MatchesPattern(string name, string pattern)
     {
         if (string.IsNullOrEmpty(pattern)) return true;
         // Convert wildcard to regex
         var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
             .Replace("\\*", ".*", StringComparison.Ordinal).Replace("\\?", ".", StringComparison.Ordinal) + "$";
-        return System.Text.RegularExpressions.Regex.IsMatch(name, regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        try
+        {
+            return System.Text.RegularExpressions.Regex.IsMatch(name, regex,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase, PatternMatchTimeout);
+        }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+        {
+            return false;
+        }
     }
 
     // ── FileSystemWatcher ──
@@ -731,7 +743,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 _watcher.Renamed -= OnFsRenamed;
                 _watcher.Dispose();
             }
-            catch { }
+            catch { /* best effort cleanup - teardown must not throw */ }
             _watcher = null;
         }
 

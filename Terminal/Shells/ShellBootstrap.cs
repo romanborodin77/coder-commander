@@ -66,7 +66,13 @@ internal static class ShellBootstrap
     {
         // Read existing WSLENV to preserve user-configured forwarding (DISPLAY, WAYLAND_DISPLAY, etc.)
         var existing = Environment.GetEnvironmentVariable("WSLENV") ?? "";
-        var wslenv = existing.Contains("PROMPT_COMMAND", StringComparison.Ordinal)
+        // A plain substring check would false-positive on a variable whose name merely contains
+        // "PROMPT_COMMAND" (e.g. a user's own MY_PROMPT_COMMAND_VAR/u) and skip adding ours -
+        // WSLENV is a ':'-separated "VAR/flags" list, so compare the name portion of each entry
+        // exactly instead.
+        var alreadyForwarded = existing.Split(':', StringSplitOptions.RemoveEmptyEntries)
+            .Any(entry => entry.Split('/')[0].Equals("PROMPT_COMMAND", StringComparison.Ordinal));
+        var wslenv = alreadyForwarded
             ? existing
             : string.IsNullOrEmpty(existing) ? "PROMPT_COMMAND/u" : $"{existing}:PROMPT_COMMAND/u";
 

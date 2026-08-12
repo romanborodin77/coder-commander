@@ -261,6 +261,7 @@ public sealed class LocalizationService
         _strings["Panel.FileInfo"] = "{0}  {1}  {2}";
         _strings["Panel.DirInfo"] = "[DIR] {0}";
         _strings["Panel.DriveTooltip"] = "Go to {0}";
+        _strings["Panel.ConfirmOpenExecutable"] = "\"{0}\" is a program. Running it can make changes to your computer. Are you sure you want to continue?";
 
         // ═══ Status bar ═══
         _strings["Status.ElementsCount"] = "{0} items";
@@ -298,6 +299,10 @@ public sealed class LocalizationService
         _strings["CopyMove.CopyAttributes"] = "Copy attributes";
         _strings["CopyMove.CopyTimestamps"] = "Copy timestamps";
         _strings["CopyMove.Queue"] = "Add to queue";
+        _strings["CopyMove.Col.Name"] = "Name";
+        _strings["CopyMove.Col.Size"] = "Size";
+        _strings["CopyMove.Col.Type"] = "Type";
+        _strings["CopyMove.MoreFiles"] = "…and {0} more";
 
         // ═══ Overwrite policy ═══
         _strings["Overwrite.Ask"] = "Ask";
@@ -312,6 +317,7 @@ public sealed class LocalizationService
         _strings["OverwriteDlg.Title"] = "File exists";
         _strings["OverwriteDlg.Source"] = "Source:";
         _strings["OverwriteDlg.Destination"] = "Destination:";
+        _strings["OverwriteDlg.Vs"] = "vs";
 
         // ═══ Operation dialog ═══
         _strings["OpDlg.CurrentFile"] = "Current file:";
@@ -367,6 +373,7 @@ public sealed class LocalizationService
         _strings["Settings.ShowHidden"] = "Show hidden files";
         _strings["Settings.ShowToolbar"] = "Show toolbar";
         _strings["Settings.ShowStatusBar"] = "Show status bar";
+        _strings["Settings.ShowCommandLine"] = "Show command line";
         _strings["Settings.ShowFunctionButtons"] = "Show function buttons";
         _strings["Settings.DirectoriesFirst"] = "Directories first";
         _strings["Settings.ShowExtInName"] = "Show extension in file name";
@@ -564,6 +571,8 @@ public sealed class LocalizationService
         _strings["View.FileNotFound"] = "File not found.";
         _strings["View.Toolbar.Previous"] = "Previous";
         _strings["View.Toolbar.Next"] = "Next";
+        _strings["View.ZoomOut"] = "Zoom Out";
+        _strings["View.ZoomIn"] = "Zoom In";
 
         // ═══ Editor ═══
         _strings["Edit.Title"] = "Editor";
@@ -572,6 +581,7 @@ public sealed class LocalizationService
         _strings["Edit.Saved"] = "Saved to {0}";
         _strings["Edit.NotFound"] = "Text not found";
         _strings["Edit.UnsavedChanges"] = "Save changes to {0}?";
+        _strings["Edit.ConfirmLargeFile"] = "This file is {0}, larger than {1}. Opening it may be slow or use a lot of memory. Continue?";
         _strings["Edit.WordWrap"] = "Word wrap";
         _strings["Edit.ShowWhitespace"] = "Show whitespace";
         _strings["Edit.FilterAll"] = "All files (*.*)|*.*|Text files (*.txt)|*.txt";
@@ -599,7 +609,22 @@ public sealed class LocalizationService
         _strings["Edit.Toolbar.Paste"] = "Paste";
         _strings["Edit.Toolbar.Find"] = "Find";
         _strings["Edit.Toolbar.Replace"] = "Replace";
-        _strings["Common.Confirm"] = "Confirm";
+        _strings["Edit.ErrorLoading"] = "Error loading file: {0}";
+        _strings["Edit.ErrorSaving"] = "Error saving file: {0}";
+        _strings["Edit.TabClose"] = "Close Tab";
+        _strings["Edit.TabCloseOthers"] = "Close Other Tabs";
+        _strings["Edit.TabCloseAll"] = "Close All Tabs";
+        _strings["Edit.UnsavedChangesAll"] = "There are {0} unsaved files. Close all?";
+        _strings["Edit.StatusPosition"] = "Ln {0}, Col {1}";
+        _strings["Lang.PlainText"] = "Plain Text";
+        _strings["View.TabText"] = "Text/Hex";
+        _strings["View.TabImage"] = "Image";
+        _strings["View.ModeAuto"] = "Auto";
+        _strings["Main.OperationsActive"] = "Operations: {0}";
+        _strings["Op.DisplayDelete"] = "Delete {0} item(s)";
+        _strings["Op.DisplayWipe"] = "Wipe {0} item(s)";
+        _strings["Op.DisplayPack"] = "Pack {0} item(s) to {1}";
+        _strings["Op.DisplayUnpack"] = "Unpack {0} to {1}";
         _strings["Common.Confirm"] = "Confirm";
 
         // ═══ Archive ═══
@@ -684,6 +709,7 @@ public sealed class LocalizationService
         _strings["Differ.Right"] = "Right:";
         _strings["Differ.Compare"] = "Compare";
         _strings["Differ.FilesNotFound"] = "Both files must exist.";
+        _strings["Differ.ConfirmLargeFile"] = "The largest file is {0}, larger than {1}. Comparing it may be slow or use a lot of memory. Continue?";
         _strings["Differ.Summary"] = "Left: {0} lines | Right: {1} lines | Differences: {2}";
         _strings["Differ.FilterAll"] = "All files (*.*)|*.*|Text files (*.txt)|*.txt";
         _strings["Menu.Commands.Differ"] = "Compare &Files…";
@@ -701,6 +727,8 @@ public sealed class LocalizationService
         _strings["Terminal.Ctx.ShowInPanel"] = "Show in Panel";
         _strings["Terminal.Ctx.Copy"] = "Copy";
         _strings["Terminal.Ctx.Paste"] = "Paste";
+        _strings["Terminal.Paste.ConfirmLarge"] = "You are about to paste {0} of text into the terminal. Continue?";
+        _strings["Terminal.Paste.TooLarge"] = "Clipboard content ({0}) exceeds the {1} paste limit and was not sent.";
         _strings["Terminal.NewTab"] = "New Terminal Tab";
         _strings["Terminal.CloseTab"] = "Close Tab";
         _strings["Terminal.NextTab"] = "Next Tab";

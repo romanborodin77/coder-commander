@@ -74,16 +74,6 @@ public static class LogService
     public static void Error(string message, string category, Exception? ex = null)
         => Write("ERROR", message, category, ex);
 
-    /// <summary>Logs a UI interaction event (button click, selection change, etc.).</summary>
-    /// <param name="eventType">Type of UI event (e.g. <c>"Click"</c>, <c>"ValueChanged"</c>).</param>
-    /// <param name="details">Additional details about the event.</param>
-    /// <param name="control">Optional control name that triggered the event.</param>
-    public static void LogUIEvent(string eventType, string details, string control = "")
-    {
-        var cat = string.IsNullOrEmpty(control) ? "UI" : $"UI.{control}";
-        Info($"{eventType}: {details}", cat);
-    }
-
     /// <summary>Logs a command execution result.</summary>
     /// <param name="commandId">The command identifier (e.g. <c>"cm_Copy"</c>).</param>
     /// <param name="result">Optional result description (e.g. <c>"ok"</c>, <c>"failed"</c>).</param>
@@ -110,16 +100,6 @@ public static class LogService
     {
         var msg = target == null ? $"{operation}: {source}" : $"{operation}: {source} → {target}";
         Info(msg, "FileOp");
-    }
-
-    /// <summary>Logs a ViewModel property state change for debugging.</summary>
-    /// <param name="property">Property name that changed.</param>
-    /// <param name="value">Current value of the property.</param>
-    /// <param name="viewModel">Optional ViewModel name.</param>
-    public static void LogViewModelState(string property, object? value, string viewModel = "")
-    {
-        var cat = string.IsNullOrEmpty(viewModel) ? "State" : $"State.{viewModel}";
-        Info($"{property} = {value}", cat);
     }
 
     /// <summary>Writes a formatted log entry to the log file.</summary>

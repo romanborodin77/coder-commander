@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Archives;
 
@@ -105,7 +106,7 @@ public sealed class ArchiveFileSystem : IFileSystem
         if (target.IsEncrypted)
             throw new NotSupportedException($"Entry is encrypted and cannot be opened: {innerPath}");
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = TempFileNaming.NextTo(_archivePath, "extract");
         try
         {
             using (var archiveReader = _format.OpenRead(_archivePath))
@@ -186,6 +187,9 @@ public sealed class ArchiveFileSystem : IFileSystem
     /// </summary>
     public async Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
+        if (!_format.Capabilities.HasFlag(ArchiveCapabilities.DeleteEntries))
+            throw new NotSupportedException($"Archive format \"{_format.Id}\" does not support deleting entries.");
+
         var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
         if (innerPath.Length == 0)
             return;
@@ -217,6 +221,9 @@ public sealed class ArchiveFileSystem : IFileSystem
     /// <summary>Creates a directory entry at <paramref name="path"/> inside the archive.</summary>
     public async Task CreateDirectoryAsync(string path, CancellationToken ct = default)
     {
+        if (!_format.Capabilities.HasFlag(ArchiveCapabilities.AddEntries))
+            throw new NotSupportedException($"Archive format \"{_format.Id}\" does not support adding entries.");
+
         var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
         if (innerPath.Length == 0)
             return;
@@ -236,6 +243,9 @@ public sealed class ArchiveFileSystem : IFileSystem
     /// </summary>
     public async Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default)
     {
+        if (!_format.Capabilities.HasFlag(ArchiveCapabilities.Create))
+            throw new NotSupportedException($"Archive format \"{_format.Id}\" is read-only and does not support writing.");
+
         var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(destinationPath).innerPath);
         if (innerPath.Length == 0)
             throw new IOException("Cannot write to the archive root without an entry name.");
@@ -255,7 +265,7 @@ public sealed class ArchiveFileSystem : IFileSystem
             (clash == null && ArchiveTree.HasDescendants(existing.Entries, innerPath)))
             throw new IOException($"Cannot overwrite \"{innerPath}\": a directory with that name already exists in the archive.");
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = TempFileNaming.NextTo(_archivePath, "stage");
         try
         {
             using (var tempStream = File.Create(tempFile))

@@ -84,7 +84,13 @@ public sealed class EditorTab : IDisposable
 
         try
         {
-            File.WriteAllText(savePath, Editor.Text, Encoding);
+            // Write-then-replace so a crash, power loss, or full disk mid-write can't leave the
+            // file truncated/corrupted - the same pattern every other user-data write in the
+            // project already uses (SettingsService.Save, CredentialStore.Save,
+            // Archives/RewritingArchiveWriter, ZipUpdateSession).
+            var tempPath = savePath + ".tmp";
+            File.WriteAllText(tempPath, Editor.Text, Encoding);
+            File.Move(tempPath, savePath, overwrite: true);
             FilePath = savePath;
             IsModified = false;
         }

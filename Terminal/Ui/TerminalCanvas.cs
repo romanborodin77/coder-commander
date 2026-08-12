@@ -4,7 +4,9 @@ using CoderCommander.Services;
 using CoderCommander.Terminal.Input;
 using CoderCommander.Terminal.Screen;
 using CoderCommander.Terminal.Shells;
+using CoderCommander.Utils;
 using CoderCommander.WinForms;
+using CoderCommander.Terminal.Vt;
 
 namespace CoderCommander.Terminal.Ui;
 
@@ -298,11 +300,24 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     private void ReanchorForScrollbackGrowth()
     {
         long delta;
+        int maxOffset;
         lock (_session.Screen.SyncRoot)
         {
             delta = _session.Screen.ScrollbackTotalPushed - _lastKnownScrollbackTotalPushed;
             _lastKnownScrollbackTotalPushed = _session.Screen.ScrollbackTotalPushed;
+            maxOffset = MaxScrollOffset(_session.Screen);
         }
+
+        // Entering the alt screen doesn't push scrollback (delta stays 0 below), but it does
+        // change MaxScrollOffset to 0 - clamp unconditionally, every tick (this runs off the 16ms
+        // repaint timer, so the correction is effectively immediate), not only when delta > 0.
+        // Without this, a viewport scrolled back with the mouse (which - unlike a keypress -
+        // never calls ScrollToLiveOnInput) before a foreground app switched to the alt screen
+        // (htop/less/vim launched without a fresh keypress) kept showing stale main-buffer rows
+        // mixed into the alt-screen viewport.
+        if (_scrollOffset > maxOffset)
+            _scrollOffset = maxOffset;
+
         if (delta <= 0) return;
 
         if (_scrollOffset > 0)
@@ -843,8 +858,8 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         var L = LocalizationService.Current;
         var p = ThemeService.Current;
         // Built fresh on every right-click and never stored - self-disposes once closed (via
-        // Closed below) instead of leaking a ContextMenuStrip per click. The analyzer can't trace
-        // disposal happening inside the control's own event handler.
+        // AutoDisposeOnClose below) instead of leaking a ContextMenuStrip per click. The analyzer
+        // can't trace disposal happening inside the control's own event handler.
 #pragma warning disable CA2000
         var menu = new ContextMenuStrip
         {
@@ -854,7 +869,9 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             Font = p.GridFont
         };
 #pragma warning restore CA2000
-        menu.Closed += (_, _) => menu.Dispose();
+        // Not menu.Closed += (_, _) => menu.Dispose() - see UiHelpers.AutoDisposeOnClose for why
+        // disposing synchronously inside Closed crashes the app (F031 regression, second crash).
+        UiHelpers.AutoDisposeOnClose(menu, this);
 
         var linkId = GetLinkIdAtPixel(location.X, location.Y);
         if (linkId != 0)
@@ -1235,6 +1252,22 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
         // rest of the payload land on the shell's command line as if typed.
         text = text.Replace("\x1b[200~", "", StringComparison.Ordinal).Replace("\x1b[201~", "", StringComparison.Ordinal);
         var bytes = Encoding.UTF8.GetBytes(text);
+
+        var L = LocalizationService.Current;
+        if (bytes.Length > VtLimits.MaxPasteBytes)
+        {
+            StyledMessageBox.Show(
+                L.GetString("Terminal.Paste.TooLarge", FormatUtils.FormatSize(bytes.Length), FormatUtils.FormatSize(VtLimits.MaxPasteBytes)),
+                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Warning, FindForm());
+            return;
+        }
+        if (bytes.Length > VtLimits.PasteConfirmBytes)
+        {
+            var confirmed = StyledMessageBox.Show(
+                L.GetString("Terminal.Paste.ConfirmLarge", FormatUtils.FormatSize(bytes.Length)),
+                L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, FindForm()) == MsgBoxResult.Yes;
+            if (!confirmed) return;
+        }
 
         bool bracketedPaste;
         lock (_session.Screen.SyncRoot)

@@ -12,14 +12,6 @@ public static class RecycleBinHelper
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern uint SHFileOperationW(ref SHFILEOPSTRUCTW lpFileOp);
 
-    // Without CharSet.Unicode, the marshaller sends pszRootPath as an ANSI (narrow) string to a
-    // function whose "W" suffix and wchar_t* signature both promise wide characters - silently
-    // truncating/mangling any rootPath with non-ANSI characters. Currently dead code (nothing
-    // calls Empty()), but exactly the kind of interop mismatch that's easy to miss once something
-    // does.
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint SHEmptyRecycleBinW(IntPtr hwnd, string? pszRootPath, uint dwFlags);
-
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct SHFILEOPSTRUCTW
     {
@@ -38,10 +30,6 @@ public static class RecycleBinHelper
     private const ushort FOF_NOCONFIRMATION = 0x0010;
     private const ushort FOF_SILENT = 0x0004;
     private const ushort FOF_NOERRORUI = 0x0400;
-
-    private const uint SHERB_NOCONFIRMATION = 0x00000001;
-    private const uint SHERB_NOPROGRESSUI = 0x00000002;
-    private const uint SHERB_NOSOUND = 0x00000004;
 
     /// <summary>
     /// Sends one or more files/directories to the Recycle Bin.
@@ -102,15 +90,5 @@ public static class RecycleBinHelper
         {
             Marshal.FreeHGlobal(fromPtr);
         }
-    }
-
-    /// <summary>
-    /// Empties the Recycle Bin. If rootPath is null, empties all drives.
-    /// </summary>
-    public static bool Empty(string? rootPath = null)
-    {
-        var result = SHEmptyRecycleBinW(IntPtr.Zero, rootPath,
-            SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND);
-        return result == 0;
     }
 }

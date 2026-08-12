@@ -67,7 +67,12 @@ public sealed class BookmarkStore
         {
             var dir = Path.GetDirectoryName(FilePath) ?? FilePath;
             Directory.CreateDirectory(dir);
-            File.WriteAllLines(FilePath, Items.Select(b => $"{b.Name}|{b.Path}"));
+
+            // Write-then-replace, same pattern as SettingsService.Save - a crash mid-write must
+            // not leave bookmarks.txt truncated.
+            var tempPath = FilePath + ".tmp";
+            File.WriteAllLines(tempPath, Items.Select(b => $"{b.Name}|{b.Path}"));
+            File.Move(tempPath, FilePath, overwrite: true);
         }
         catch (Exception ex)
         {

@@ -563,6 +563,23 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Extensions that Windows will run as code the instant <see cref="Process.Start(ProcessStartInfo)"/>
+    /// (with <c>UseShellExecute = true</c>) hands them to the shell - the same vector as double-
+    /// clicking the file in Explorer. Deliberately broader than <see cref="FileIcons.GetIconType"/>'s
+    /// "Executable" icon classification, which exists to pick a display glyph, not to gate a
+    /// dangerous action - it neither needs nor wants script hosts (<c>.vbs</c>/<c>.js</c>/<c>.wsf</c>),
+    /// <c>.scr</c>/<c>.hta</c>/<c>.lnk</c>/<c>.pif</c>/<c>.cpl</c>, or <c>.reg</c> for that purpose.
+    /// <c>.jar</c> is deliberately absent: it never reaches here, since <see cref="ArchiveFormatRegistry.FromExtension"/>
+    /// already claims it as a plain ZIP container earlier in the activation path (see
+    /// <c>FilePanelUserControl.OnItemDoubleClick</c>).
+    /// </summary>
+    private static readonly HashSet<string> ExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".bat", ".cmd", ".com", ".scr", ".hta", ".vbs", ".vbe", ".js", ".jse",
+        ".wsf", ".wsh", ".ps1", ".msi", ".msc", ".reg", ".lnk", ".pif", ".cpl",
+    };
+
     private void OnItemActivated(object? sender, FileSystemItem item)
     {
         if (item.IsDirectory || item.IsParent) return;
@@ -578,6 +595,21 @@ public sealed class MainForm : Form
             StyledMessageBox.Show(L.GetString("Conn.OpenUnsupported"), L.GetString("Conn.Title"),
                 MsgBoxButtons.OK, MsgBoxIcon.Information, this);
             return;
+        }
+
+        // Enter/double-click on a document must never be a silent code-execution vector - a
+        // disguised executable (invoice.pdf.exe, a .scr posing as an image, a malicious .lnk from
+        // a downloaded archive) would otherwise run with one keystroke, indistinguishable from
+        // opening a document. Always confirmed, no setting to skip it - the same "irreversible
+        // enough that skipping confirmation isn't offered" call MainViewModel.Wipe makes.
+        if (ExecutableExtensions.Contains(FileEntry.GetExtension(item.FullPath)))
+        {
+            var L = LocalizationService.Current;
+            var confirmed = StyledMessageBox.Show(
+                L.GetString("Panel.ConfirmOpenExecutable", item.Name),
+                L.GetString("Common.Confirm"),
+                MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
+            if (!confirmed) return;
         }
 
         try

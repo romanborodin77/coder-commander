@@ -1,3 +1,5 @@
+using CoderCommander.Utils;
+
 namespace CoderCommander.Archives;
 
 /// <summary>
@@ -32,7 +34,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _archivePath = archivePath;
         _format = format;
         _createWriter = createWriter;
-        _stagingPath = archivePath + ".stage-" + Guid.NewGuid().ToString("N") + ".tmp";
+        _stagingPath = TempFileNaming.NextTo(archivePath, "stage");
 
         // Hold an exclusive lock on the real archive from construction through the start of
         // CommitAsync (released there, before reading survivors - see CommitAsync for why):
@@ -98,7 +100,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         _lock?.Dispose();
         _lock = null;
 
-        var finalPath = _archivePath + ".rewrite-" + Guid.NewGuid().ToString("N") + ".tmp";
+        var finalPath = TempFileNaming.NextTo(_archivePath, "rewrite");
         try
         {
             await using (var finalStream = new FileStream(finalPath, FileMode.Create, FileAccess.Write, FileShare.None))

@@ -15,8 +15,12 @@ internal static class ShellCwdQuoting
     /// real shell, `&amp;`/`|`/`&lt;`/`&gt;`/`^` are handled by a layer that runs before/around
     /// argument quoting for many contexts) - rather than trying to escape them, a path containing
     /// any of these is rejected outright. `"` is included too: it is the one character that
-    /// breaks the quoting this scheme depends on in the first place.</summary>
-    private static readonly char[] CmdUnsafeChars = ['&', '|', '<', '>', '^', '"'];
+    /// breaks the quoting this scheme depends on in the first place. `%` is included because
+    /// cmd.exe expands <c>%VAR%</c> across the whole typed line - including text inside double
+    /// quotes - before tokenizing it; a path segment that happens to match an existing
+    /// environment variable name (e.g. a folder literally named <c>%TEMP%</c>, valid on NTFS)
+    /// would silently resolve to that variable's value instead of the literal path.</summary>
+    private static readonly char[] CmdUnsafeChars = ['&', '|', '<', '>', '^', '"', '%'];
 
     /// <summary>Sanity cap on path length - not a real-world limit (NTFS/long-path-aware .NET
     /// already allows much longer), just a guard against something absurd reaching a command

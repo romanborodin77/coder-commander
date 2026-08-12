@@ -302,14 +302,18 @@ public class SearchDialogForm : ThemedForm
             try
             {
                 var opts = caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
-                return Regex.IsMatch(name, pattern, opts);
+                return Regex.IsMatch(name, pattern, opts, TimeSpan.FromSeconds(1));
             }
             catch { return false; }
         }
 
         var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*", StringComparison.Ordinal).Replace("\\?", ".", StringComparison.Ordinal) + "$";
         var opts2 = caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
-        return Regex.IsMatch(name, regexPattern, opts2);
+        try
+        {
+            return Regex.IsMatch(name, regexPattern, opts2, TimeSpan.FromSeconds(1));
+        }
+        catch (RegexMatchTimeoutException) { return false; }
     }
 
     private static bool FileContainsText(string path, string searchText, bool caseSensitive, bool useRegex)

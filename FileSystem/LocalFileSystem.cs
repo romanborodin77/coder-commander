@@ -362,7 +362,7 @@ public sealed class LocalFileSystem : IFileSystem
         // directly into destinationPath with FileMode.Create truncates it immediately, so a
         // cancelled/failed copy while overwriting an existing file used to destroy the original
         // before any of the new content had actually landed.
-        var tempPath = destinationPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        var tempPath = TempFileNaming.NextTo(destinationPath);
         try
         {
             var bufferSize = source.CanSeek ? BufferSizing.ForSize(source.Length) : 81920;

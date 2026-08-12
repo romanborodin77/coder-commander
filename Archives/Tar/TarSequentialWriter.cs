@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Archives.Tar;
 
@@ -41,7 +42,7 @@ internal sealed class TarSequentialWriter : ISequentialArchiveWriter
         // TarEntry needs a seekable DataStream to determine its length; the caller's stream (a
         // ProgressStream wrapping a possibly non-seekable source) isn't guaranteed to be one, so
         // buffer through a temp file rather than assume.
-        var tempPath = Path.GetTempFileName();
+        var tempPath = TempFileNaming.InSystemTemp("tarwrite");
         try
         {
             using (var tempStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))

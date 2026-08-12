@@ -130,9 +130,17 @@ internal sealed class TerminalScreen : IVtSink
 
         if (width == 2 && _cursor.Col == _active.Cols - 1)
         {
-            // No room for a wide char in the very last column - blank the cell and wrap now
-            // rather than splitting the glyph across a line boundary.
+            // No room for a wide char in the very last column - never split the glyph across a
+            // line boundary. Blank the cell either way, but only wrap when DECAWM (AutoWrap) is
+            // on - commit 476afa1 made the later newCol >= Cols check below respect AutoWrap but
+            // missed this earlier special case, so a DECAWM-off app (mc, vim, any full-screen
+            // TUI - exactly what that commit targeted) still got a forced wrap/scroll here. With
+            // AutoWrap off there is nowhere to put the wide rune - falling through to the
+            // unconditional WriteCell below would write past the last column - so the character
+            // is dropped instead, matching xterm's behavior for a wide char that doesn't fit and
+            // can't wrap.
             WriteCell(CurrentRow(), _cursor.Col, ' ', 1);
+            if (!Modes.AutoWrap) return;
             WrapNow();
         }
 
@@ -145,6 +153,15 @@ internal sealed class TerminalScreen : IVtSink
             for (var c = limit - 1; c >= _cursor.Col + width; c--)
                 row.Cells[c] = row.Cells[c - width];
             row.ClearRange(_cursor.Col, _cursor.Col + width, _cursor.Bg);
+
+            // The shift above moves raw cells - unlike WriteCell (below), it doesn't know about
+            // wide-char pairs, so it can strand half of one at either boundary of the moved
+            // range: a WideLead can land at the very last column with no room left for its
+            // trail, and a WideTrail can land right after the just-cleared gap with its lead
+            // (never touched by the shift) stuck on the wrong side of that gap. Either half left
+            // in place renders as a garbled/split glyph.
+            BlankOrphanedWideHalf(row, limit - 1);
+            BlankOrphanedWideHalf(row, _cursor.Col + width);
         }
 
         WriteCell(row, _cursor.Col, rune, width);
@@ -178,7 +195,18 @@ internal sealed class TerminalScreen : IVtSink
     {
         var col = _cursor.PendingWrap ? _active.Cols - 1 : _cursor.Col - 1;
         if (col < 0) return;
-        CurrentRow().AttachCombining(col, rune, VtLimits.MaxCombiningPerCell);
+
+        var row = CurrentRow();
+        // After a wide (2-column) character, "the previous cell" by column arithmetic is the
+        // WideTrail half of the pair - but WriteCell/DrawCellRun/RowToPlainText all treat WideLead
+        // as the glyph's only address (WideTrail contributes nothing on its own, see WriteCell and
+        // RowToPlainText's own doc comments). A mark attached to the trail index was never read
+        // back by any of them - silently dropped from rendering, Copy, Find and accessible text.
+        if (col < row.Cells.Length && (row.Cells[col].Flags & CellFlags.WideTrail) != 0)
+            col--;
+        if (col < 0) return;
+
+        row.AttachCombining(col, rune, VtLimits.MaxCombiningPerCell);
         MarkRowDirty(_cursor.Row);
     }
 
@@ -211,6 +239,27 @@ internal sealed class TerminalScreen : IVtSink
         row.Combining?.Remove(col);
         row.Version++;
         MarkRowDirty(_cursor.Row);
+    }
+
+    /// <summary>Blanks <paramref name="col"/> if it holds one half of a wide-char pair whose
+    /// other half is no longer adjacent - the same "don't leave an orphaned lead/trail" guard
+    /// <see cref="WriteCell"/> applies to an ordinary overwrite, needed here because the IRM
+    /// shift in <see cref="Print"/> moves raw cells without going through it.</summary>
+    private void BlankOrphanedWideHalf(TerminalRow row, int col)
+    {
+        if (col < 0 || col >= row.Cells.Length) return;
+
+        var cell = row.Cells[col];
+        if ((cell.Flags & CellFlags.WideLead) != 0 &&
+            (col + 1 >= row.Cells.Length || (row.Cells[col + 1].Flags & CellFlags.WideTrail) == 0))
+        {
+            row.Cells[col] = TerminalCell.Blank(_cursor.Bg);
+        }
+        else if ((cell.Flags & CellFlags.WideTrail) != 0 &&
+            (col - 1 < 0 || (row.Cells[col - 1].Flags & CellFlags.WideLead) == 0))
+        {
+            row.Cells[col] = TerminalCell.Blank(_cursor.Bg);
+        }
     }
 
     public void Execute(char c0)

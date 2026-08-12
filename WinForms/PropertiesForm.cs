@@ -981,7 +981,7 @@ public class PropertiesForm : ThemedForm
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        try { _cts?.Cancel(); _cts?.Dispose(); } catch { }
+        try { _cts?.Cancel(); _cts?.Dispose(); } catch { /* best effort cleanup - form is closing regardless */ }
         _cts = null;
         base.OnFormClosed(e);
     }

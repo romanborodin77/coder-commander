@@ -163,19 +163,19 @@ public static class VfsPath
     /// Replaces the last path component with <paramref name="newName"/>.
     /// </summary>
     /// <exception cref="ArgumentException">
-    /// <paramref name="newName"/> contains a path separator or is <c>.</c>/<c>..</c>. This is the
-    /// one place every overwrite-conflict "rename" flow (Copy/Move/Pack/Unpack) funnels through,
+    /// <paramref name="newName"/> fails <see cref="RemotePath.IsSafeEntryName"/> - a path separator,
+    /// <c>.</c>/<c>..</c>, an NTFS alternate-data-stream colon, a reserved DOS device name
+    /// (<c>CON</c>/<c>COM1</c>/...), a trailing dot/space, or a display-spoofing character. This is
+    /// the one place every overwrite-conflict "rename" flow (Copy/Move/Pack/Unpack) funnels through,
     /// so it's the single choke point that stops a caller-supplied name (e.g. from an
-    /// <see cref="Operations.OverwriteResolveHandler"/>) from escaping the target directory -
-    /// callers were otherwise trusting the UI layer never to hand back something like
-    /// <c>..\..\evil.exe</c>, with no check at the operation level itself.
+    /// <see cref="Operations.OverwriteResolveHandler"/>) from escaping the target directory or
+    /// smuggling an ADS/device name onto local disk - callers were otherwise trusting the UI layer
+    /// never to hand back something like <c>..\..\evil.exe</c> or <c>readme.txt:payload.exe</c>,
+    /// with no check at the operation level itself.
     /// </exception>
     public static string ChangeName(string path, string newName)
     {
-        if (string.IsNullOrEmpty(newName) ||
-            newName.IndexOfAny(['/', '\\']) >= 0 ||
-            newName is "." or ".." ||
-            Path.IsPathRooted(newName))
+        if (!RemotePath.IsSafeEntryName(newName))
             throw new ArgumentException($"Invalid entry name: \"{newName}\"", nameof(newName));
 
         var parent = GetParent(path);

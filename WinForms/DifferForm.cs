@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using CoderCommander.Utils;
 using System.Globalization;
 
 namespace CoderCommander.WinForms;
@@ -8,6 +9,12 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public class DifferForm : ThemedForm
 {
+    /// <summary>Above this (per file), <c>File.ReadAllLines</c> means loading the whole file into
+    /// memory - large enough to freeze the UI thread for seconds or throw
+    /// <see cref="OutOfMemoryException"/> comparing two multi-GB files. Same threshold
+    /// <see cref="ViewerForm"/> uses for its own text mode.</summary>
+    private const long LargeFileConfirmBytes = 16 * 1024 * 1024;
+
     private readonly TextBox _leftBox;
     private readonly TextBox _rightBox;
     private readonly Label _statusLabel;
@@ -182,6 +189,15 @@ public class DifferForm : ThemedForm
         {
             _statusLabel.Text = L.GetString("Differ.FilesNotFound");
             return;
+        }
+
+        var largestSize = Math.Max(new FileInfo(left).Length, new FileInfo(right).Length);
+        if (largestSize > LargeFileConfirmBytes)
+        {
+            var confirmed = StyledMessageBox.Show(
+                L.GetString("Differ.ConfirmLargeFile", FormatUtils.FormatSize(largestSize), FormatUtils.FormatSize(LargeFileConfirmBytes)),
+                L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
+            if (!confirmed) return;
         }
 
         try
