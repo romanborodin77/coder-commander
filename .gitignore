@@ -25,5 +25,9 @@ CoderCommander_crash.log
 AGENTS.md
 CLAUDE.md
 .claude/
+debug.ps1
+DEBUG.md
+FIXES.md
+AUDIT-FULL-PROMPT.md
 
 
