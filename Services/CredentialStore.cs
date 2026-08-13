@@ -43,8 +43,7 @@ public sealed class CredentialStore
     /// <summary>Process-wide store over the real AppData location.</summary>
     public static CredentialStore Instance { get; } = new(DefaultPath);
 
-    private static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander", "credentials.dat");
+    private static string DefaultPath => Path.Combine(DataDirectory.Root, "credentials.dat");
 
     /// <summary>Internal so tests can point the store at a temp file instead of the real one -
     /// the same reason <c>SettingsService.Validate</c> is internal. A test that wrote to the

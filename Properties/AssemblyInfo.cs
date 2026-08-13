@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Coder Commander")]
@@ -17,3 +18,7 @@ using System.Runtime.InteropServices;
 // assembly at once, including the source-generated LibraryImport sites - this attribute is honored
 // by both, not just classic DllImport.
 [assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+
+// Lets UiTests' Sandbox reuse the same internal JobObject PtySession/ConPTY already use to scope
+// process-tree teardown to exactly the app instance a test launched, instead of reimplementing it.
+[assembly: InternalsVisibleTo("CoderCommander.UiTests")]

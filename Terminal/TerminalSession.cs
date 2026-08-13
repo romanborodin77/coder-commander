@@ -127,7 +127,7 @@ internal sealed class TerminalSession : IAsyncDisposable
 
         var pty = PtySession.Start(
             _shell.ExecutablePath, arguments, CurrentPath, environment,
-            (short)cols, (short)rows);
+            (short)cols, (short)rows, ExcludedEnvironment);
 
         _pty = pty;
         _ptyWriterBridge.SetWriter(bytes => pty.Write(bytes));
@@ -160,6 +160,12 @@ internal sealed class TerminalSession : IAsyncDisposable
         ["TERM"] = "xterm-256color",
         ["COLORTERM"] = "truecolor",
     };
+
+    /// <summary>Environment keys that must never reach an interactive shell the user can inspect
+    /// (e.g. via "set"/"$env:") - the UI-automation test flag and the test sandbox's data-directory
+    /// override chief among them.</summary>
+    private static readonly IReadOnlyCollection<string> ExcludedEnvironment =
+        [Services.DiagnosticCommandChannel.EnvironmentVariable, Services.DataDirectory.OverrideEnvironmentVariable];
 
     /// <summary>Sends raw bytes (already VT-encoded) to the shell's stdin.</summary>
     public void SendInput(ReadOnlySpan<byte> bytes) => _pty?.Write(bytes);

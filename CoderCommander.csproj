@@ -76,4 +76,14 @@
     <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- UiTests/ is a separate project nested inside this one's folder; SDK-style **/*.cs globbing
+       would otherwise silently pull its sources (and generated AssemblyInfo/GlobalUsings) into
+       this build, producing duplicate-attribute/type-not-found errors that look unrelated to the
+       real cause. -->
+  <ItemGroup>
+    <Compile Remove="UiTests\**" />
+    <EmbeddedResource Remove="UiTests\**" />
+    <None Remove="UiTests\**" />
+  </ItemGroup>
+
 </Project>

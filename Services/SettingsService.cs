@@ -129,8 +129,7 @@ public sealed class AppSettings
 /// </summary>
 public static class SettingsService
 {
-    private static readonly string SettingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander", "settings.json");
+    private static readonly string SettingsPath = Path.Combine(DataDirectory.Root, "settings.json");
 
     internal static readonly JsonSerializerOptions JsonOpts = new()
     {

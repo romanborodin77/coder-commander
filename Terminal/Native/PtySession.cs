@@ -92,7 +92,8 @@ internal sealed class PtySession : IAsyncDisposable
         string? workingDirectory,
         IReadOnlyDictionary<string, string>? extraEnvironment,
         short cols,
-        short rows)
+        short rows,
+        IReadOnlyCollection<string>? excludeEnvironmentKeys = null)
     {
         cols = Math.Clamp(cols, (short)2, (short)1000);
         rows = Math.Clamp(rows, (short)1, (short)1000);
@@ -144,7 +145,7 @@ internal sealed class PtySession : IAsyncDisposable
             else
                 job.Dispose();
 
-            var pi = SpawnProcess(executablePath, arguments, workingDirectory, extraEnvironment, hpc, job.IsUsable ? job : null);
+            var pi = SpawnProcess(executablePath, arguments, workingDirectory, extraEnvironment, excludeEnvironmentKeys, hpc, job.IsUsable ? job : null);
             ConPtyInterop.CloseHandle(pi.hThread);
 
             // ownsHandle: true - this SafeProcessHandle is the ONE place pi.hProcess ever gets
@@ -184,7 +185,7 @@ internal sealed class PtySession : IAsyncDisposable
 
     private static ConPtyInterop.PROCESS_INFORMATION SpawnProcess(
         string executablePath, IReadOnlyList<string> arguments, string? workingDirectory,
-        IReadOnlyDictionary<string, string>? extraEnvironment,
+        IReadOnlyDictionary<string, string>? extraEnvironment, IReadOnlyCollection<string>? excludeEnvironmentKeys,
         SafePseudoConsoleHandle hpc, JobObject? job)
     {
         var commandLine = BuildCommandLine(executablePath, arguments).ToCharArray();
@@ -197,7 +198,7 @@ internal sealed class PtySession : IAsyncDisposable
         var jobRefTaken = false;
         try
         {
-            var envChars = BuildEnvironmentBlock(extraEnvironment);
+            var envChars = BuildEnvironmentBlock(extraEnvironment, excludeEnvironmentKeys);
             envPin = GCHandle.Alloc(envChars, GCHandleType.Pinned);
 
             var attrCount = job != null ? 2 : 1;
@@ -333,7 +334,10 @@ internal sealed class PtySession : IAsyncDisposable
     /// <paramref name="extra"/> on top, so callers only need to specify what they're adding or
     /// overriding (TERM, COLORTERM, shell-integration variables, ...).
     /// </summary>
-    private static char[] BuildEnvironmentBlock(IReadOnlyDictionary<string, string>? extra)
+    /// <summary><paramref name="exclude"/> removes keys entirely rather than blanking them - e.g.
+    /// CODERCOMMANDER_UI_DEBUG must never reach an interactive shell the user can inspect with
+    /// "set"/"$env:", not merely be emptied.</summary>
+    private static char[] BuildEnvironmentBlock(IReadOnlyDictionary<string, string>? extra, IReadOnlyCollection<string>? exclude = null)
     {
         var merged = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables())
@@ -341,6 +345,11 @@ internal sealed class PtySession : IAsyncDisposable
             var key = (string)e.Key;
             if (key.Length > 0)
                 merged[key] = (string?)e.Value ?? "";
+        }
+        if (exclude != null)
+        {
+            foreach (var key in exclude)
+                merged.Remove(key);
         }
         if (extra != null)
         {

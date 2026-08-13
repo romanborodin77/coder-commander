@@ -56,6 +56,13 @@ internal static class Program
         };
         AppDomain.CurrentDomain.FirstChanceException += (_, args) => LogFirstChanceException(args.Exception);
 
+        // UI-tree dump for fast layout inspection (JSON, not a screenshot) - gated behind an env
+        // var so it never activates outside a debug-mode launch; F12 is unmodified because
+        // modifier-combo key injection through UI-automation tooling has been empirically
+        // unreliable (see DiagnosticCommandChannel's own doc comment for the same reasoning).
+        if (Environment.GetEnvironmentVariable(DiagnosticCommandChannel.EnvironmentVariable) == "1")
+            Application.AddMessageFilter(new UiDumpMessageFilter());
+
         ApplicationConfiguration.Initialize();
 
         // Apply theme
@@ -70,6 +77,12 @@ internal static class Program
         var vm = new MainViewModel();
         using var mainForm = new MainForm(vm);
         mainForm.FormClosed += (_, _) => vm.Dispose();
+
+        // invoke_command channel for automated UI tests - see DiagnosticCommandChannel's own doc
+        // comment. Gated by the same env var as the UI-tree dump above; a no-op call outside a
+        // debug-mode launch.
+        DiagnosticCommandChannel.Start(vm, mainForm);
+        mainForm.FormClosed += (_, _) => DiagnosticCommandChannel.Stop();
 
         Application.Run(mainForm);
     }
@@ -145,5 +158,19 @@ internal static class Program
             // Logging a first-chance exception must never itself throw back into the
             // exception machinery it's observing.
         }
+    }
+}
+
+/// <summary>Watches for an unmodified F12 keydown and dumps the active form's control tree
+/// via <see cref="UiDumpService"/> - see Program.Main for the debug-mode env var gate.</summary>
+internal sealed class UiDumpMessageFilter : IMessageFilter
+{
+    private const int WM_KEYDOWN = 0x0100;
+
+    public bool PreFilterMessage(ref Message m)
+    {
+        if (m.Msg == WM_KEYDOWN && (Keys)m.WParam.ToInt32() == Keys.F12)
+            UiDumpService.DumpActiveFormToFile();
+        return false;
     }
 }
