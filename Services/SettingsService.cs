@@ -19,6 +19,33 @@ public sealed class AppSettings
     public bool WindowMaximized { get; set; }
     public bool ConfirmDelete { get; set; } = true;
     public bool ConfirmOverwrite { get; set; } = true;
+    public bool ViewerWordWrap { get; set; }
+    public bool ViewerImageFitToWindow { get; set; } = true;
+    /// <summary>Last-used universal viewer format id ("text"/"ascii"/"binary"/"hex"), restored
+    /// the next time a file with no matched format (or with the viewer's own format group
+    /// switched away from a matched format) is opened. Never a matched format's id (e.g.
+    /// "image") - a matched format always wins for a file it recognizes regardless of this
+    /// value, so persisting one here would make the next unrelated file default to a forced (and
+    /// likely failing) decode in that format.</summary>
+    public string ViewerLastMode { get; set; } = "text";
+
+    /// <summary>Manual encoding override for Text mode (<see cref="EncodingCatalog"/> id, e.g.
+    /// "windows-1251") - empty means autodetect via <see cref="TextEncodingDetector"/>. Never
+    /// applies to ASCII/Binary/Hex, which don't decode through an <c>Encoding</c> at all.</summary>
+    public string ViewerEncodingOverride { get; set; } = "";
+
+    /// <summary>CSV delimiter: <c>"auto"</c> (detect via <c>CsvParser.DetectDelimiter</c>) or a
+    /// single literal character (<c>","</c>, <c>";"</c>, <c>"\t"</c>, <c>"|"</c>).</summary>
+    public string ViewerCsvDelimiter { get; set; } = "auto";
+
+    /// <summary>Whether the CSV viewer treats the first row as column headers rather than data.</summary>
+    public bool ViewerCsvHasHeader { get; set; } = true;
+
+    /// <summary>Whether the F3 HTML viewer's "browser mode" executes script in the page it's
+    /// showing. Off by default - <c>WinForms.Viewers.WebViewHost</c>'s security baseline resets
+    /// this to false before every non-HTML format navigates regardless of this setting; only HTML
+    /// format's own explicit toolbar toggle reads and writes it.</summary>
+    public bool ViewerHtmlAllowScripts { get; set; }
     public bool ShowStatusBar { get; set; } = true;
     public bool ShowToolbar { get; set; } = true;
     public bool ShowFunctionButtons { get; set; } = true;
@@ -219,7 +246,27 @@ public static class SettingsService
         CleanArchiveCompression(s);
         CleanAlreadyCompressedExtensions(s);
         MigrateLegacyShellTokens(s);
+        MigrateViewerLastMode(s);
         CleanConnections(s);
+    }
+
+    private static readonly string[] KnownUniversalViewerModes = { "text", "ascii", "binary", "hex" };
+
+    /// <summary>Maps the pre-rewrite capitalized values ("Text"/"Hex") onto the lowercase format
+    /// ids the universal viewer formats now use, and falls back an unrecognized value (a format
+    /// id that no longer exists, or hand-edited garbage) to "text" rather than leaving the viewer
+    /// unable to resolve its own last-mode preference. Idempotent - runs on every load AND save
+    /// (see <see cref="Validate"/>'s callers), so an already-migrated value must round-trip
+    /// unchanged.</summary>
+    private static void MigrateViewerLastMode(AppSettings s)
+    {
+        s.ViewerLastMode = s.ViewerLastMode switch
+        {
+            "Text" => "text",
+            "Hex" => "hex",
+            var v when Array.IndexOf(KnownUniversalViewerModes, v) >= 0 => v,
+            _ => "text"
+        };
     }
 
     /// <summary>

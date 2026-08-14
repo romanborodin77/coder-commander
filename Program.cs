@@ -9,6 +9,8 @@ using CoderCommander.Archives.Zip;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
 using CoderCommander.Views;
+using CoderCommander.Viewers;
+using CoderCommander.Viewers.Formats;
 using System.Text;
 
 namespace CoderCommander;
@@ -34,6 +36,27 @@ internal static class Program
         FileSystemProviderRegistry.Register(WebDavProvider.Instance);
         FileSystemProviderRegistry.Register(FtpProvider.Instance);
         FileSystemProviderRegistry.Register(SftpProvider.Instance);
+
+        // Universal formats first (registration order = toolbar button order), then matched
+        // formats - see ViewerFormatRegistry's own doc comment for the extension/signature
+        // detection rules this feeds.
+        ViewerFormatRegistry.Register(TextViewerFormat.Instance);
+        ViewerFormatRegistry.Register(AsciiViewerFormat.Instance);
+        ViewerFormatRegistry.Register(BinaryViewerFormat.Instance);
+        ViewerFormatRegistry.Register(HexViewerFormat.Instance);
+        ViewerFormatRegistry.Register(ImageViewerFormat.Instance);
+        ViewerFormatRegistry.Register(CsvViewerFormat.Instance);
+        ViewerFormatRegistry.Register(MarkdownViewerFormat.Instance);
+        ViewerFormatRegistry.Register(HtmlViewerFormat.Instance);
+        ViewerFormatRegistry.Register(PdfViewerFormat.Instance);
+        ViewerFormatRegistry.Register(MediaViewerFormat.Instance);
+        ViewerFormatRegistry.Register(OfficeWordViewerFormat.Instance);
+        ViewerFormatRegistry.Register(OfficeSheetViewerFormat.Instance);
+        ViewerFormatRegistry.Register(OfficeSlidesViewerFormat.Instance);
+
+        // Best-effort cleanup of any viewer temp-session folder a previous run left behind (crash,
+        // kill -9, a killed UiTests host) - see ViewerTempSession.SweepOrphans's own doc comment.
+        ViewerTempSession.SweepOrphans();
 
         LogCrash("=== App startup ===");
 

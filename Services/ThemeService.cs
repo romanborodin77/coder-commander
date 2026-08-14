@@ -687,11 +687,20 @@ public sealed class ThemeRenderer : ToolStripProfessionalRenderer
 
         // Always-visible rounded/gradient chrome, matching RoundedButton's look in the
         // dialogs (UiHelpers.cs) instead of the old "flat, invisible until hover" style.
-        var baseColor = item.Pressed
-            ? p.ToolbarHover
-            : item.Selected
-                ? ControlPaint.Light(p.ToolbarHover, 0.05f)
-                : p.ToolbarBackground;
+        // Checked (a toggled ToolStripButton, e.g. Word Wrap) takes priority over hover/press -
+        // previously this method never read Checked at all, so a CheckOnClick button (here and
+        // in EditorForm's own Word Wrap toggle, which shares this same renderer) rendered
+        // identically whether it was toggled on or off. ToolStripItemRenderEventArgs.Item is
+        // statically typed as the base ToolStripItem, which has no Checked property of its own -
+        // only ToolStripButton (the only item type this override is ever invoked for) does.
+        var isChecked = item is ToolStripButton { Checked: true };
+        var baseColor = isChecked
+            ? p.Accent
+            : item.Pressed
+                ? p.ToolbarHover
+                : item.Selected
+                    ? ControlPaint.Light(p.ToolbarHover, 0.05f)
+                    : p.ToolbarBackground;
         var topColor = ControlPaint.Light(baseColor, 0.10f);
         var bottomColor = ControlPaint.Dark(baseColor, 0.04f);
 
@@ -699,7 +708,7 @@ public sealed class ThemeRenderer : ToolStripProfessionalRenderer
         using (var gradBrush = new LinearGradientBrush(rect, topColor, bottomColor, 90f))
             g.FillPath(gradBrush, path);
 
-        if (item.Selected)
+        if (item.Selected && !isChecked)
         {
             using var borderPen = new Pen(Color.FromArgb(160, p.Accent), 1f);
             g.DrawPath(borderPen, path);

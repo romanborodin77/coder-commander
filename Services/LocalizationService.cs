@@ -559,12 +559,40 @@ public sealed class LocalizationService
         // ═══ Viewer ═══
         _strings["View.Title"] = "Viewer";
         _strings["View.Text"] = "Text";
+        _strings["View.Ascii"] = "ASCII";
+        _strings["View.Binary"] = "Binary";
         _strings["View.Hex"] = "Hex";
         _strings["View.Image"] = "Image";
         _strings["View.WordWrap"] = "Wrap";
-        _strings["View.TextMode"] = "Text mode — {0}";
+        _strings["View.TextMode"] = "Text mode — {0}, {1}";
+        _strings["View.AsciiMode"] = "ASCII mode — {0}";
+        _strings["View.BinaryMode"] = "Binary mode — {0}";
         _strings["View.HexMode"] = "Hex mode — {0}";
         _strings["View.ImageMode"] = "Image mode";
+        _strings["View.Csv"] = "CSV";
+        _strings["View.CsvMode"] = "CSV — {0} rows, {1} cols, delimiter: {2}";
+        _strings["View.Csv.HasHeader"] = "Header Row";
+        _strings["View.Csv.AutoFit"] = "Fit Columns";
+        _strings["View.Csv.Delimiter"] = "Delimiter";
+        _strings["View.Csv.Delimiter.Auto"] = "Auto";
+        _strings["View.Csv.Delimiter.Comma"] = "Comma (,)";
+        _strings["View.Csv.Delimiter.Semicolon"] = "Semicolon (;)";
+        _strings["View.Csv.Delimiter.Tab"] = "Tab";
+        _strings["View.Csv.Delimiter.Pipe"] = "Pipe (|)";
+        _strings["View.Csv.Column"] = "Column {0}";
+        _strings["View.Csv.Truncated"] = "showing first {0} rows";
+        _strings["View.Encoding"] = "Encoding";
+        _strings["View.Encoding.Auto"] = "Auto-detect";
+        _strings["View.Encoding.Utf8"] = "UTF-8";
+        _strings["View.Encoding.Utf8Bom"] = "UTF-8 (BOM)";
+        _strings["View.Encoding.Utf16Le"] = "UTF-16 LE";
+        _strings["View.Encoding.Utf16Be"] = "UTF-16 BE";
+        _strings["View.Encoding.Windows1251"] = "Windows-1251 (Cyrillic)";
+        _strings["View.Encoding.Koi8R"] = "KOI8-R (Cyrillic)";
+        _strings["View.Encoding.Cp866"] = "CP866 (DOS Cyrillic)";
+        _strings["View.Encoding.Windows1252"] = "Windows-1252 (Western)";
+        _strings["View.Encoding.Latin1"] = "ISO-8859-1 (Latin-1)";
+        _strings["View.Encoding.Ascii"] = "ASCII";
         _strings["View.TooBigForText"] = "File too large for text mode ({0}). Limit: {1}.";
         _strings["View.HexTruncated"] = "Showing first {0} of {1}.";
         _strings["View.Error"] = "Error";
@@ -573,6 +601,50 @@ public sealed class LocalizationService
         _strings["View.Toolbar.Next"] = "Next";
         _strings["View.ZoomOut"] = "Zoom Out";
         _strings["View.ZoomIn"] = "Zoom In";
+        _strings["View.ZoomFit"] = "Fit to Window";
+        _strings["View.ZoomActual"] = "Actual Size (100%)";
+        _strings["View.RotateCW"] = "Rotate Right";
+        _strings["View.RotateCCW"] = "Rotate Left";
+        _strings["View.PreviewNotAvailable"] = "Preview not available for this format on this system.";
+        _strings["View.ImageTooBig"] = "Image too large to preview ({0}). Limit: {1}.";
+        _strings["View.Search"] = "Find";
+        _strings["View.FindBar.MatchCase"] = "Match case";
+        _strings["View.FindBar.NotFound"] = "Text not found";
+        _strings["View.FindBar.MatchCount"] = "{0} of {1}";
+        _strings["View.FindBar.WrappedToTop"] = "Search wrapped to top";
+        _strings["View.FindBar.WrappedToBottom"] = "Search wrapped to bottom";
+        _strings["View.TooBigToMaterialize"] = "File too large to open ({0}). Limit: {1}.";
+
+        _strings["View.Markdown"] = "Markdown";
+        _strings["View.MarkdownMode"] = "Markdown — {0}";
+        _strings["View.Md.Source"] = "Source";
+        _strings["View.Md.Print"] = "Print";
+
+        _strings["View.Html"] = "HTML";
+        _strings["View.HtmlMode"] = "HTML — {0}";
+        _strings["View.Html.Back"] = "Back";
+        _strings["View.Html.Forward"] = "Forward";
+        _strings["View.Html.Refresh"] = "Refresh";
+        _strings["View.Html.Stop"] = "Stop";
+        _strings["View.Html.Scripts"] = "Scripts";
+        _strings["View.Html.Print"] = "Print";
+
+        _strings["View.Pdf"] = "PDF";
+        _strings["View.PdfMode"] = "PDF — {0}";
+
+        _strings["View.Media"] = "Media";
+        _strings["View.MediaMode"] = "Media — {0}";
+
+        _strings["View.Office.Word"] = "Document";
+        _strings["View.Office.WordMode"] = "Document";
+        _strings["View.Office.Sheet"] = "Sheet";
+        _strings["View.Office.SheetMode"] = "Sheet — {0} sheet(s)";
+        _strings["View.Office.Slides"] = "Slides";
+        _strings["View.Office.SlidesMode"] = "Slides — {0} slide(s)";
+        _strings["View.Office.PreviousPage"] = "Previous";
+        _strings["View.Office.NextPage"] = "Next";
+        _strings["View.Office.Print"] = "Print";
+        _strings["View.Office.Encrypted"] = "Unable to open this document — it may be password-protected or corrupted.";
 
         // ═══ Editor ═══
         _strings["Edit.Title"] = "Editor";
@@ -617,9 +689,6 @@ public sealed class LocalizationService
         _strings["Edit.UnsavedChangesAll"] = "There are {0} unsaved files. Close all?";
         _strings["Edit.StatusPosition"] = "Ln {0}, Col {1}";
         _strings["Lang.PlainText"] = "Plain Text";
-        _strings["View.TabText"] = "Text/Hex";
-        _strings["View.TabImage"] = "Image";
-        _strings["View.ModeAuto"] = "Auto";
         _strings["Main.OperationsActive"] = "Operations: {0}";
         _strings["Op.DisplayDelete"] = "Delete {0} item(s)";
         _strings["Op.DisplayWipe"] = "Wipe {0} item(s)";

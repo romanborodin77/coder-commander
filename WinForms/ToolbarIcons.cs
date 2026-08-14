@@ -204,5 +204,81 @@ public static class ToolbarIcons
                               + "C 4.2 5.2 6 3.5 8.2 3.5 C 10.4 3.5 12.2 5.1 12.5 7.2 "
                               + "C 13.7 7.5 14.5 8.5 14.5 9.8 C 14.5 11.3 13.4 12.5 11.9 12.5 Z",
                               Tint.Accent),
+
+        // ── Viewer (F3) ─────────────────────────────────────────────────────────────────────
+        ["close"] = new("M 4.5 4.5 L 11.5 11.5 M 11.5 4.5 L 4.5 11.5"),
+        // Page (the shared document-with-folded-corner outline) plus short text-line strokes -
+        // distinct from "properties" (which uses the same Page base) by line count/spacing so the
+        // two don't read as the same glyph when they appear in different toolbars.
+        ["view_text"] = new(Page + " M 5.5 6.5 H 10.5 M 5.5 8.5 H 10.5 M 5.5 10.5 H 9 M 5.5 12.5 H 10",
+                             Width: 0.9f),
+        // A framed byte/column motif (box + three vertical bars) - deliberately the opposite
+        // orientation of view_text's horizontal lines, so the two mode buttons stay visually
+        // distinguishable at a glance rather than reading as near-duplicates.
+        ["view_hex"] = new("M 2.5 3.5 H 13.5 V 12.5 H 2.5 Z M 5 6 V 10 M 8 6 V 10 M 11 6 V 10"),
+        // Same framed box as view_hex, but a checkerboard of small filled squares instead of
+        // vertical bars - "raw bits/bytes" rather than "columns of bytes", keeping it distinct
+        // from both view_hex and view_text at a glance.
+        ["view_binary"] = new("M 2.5 3.5 H 13.5 V 12.5 H 2.5 Z",
+                               Fill: "M 4.5 5.5 H 6.5 V 7.5 H 4.5 Z M 9.5 5.5 H 11.5 V 7.5 H 9.5 Z "
+                                     + "M 4.5 8.5 H 6.5 V 10.5 H 4.5 Z M 9.5 8.5 H 11.5 V 10.5 H 9.5 Z"),
+        // A 3-column table grid - deliberately a spreadsheet motif (evenly spaced rule lines both
+        // ways) rather than view_hex's byte-column bars, so a CSV button doesn't read as "another
+        // hex-family icon" next to it in the toolbar.
+        ["view_csv"] = new("M 1.5 3.5 H 14.5 V 12.5 H 1.5 Z M 1.5 7.25 H 14.5 M 6.5 3.5 V 12.5 "
+                            + "M 10.5 3.5 V 12.5"),
+        // Four arrows pointing outward from a centre column divider - "stretch these columns to
+        // fit their content". Distinguished from zoom_fit's inward corner brackets by pointing the
+        // opposite direction and by the vertical divider bar anchoring the motif to "columns".
+        ["fit_columns"] = new("M 8 2.5 V 13.5", Fill: "M 4.5 4.75 L 1.5 7 L 4.5 9.25 Z "
+                               + "M 11.5 4.75 L 14.5 7 L 11.5 9.25 Z"),
+        ["zoom_in"] = new(VectorIcon.Circle(6.75f, 6.75f, 4.25f)
+                           + " M 9.9 9.9 L 13.5 13.5 M 4.75 6.75 H 8.75 M 6.75 4.75 V 8.75"),
+        ["zoom_out"] = new(VectorIcon.Circle(6.75f, 6.75f, 4.25f)
+                            + " M 9.9 9.9 L 13.5 13.5 M 4.75 6.75 H 8.75"),
+        // Four disconnected corner brackets ("fit inside this frame") - contrasted deliberately
+        // with zoom_actual's single unbroken rectangle below.
+        ["zoom_fit"] = new("M 2.5 5.5 V 2.5 H 5.5 M 10.5 2.5 H 13.5 V 5.5 "
+                            + "M 13.5 10.5 V 13.5 H 10.5 M 5.5 13.5 H 2.5 V 10.5"),
+        ["zoom_actual"] = new("M 3.5 3.5 H 12.5 V 12.5 H 3.5 Z"),
+        // A ~270° arc with a filled arrowhead at the open end - same construction family as
+        // "refresh" (so it reads as "this rotates something", not an unrelated glyph), but the
+        // arc opens toward the bottom-right and the arrowhead sits mid-sweep rather than closing
+        // a full loop, keeping the two from being mistaken for each other.
+        ["rotate_cw"] = new("M 3 8.5 C 3 5.2 5.7 2.5 9 2.5 C 11.1 2.5 12.9 3.6 13.9 5.2",
+                             Fill: "M 14.2 2.6 L 14.7 6.2 L 11.2 5.1 Z"),
+        ["rotate_ccw"] = new("M 13 8.5 C 13 5.2 10.3 2.5 7 2.5 C 4.9 2.5 3.1 3.6 2.1 5.2",
+                              Fill: "M 1.8 2.6 L 1.3 6.2 L 4.8 5.1 Z"),
+
+        // ── Viewer (F3), phase 2 - WebView2 formats ────────────────────────────────────────────
+        // Page plus a stylised "M" - the Markdown mark itself, distinct from view_text's
+        // horizontal lines and view_html's angle brackets at a glance.
+        ["view_markdown"] = new(Page + " M 5 11 V 5.5 L 7.5 8.5 L 10 5.5 V 11", Width: 0.9f),
+        // Page plus angle brackets ("<>") - the universal "this is markup" motif.
+        ["view_html"] = new(Page + " M 5.5 6.5 L 3.5 8 L 5.5 9.5 M 9.5 6.5 L 11.5 8 L 9.5 9.5", Width: 0.9f),
+        // Page plus a footer band - deliberately not another line-count variant of view_text, so a
+        // PDF button doesn't read as "yet another text mode" next to Text/ASCII/Binary/Hex.
+        ["view_pdf"] = new(Page + " M 3.5 10.5 H 12.5", Fill: "M 5.5 11.5 H 10.5 V 13 H 5.5 Z"),
+        // Play-button-in-a-circle - the universal media glyph, deliberately not page-based (media
+        // isn't a document) so it reads differently from every other Viewer mode button.
+        ["view_media"] = new(VectorIcon.Circle(8, 8, 5.5f), Fill: "M 6.5 5.5 L 11 8 L 6.5 10.5 Z"),
+
+        // Chevron-in-a-frame - deliberately not the same construction as "back"/"forward" (filled
+        // arrowheads on a bare line), which are already taken by file Prev/Next; HTML browser
+        // mode's own back/forward need a visually distinct pair sitting in the same toolbar.
+        ["nav_back"] = new("M 2.5 2.5 H 13.5 V 13.5 H 2.5 Z M 9.5 5 L 6.5 8 L 9.5 11", Width: 0.9f),
+        ["nav_forward"] = new("M 2.5 2.5 H 13.5 V 13.5 H 2.5 Z M 6.5 5 L 9.5 8 L 6.5 11", Width: 0.9f),
+        ["stop"] = new(VectorIcon.Circle(8, 8, 5.5f), Fill: "M 6 6 H 10 V 10 H 6 Z"),
+        ["print"] = new("M 2.5 6.5 H 13.5 V 11.5 H 2.5 Z M 4.5 6.5 V 3 H 11.5 V 6.5 "
+                         + "M 4.5 11.5 V 14 H 11.5 V 11.5 M 5 9 H 11"),
+        // A standalone "</>" - view source, distinguished from view_html (which uses the same
+        // brackets but framed inside the Page glyph, for "this file IS markup") by having no page
+        // outline at all, for "show me the markup behind what's currently rendered".
+        ["source_view"] = new("M 5.5 4.5 L 2.5 8 L 5.5 11.5 M 10.5 4.5 L 13.5 8 L 10.5 11.5 M 9 3.5 L 7 12.5",
+                               Width: 0.9f),
+        // Page plus a small grid - a document that's also tabular/structured content, generic
+        // enough to cover Word/Sheet/Slides alike without picking a single-format motif (view_csv
+        // already owns the "spreadsheet" look; this is deliberately less specific than that).
+        ["view_office"] = new(Page + " M 5 7.5 H 11 M 5 10 H 11 M 7 5.5 V 12", Width: 0.9f),
     };
 }

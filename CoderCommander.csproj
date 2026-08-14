@@ -63,6 +63,8 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Markdig" Version="1.3.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4129.50" />
     <PackageReference Include="SharpCompress" Version="0.50.3" />
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.10" />
@@ -72,18 +74,17 @@
     <None Include="app.ico" Pack="false" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <!-- UiTests/ is a separate project nested inside this one's folder; SDK-style **/*.cs globbing
-       would otherwise silently pull its sources (and generated AssemblyInfo/GlobalUsings) into
-       this build, producing duplicate-attribute/type-not-found errors that look unrelated to the
-       real cause. -->
+  <!-- UiTests is a separate FlaUI/NUnit test project nested under this folder for convenience -
+       exclude it from this project's default SDK-style globbing so its packages/attributes don't
+       leak into the main app's compilation. -->
   <ItemGroup>
     <Compile Remove="UiTests\**" />
     <EmbeddedResource Remove="UiTests\**" />
     <None Remove="UiTests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="lang\*.lng" CopyToOutputDirectory="PreserveNewest" Link="lang\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

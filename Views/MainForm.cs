@@ -1411,7 +1411,7 @@ public sealed class MainForm : Form
             var currentIndex = files.IndexOf(item.FullPath);
 
 #pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
-            var dlg = new ViewerForm(item.FullPath, panel.CurrentPath, files, currentIndex);
+            var dlg = new ViewerForm(panel.CurrentFileSystem, item.FullPath, panel.CurrentPath, files, currentIndex);
 #pragma warning restore CA2000
             dlg.FormClosed += (_, _) => dlg.Dispose();
             dlg.Show(this);

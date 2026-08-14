@@ -1,0 +1,211 @@
+using System.Threading;
+using CoderCommander.Services;
+using CoderCommander.Viewers;
+using CoderCommander.WinForms;
+
+namespace CoderCommander.WinForms.Viewers;
+
+/// <summary>
+/// CSV/TSV content: a themed <see cref="ListView"/> table. Re-parsing from bytes only happens on
+/// a full reload (delimiter change, via <see cref="ViewerContentContext.Reload"/>); toggling
+/// "first row is header" re-interprets the already-parsed <see cref="CsvPayload.Rows"/> in place,
+/// no reload needed.
+/// </summary>
+internal sealed class CsvViewerContent : IViewerContent
+{
+    private const int MaxDisplayRows = 5000;
+
+    private readonly ListView _listView;
+    private readonly AppSettings _settings;
+    private readonly ViewerContentContext _ctx;
+    private readonly ToolStripButton _hasHeaderBtn;
+    private readonly ToolStripButton _autosizeBtn;
+    private readonly ToolStripDropDownButton _delimiterBtn;
+    private readonly List<(ToolStripMenuItem Item, string Value)> _delimiterItems = new();
+    private readonly ToolStripItem[] _toolbarItems;
+    private ListViewScrollbarOverlay? _overlay;
+
+    private IReadOnlyList<string[]> _rows = [];
+    private char _delimiter = ',';
+
+    public Control View => _listView;
+    public IReadOnlyList<ToolStripItem> ToolbarItems => _toolbarItems;
+    public IViewerSearchTarget? SearchTarget => null; // table search deferred - see plan
+    public string? StatusText { get; private set; }
+    public event EventHandler? StatusChanged { add { } remove { } } // never changes outside RenderAsync
+
+    public CsvViewerContent(ViewerContentContext ctx)
+    {
+        _ctx = ctx;
+        _settings = ctx.Settings;
+        var p = ThemeService.Current;
+        var L = LocalizationService.Current;
+
+        _listView = new ListView
+        {
+            Dock = DockStyle.Fill,
+            // Fully qualified: this class's own IViewerContent.View property would otherwise
+            // shadow the System.Windows.Forms.View enum type in simple-name lookup here.
+            View = System.Windows.Forms.View.Details,
+            FullRowSelect = true,
+            HideSelection = false,
+            GridLines = true,
+            BorderStyle = BorderStyle.None,
+            Font = p.GridFont,
+            BackColor = p.PanelBackground,
+            ForeColor = p.Foreground,
+            Visible = false
+        };
+        // ListViewScrollbarOverlay positions its scrollbars relative to the ListView's Parent,
+        // which is still null at construction time (ViewerForm parents this.View only after
+        // GetOrCreateContent returns) - attaching here would silently produce dead scrollbars
+        // (see ListViewScrollbarOverlay's own constructor: it no-ops when Parent is null).
+        // Defer until the ListView is actually parented.
+        _listView.ParentChanged += (_, _) =>
+        {
+            if (_listView.Parent != null && _overlay == null)
+                _overlay = ListViewScrollbarOverlay.Attach(_listView);
+        };
+
+        _hasHeaderBtn = new ToolStripButton(L.GetString("View.Csv.HasHeader"))
+        {
+            CheckOnClick = true,
+            Checked = _settings.ViewerCsvHasHeader
+        };
+        _hasHeaderBtn.Click += (_, _) =>
+        {
+            _settings.ViewerCsvHasHeader = _hasHeaderBtn.Checked;
+            SettingsService.Save(_settings);
+            PopulateListView();
+        };
+
+        _autosizeBtn = ViewerToolbarFactory.CreateToolButton("View.Csv.AutoFit", "fit_columns", (_, _) => AutosizeColumns());
+
+        _delimiterBtn = new ToolStripDropDownButton(L.GetString("View.Csv.Delimiter"));
+        AddDelimiterOption(L, "View.Csv.Delimiter.Auto", "auto");
+        AddDelimiterOption(L, "View.Csv.Delimiter.Comma", ",");
+        AddDelimiterOption(L, "View.Csv.Delimiter.Semicolon", ";");
+        AddDelimiterOption(L, "View.Csv.Delimiter.Tab", "\t");
+        AddDelimiterOption(L, "View.Csv.Delimiter.Pipe", "|");
+        RefreshDelimiterChecks();
+
+        _toolbarItems = [_hasHeaderBtn, _autosizeBtn, _delimiterBtn];
+    }
+
+    private void AddDelimiterOption(LocalizationService L, string labelKey, string settingValue)
+    {
+        var item = new ToolStripMenuItem(L.GetString(labelKey));
+        item.Click += (_, _) =>
+        {
+            _settings.ViewerCsvDelimiter = settingValue;
+            SettingsService.Save(_settings);
+            RefreshDelimiterChecks();
+            _ctx.Reload();
+        };
+        _delimiterBtn.DropDownItems.Add(item);
+        _delimiterItems.Add((item, settingValue));
+    }
+
+    private void RefreshDelimiterChecks()
+    {
+        foreach (var (item, value) in _delimiterItems)
+            item.Checked = string.Equals(_settings.ViewerCsvDelimiter, value, StringComparison.Ordinal);
+    }
+
+    private void AutosizeColumns() => _listView.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
+
+    public Task RenderAsync(ViewerPayload payload, CancellationToken ct)
+    {
+        switch (payload)
+        {
+            case CsvPayload csv:
+                _rows = csv.Rows;
+                _delimiter = csv.Delimiter;
+                PopulateListView();
+                break;
+            case ViewerErrorPayload err:
+                _rows = [];
+                _listView.Columns.Clear();
+                _listView.Items.Clear();
+                StatusText = "";
+                StyledMessageBox.Show(err.Message, LocalizationService.Current.GetString("View.Error"),
+                    MsgBoxButtons.OK, MsgBoxIcon.Error);
+                break;
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Rebuilds columns/items from <see cref="_rows"/> - called after a fresh
+    /// <see cref="RenderAsync"/> and again whenever the has-header toggle flips, without
+    /// re-parsing anything.</summary>
+    private void PopulateListView()
+    {
+        var L = LocalizationService.Current;
+        _listView.BeginUpdate();
+        _listView.Items.Clear();
+        _listView.Columns.Clear();
+
+        var hasHeader = _settings.ViewerCsvHasHeader && _rows.Count > 0;
+        var header = hasHeader ? _rows[0] : null;
+
+        var columnCount = 0;
+        foreach (var row in _rows)
+            if (row.Length > columnCount) columnCount = row.Length;
+        if (columnCount == 0) columnCount = 1;
+
+        for (var c = 0; c < columnCount; c++)
+        {
+            var title = header != null && c < header.Length && header[c].Length > 0
+                ? header[c]
+                : L.GetString("View.Csv.Column", c + 1);
+            _listView.Columns.Add(title, 100);
+        }
+
+        var startIndex = hasHeader ? 1 : 0;
+        var shown = 0;
+        for (var r = startIndex; r < _rows.Count && shown < MaxDisplayRows; r++, shown++)
+        {
+            var row = _rows[r];
+            var item = new ListViewItem(row.Length > 0 ? row[0] : "");
+            for (var c = 1; c < columnCount; c++)
+                item.SubItems.Add(c < row.Length ? row[c] : "");
+            _listView.Items.Add(item);
+        }
+
+        _listView.EndUpdate();
+
+        var totalDataRows = _rows.Count - startIndex;
+        var truncated = totalDataRows > MaxDisplayRows;
+        var baseStatus = L.GetString("View.CsvMode", totalDataRows, columnCount, DelimiterDisplay(_delimiter));
+        StatusText = truncated ? $"{baseStatus} — {L.GetString("View.Csv.Truncated", MaxDisplayRows)}" : baseStatus;
+    }
+
+    private static string DelimiterDisplay(char d) => d switch
+    {
+        ',' => ",",
+        ';' => ";",
+        '\t' => "Tab",
+        '|' => "|",
+        _ => d.ToString(),
+    };
+
+    public void ApplyTheme()
+    {
+        var p = ThemeService.Current;
+        _listView.BackColor = p.PanelBackground;
+        _listView.ForeColor = p.Foreground;
+        NativeControlThemer.ThemeListView(_listView);
+        NativeControlThemer.ThemeListViewHeader(_listView);
+    }
+
+    // ── Disposal ─────────────────────────────────────────────────────────────────────────────
+    // _listView/toolbar items are owned transitively by ViewerForm's own Controls/ToolStrip.Items
+    // collections (same accepted CA2213 pattern as the other contents). _overlay is a free-standing
+    // IDisposable (its scrollbars are siblings of the ListView, not children of it), so it must be
+    // disposed explicitly.
+    public void Dispose()
+    {
+        _overlay?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+}

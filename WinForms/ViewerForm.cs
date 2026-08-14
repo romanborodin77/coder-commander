@@ -1,101 +1,125 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
-using System.Globalization;
-using System.Text;
+using CoderCommander.Utils;
+using CoderCommander.Viewers;
+using CoderCommander.Viewers.Formats;
+using CoderCommander.WinForms.Viewers;
+using System.Threading;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Professional file viewer with support for text, images, and hex modes.
-/// Features navigation, zoom, and file information.
+/// File viewer (F3): a toolbar-driven mode switcher over a single content surface - no tab strip,
+/// no separate mode bar. Text/ASCII/Binary/Hex are always offered (the universal fall-back group,
+/// matching Total Commander Lister's own "you can always look at any file as text or hex"
+/// philosophy), plus a dynamic button for whatever <see cref="Viewers.IViewerFormat"/> the current
+/// file actually matches (Image today; CSV/Markdown/HTML/PDF/media/Office documents in later
+/// phases - see <see cref="Viewers.ViewerFormatRegistry"/>). Loading is fully asynchronous and
+/// reads through the panel's own <see cref="IFileSystem"/>, so F3 works on a file inside an
+/// archive or on a remote connection, not just a real disk path.
 /// </summary>
 public class ViewerForm : ThemedForm
 {
+    private readonly IFileSystem _fileSystem;
     private string _path;
-    private long _fileSize;
     private string? _directory;
-    private List<string> _files = new();
+    private List<string> _files;
     private int _currentIndex;
+    private long _lastKnownSize;
+
+    private string _activeFormatId = TextViewerFormat.Instance.Id;
 
     private ToolStrip _toolStrip = null!;
-    private ThemedTabControl _tabControl = null!;
-    private RichTextBox _textBox = null!;
-    private PictureBox _pictureBox = null!;
+    private ToolStripButton _prevBtn = null!, _nextBtn = null!;
+    private readonly Dictionary<string, ToolStripButton> _universalButtons = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ToolStripButton> _matchedButtons = new(StringComparer.Ordinal);
+    private ToolStripButton _firstUniversalButton = null!;
+    private ToolStripSeparator _beforeClose = null!;
+
+    private Panel _contentPanel = null!;
+    private Panel _contentHost = null!;
+    private ViewerFindBar _findBar = null!;
+    private ThemedProgressBar _loadingBar = null!;
+    private System.Windows.Forms.Timer? _loadingAnimTimer;
+
+    private readonly Dictionary<string, IViewerContent> _contents = new(StringComparer.Ordinal);
+    private IViewerContent? _activeContent;
+
     private StatusStrip _statusStrip = null!;
     private ToolStripStatusLabel _lblFileInfo = null!;
-    private ToolStripStatusLabel _lblPosition = null!;
+    private ToolStripStatusLabel _lblExtension = null!;
     private ToolStripStatusLabel _lblMode = null!;
-    private ToolStripStatusLabel _lblZoom = null!;
 
-    private bool _hexMode;
-    private bool _wordWrap;
-    private float _zoom = 1.0f;
-    private ViewerMode _currentMode = ViewerMode.Auto;
-
-    private const long TextSizeLimit = 16 * 1024 * 1024; // 16MB
-    private const int HexBytesPerRow = 16;
-    private const int HexMaxBytes = 1024 * 1024; // 1MB
-
-    private enum ViewerMode
-    {
-        Auto,
-        Text,
-        Hex,
-        Image
-    }
+    private CancellationTokenSource? _loadCts;
+    private bool _disposed;
+    private readonly AppSettings _settings;
+    private readonly Lazy<ViewerTempSession> _tempSession;
+    private readonly Lazy<WebViewHost> _webViewHost;
 
     /// <summary>
-    /// Initializes the viewer form with toolbar, tab control (text/image), and status bar.
-    /// Loads the specified file in auto-detect mode.
+    /// Initializes the viewer form with toolbar, single content surface, and status bar. Loads
+    /// the specified file in the resolved initial format (a matched format like Image always
+    /// wins for a file it recognizes; otherwise the last-used universal format preference).
     /// </summary>
-    public ViewerForm(string path, string? directory = null, List<string>? files = null, int currentIndex = 0)
+    public ViewerForm(IFileSystem fileSystem, string path, string? directory = null,
+                       List<string>? files = null, int currentIndex = 0)
     {
+        _fileSystem = fileSystem;
         _path = path;
         _directory = directory;
         _files = files ?? new List<string>();
         _currentIndex = currentIndex;
-
-        if (File.Exists(path))
-        {
-            var fi = new FileInfo(path);
-            _fileSize = fi.Length;
-        }
+        _settings = SettingsService.Load();
+        _tempSession = new Lazy<ViewerTempSession>(() => new ViewerTempSession());
+        _webViewHost = new Lazy<WebViewHost>(() => new WebViewHost());
 
         var L = LocalizationService.Current;
-        Text = $"{L.GetString("View.Title")} — {Path.GetFileName(path)}";
+        Text = $"{L.GetString("View.Title")} — {VfsPath.GetName(path)}";
         ClientSize = new Size(1000, 700);
         Resizable = true;
         MinimumSize = new Size(500, 400);
+        // Form sees every key first (Escape/arrows/F5/Ctrl+F/1-4/etc.) regardless of which child
+        // control currently has focus - the read-only content view would otherwise swallow arrow
+        // keys for its own (useless, given ReadOnly) caret movement instead of them reaching
+        // NavigateFile. OnViewerKeyDown explicitly steps aside while the find bar holds focus so
+        // typing/arrow-editing a search term still works normally.
+        KeyPreview = true;
 
         BuildToolbar();
-        BuildTabControl();
+        BuildContentPanel();
         BuildStatusBar();
 
         // WinForms: Fill must be at index 0 (drawn first, gets remaining space).
         // Top/Bottom drawn on top. Fix docking overlap.
-        Controls.SetChildIndex(_tabControl, 0);
+        Controls.SetChildIndex(_contentPanel, 0);
         Controls.SetChildIndex(_toolStrip, 1);
         Controls.SetChildIndex(_statusStrip, 2);
 
+        _activeFormatId = ResolveInitialFormat();
+        UpdateModeButtonHighlight();
+
         KeyDown += OnViewerKeyDown;
-        Load += (_, _) => LoadFile();
+        Load += (_, _) => _ = LoadFileAsync();
         ThemeService.ThemeChanged += OnThemeChanged;
     }
 
-    /// <summary>Re-applies the theme to text box and picture box on theme change.</summary>
     private void OnThemeChanged(object? sender, EventArgs e)
     {
-        var p = ThemeService.Current;
         ApplyTheme();
-        _textBox.BackColor = p.PanelBackground;
-        _textBox.ForeColor = p.Foreground;
-        _pictureBox.BackColor = p.PanelBackground;
+        foreach (var content in _contents.Values) content.ApplyTheme();
+        _findBar.ApplyTheme();
     }
 
-    /// <summary>Builds the toolbar with navigation, view mode, zoom, word wrap, and close buttons.</summary>
+    // ── Build ────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Builds the toolbar: navigation, then the mode group (a dynamic matched-format
+    /// button, if the current file has one, followed by the fixed Text/ASCII/Binary/Hex group),
+    /// then the active content's own items (Find/Word Wrap for text-family, zoom/rotate for
+    /// Image - inserted lazily by <see cref="GetOrCreateContent"/> as each format is first
+    /// visited), then Close.</summary>
     private void BuildToolbar()
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
 
         _toolStrip = new ToolStrip
         {
@@ -106,69 +130,25 @@ public class ViewerForm : ThemedForm
             Renderer = new ThemeRenderer()
         };
 
-        // Navigation
-        _toolStrip.Items.Add(CreateToolButton("View.Toolbar.Previous", "back", (_, _) => NavigateFile(-1)));
-        _toolStrip.Items.Add(CreateToolButton("View.Toolbar.Next", "forward", (_, _) => NavigateFile(1)));
+        _prevBtn = ViewerToolbarFactory.CreateToolButton("View.Toolbar.Previous", "back", (_, _) => NavigateFile(-1));
+        _nextBtn = ViewerToolbarFactory.CreateToolButton("View.Toolbar.Next", "forward", (_, _) => NavigateFile(1));
+        _toolStrip.Items.Add(_prevBtn);
+        _toolStrip.Items.Add(_nextBtn);
         _toolStrip.Items.Add(new ToolStripSeparator());
 
-        // View modes
-        var textBtn = new ToolStripButton(L.GetString("View.Text"), ToolbarIcons.Get("view"))
+        foreach (var format in ViewerFormatRegistry.Universal)
         {
-            CheckOnClick = true,
-            Checked = !_hexMode
-        };
-        textBtn.Click += (_, _) => SwitchToMode(false);
-        _toolStrip.Items.Add(textBtn);
-
-        var hexBtn = new ToolStripButton(L.GetString("View.Hex"), ToolbarIcons.Get("view"))
-        {
-            CheckOnClick = true,
-            Checked = _hexMode
-        };
-        hexBtn.Click += (_, _) => SwitchToMode(true);
-        _toolStrip.Items.Add(hexBtn);
+            var fmt = format;
+            var btn = ViewerToolbarFactory.CreateToolButton(fmt.DisplayNameKey, fmt.IconKey, (_, _) => SetFormat(fmt.Id));
+            _universalButtons[fmt.Id] = btn;
+            _toolStrip.Items.Add(btn);
+        }
+        _firstUniversalButton = _universalButtons[TextViewerFormat.Instance.Id];
 
         _toolStrip.Items.Add(new ToolStripSeparator());
+        _beforeClose = new ToolStripSeparator();
+        _toolStrip.Items.Add(_beforeClose);
 
-        // Zoom controls
-        var zoomOutBtn = new ToolStripButton("-", ToolbarIcons.Get("view"))
-        {
-            ToolTipText = L.GetString("View.ZoomOut")
-        };
-        zoomOutBtn.Click += (_, _) => ChangeZoom(-0.1f);
-        _toolStrip.Items.Add(zoomOutBtn);
-
-        var zoomLabel = new ToolStripLabel("100%")
-        {
-            Enabled = false
-        };
-        _toolStrip.Items.Add(zoomLabel);
-
-        var zoomInBtn = new ToolStripButton("+", ToolbarIcons.Get("view"))
-        {
-            ToolTipText = L.GetString("View.ZoomIn")
-        };
-        zoomInBtn.Click += (_, _) => ChangeZoom(0.1f);
-        _toolStrip.Items.Add(zoomInBtn);
-
-        _toolStrip.Items.Add(new ToolStripSeparator());
-
-        // Word wrap
-        var wordWrapBtn = new ToolStripButton(L.GetString("View.WordWrap"))
-        {
-            CheckOnClick = true,
-            Checked = false
-        };
-        wordWrapBtn.Click += (_, _) =>
-        {
-            _wordWrap = wordWrapBtn.Checked;
-            _textBox.WordWrap = _wordWrap;
-        };
-        _toolStrip.Items.Add(wordWrapBtn);
-
-        _toolStrip.Items.Add(new ToolStripSeparator());
-
-        // Close
         var closeBtn = new ToolStripButton(L.GetString("Common.Close"), ToolbarIcons.Get("close"));
         closeBtn.Click += (_, _) => Close();
         _toolStrip.Items.Add(closeBtn);
@@ -176,75 +156,35 @@ public class ViewerForm : ThemedForm
         Controls.Add(_toolStrip);
     }
 
-    /// <summary>Creates a toolbar button with localized text and icon.</summary>
-    private ToolStripButton CreateToolButton(string textKey, string iconKey, EventHandler onClick)
+    /// <summary>Builds the single content surface: a plain host panel that every format's
+    /// <see cref="IViewerContent.View"/> is added to (<c>Dock=Fill</c>, only one
+    /// <see cref="Control.Visible"/> at a time - the literal replacement for the removed
+    /// <c>ThemedTabControl</c>, no re-parenting, no handle recreation). The find bar and loading
+    /// strip are docked <c>Top</c> siblings of the host, not children of it - <see cref="_contentHost"/>
+    /// itself has only <c>Dock=Fill</c> children (added lazily, in any order), so the
+    /// Fill-before-Top docking-order rule only has to be honored once, right here, rather than at
+    /// every future lazy content-view insertion.</summary>
+    private void BuildContentPanel()
     {
-        var L = LocalizationService.Current;
-        var btn = new ToolStripButton(L.GetString(textKey), ToolbarIcons.Get(iconKey))
-        {
-            DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
-            ToolTipText = L.GetString(textKey)
-        };
-        btn.Click += onClick;
-        return btn;
+        _contentPanel = new Panel { Dock = DockStyle.Fill };
+        _contentHost = new Panel { Dock = DockStyle.Fill };
+
+        _findBar = new ViewerFindBar();
+        _loadingBar = new ThemedProgressBar { Dock = DockStyle.Top, Height = 3, Visible = false };
+
+        _contentPanel.Controls.Add(_contentHost);
+        _contentPanel.Controls.Add(_findBar);
+        _contentPanel.Controls.Add(_loadingBar);
+
+        Controls.Add(_contentPanel);
     }
 
-    /// <summary>Builds the tab control with text/hex and image tabs.</summary>
-    private void BuildTabControl()
-    {
-        var L = LocalizationService.Current;
-        var p = ThemeService.Current;
-        _tabControl = new ThemedTabControl
-        {
-            Dock = DockStyle.Fill
-        };
-
-        // Text/Hex tab
-        _textBox = new RichTextBox
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            BorderStyle = BorderStyle.None,
-            Font = p.MonoFont,
-            WordWrap = false,
-            DetectUrls = false,
-            ScrollBars = RichTextBoxScrollBars.Both
-        };
-        var textPage = new ThemedTabPage(L.GetString("View.TabText"), _textBox);
-        _tabControl.AddPage(textPage);
-
-        // Image tab
-        var imagePanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            BackColor = p.PanelBackground,
-            Tag = ThemeRole.PanelBackground
-        };
-        _pictureBox = new PictureBox
-        {
-            BackColor = p.PanelBackground,
-            SizeMode = PictureBoxSizeMode.AutoSize,
-            Cursor = Cursors.SizeAll
-        };
-        _pictureBox.MouseDown += (_, e) =>
-        {
-            if (e.Button == MouseButtons.Left)
-                _pictureBox.Cursor = Cursors.Hand;
-        };
-        _pictureBox.MouseUp += (_, _) => _pictureBox.Cursor = Cursors.SizeAll;
-        imagePanel.Controls.Add(_pictureBox);
-        var imagePage = new ThemedTabPage(L.GetString("View.TabImage"), imagePanel);
-        _tabControl.AddPage(imagePage);
-        Controls.Add(_tabControl);
-    }
-
-    /// <summary>Builds the status bar with file info, position, mode, and zoom labels.</summary>
+    /// <summary>Builds the status bar with file info, extension, and mode labels. Zoom (Image
+    /// mode only) is folded into the mode label itself now - see
+    /// <see cref="IViewerContent.StatusText"/> - rather than a separate always-present label that
+    /// used to be hidden outside Image mode.</summary>
     private void BuildStatusBar()
     {
-        var L = LocalizationService.Current;
         var p = ThemeService.Current;
 
         _statusStrip = new StatusStrip
@@ -254,56 +194,45 @@ public class ViewerForm : ThemedForm
             Renderer = new ThemeRenderer()
         };
 
-        _lblFileInfo = new ToolStripStatusLabel
-        {
-            Text = "",
-            ForeColor = p.DimForeground,
-            Margin = new Padding(4, 0, 8, 0)
-        };
-
-        _lblPosition = new ToolStripStatusLabel
-        {
-            Text = "",
-            ForeColor = p.DimForeground,
-            Margin = new Padding(4, 0, 8, 0)
-        };
-
-        _lblMode = new ToolStripStatusLabel
-        {
-            Text = L.GetString("View.ModeAuto"),
-            ForeColor = p.DimForeground,
-            Margin = new Padding(4, 0, 8, 0)
-        };
-
-        _lblZoom = new ToolStripStatusLabel
-        {
-            Text = "100%",
-            ForeColor = p.DimForeground,
-            Margin = new Padding(4, 0, 8, 0)
-        };
+        _lblFileInfo = new ToolStripStatusLabel { Text = "", ForeColor = p.DimForeground, Margin = new Padding(4, 0, 8, 0) };
+        _lblExtension = new ToolStripStatusLabel { Text = "", ForeColor = p.DimForeground, Margin = new Padding(4, 0, 8, 0) };
+        _lblMode = new ToolStripStatusLabel { Text = "", ForeColor = p.DimForeground, Margin = new Padding(4, 0, 8, 0) };
 
         _statusStrip.Items.AddRange(new ToolStripItem[]
         {
             _lblFileInfo,
             new ToolStripSeparator(),
-            _lblPosition,
+            _lblExtension,
             new ToolStripSeparator(),
-            _lblMode,
-            new ToolStripSeparator(),
-            _lblZoom
+            _lblMode
         });
 
         Controls.Add(_statusStrip);
     }
 
-    /// <summary>Handles keyboard shortcuts: Escape (close), arrows (navigate), F5 (reload), Ctrl+/Ctrl- (zoom).</summary>
+    // ── Keyboard ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Handles keyboard shortcuts: Escape (close find bar first, else close viewer),
+    /// arrows (navigate), F5 (reload), Ctrl+F (search, no-op if the active format isn't
+    /// searchable), 1-4 (switch to Text/ASCII/Binary/Hex).</summary>
     private void OnViewerKeyDown(object? sender, KeyEventArgs e)
     {
-        var L = LocalizationService.Current;
-
         if (e.KeyCode == Keys.Escape)
         {
+            if (_findBar.Visible) { _findBar.CloseBar(); e.Handled = true; return; }
             Close();
+            e.Handled = true;
+            return;
+        }
+
+        // Let the find bar's own controls handle everything else while they hold focus (typing a
+        // search term, moving the caret within it with the arrow keys) - KeyPreview means the form
+        // would otherwise steal Left/Right for file navigation before the textbox ever sees them.
+        if (_findBar.Visible && _findBar.ContainsFocus) return;
+
+        if (e.Control && e.KeyCode == Keys.F)
+        {
+            _findBar.ShowBar();
             e.Handled = true;
         }
         else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Up)
@@ -318,22 +247,154 @@ public class ViewerForm : ThemedForm
         }
         else if (e.KeyCode == Keys.F5)
         {
-            LoadFile();
+            _ = LoadFileAsync();
             e.Handled = true;
         }
-        else if (e.Control && e.KeyCode == Keys.Oemplus)
+        else if (!e.Control && !e.Alt && e.KeyCode is Keys.D1 or Keys.D2 or Keys.D3 or Keys.D4)
         {
-            ChangeZoom(0.1f);
-            e.Handled = true;
-        }
-        else if (e.Control && e.KeyCode == Keys.OemMinus)
-        {
-            ChangeZoom(-0.1f);
+            var id = e.KeyCode switch
+            {
+                Keys.D1 => TextViewerFormat.Instance.Id,
+                Keys.D2 => AsciiViewerFormat.Instance.Id,
+                Keys.D3 => BinaryViewerFormat.Instance.Id,
+                _ => HexViewerFormat.Instance.Id,
+            };
+            SetFormat(id);
             e.Handled = true;
         }
     }
 
-    /// <summary>Navigates to the next or previous file in the file list (wrapping around).</summary>
+    // ── Format selection ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Resolves the format to open the initial file in: a matched format (Image today)
+    /// always wins for a file it recognizes; otherwise the last-used universal format preference
+    /// from settings, falling back to Text if that preference is stale/unknown. Runs once, at
+    /// construction - <see cref="NavigateFile"/> deliberately does not re-run this (see its own
+    /// doc comment).</summary>
+    private string ResolveInitialFormat()
+    {
+        UpdateMatchedFormatForCurrentFile();
+
+        var matched = ViewerFormatRegistry.Detect(_path, ReadOnlySpan<byte>.Empty);
+        if (matched != null) return matched.Id;
+
+        var last = _settings.ViewerLastMode;
+        return ViewerFormatRegistry.ById(last) is { Availability: ViewerAvailability.Universal }
+            ? last
+            : TextViewerFormat.Instance.Id;
+    }
+
+    /// <summary>Switches the active format (from a toolbar button click or a digit-key shortcut),
+    /// persists the preference for universal formats only (never a matched format - the same
+    /// reasoning the old <c>ViewerLastMode</c> doc comment gave for never persisting "Image": it
+    /// would make the next unrelated file default to a forced, likely-failing decode), and
+    /// reloads. The visible content/toolbar-group swap happens only once the new load actually
+    /// succeeds (see <see cref="LoadFileAsync"/>/<see cref="ShowContent"/>) - only the button
+    /// highlight changes immediately, for instant click feedback.</summary>
+    private void SetFormat(string formatId)
+    {
+        if (_activeFormatId == formatId) return;
+
+        var format = ViewerFormatRegistry.ById(formatId);
+        if (format == null) return;
+
+        _activeFormatId = formatId;
+        if (format.Availability == ViewerAvailability.Universal)
+        {
+            _settings.ViewerLastMode = formatId;
+            SettingsService.Save(_settings);
+        }
+
+        UpdateModeButtonHighlight();
+        _ = LoadFileAsync();
+    }
+
+    private void UpdateModeButtonHighlight()
+    {
+        foreach (var (id, btn) in _universalButtons) btn.Checked = id == _activeFormatId;
+        foreach (var (id, btn) in _matchedButtons) btn.Checked = id == _activeFormatId;
+    }
+
+    /// <summary>Determines which <see cref="ViewerAvailability.Matched"/> format (if any) applies
+    /// to <see cref="_path"/>, lazily creates its toolbar button the first time it's encountered
+    /// in this window, and shows/hides every cached matched-format button so at most one is
+    /// visible - called on every navigation, independent of which format is actually active
+    /// (matched-format buttons reflect "what this file could be shown as", not the sticky active
+    /// selection).</summary>
+    private void UpdateMatchedFormatForCurrentFile()
+    {
+        var detected = ViewerFormatRegistry.Detect(_path, ReadOnlySpan<byte>.Empty);
+
+        foreach (var (id, btn) in _matchedButtons)
+            btn.Visible = detected != null && id == detected.Id;
+
+        if (detected != null && !_matchedButtons.ContainsKey(detected.Id))
+        {
+            var fmt = detected;
+            var btn = ViewerToolbarFactory.CreateToolButton(fmt.DisplayNameKey, fmt.IconKey, (_, _) => SetFormat(fmt.Id));
+            btn.Checked = _activeFormatId == fmt.Id;
+            _matchedButtons[fmt.Id] = btn;
+            _toolStrip.Items.Insert(_toolStrip.Items.IndexOf(_firstUniversalButton), btn);
+        }
+    }
+
+    private void SetNavigationEnabled(bool enabled)
+    {
+        _prevBtn.Enabled = enabled;
+        _nextBtn.Enabled = enabled;
+        foreach (var btn in _universalButtons.Values) btn.Enabled = enabled;
+        foreach (var btn in _matchedButtons.Values) btn.Enabled = enabled;
+    }
+
+    /// <summary>Gets the cached content for <paramref name="format"/>, creating it (view added to
+    /// <see cref="_contentHost"/>, toolbar items inserted just before <see cref="_beforeClose"/>,
+    /// both initially hidden) the first time this format is visited in this window.</summary>
+    private IViewerContent GetOrCreateContent(IViewerFormat format)
+    {
+        if (_contents.TryGetValue(format.Id, out var existing)) return existing;
+
+        var ctx = new ViewerContentContext(_settings, () => _findBar.ShowBar(), () => _ = LoadFileAsync(),
+            _webViewHost, _tempSession);
+        var content = format.CreateContent(ctx);
+
+        _contentHost.Controls.Add(content.View);
+        foreach (var item in content.ToolbarItems)
+        {
+            item.Visible = false;
+            _toolStrip.Items.Insert(_toolStrip.Items.IndexOf(_beforeClose), item);
+        }
+
+        content.StatusChanged += (_, _) =>
+        {
+            if (ReferenceEquals(_activeContent, content)) _lblMode.Text = content.StatusText ?? "";
+        };
+
+        _contents[format.Id] = content;
+        return content;
+    }
+
+    /// <summary>Swaps the visible content view and toolbar-item group to <paramref name="content"/>,
+    /// and points the find bar at whatever it can search (null for Image). Called once a load has
+    /// actually produced something to show - see <see cref="LoadFileAsync"/>.</summary>
+    private void ShowContent(IViewerContent content)
+    {
+        foreach (var existing in _contents.Values)
+        {
+            var isActive = ReferenceEquals(existing, content);
+            existing.View.Visible = isActive;
+            foreach (var item in existing.ToolbarItems) item.Visible = isActive;
+        }
+        _activeContent = content;
+        _findBar.SetTarget(content.SearchTarget);
+    }
+
+    // ── Navigation ───────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Navigates to the next or previous file in the folder (wrapping around).
+    /// Deliberately does NOT re-run <see cref="ResolveInitialFormat"/> - the active format stays
+    /// sticky across Prev/Next (matches this viewer's behavior before this rewrite, now a stated
+    /// policy rather than an accidental one); the dynamic matched-format button still updates to
+    /// reflect the new file, so the user can switch to it explicitly if they want to.</summary>
     private void NavigateFile(int direction)
     {
         if (_files.Count == 0) return;
@@ -343,219 +404,149 @@ public class ViewerForm : ThemedForm
         if (_currentIndex >= _files.Count) _currentIndex = 0;
 
         _path = _files[_currentIndex];
-        if (File.Exists(_path))
-        {
-            var fi = new FileInfo(_path);
-            _fileSize = fi.Length;
-        }
 
         var L = LocalizationService.Current;
-        Text = $"{L.GetString("View.Title")} — {Path.GetFileName(_path)}";
-        LoadFile();
+        Text = $"{L.GetString("View.Title")} — {VfsPath.GetName(_path)}";
+        UpdateMatchedFormatForCurrentFile();
+        _ = LoadFileAsync();
     }
 
-    /// <summary>Adjusts the image zoom level within the 10%-500% range and updates the zoom label.</summary>
-    private void ChangeZoom(float delta)
-    {
-        _zoom = Math.Max(0.1f, Math.Min(5.0f, _zoom + delta));
-        
-        if (_pictureBox.Image != null)
-        {
-            var newSize = new Size(
-                (int)(_pictureBox.Image.Width * _zoom),
-                (int)(_pictureBox.Image.Height * _zoom)
-            );
-            _pictureBox.Size = newSize;
-        }
-        
-        _lblZoom.Text = $"{(int)(_zoom * 100)}%";
-    }
+    // ── Async loading ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Switches between text and hex display modes and reloads the file.</summary>
-    private void SwitchToMode(bool hex)
+    /// <summary>
+    /// Loads <see cref="_path"/> in the current <see cref="_activeFormatId"/> off the UI thread.
+    /// Cancels any still-in-flight previous load first. Pattern mirrors
+    /// <c>FindFilesForm.StartSearchAsync</c> (<c>Task.Run</c> + per-run
+    /// <see cref="CancellationTokenSource"/> + guarded <c>finally</c>), extended with an explicit
+    /// <c>payload</c> local whose ownership is tracked all the way through: a payload that never
+    /// reaches <see cref="IViewerContent.RenderAsync"/> (superseded mid-flight, or the form
+    /// closing mid-render) is released via <see cref="ViewerPayload.ReleaseUnapplied"/> rather
+    /// than silently dropped - closing the leak the previous rewrite's staleness guard had for a
+    /// decoded <see cref="Image"/> discarded without disposal.
+    /// </summary>
+    private async Task LoadFileAsync()
     {
-        _hexMode = hex;
-        _currentMode = hex ? ViewerMode.Hex : ViewerMode.Text;
-        LoadFile();
-    }
+        _findBar.CloseBar();
 
-    /// <summary>Loads the current file in the appropriate mode (auto-detect, text, hex, or image).</summary>
-    private void LoadFile()
-    {
-        var L = LocalizationService.Current;
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _loadCts = cts;
+        var ct = cts.Token;
+
+        // Snapshot locals on the UI thread before entering the background task - reading _path/
+        // _activeFormatId from inside the Task.Run lambda would race a NavigateFile/SetFormat call
+        // that changes those fields after this method returns control (at the first await) but
+        // before the lambda actually starts running on a pool thread.
+        var path = _path;
+        var format = ViewerFormatRegistry.ById(_activeFormatId) ?? TextViewerFormat.Instance;
+        var source = new ViewerSource(_fileSystem, path);
+        var content = GetOrCreateContent(format);
+
+        SetNavigationEnabled(false);
+        _loadingBar.Value = 0;
+        _loadingBar.Visible = true;
+        _loadingAnimTimer ??= new System.Windows.Forms.Timer { Interval = 30 };
+        _loadingAnimTimer.Tick -= OnLoadingAnimTick;
+        _loadingAnimTimer.Tick += OnLoadingAnimTick;
+        _loadingAnimTimer.Start();
+
+        ViewerPayload? payload = null;
         try
         {
-            if (!File.Exists(_path))
+            var loader = format.CreateLoader();
+
+            // Fetched here for the shared file-info status label; the loader also fetches it
+            // internally for its own size-based limit checks and status text - one extra metadata
+            // round-trip on a remote filesystem, accepted rather than threading a pre-fetched size
+            // through IViewerLoader's signature for every format.
+            var size = await source.GetSizeAsync(ct);
+            if (ct != _loadCts?.Token) return;
+
+            payload = await Task.Run(() => loader.LoadAsync(source, ct), ct);
+            // A newer LoadFileAsync call may have already superseded this one while the
+            // Task.Run was finishing up (GDI+ decode/File I/O isn't reliably cancellable
+            // mid-operation) - discard a result that arrives after it's no longer current, rather
+            // than flashing the wrong file's content on screen.
+            if (ct != _loadCts?.Token)
             {
-                _textBox.Text = L.GetString("View.FileNotFound");
-                UpdateStatus("");
+                payload.ReleaseUnapplied();
+                payload = null;
                 return;
             }
 
-            // Auto-detect mode
-            if (_currentMode == ViewerMode.Auto)
-            {
-                var ext = Path.GetExtension(_path).ToLowerInvariant();
-                if (IsImageFile(ext))
-                {
-                    _tabControl.SelectedIndex = 1; // Image tab
-                    LoadImage();
-                    UpdateStatus(L.GetString("View.ImageMode"));
-                    return;
-                }
-            }
+            ShowContent(content);
+            await content.RenderAsync(payload, ct);
+            payload = null; // ownership transferred to the content
+            if (ct != _loadCts?.Token) return; // superseded while RenderAsync was awaiting
 
-            // Text or Hex mode
-            _tabControl.SelectedIndex = 0; // Text/Hex tab
-
-            if (_hexMode)
-            {
-                LoadHex();
-                UpdateStatus(L.GetString("View.HexMode", FormatSize(_fileSize)));
-            }
-            else
-            {
-                LoadText();
-                UpdateStatus(L.GetString("View.TextMode", FormatSize(_fileSize)));
-            }
+            _lastKnownSize = size;
+            UpdateStatus(content);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer load - nothing to do.
         }
         catch (Exception ex)
         {
-            _textBox.Text = $"{L.GetString("View.Error")}: {ex.Message}";
-            LogService.Error($"Viewer load failed: {_path}", ex);
-        }
-    }
-
-    /// <summary>Returns <c>true</c> if the file extension is a known image format.</summary>
-    private bool IsImageFile(string ext)
-    {
-        return ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".bmp" or ".ico" or ".svg" or ".webp" or ".tiff";
-    }
-
-    /// <summary>Loads the image file into the picture box and resets zoom to 100%.</summary>
-    private void LoadImage()
-    {
-        try
-        {
-            var image = Image.FromFile(_path);
-            // Dispose the previously loaded image before replacing it - without this, paging
-            // through a folder of photos with the ◀/▶ toolbar buttons accumulated one live
-            // Bitmap/GDI handle per image for the lifetime of the viewer window.
-            _pictureBox.Image?.Dispose();
-            _pictureBox.Image = image;
-            _zoom = 1.0f;
-            _lblZoom.Text = "100%";
-        }
-        catch (Exception ex)
-        {
-            var L = LocalizationService.Current;
-            StyledMessageBox.Show(L.GetString("View.Error") + ": " + ex.Message,
-                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
-        }
-    }
-
-    /// <summary>Loads the file as text with auto-detected encoding, respecting the 16 MB size limit.</summary>
-    private void LoadText()
-    {
-        var L = LocalizationService.Current;
-
-        if (_fileSize > TextSizeLimit)
-        {
-            _textBox.Text = L.GetString("View.TooBigForText", FormatSize(_fileSize), FormatSize(TextSizeLimit));
-            return;
-        }
-
-        var bytes = File.ReadAllBytes(_path);
-        var encoding = TextEncodingDetector.Detect(bytes, out var preambleLength);
-        _textBox.Text = encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
-    }
-
-    /// <summary>Loads the file in hex dump format (offset, hex bytes, ASCII), truncated at 1 MB.</summary>
-    private void LoadHex()
-    {
-        var L = LocalizationService.Current;
-        var sb = new StringBuilder();
-
-        if (_fileSize > HexMaxBytes)
-        {
-            sb.AppendLine(L.GetString("View.HexTruncated", FormatSize(HexMaxBytes), FormatSize(_fileSize)));
-            sb.AppendLine();
-        }
-
-        // Bounded read: only the first HexMaxBytes are ever displayed, so only read that much off
-        // disk - File.ReadAllBytes here used to load an entire multi-GB ISO/video/dump into
-        // memory (freezing the UI thread and risking OutOfMemoryException) just to show its first
-        // megabyte.
-        var bytes = ReadBoundedBytes(_path, HexMaxBytes);
-        var limit = bytes.Length;
-
-        for (int i = 0; i < limit; i += HexBytesPerRow)
-        {
-            // Offset
-            sb.Append(CultureInfo.InvariantCulture, $"{i:X8}  ");
-
-            // Hex bytes
-            for (int j = 0; j < HexBytesPerRow; j++)
+            LogService.Error($"Viewer load failed: {path}", ex);
+            if (ct == _loadCts?.Token)
             {
-                if (i + j < limit)
-                    sb.Append(CultureInfo.InvariantCulture, $"{bytes[i + j]:X2} ");
-                else
-                    sb.Append("   ");
-                if (j == 7) sb.Append(' ');
+                ShowContent(content);
+                var errorPayload = new ViewerErrorPayload(
+                    $"{LocalizationService.Current.GetString("View.Error")}: {ex.Message}", Modal: false);
+                await content.RenderAsync(errorPayload, ct);
+                UpdateStatus(content);
             }
-
-            sb.Append(' ');
-
-            // ASCII
-            for (int j = 0; j < HexBytesPerRow && i + j < limit; j++)
-            {
-                var c = bytes[i + j];
-                sb.Append(c >= 0x20 && c < 0x7F ? (char)c : '.');
-            }
-            sb.AppendLine();
         }
-
-        if (_fileSize > HexMaxBytes)
-            sb.AppendLine(CultureInfo.InvariantCulture, $"... ({FormatSize(_fileSize - HexMaxBytes)} more)");
-
-        _textBox.Text = sb.ToString();
-    }
-
-    /// <summary>Reads at most <paramref name="maxBytes"/> bytes from the start of the file.</summary>
-    private static byte[] ReadBoundedBytes(string path, int maxBytes)
-    {
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        var toRead = (int)Math.Min(fs.Length, maxBytes);
-        var buffer = new byte[toRead];
-        var read = 0;
-        while (read < toRead)
+        finally
         {
-            var n = fs.Read(buffer, read, toRead - read);
-            if (n == 0) break; // unexpected EOF - keep whatever was actually read
-            read += n;
+            payload?.ReleaseUnapplied();
+            if (ct == _loadCts?.Token)
+            {
+                _loadingAnimTimer?.Stop();
+                _loadingBar.Visible = false;
+                SetNavigationEnabled(true);
+            }
         }
-        return read == toRead ? buffer : buffer[..read];
     }
 
-    /// <summary>Updates the status bar labels with file name, size, mode, and extension.</summary>
-    private void UpdateStatus(string mode)
+    private void OnLoadingAnimTick(object? sender, EventArgs e) =>
+        _loadingBar.Value = (_loadingBar.Value + 7) % 100;
+
+    private void UpdateStatus(IViewerContent content)
     {
-        var ext = FileSystem.FileEntry.GetExtension(_path).ToUpperInvariant().TrimStart('.');
-        _lblFileInfo.Text = $"{Path.GetFileName(_path)} ({FormatSize(_fileSize)})";
-        _lblMode.Text = mode;
-        _lblPosition.Text = ext;
+        var ext = FileEntry.GetExtension(_path).ToUpperInvariant().TrimStart('.');
+        _lblFileInfo.Text = $"{VfsPath.GetName(_path)} ({FormatUtils.FormatSize(_lastKnownSize)})";
+        _lblExtension.Text = ext;
+        _lblMode.Text = content.StatusText ?? "";
     }
 
-    /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>
-    private static string FormatSize(long bytes) => CoderCommander.Utils.FormatUtils.FormatSize(bytes);
+    // ── Disposal ─────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Unsubscribes from theme events and disposes the image on disposal.</summary>
+    /// <summary>Unsubscribes from theme events, cancels any in-flight load, and disposes every
+    /// created content (which in turn releases whatever non-control resources it holds - decoded
+    /// images for <c>ImageViewerContent</c>). Guarded by <see cref="_disposed"/> because WinForms
+    /// can route Dispose(true) through this override more than once for the same instance (e.g.
+    /// the form's own Close() plus the owner form disposing its owned windows on shutdown) -
+    /// without the guard, the second call hits an already-disposed <see cref="_loadCts"/> and
+    /// <see cref="CancellationTokenSource.Cancel"/> throws <see cref="ObjectDisposedException"/>
+    /// as an unhandled exception on the UI thread.</summary>
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
+            _disposed = true;
             ThemeService.ThemeChanged -= OnThemeChanged;
-            _pictureBox.Image?.Dispose();
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadingAnimTimer?.Dispose();
+            foreach (var content in _contents.Values) content.Dispose();
+            // WebViewHost before ViewerTempSession: disposing the WebView2 control releases its
+            // handle on whatever materialized file it last navigated to, so the session's
+            // directory delete (best-effort, but still) has a better chance of succeeding.
+            if (_webViewHost.IsValueCreated) _webViewHost.Value.Dispose();
+            if (_tempSession.IsValueCreated) _tempSession.Value.Dispose();
         }
         base.Dispose(disposing);
     }

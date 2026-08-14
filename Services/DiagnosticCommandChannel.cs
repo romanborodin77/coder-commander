@@ -73,7 +73,12 @@ public static class DiagnosticCommandChannel
         LogService.Info($"DiagnosticCommandChannel: listening on pipe '{PipeName}'");
     }
 
-    public static void Stop() => _cts?.Cancel();
+    public static void Stop()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
 
     private static void RunLoop(MainViewModel vm, Control uiThread, CancellationToken ct)
     {
@@ -81,9 +86,17 @@ public static class DiagnosticCommandChannel
         {
             try
             {
+                // CurrentUserOnly: without an explicit PipeSecurity, Windows' default DACL for a
+                // named pipe grants read access to the Everyone group and the anonymous account
+                // (full control only to the owner/LocalSystem/Administrators) - on a shared
+                // machine, another logged-on user could otherwise at least probe this pipe.
+                // CurrentUserOnly restricts the ACL to the account that created it, matching this
+                // channel's actual trust boundary (any process already running as this same user
+                // could invoke commands through it, which is accepted - see the class doc comment -
+                // but a different user account should not be able to reach it at all).
                 using var server = new NamedPipeServerStream(
                     PipeName, PipeDirection.InOut, maxNumberOfServerInstances: 1,
-                    PipeTransmissionMode.Message, PipeOptions.Asynchronous);
+                    PipeTransmissionMode.Message, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
                 server.WaitForConnectionAsync(ct).GetAwaiter().GetResult();
                 HandleOneRequest(server, vm, uiThread);

@@ -334,9 +334,9 @@ internal sealed class PtySession : IAsyncDisposable
     /// <paramref name="extra"/> on top, so callers only need to specify what they're adding or
     /// overriding (TERM, COLORTERM, shell-integration variables, ...).
     /// </summary>
-    /// <summary><paramref name="exclude"/> removes keys entirely rather than blanking them - e.g.
+    /// <param name="exclude">Keys removed entirely rather than blanked - e.g.
     /// CODERCOMMANDER_UI_DEBUG must never reach an interactive shell the user can inspect with
-    /// "set"/"$env:", not merely be emptied.</summary>
+    /// "set"/"$env:", not merely be emptied.</param>
     private static char[] BuildEnvironmentBlock(IReadOnlyDictionary<string, string>? extra, IReadOnlyCollection<string>? exclude = null)
     {
         var merged = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
