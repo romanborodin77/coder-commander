@@ -90,7 +90,7 @@ internal static class OoxmlSheetConverter
                     writer.Raw("<td></td>");
 
                 writer.Raw("<td>");
-                writer.Text(RenderCellText(cell, sharedStrings, dateStyles, date1904));
+                writer.Text(OfficeLimits.ClampCellText(RenderCellText(cell, sharedStrings, dateStyles, date1904)));
                 writer.Raw("</td>");
 
                 nextCol = colIndex + 1;

@@ -55,7 +55,7 @@ internal static class OdfSheetConverter
             {
                 if (cells.Count >= OfficeLimits.MaxColumns) break;
                 var cellRepeat = Math.Min(ParseRepeat(cellEl, "number-columns-repeated"), OfficeLimits.MaxColumns - cells.Count);
-                var text = ExtractCellText(cellEl);
+                var text = OfficeLimits.ClampCellText(ExtractCellText(cellEl));
                 for (var i = 0; i < cellRepeat; i++) cells.Add(text);
             }
 

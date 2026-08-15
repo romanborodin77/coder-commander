@@ -53,4 +53,20 @@ internal static class OfficeLimits
     /// paragraphs, can still produce output large enough to hang the WebView2 render or exhaust
     /// memory. This is the final backstop on generated size regardless of what produced it.</summary>
     public const int MaxOutputChars = 32 * 1024 * 1024; // 32M chars (~32-64MB of HTML)
+
+    /// <summary>Per-cell display cap for <c>OoxmlSheetConverter</c>/<c>OdfSheetConverter</c> -
+    /// <see cref="MaxOutputChars"/> is a whole-document backstop, so a single pathological cell (a
+    /// multi-megabyte string crammed into one XLSX/ODS cell, well within one cell's own valid size)
+    /// could burn the entire document budget and truncate every sheet after it, or every row after
+    /// it in the same sheet. Clamping per cell keeps that failure local to the one cell instead.
+    /// Not a security boundary on its own (<see cref="MaxOutputChars"/> still catches the
+    /// aggregate) - purely a usability truncation so one oversized cell doesn't blank out the rest
+    /// of a document a user is trying to read.</summary>
+    public const int MaxCellChars = 8192;
+
+    /// <summary>Truncates a rendered cell's text to <see cref="MaxCellChars"/>, appending an
+    /// ellipsis when it was cut - shared by both sheet converters so the cap and its marker stay
+    /// identical between XLSX and ODS.</summary>
+    public static string ClampCellText(string text) =>
+        text.Length > MaxCellChars ? text[..MaxCellChars] + "…" : text;
 }
