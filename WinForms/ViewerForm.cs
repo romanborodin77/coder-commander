@@ -22,7 +22,6 @@ public class ViewerForm : ThemedForm
 {
     private readonly IFileSystem _fileSystem;
     private string _path;
-    private string? _directory;
     private List<string> _files;
     private int _currentIndex;
     private long _lastKnownSize;
@@ -61,12 +60,11 @@ public class ViewerForm : ThemedForm
     /// the specified file in the resolved initial format (a matched format like Image always
     /// wins for a file it recognizes; otherwise the last-used universal format preference).
     /// </summary>
-    public ViewerForm(IFileSystem fileSystem, string path, string? directory = null,
+    public ViewerForm(IFileSystem fileSystem, string path,
                        List<string>? files = null, int currentIndex = 0)
     {
         _fileSystem = fileSystem;
         _path = path;
-        _directory = directory;
         _files = files ?? new List<string>();
         _currentIndex = currentIndex;
         _settings = SettingsService.Load();

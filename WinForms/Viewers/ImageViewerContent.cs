@@ -205,6 +205,8 @@ internal sealed class ImageViewerContent : IViewerContent
     private void SetActualSize()
     {
         _fitToWindow = false;
+        _settings.ViewerImageFitToWindow = false;
+        SettingsService.Save(_settings);
         _zoom = 1.0f;
         ApplyFitOrZoom();
     }
@@ -215,6 +217,12 @@ internal sealed class ImageViewerContent : IViewerContent
     {
         if (_displayImage == null) return;
         _fitToWindow = false;
+        // Persisted like SetActualSize/SetFitToWindow already do for their own toggle - without
+        // this, ViewerImageFitToWindow could only ever be written true (from the Fit button), so
+        // the setting's documented "vs. last manual zoom" half never actually happened: every new
+        // image snapped back to fit-to-window regardless of how the previous one was left.
+        _settings.ViewerImageFitToWindow = false;
+        SettingsService.Save(_settings);
         _zoom = Math.Clamp(_zoom + delta, 0.1f, 5.0f);
         ApplyFitOrZoom();
     }

@@ -44,7 +44,12 @@ internal abstract class OfficeViewerLoaderBase : IViewerLoader
                 }
 
                 var bytes = await source.ReadAllBytesAsync(ct).ConfigureAwait(false);
-                scratchPath = Path.Combine(Path.GetTempPath(), $"cc-office-{Guid.NewGuid():N}{FileEntry.GetExtension(source.Path)}");
+                // TempFileNaming.InSystemTemp - the project's one naming convention (see its own
+                // doc comment) - rather than a hand-built "cc-office-{guid}{ext}". No functional
+                // difference: ZipArchiveReader.OpenRead (what OfficePackage.OpenAsync ultimately
+                // calls) opens by path via System.IO.Compression.ZipFile.OpenRead, which never
+                // inspects the extension, so preserving it here was never load-bearing.
+                scratchPath = TempFileNaming.InSystemTemp("office");
                 await File.WriteAllBytesAsync(scratchPath, bytes, ct).ConfigureAwait(false);
                 localPath = scratchPath;
             }

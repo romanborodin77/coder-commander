@@ -151,9 +151,23 @@ public sealed class EditorTab : IDisposable
                 // file truncated/corrupted - the same pattern every other user-data write in the
                 // project already uses (SettingsService.Save, CredentialStore.Save,
                 // Archives/RewritingArchiveWriter, ZipUpdateSession).
-                var tempPath = savePath + ".tmp";
-                File.WriteAllText(tempPath, Editor.Text, Encoding);
-                File.Move(tempPath, savePath, overwrite: true);
+                //
+                // TempFileNaming.NextTo (Guid-suffixed), not a fixed "path + .tmp": a predictable
+                // name has two problems a fixed one doesn't - two editor windows saving the same
+                // file collide on the same temp name, and a failed File.Move (destination read-only
+                // or locked by another process) used to leave that fixed-name file behind forever,
+                // with no cleanup on the failure path at all.
+                var tempPath = Utils.TempFileNaming.NextTo(savePath, "save");
+                try
+                {
+                    File.WriteAllText(tempPath, Editor.Text, Encoding);
+                    File.Move(tempPath, savePath, overwrite: true);
+                }
+                catch
+                {
+                    try { File.Delete(tempPath); } catch { /* best-effort cleanup */ }
+                    throw;
+                }
             }
             else
             {

@@ -1512,7 +1512,7 @@ public sealed class MainForm : Form
             var currentIndex = files.IndexOf(item.FullPath);
 
 #pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
-            var dlg = new ViewerForm(panel.CurrentFileSystem, item.FullPath, panel.CurrentPath, files, currentIndex);
+            var dlg = new ViewerForm(panel.CurrentFileSystem, item.FullPath, files, currentIndex);
 #pragma warning restore CA2000
             dlg.FormClosed += (_, _) => dlg.Dispose();
             dlg.Show(this);
@@ -1799,7 +1799,12 @@ public sealed class MainForm : Form
             materialized = await panel.ViewModel.MaterializeAsync(
                 originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, CancellationToken.None);
         }
-        catch (IOException ex)
+        // Was `catch (IOException ex)` only - the caller (OnArchiveEntered) is async void, so
+        // anything this doesn't catch becomes an unhandled-exception crash instead of an error
+        // dialog. WebDAV surfaces HttpRequestException, SSH.NET surfaces SshException/
+        // SftpPermissionDeniedException, neither derives from IOException - a permission error or a
+        // dropped connection while entering a remote archive used to crash the whole app.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogService.Error($"Failed to materialize archive: {item.FullPath}", ex);
             StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
