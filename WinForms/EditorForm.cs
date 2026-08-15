@@ -626,7 +626,20 @@ public class EditorForm : ThemedForm
             tab.Editor.GoToLine(line);
     }
 
-    private void CloseCurrentTab()
+    /// <summary>
+    /// <c>async void</c> - the established pattern this codebase already uses for a UI event
+    /// handler that needs to await (e.g. <c>MainForm.OnArchiveEntered</c>); every caller of this
+    /// method (toolbar button, Ctrl+W, a tab's close glyph) already treats it as a fire-and-forget
+    /// void action, so the signature change is source-compatible.
+    ///
+    /// <para>Deliberately NOT <c>tab.SaveFileAsync().GetAwaiter().GetResult()</c>, despite
+    /// <c>SaveFileAsync</c> using <c>ConfigureAwait(false)</c> throughout: that looks safe (no
+    /// particular thread is needed to resume on) but isn't - blocking this thread while its own
+    /// continuation still needs a free thread-pool worker to run on is a real deadlock under a
+    /// small enough pool, reproduced directly while building <see cref="PanelViewModel.ReleaseArchiveLeaseAsync"/>'s
+    /// equivalent call. A plain <c>await</c> here has no such risk.</para>
+    /// </summary>
+    private async void CloseCurrentTab()
     {
         var L = LocalizationService.Current;
         var tab = GetCurrentTab();
@@ -643,13 +656,7 @@ public class EditorForm : ThemedForm
             if (result == MsgBoxResult.Cancel)
                 return;
             if (result == MsgBoxResult.Yes)
-            {
-                // Blocks the UI thread for the save's duration, matching what the old synchronous
-                // File.WriteAllText/File.Move already did here - safe specifically because
-                // EditorTab.SaveFileAsync uses ConfigureAwait(false) throughout, so the
-                // continuation doesn't need this (blocked) thread's context to resume on.
-                tab.SaveFileAsync().GetAwaiter().GetResult();
-            }
+                await tab.SaveFileAsync();
         }
 
         var idx = _tabControl.SelectedIndex;
@@ -666,13 +673,42 @@ public class EditorForm : ThemedForm
         UpdateFileSizeLabel();
     }
 
+    /// <summary>Set once <see cref="ConfirmAndCloseAsync"/> has resolved every unsaved tab (saved
+    /// or the user accepted losing it) and is re-issuing <see cref="Close"/> - lets the next
+    /// <see cref="OnFormClosing"/> re-entry tell "already resolved, let it close" apart from a
+    /// fresh close attempt that still needs to ask.</summary>
+    private bool _closeConfirmed;
+
+    /// <summary>
+    /// <see cref="FormClosingEventArgs"/> offers no way to await inside this override - the classic
+    /// WinForms async-close problem. Solved the standard way: cancel this attempt immediately if
+    /// there is unsaved work, resolve the save/discard decision asynchronously in
+    /// <see cref="ConfirmAndCloseAsync"/>, then call <see cref="Close"/> again once resolved - which
+    /// re-enters this method, and <see cref="_closeConfirmed"/> is what lets that second entry
+    /// proceed instead of asking all over again.
+    /// </summary>
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         base.OnFormClosing(e);
 
+        if (_closeConfirmed || !_tabs.Any(t => t.IsModified))
+        {
+            // Only unsubscribe once we're actually going through with the close - a cancelled
+            // attempt (Cancel button, below) must leave this window still reacting to theme changes.
+            ThemeService.ThemeChanged -= OnThemeChanged;
+            foreach (var tab in _tabs)
+                tab.Dispose();
+            return;
+        }
+
+        e.Cancel = true;
+        _ = ConfirmAndCloseAsync();
+    }
+
+    private async Task ConfirmAndCloseAsync()
+    {
         var L = LocalizationService.Current;
 
-        // Check for unsaved changes
         foreach (var tab in _tabs.Where(t => t.IsModified))
         {
             var result = StyledMessageBox.Show(
@@ -682,23 +718,13 @@ public class EditorForm : ThemedForm
                 MsgBoxIcon.Question);
 
             if (result == MsgBoxResult.Cancel)
-            {
-                e.Cancel = true;
-                return;
-            }
+                return; // leave the window open - OnFormClosing already cancelled this attempt
+
             if (result == MsgBoxResult.Yes)
-            {
-                // See CloseCurrentTab's identical call for why blocking here is safe.
-                tab.SaveFileAsync().GetAwaiter().GetResult();
-            }
+                await tab.SaveFileAsync();
         }
 
-        // Only unsubscribe once we're actually going through with the close - cancelling above
-        // must leave this window still reacting to theme changes.
-        ThemeService.ThemeChanged -= OnThemeChanged;
-
-        // Dispose all tabs
-        foreach (var tab in _tabs)
-            tab.Dispose();
+        _closeConfirmed = true;
+        Close();
     }
 }
