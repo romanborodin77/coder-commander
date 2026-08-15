@@ -11,10 +11,12 @@ namespace CoderCommander.FileSystem.Remote.Sftp;
 /// <para>App-side paths are <c>sftp://host/dir/name</c>; mapping those onto the server's own
 /// absolute paths is this class's job and nobody else's.</para>
 ///
-/// <para><b>Capabilities are <see cref="FileSystemCapabilities.None"/></b>, which is load-bearing:
-/// everything gated on <see cref="FileSystemCapabilities.NativePaths"/> - secure wipe, folder-size
-/// walking, packing, the Recycle Bin, a FileSystemWatcher, git - would either be meaningless here or
-/// would reach around this class to a local path that does not exist.</para>
+/// <para><b><see cref="FileSystemCapabilities.NativePaths"/> is deliberately never declared</b>:
+/// everything gated on it - secure wipe, folder-size walking, packing, the Recycle Bin, a
+/// FileSystemWatcher, git - would either be meaningless here or would reach around this class to a
+/// local path that does not exist. <see cref="Capabilities"/> DOES declare
+/// <see cref="FileSystemCapabilities.Writable"/>/<see cref="FileSystemCapabilities.Deletable"/>
+/// unconditionally - SFTP genuinely supports writing and removing.</para>
 ///
 /// <para><b>One client, no pool</b> - unlike FTP. The difference is in the protocols, not in the
 /// implementations: an FTP control channel carries one conversation and blocks for the duration of a
@@ -37,7 +39,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     public string Name => "SFTP";
 
     /// <inheritdoc/>
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
 
     internal SftpFileSystem(SftpClient client, string authority, string basePath)
     {

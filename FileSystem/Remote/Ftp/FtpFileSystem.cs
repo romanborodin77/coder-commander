@@ -9,11 +9,13 @@ namespace CoderCommander.FileSystem.Remote.Ftp;
 /// absolute paths is this class's job and nobody else's, so the rest of the app never sees an FTP
 /// concept.</para>
 ///
-/// <para><b>Capabilities are <see cref="FileSystemCapabilities.None"/></b>, which is load-bearing
-/// rather than a placeholder: everything gated on <see cref="FileSystemCapabilities.NativePaths"/> -
-/// secure wipe, folder-size walking, packing, the Recycle Bin, a FileSystemWatcher, git - would
-/// either be meaningless here or would reach around this class to a local path that does not exist.
-/// Declaring nothing makes every one of those guards refuse correctly with no new check written.</para>
+/// <para><b><see cref="FileSystemCapabilities.NativePaths"/> is deliberately never declared</b>:
+/// everything gated on it - secure wipe, folder-size walking, packing, the Recycle Bin, a
+/// FileSystemWatcher, git - would either be meaningless here or would reach around this class to a
+/// local path that does not exist. Not declaring it makes every one of those guards refuse
+/// correctly with no new check written. <see cref="Capabilities"/> DOES declare
+/// <see cref="FileSystemCapabilities.Writable"/>/<see cref="FileSystemCapabilities.Deletable"/>
+/// unconditionally - FTP genuinely supports STOR/DELE/MKD.</para>
 ///
 /// <para><b>Every command is built from a validated path.</b> FTP commands are newline-delimited
 /// with no escaping, so a name carrying a CR or LF would inject a command of the attacker's
@@ -34,7 +36,7 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
     public string Name => "FTP";
 
     /// <inheritdoc/>
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
 
     internal FtpFileSystem(FtpConnectionPool pool, string authority, string basePath)
     {

@@ -13,12 +13,14 @@ namespace CoderCommander.FileSystem.Remote;
 /// connection's base URL, which is why a path is only ever meaningful to the instance that produced
 /// it.
 ///
-/// <para><b>Capabilities are <see cref="FileSystemCapabilities.None"/></b>, and that is load-bearing
-/// rather than a placeholder. Everything gated on <see cref="FileSystemCapabilities.NativePaths"/>
-/// - secure wipe, folder-size walking, packing, timestamp stamping, the Recycle Bin, a
-/// FileSystemWatcher, git - would either be meaningless here or would reach around this class to a
-/// local path that does not exist. Declaring nothing makes every one of those guards refuse
-/// correctly without a single new check being written.</para>
+/// <para><b><see cref="FileSystemCapabilities.NativePaths"/> is deliberately never declared</b>.
+/// Everything gated on it - secure wipe, folder-size walking, packing, timestamp stamping, the
+/// Recycle Bin, a FileSystemWatcher, git - would either be meaningless here or would reach around
+/// this class to a local path that does not exist. Not declaring it makes every one of those
+/// guards refuse correctly without a single new check being written. <see cref="Capabilities"/>
+/// DOES declare <see cref="FileSystemCapabilities.Writable"/>/<see cref="FileSystemCapabilities.Deletable"/>
+/// unconditionally - WebDAV genuinely supports PUT/DELETE/MKCOL, unlike a read-only archive
+/// format, which is the actual distinction those two flags exist to draw.</para>
 /// </summary>
 public sealed class WebDavFileSystem : IFileSystem, IDisposable
 {
@@ -44,7 +46,7 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
     public string Name => "WebDAV";
 
     /// <inheritdoc/>
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
 
     internal WebDavFileSystem(HttpClient http, Uri baseUri, string authority)
     {

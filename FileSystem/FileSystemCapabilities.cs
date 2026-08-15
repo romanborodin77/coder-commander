@@ -5,7 +5,8 @@ namespace CoderCommander.FileSystem;
 /// need instead of testing for a concrete provider type.
 ///
 /// The type tests this replaces were not merely inelegant, they were wrong. Seven call sites asked
-/// <c>is LocalFileSystem</c>, and <see cref="ViewModels.PanelViewModel.IsInsideArchive"/> asked
+/// <c>is LocalFileSystem</c>, and <see cref="ViewModels.PanelViewModel.IsVirtual"/> (then still
+/// named <c>IsInsideArchive</c>) asked
 /// <c>is ZipArchiveFileSystem</c> - which is blind to <see cref="Archives.ArchiveFileSystem"/>, the
 /// provider every non-ZIP format uses. Inside a TAR, 7z or RAR archive that check returned false,
 /// so the guards on secure wipe, folder-size calculation and packing never fired and those
@@ -57,7 +58,24 @@ public enum FileSystemCapabilities
     /// can colour entries by their working-tree status.</summary>
     GitStatus = 1 << 3,
 
+    /// <summary>
+    /// New content can be written here: <see cref="IFileSystem.CopyFromStreamAsync"/> and
+    /// <see cref="IFileSystem.CreateDirectoryAsync"/> succeed rather than throwing
+    /// <see cref="NotSupportedException"/>. Every provider except <c>Archives.ArchiveFileSystem</c>
+    /// over a read-only archive format (7z/RAR/TAR.XZ) declares this - it exists specifically so
+    /// that case can be told apart from every other archive/remote provider, which all genuinely
+    /// support writing. Checking this before a Pack/paste/MakeDir starts turns a mid-operation
+    /// <see cref="NotSupportedException"/> into a menu item that was never enabled.
+    /// </summary>
+    Writable = 1 << 4,
+
+    /// <summary>Existing entries can be removed: <see cref="IFileSystem.DeleteAsync"/> succeeds, and
+    /// a move's source side can be cleaned up after a copy. Separate from <see cref="Writable"/> for
+    /// the same reason it's separate on <c>Archives.ArchiveCapabilities</c>: a format can in
+    /// principle support one without the other.</summary>
+    Deletable = 1 << 5,
+
     /// <summary>Everything a real local filesystem offers. Named combination per the .NET flag-enum
     /// guidance, so the common case doesn't require callers to OR the parts together.</summary>
-    Local = NativePaths | RecycleBin | FileWatch | GitStatus,
+    Local = NativePaths | RecycleBin | FileWatch | GitStatus | Writable | Deletable,
 }
