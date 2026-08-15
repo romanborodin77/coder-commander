@@ -17,6 +17,7 @@ Common.Folder=Папка
 Common.Rename=Переименовать
 Common.Refresh=Обновить
 Common.Error=Ошибка
+Common.Info=Информация
 
 # ═══ Меню ═══
 Menu.File=&Файл
@@ -117,6 +118,9 @@ Panel.FileInfo={0}  {1}  {2}
 Panel.DirInfo=[ПАПКА] {0}
 Panel.DriveTooltip=Перейти на {0}
 Panel.ConfirmOpenExecutable=«{0}» — программа. Её запуск может внести изменения в систему. Вы уверены, что хотите продолжить?
+Panel.OpenFailed=Не удалось открыть «{0}».\n\n{1}
+Panel.RemoteExecutableUnsupported=«{0}» — программа на подключении или внутри архива. Прямой запуск не поддерживается — сначала скопируйте её в локальную папку.
+Panel.OpenedTemporaryCopy=Открыта временная локальная копия «{0}». Изменения во внешней программе не будут сохранены автоматически.
 
 # ═══ Статус-бар ═══
 Status.ElementsCount={0} элементов
@@ -257,6 +261,9 @@ Search.NoResults=Файлы не найдены
 Conn.NoProviders=В этой сборке пока нет ни одного типа подключений.
 Conn.NotConnected=Это подключение не открыто. Откройте его на полке мест и повторите.
 Conn.OpenUnsupported=Файл на подключении пока нельзя открыть прямо там. Скопируйте его в локальную папку.
+Conn.WipeUnsupported=Безопасное затирание требует прямого доступа к диску и недоступно на подключении. Используйте удаление.
+Conn.CalculateSizeUnsupported=Расчёт размера папки недоступен на подключении.
+Conn.PackUnsupported=Упаковка файлов с подключения пока недоступна. Сначала скопируйте их в локальную папку.
 Conn.State.Disconnected=не подключено
 Conn.State.Connecting=подключение…
 Conn.State.Connected=подключено
@@ -508,6 +515,7 @@ Edit.GoToLine=Перейти к строке
 Edit.GoToLinePrompt=Номер строки:
 Edit.ErrorLoading=Ошибка загрузки файла: {0}
 Edit.ErrorSaving=Ошибка сохранения файла: {0}
+Edit.ReadOnlyFile=Этот файл открыт только для чтения и не может быть сохранён.
 Edit.TabClose=Закрыть вкладку
 Edit.TabCloseOthers=Закрыть другие вкладки
 Edit.TabCloseAll=Закрыть все вкладки
@@ -568,6 +576,10 @@ Archive.WipeUnsupported=Безопасное затирание недоступ
 Archive.CalculateSizeUnsupported=Подсчёт размера папки недоступен для элементов архива.
 Archive.PackUnsupported=Упаковка недоступна для элементов архива. Сначала извлеките файлы.
 Archive.NestedUnsupported=Архив внутри архива нельзя открыть напрямую. Сначала распакуйте «{0}».
+Archive.PackTargetReadOnly=Этот формат архива доступен только для чтения и не может быть изменён.
+Archive.PackTargetUnsupported=Формат этого архива не поддерживает запись.
+Archive.OpenUnsupported=Файл внутри архива пока нельзя открыть прямо там. Сначала извлеките его в локальную папку.
+Archive.ConfirmDownload=«{0}» весит {1}. Скачать копию, чтобы просмотреть?
 
 # ═══ Синхронизация каталогов ═══
 SyncDirs.Title=Синхронизация каталогов

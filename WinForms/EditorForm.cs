@@ -1,3 +1,4 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.Text;
@@ -27,10 +28,16 @@ public class EditorForm : ThemedForm
     private ToolStripStatusLabel _lblModified = null!;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="EditorForm"/> class, optionally opening the specified file.
+    /// Initializes a new instance of the <see cref="EditorForm"/> class, optionally opening the
+    /// specified file.
     /// </summary>
+    /// <param name="fileSystem">Filesystem <paramref name="path"/> lives on; null (or omitted via
+    /// the other constructor) means local disk. Only ever consulted for the INITIAL file - every
+    /// subsequent File&gt;Open/Save-As in this window goes through its own dialog, which can only
+    /// ever produce a real local path, so those always use a fresh <see cref="LocalFileSystem"/>
+    /// regardless of what this file came from.</param>
     /// <param name="path">File path to open on startup, or <c>null</c>/<see cref="string.Empty"/> to create an empty tab.</param>
-    public EditorForm(string? path)
+    public EditorForm(IFileSystem? fileSystem, string? path)
     {
         var L = LocalizationService.Current;
         Text = L.GetString("Edit.Title");
@@ -51,18 +58,18 @@ public class EditorForm : ThemedForm
         // Subscribe to theme changes
         ThemeService.ThemeChanged += OnThemeChanged;
 
-        // Open initial file or create empty tab
-        if (!string.IsNullOrEmpty(path) && File.Exists(path))
-        {
-            OpenFile(path);
-        }
+        // Open initial file or create empty tab. Fire-and-forget, same as every other VFS read in
+        // this app kicked off from a synchronous UI entry point (e.g. OnArchiveEntered) - the
+        // window shows with an empty tab for the instant it takes OpenFileCoreAsync's existence
+        // check to resolve, then the real content replaces it, rather than blocking construction
+        // on a network round trip the way the old File.Exists check blocked on local disk I/O.
+        if (!string.IsNullOrEmpty(path))
+            _ = OpenFileCoreAsync(fileSystem ?? new LocalFileSystem(), path);
         else
-        {
             NewTab();
-        }
 
         UpdateTitle();
-        
+
         // Apply syntax highlighting after form is shown
         Shown += (_, _) =>
         {
@@ -73,6 +80,11 @@ public class EditorForm : ThemedForm
                 tab.ApplySyntaxHighlighting();
             }
         };
+    }
+
+    /// <summary>Convenience overload for every existing call site that only ever opened a local path.</summary>
+    public EditorForm(string? path) : this(null, path)
+    {
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -365,9 +377,10 @@ public class EditorForm : ThemedForm
         UpdateTitle();
     }
 
+    /// <summary>File&gt;Open / toolbar Open - always a local path, since
+    /// <see cref="OpenFileDialog"/> can't produce anything else.</summary>
     private void OpenFile(string? path = null)
     {
-        var L = LocalizationService.Current;
         if (string.IsNullOrEmpty(path))
         {
             using var dlg = new OpenFileDialog
@@ -384,24 +397,42 @@ public class EditorForm : ThemedForm
             return;
         }
 
-        if (!File.Exists(path))
+        _ = OpenFileCoreAsync(new LocalFileSystem(), path);
+    }
+
+    /// <summary>Shared by the constructor's initial file and every subsequent File&gt;Open -
+    /// reads through <paramref name="fs"/> (see <see cref="EditorTab"/>'s own doc comment for why),
+    /// so this is what makes F4 work on a file inside an archive or on a connection instead of the
+    /// old <c>File.Exists</c> check silently failing into a blank untitled tab.</summary>
+    private async Task OpenFileCoreAsync(IFileSystem fs, string path)
+    {
+        var L = LocalizationService.Current;
+
+        if (!await fs.ExistsAsync(path).ConfigureAwait(true))
         {
             StyledMessageBox.Show(L.GetString("Err.PathNotFound", path),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
+            if (_tabs.Count == 0)
+                NewTab();
             return;
         }
 
-        var fileSize = new FileInfo(path).Length;
+        var info = await fs.GetFileInfoAsync(path).ConfigureAwait(true);
+        var fileSize = info?.Size ?? 0;
         if (fileSize > LargeFileConfirmBytes)
         {
             var confirmed = StyledMessageBox.Show(
                 L.GetString("Edit.ConfirmLargeFile", FormatUtils.FormatSize(fileSize), FormatUtils.FormatSize(LargeFileConfirmBytes)),
                 L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
-            if (!confirmed) return;
+            if (!confirmed)
+            {
+                if (_tabs.Count == 0) NewTab();
+                return;
+            }
         }
 
-        var tab = new EditorTab(path);
-        tab.LoadFile(path);
+        var tab = new EditorTab(fs, path);
+        await tab.LoadFileAsync(path).ConfigureAwait(true);
         _tabs.Add(tab);
 
         var tabPage = new ThemedTabPage(tab.DisplayName, tab.Editor);
@@ -435,7 +466,12 @@ public class EditorForm : ThemedForm
             tab.FilePath = dlg.FileName;
         }
 
-        tab.SaveFile();
+        _ = SaveTabAsync(tab);
+    }
+
+    private async Task SaveTabAsync(EditorTab tab)
+    {
+        await tab.SaveFileAsync().ConfigureAwait(true);
         UpdateTabTitle(tab);
         UpdateTitle();
         UpdateStatusBar();
@@ -443,6 +479,11 @@ public class EditorForm : ThemedForm
     }
 
     private void SaveAllFiles()
+    {
+        _ = SaveAllFilesAsync();
+    }
+
+    private async Task SaveAllFilesAsync()
     {
         foreach (var tab in _tabs.Where(t => t.IsModified))
         {
@@ -459,7 +500,7 @@ public class EditorForm : ThemedForm
                 tab.FilePath = dlg.FileName;
             }
 
-            tab.SaveFile();
+            await tab.SaveFileAsync().ConfigureAwait(true);
             UpdateTabTitle(tab);
         }
 
@@ -603,7 +644,11 @@ public class EditorForm : ThemedForm
                 return;
             if (result == MsgBoxResult.Yes)
             {
-                tab.SaveFile();
+                // Blocks the UI thread for the save's duration, matching what the old synchronous
+                // File.WriteAllText/File.Move already did here - safe specifically because
+                // EditorTab.SaveFileAsync uses ConfigureAwait(false) throughout, so the
+                // continuation doesn't need this (blocked) thread's context to resume on.
+                tab.SaveFileAsync().GetAwaiter().GetResult();
             }
         }
 
@@ -643,7 +688,8 @@ public class EditorForm : ThemedForm
             }
             if (result == MsgBoxResult.Yes)
             {
-                tab.SaveFile();
+                // See CloseCurrentTab's identical call for why blocking here is safe.
+                tab.SaveFileAsync().GetAwaiter().GetResult();
             }
         }
 

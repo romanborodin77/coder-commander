@@ -502,6 +502,7 @@ public sealed class MainForm : Form
     private void WirePanelContextMenu(FilePanelUserControl panel)
     {
         panel.EditRequested += (_, item) => OnEdit(this, item!);
+        panel.ViewRequested += (_, item) => OnView(this, item!);
         panel.CopyRequested += (_, _) => _vm.Commands.Execute(CommandIds.Copy);
         panel.MoveRequested += (_, _) => _vm.Commands.Execute(CommandIds.Move);
         panel.RenameRequested += (_, _) => _vm.Commands.Execute(CommandIds.Rename);
@@ -580,20 +581,29 @@ public sealed class MainForm : Form
         ".wsf", ".wsh", ".ps1", ".msi", ".msc", ".reg", ".lnk", ".pif", ".cpl",
     };
 
-    private void OnItemActivated(object? sender, FileSystemItem item)
+    private async void OnItemActivated(object? sender, FileSystemItem item)
     {
         if (item.IsDirectory || item.IsParent) return;
 
-        // ShellExecute on "dav://host/f.txt" does not fail harmlessly: the shell sees a URL and
-        // looks for a handler registered for the "dav" scheme, so what opens - if anything - is
-        // decided by whatever is installed on the machine rather than by this app. Refuse plainly
-        // instead; copying the file to a local folder is the supported route until the viewer and
-        // editor learn to read through IFileSystem.
-        if (FileSystem.RemotePath.IsRemote(item.FullPath))
+        var L = LocalizationService.Current;
+        var originFs = _vm.ActivePanel.CurrentFileSystem;
+        // Guarding on the active panel's own NativePaths capability (rather than just
+        // RemotePath.IsRemote) is what catches a file INSIDE an archive too:
+        // VfsPath.IsArchive(item.FullPath) alone would miss a remote panel, and RemotePath.IsRemote
+        // alone would miss an archive panel; the capability flag is the one check that is correct
+        // for both, matching FileSystemCapabilities.NativePaths's own doc comment.
+        var isNative = originFs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
+        var isExecutable = ExecutableExtensions.Contains(FileEntry.GetExtension(item.FullPath));
+
+        // Security decision, not a missing feature: an executable reached via a connection or an
+        // archive is refused outright, never confirmed - downloading an unknown .exe from wherever
+        // this panel happens to be and running it on one Enter keystroke is categorically different
+        // from running a local file the user already had on disk. A local executable keeps the
+        // existing confirm-then-run path below.
+        if (!isNative && isExecutable)
         {
-            var L = LocalizationService.Current;
-            StyledMessageBox.Show(L.GetString("Conn.OpenUnsupported"), L.GetString("Conn.Title"),
-                MsgBoxButtons.OK, MsgBoxIcon.Information, this);
+            StyledMessageBox.Show(L.GetString("Panel.RemoteExecutableUnsupported", item.Name),
+                L.GetString("Common.Info"), MsgBoxButtons.OK, MsgBoxIcon.Information, this);
             return;
         }
 
@@ -602,9 +612,8 @@ public sealed class MainForm : Form
         // a downloaded archive) would otherwise run with one keystroke, indistinguishable from
         // opening a document. Always confirmed, no setting to skip it - the same "irreversible
         // enough that skipping confirmation isn't offered" call MainViewModel.Wipe makes.
-        if (ExecutableExtensions.Contains(FileEntry.GetExtension(item.FullPath)))
+        if (isExecutable)
         {
-            var L = LocalizationService.Current;
             var confirmed = StyledMessageBox.Show(
                 L.GetString("Panel.ConfirmOpenExecutable", item.Name),
                 L.GetString("Common.Confirm"),
@@ -612,13 +621,52 @@ public sealed class MainForm : Form
             if (!confirmed) return;
         }
 
+        string localPath;
+        if (isNative)
+        {
+            localPath = item.FullPath;
+        }
+        else
+        {
+            // Materialized into the panel's own session (not disposed here): the launched external
+            // program needs the file to still exist for as long as it keeps it open, and there is
+            // no reliable, universal way to detect "the external app is done with this file" across
+            // every possible ShellExecute delegation path (a brand-new process, activation of an
+            // already-running instance via COM/DDE, ...). The temp copy is therefore intentionally
+            // left in place for the rest of the session - cleaned up with the panel/app, same as any
+            // other materialized file - rather than deleted the instant Process.Start returns, which
+            // would race the very application it was just handed to. Write-back is not offered for
+            // the same reason: there is no trustworthy "the user is done editing" signal to hang it
+            // on, so the dialog below tells the user plainly instead of silently discarding an edit.
+            try
+            {
+                var materialized = await _vm.ActivePanel.MaterializeAsync(
+                    originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, CancellationToken.None);
+                localPath = materialized.LocalPath;
+            }
+            catch (IOException ex)
+            {
+                LogService.Error($"Failed to materialize {item.FullPath}", ex);
+                StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+                return;
+            }
+        }
+
         try
         {
-            Process.Start(new ProcessStartInfo(item.FullPath) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(localPath) { UseShellExecute = true });
+            if (!isNative)
+                StyledMessageBox.Show(L.GetString("Panel.OpenedTemporaryCopy", item.Name),
+                    L.GetString("Common.Info"), MsgBoxButtons.OK, MsgBoxIcon.Information, this);
         }
         catch (Exception ex)
         {
-            LogService.Error($"Failed to open {item.FullPath}: {ex.Message}", ex);
+            LogService.Error($"Failed to open {localPath}: {ex.Message}", ex);
+            // Previously logged only - a failure here (no registered handler, the file locked, a
+            // permission error) produced no visible sign anything went wrong; Enter/double-click
+            // would just silently do nothing, indistinguishable from a slow-to-open program.
+            StyledMessageBox.Show(L.GetString("Panel.OpenFailed", item.Name, ex.Message),
+                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
         }
     }
 
@@ -1428,7 +1476,7 @@ public sealed class MainForm : Form
         try
         {
 #pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
-            var dlg = new EditorForm(item.FullPath);
+            var dlg = new EditorForm(_vm.ActivePanel.CurrentFileSystem, item.FullPath);
 #pragma warning restore CA2000
             dlg.FormClosed += (_, _) => dlg.Dispose();
             dlg.Show(this);
@@ -1653,9 +1701,19 @@ public sealed class MainForm : Form
         await EnterArchiveAsync(panel, item);
     }
 
-    /// <summary>Browses into an archive as a virtual folder in <paramref name="panel"/> - the one
-    /// way archives are opened now that <c>ArchiveForm</c> (a separate view+extract-only dialog
-    /// that duplicated this, minus add/delete/queueing/overwrite-confirmation) has been retired.</summary>
+    /// <summary>
+    /// Browses into an archive as a virtual folder in <paramref name="panel"/> - the one way
+    /// archives are opened now that <c>ArchiveForm</c> (a separate view+extract-only dialog that
+    /// duplicated this, minus add/delete/queueing/overwrite-confirmation) has been retired.
+    ///
+    /// <para>When the item's own container isn't on this machine (a connection - a nested archive
+    /// stays refused below, see <see cref="FilePanelUserControl.CanEnterAsArchive"/>'s own doc
+    /// comment for why that needs no extra check here), it is materialized to a real local temp
+    /// copy first (<see cref="FileSystem.Materialization.MaterializedFile"/>), owned by
+    /// <paramref name="panel"/>'s own <c>ViewModel</c> for as long as it keeps browsing that
+    /// archive, and wrapped <see cref="ReadOnlyFileSystem"/> - there is no navigation trigger to
+    /// write such a copy back on, so mutating it would silently discard on the way out.</para>
+    /// </summary>
     private async Task EnterArchiveAsync(FilePanelUserControl panel, FileSystemItem item)
     {
         var L = LocalizationService.Current;
@@ -1667,19 +1725,53 @@ public sealed class MainForm : Form
             return;
         }
 
-        var format = ArchiveFormatRegistry.Detect(item.FullPath);
-        var archiveFs = format?.CreateFileSystem(item.FullPath);
+        var originFs = panel.ViewModel.CurrentFileSystem;
+        FileSystem.Materialization.MaterializedFile materialized;
+
+        try
+        {
+            if (!originFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
+            {
+                var info = await originFs.GetFileInfoAsync(item.FullPath);
+                if (info != null && info.Size > FileSystem.Materialization.MaterializationLimits.ArchiveBrowseWarnBytes)
+                {
+                    var confirmed = StyledMessageBox.Show(
+                        L.GetString("Archive.ConfirmDownload", item.Name, Utils.FormatUtils.FormatSize(info.Size)),
+                        L.GetString("Archive.Title"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
+                    if (!confirmed) return;
+                }
+            }
+
+            materialized = await panel.ViewModel.MaterializeAsync(
+                originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, CancellationToken.None);
+        }
+        catch (IOException ex)
+        {
+            LogService.Error($"Failed to materialize archive: {item.FullPath}", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        var format = ArchiveFormatRegistry.Detect(materialized.LocalPath);
+        IFileSystem? archiveFs = format?.CreateFileSystem(materialized.LocalPath);
         if (archiveFs == null)
         {
+            materialized.Dispose();
             StyledMessageBox.Show(L.GetString("Archive.UnsupportedFormat", item.Name),
                 L.GetString("Archive.Title"), MsgBoxButtons.OK, MsgBoxIcon.Information, this);
             return;
         }
 
+        // Passthrough (a local item) keeps the archive fully writable, exactly as before this
+        // method learned to materialize anything - only a genuinely downloaded copy is read-only.
+        if (!materialized.IsPassthrough)
+            archiveFs = new ReadOnlyFileSystem(archiveFs);
+
         try
         {
+            panel.ViewModel.AttachArchiveLease(materialized);
             panel.ViewModel.CurrentFileSystem = archiveFs;
-            var archivePath = ArchivePath.MakePath(item.FullPath, "");
+            var archivePath = ArchivePath.MakePath(materialized.LocalPath, "");
             await panel.ViewModel.NavigateAsync(archivePath);
         }
         catch (Exception ex)

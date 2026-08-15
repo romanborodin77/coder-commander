@@ -17,6 +17,7 @@ Common.Folder=Folder
 Common.Rename=Rename
 Common.Refresh=Refresh
 Common.Error=Error
+Common.Info=Information
 
 # ═══ Menu ═══
 Menu.File=&File
@@ -119,6 +120,9 @@ Panel.FileInfo={0}  {1}  {2}
 Panel.DirInfo=[DIR] {0}
 Panel.DriveTooltip=Go to {0}
 Panel.ConfirmOpenExecutable="{0}" is a program. Running it can make changes to your computer. Are you sure you want to continue?
+Panel.OpenFailed=Could not open "{0}".\n\n{1}
+Panel.RemoteExecutableUnsupported="{0}" is a program on a connection or inside an archive. Running it directly is not supported - copy it to a local folder first.
+Panel.OpenedTemporaryCopy=Opened a temporary local copy of "{0}". Changes made in the external program will not be saved back automatically.
 Panel.Path=Path
 
 # ═══ Status bar ═══
@@ -259,6 +263,9 @@ Search.NoResults=No files found
 Conn.NoProviders=No connection types are available in this build yet.
 Conn.NotConnected=That connection is not open. Open it from the places bar and try again.
 Conn.OpenUnsupported=Files on a connection cannot be opened in place yet. Copy the file to a local folder first.
+Conn.WipeUnsupported=Secure wipe requires direct disk access and is not available on a connection. Use Delete instead.
+Conn.CalculateSizeUnsupported=Folder size calculation is not available on a connection.
+Conn.PackUnsupported=Packing is not available for files on a connection yet. Copy them to a local folder first.
 Conn.State.Disconnected=not connected
 Conn.State.Connecting=connecting…
 Conn.State.Connected=connected
@@ -395,6 +402,7 @@ Edit.Toolbar.Find=Find
 Edit.Toolbar.Replace=Replace
 Edit.ErrorLoading=Error loading file: {0}
 Edit.ErrorSaving=Error saving file: {0}
+Edit.ReadOnlyFile=This file was opened read-only and cannot be saved.
 Edit.TabClose=Close Tab
 Edit.TabCloseOthers=Close Other Tabs
 Edit.TabCloseAll=Close All Tabs
@@ -546,6 +554,10 @@ Archive.WipeUnsupported=Secure wipe is not available for archive entries. Use de
 Archive.CalculateSizeUnsupported=Folder size calculation is not available for archive entries.
 Archive.PackUnsupported=Packing is not available for archive entries. Extract files first.
 Archive.NestedUnsupported=Cannot open an archive inside an archive. Extract "{0}" first.
+Archive.PackTargetReadOnly=This archive format is read-only and cannot be modified.
+Archive.PackTargetUnsupported=This archive's format is not supported for writing.
+Archive.OpenUnsupported=Files inside an archive cannot be opened in place yet. Extract the file to a local folder first.
+Archive.ConfirmDownload="{0}" is {1}. Download a copy to browse it?
 
 # ═══ Sync Dirs ═══
 SyncDirs.Title=Synchronize Directories

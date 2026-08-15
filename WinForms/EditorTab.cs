@@ -1,25 +1,38 @@
 using System.Text;
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
 /// Represents a single editor tab: file identity/encoding plus a <see cref="CodeEditorControl"/>.
+///
+/// <para>Reads/writes through <paramref name="fileSystem"/> (defaulting to
+/// <see cref="LocalFileSystem"/> when not given - the New-tab and toolbar File&gt;Open/Save-As
+/// dialogs only ever produce real local paths, so they never need to pass one), the same
+/// <c>OpenReadAsync</c>/<c>CopyFromStreamAsync</c> pattern <c>Viewers.ViewerSource</c> already
+/// established for F3 - this is what lets F4 open (and, for a writable provider, save) a file
+/// inside an archive or on an FTP/SFTP/WebDAV connection instead of the previous
+/// <c>File.Exists</c> check silently failing and leaving an empty untitled tab with no error at
+/// all.</para>
 /// </summary>
 public sealed class EditorTab : IDisposable
 {
+    private readonly IFileSystem _fs;
+
     /// <summary>Gets or sets the full file-system path associated with this tab. Empty for new/unsaved files.</summary>
     public string FilePath { get; set; }
     /// <summary>Gets the display name of the file (without directory), or a localized "New file" placeholder when <see cref="FilePath"/> is empty.</summary>
-    public string FileName => string.IsNullOrEmpty(FilePath) ? LocalizationService.Current.GetString("Edit.NewFile") : Path.GetFileName(FilePath);
+    public string FileName => string.IsNullOrEmpty(FilePath) ? LocalizationService.Current.GetString("Edit.NewFile") : VfsPath.GetName(FilePath);
     /// <summary>Gets or sets the language identifier used for syntax highlighting.</summary>
     public LanguageId Language { get; set; }
     /// <summary>Defaults to UTF-8 without a BOM for new/unsaved files, matching most editors' convention.</summary>
     public Encoding Encoding { get; set; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     /// <summary>Gets the underlying code editor control bound to this tab.</summary>
     public CodeEditorControl Editor { get; }
-    /// <summary>Gets the tab display name, prefixed with <c>*</c> when the file has unsaved modifications.</summary>
-    public string DisplayName => IsModified ? $"*{FileName}" : FileName;
+    /// <summary>Gets the tab display name, prefixed with <c>*</c> when the file has unsaved
+    /// modifications and suffixed with a read-only marker when <see cref="IsReadOnly"/>.</summary>
+    public string DisplayName => (IsModified ? $"*{FileName}" : FileName) + (IsReadOnly ? " [RO]" : "");
 
     /// <summary>Gets or sets the modified flag. Setting to <c>false</c> resets the clean-state marker used by undo.</summary>
     public bool IsModified
@@ -29,11 +42,24 @@ public sealed class EditorTab : IDisposable
     }
 
     /// <summary>
+    /// True when the file's own filesystem can't be written to (set after a successful
+    /// <see cref="LoadFileAsync"/> from <see cref="_fs"/>'s own <see cref="FileSystemCapabilities.Writable"/>
+    /// - e.g. a read-only archive format, or a materialized (downloaded-to-browse) remote archive
+    /// wrapped in <see cref="ReadOnlyFileSystem"/>). Editing itself is not blocked at the canvas
+    /// level - see this class's own scope note in <see cref="SaveFileAsync"/> - but Save refuses
+    /// outright instead of attempting (and failing) a write, and the tab title marks it so the
+    /// user isn't surprised by an error only once they try to save.
+    /// </summary>
+    public bool IsReadOnly { get; private set; }
+
+    /// <summary>
     /// Initializes a new editor tab, detecting the language from <paramref name="filePath"/>.
     /// </summary>
+    /// <param name="fileSystem">Filesystem the file lives on; null means local disk.</param>
     /// <param name="filePath">Optional file path for language detection and initial file identity.</param>
-    public EditorTab(string? filePath = null)
+    public EditorTab(IFileSystem? fileSystem = null, string? filePath = null)
     {
+        _fs = fileSystem ?? new LocalFileSystem();
         FilePath = filePath ?? "";
         Language = LanguageDetector.Detect(filePath);
         Editor = new CodeEditorControl { Dock = DockStyle.Fill, Language = Language };
@@ -42,12 +68,20 @@ public sealed class EditorTab : IDisposable
     /// <summary>
     /// Reads the file at <paramref name="path"/> into the editor, auto-detecting encoding and language.
     /// </summary>
-    /// <param name="path">Absolute path to the file to load.</param>
-    public void LoadFile(string path)
+    /// <param name="path">Path to the file to load, on this tab's own <see cref="IFileSystem"/>.</param>
+    public async Task LoadFileAsync(string path, CancellationToken ct = default)
     {
         try
         {
-            var bytes = File.ReadAllBytes(path);
+            byte[] bytes;
+            var stream = await _fs.OpenReadAsync(path, ct).ConfigureAwait(false);
+            await using (stream.ConfigureAwait(false))
+            {
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                bytes = ms.ToArray();
+            }
+
             var encoding = TextEncodingDetector.Detect(bytes, out var preambleLength);
             var text = encoding.GetString(bytes, preambleLength, bytes.Length - preambleLength);
 
@@ -59,6 +93,7 @@ public sealed class EditorTab : IDisposable
             FilePath = path;
             Language = LanguageDetector.Detect(path);
             Encoding = encoding;
+            IsReadOnly = !_fs.Capabilities.HasFlag(FileSystemCapabilities.Writable);
 
             Editor.LoadText(text);
             Editor.Language = Language;
@@ -73,30 +108,78 @@ public sealed class EditorTab : IDisposable
     }
 
     /// <summary>
-    /// Saves the editor content to disk, optionally to a new path.
+    /// Saves the editor content, optionally to a new path. No-op (with an error dialog, not a
+    /// silent discard) when <see cref="IsReadOnly"/> - refusing up front is what
+    /// <see cref="LoadFileAsync"/>'s own doc comment means by "Save refuses outright instead of
+    /// attempting (and failing) a write": the alternative is calling <see cref="IFileSystem.CopyFromStreamAsync"/>
+    /// on a <see cref="ReadOnlyFileSystem"/>-wrapped provider and surfacing its
+    /// <see cref="NotSupportedException"/> as a generic save-failed message instead of this clear one.
+    ///
+    /// <para>Scope note: this class does not disable keystroke input for a read-only file - the
+    /// canvas has no such mode today, and adding one is a separate, larger UI change. The
+    /// correctness guarantee this class DOES make is that a read-only file's content can never be
+    /// silently overwritten; the user can still type, and will find out it can't be saved.</para>
     /// </summary>
     /// <param name="path">Destination path, or <c>null</c>/<see cref="string.Empty"/> to save to <see cref="FilePath"/>.</param>
-    public void SaveFile(string? path = null)
+    public async Task SaveFileAsync(string? path = null, CancellationToken ct = default)
     {
         var savePath = path ?? FilePath;
         if (string.IsNullOrEmpty(savePath))
             return;
 
+        var L = LocalizationService.Current;
+
+        if (IsReadOnly)
+        {
+            StyledMessageBox.Show(L.GetString("Edit.ErrorSaving", L.GetString("Edit.ReadOnlyFile")),
+                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
+            return;
+        }
+
         try
         {
-            // Write-then-replace so a crash, power loss, or full disk mid-write can't leave the
-            // file truncated/corrupted - the same pattern every other user-data write in the
-            // project already uses (SettingsService.Save, CredentialStore.Save,
-            // Archives/RewritingArchiveWriter, ZipUpdateSession).
-            var tempPath = savePath + ".tmp";
-            File.WriteAllText(tempPath, Editor.Text, Encoding);
-            File.Move(tempPath, savePath, overwrite: true);
+            if (_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
+            {
+                // Write-then-replace so a crash, power loss, or full disk mid-write can't leave the
+                // file truncated/corrupted - the same pattern every other user-data write in the
+                // project already uses (SettingsService.Save, CredentialStore.Save,
+                // Archives/RewritingArchiveWriter, ZipUpdateSession).
+                var tempPath = savePath + ".tmp";
+                File.WriteAllText(tempPath, Editor.Text, Encoding);
+                File.Move(tempPath, savePath, overwrite: true);
+            }
+            else
+            {
+                // Same sidecar-then-rename shape as MaterializedFile.WriteBackAsync, for the same
+                // reason: CopyFromStreamAsync on a remote provider is one direct PUT/STOR with no
+                // atomic in-place replace, so writing straight over savePath would leave a
+                // truncated file there if the upload failed or was interrupted partway.
+                var bytes = Encoding.GetBytes(Editor.Text);
+                var sidecar = savePath + ".cc-save-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    using (var ms = new MemoryStream(bytes))
+                        await _fs.CopyFromStreamAsync(sidecar, ms, ct).ConfigureAwait(false);
+
+                    var uploaded = await _fs.GetFileInfoAsync(sidecar, ct).ConfigureAwait(false);
+                    if (uploaded == null || uploaded.Size != bytes.LongLength)
+                        throw new IOException($"Save of \"{savePath}\" did not complete: uploaded size did not match.");
+
+                    await _fs.MoveAsync(sidecar, savePath, overwrite: true, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
+                    catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
+                    throw;
+                }
+            }
+
             FilePath = savePath;
             IsModified = false;
         }
         catch (Exception ex)
         {
-            var L = LocalizationService.Current;
             StyledMessageBox.Show(L.GetString("Edit.ErrorSaving", ex.Message),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
         }

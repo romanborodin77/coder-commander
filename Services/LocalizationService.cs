@@ -157,6 +157,7 @@ public sealed class LocalizationService
         _strings["Common.Rename"] = "Rename";
         _strings["Common.Refresh"] = "Refresh";
         _strings["Common.Error"] = "Error";
+        _strings["Common.Info"] = "Information";
 
         // ═══ Menu ═══
         _strings["Menu.File"] = "&File";
@@ -262,6 +263,9 @@ public sealed class LocalizationService
         _strings["Panel.DirInfo"] = "[DIR] {0}";
         _strings["Panel.DriveTooltip"] = "Go to {0}";
         _strings["Panel.ConfirmOpenExecutable"] = "\"{0}\" is a program. Running it can make changes to your computer. Are you sure you want to continue?";
+        _strings["Panel.OpenFailed"] = "Could not open \"{0}\".\n\n{1}";
+        _strings["Panel.RemoteExecutableUnsupported"] = "\"{0}\" is a program on a connection or inside an archive. Running it directly is not supported - copy it to a local folder first.";
+        _strings["Panel.OpenedTemporaryCopy"] = "Opened a temporary local copy of \"{0}\". Changes made in the external program will not be saved back automatically.";
 
         // ═══ Status bar ═══
         _strings["Status.ElementsCount"] = "{0} items";
@@ -423,6 +427,9 @@ public sealed class LocalizationService
         _strings["Find.Truncated"] = "Stopped at the {0}-result limit; narrow the search";
         _strings["Conn.NotConnected"] = "That connection is not open. Open it from the places bar and try again.";
         _strings["Conn.OpenUnsupported"] = "Files on a connection cannot be opened in place yet. Copy the file to a local folder first.";
+        _strings["Conn.WipeUnsupported"] = "Secure wipe requires direct disk access and is not available on a connection. Use Delete instead.";
+        _strings["Conn.CalculateSizeUnsupported"] = "Folder size calculation is not available on a connection.";
+        _strings["Conn.PackUnsupported"] = "Packing is not available for files on a connection yet. Copy them to a local folder first.";
         _strings["Conn.State.Disconnected"] = "not connected";
         _strings["Conn.State.Connecting"] = "connecting…";
         _strings["Conn.State.Connected"] = "connected";
@@ -683,6 +690,7 @@ public sealed class LocalizationService
         _strings["Edit.Toolbar.Replace"] = "Replace";
         _strings["Edit.ErrorLoading"] = "Error loading file: {0}";
         _strings["Edit.ErrorSaving"] = "Error saving file: {0}";
+        _strings["Edit.ReadOnlyFile"] = "This file was opened read-only and cannot be saved.";
         _strings["Edit.TabClose"] = "Close Tab";
         _strings["Edit.TabCloseOthers"] = "Close Other Tabs";
         _strings["Edit.TabCloseAll"] = "Close All Tabs";
@@ -732,6 +740,10 @@ public sealed class LocalizationService
         _strings["Archive.CalculateSizeUnsupported"] = "Folder size calculation is not available for archive entries.";
         _strings["Archive.PackUnsupported"] = "Packing is not available for archive entries. Unpack the files first.";
         _strings["Archive.NestedUnsupported"] = "Archives inside archives cannot be opened directly. Unpack \"{0}\" first.";
+        _strings["Archive.PackTargetReadOnly"] = "This archive format is read-only and cannot be modified.";
+        _strings["Archive.PackTargetUnsupported"] = "This archive's format is not supported for writing.";
+        _strings["Archive.OpenUnsupported"] = "Files inside an archive cannot be opened in place yet. Extract the file to a local folder first.";
+        _strings["Archive.ConfirmDownload"] = "\"{0}\" is {1}. Download a copy to browse it?";
 
         // ═══ SyncDirs ═══
         _strings["SyncDirs.Title"] = "Synchronize Dirs";
