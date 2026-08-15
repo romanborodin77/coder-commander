@@ -106,6 +106,11 @@ internal static class OdfSlidesConverter
         while (i < span.Length && (char.IsAsciiDigit(span[i]) || span[i] is '.' or '-' or '+')) i++;
         if (i == 0 || !double.TryParse(span[..i], NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
             return 0;
+        // double.TryParse with NumberStyles.Float accepts a value like a 400-digit literal as
+        // double.PositiveInfinity on .NET Core 3.0+ - left unchecked, PositionStyle's "{x:F0}"
+        // formats that as the literal string "Infinity", producing invalid CSS ("left:Infinitypx")
+        // that silently drops the whole declaration rather than just misplacing the shape.
+        if (!double.IsFinite(number)) return 0;
 
         return span[i..].Trim().ToString().ToUpperInvariant() switch
         {

@@ -27,12 +27,24 @@ internal static class OoxmlSheetConverter
     private const string SharedStringsPart = "xl/sharedStrings.xml";
     private const string StylesPart = "xl/styles.xml";
 
+    /// <summary>Excel's own valid date range: serial 1 (1900-01-01) through serial 2,958,465
+    /// (9999-12-31). <c>double.TryParse</c> with <see cref="NumberStyles.Float"/> accepts values
+    /// far outside this on .NET Core 3.0+ (e.g. <c>"1E308"</c>, <c>"Infinity"</c>) - constructing a
+    /// <see cref="DateTime"/> from one of those throws <see cref="ArgumentOutOfRangeException"/>,
+    /// which used to abort the whole sheet (not caught by <c>OfficeViewerLoaderBase</c>'s filter)
+    /// over a single malformed cell.</summary>
+    private const double MaxExcelDateSerial = 2_958_465;
+
     public static Task<List<OfficeDocumentPage>> ConvertAsync(OfficePackage pkg, CancellationToken ct)
     {
         var workbook = pkg.ReadXml(WorkbookPart) ?? throw new InvalidDataException("xl/workbook.xml not found.");
         var rels = OoxmlWordConverter.LoadRelationships(pkg, WorkbookRelsPart, WorkbookPart);
         var sharedStrings = LoadSharedStrings(pkg);
         var dateStyleIndices = LoadDateStyleIndices(pkg);
+        // Mac-originated workbooks can use the 1904 epoch instead of Excel's usual 1900 one -
+        // <workbookPr date1904="1"/> is the one place that's declared; ignoring it renders every
+        // date exactly 1462 days early.
+        var date1904 = workbook.Root?.Element(S + "workbookPr")?.Attribute("date1904")?.Value is "1" or "true";
 
         var pages = new List<OfficeDocumentPage>();
         foreach (var sheetEl in workbook.Root?.Element(S + "sheets")?.Elements(S + "sheet") ?? [])
@@ -42,7 +54,7 @@ internal static class OoxmlSheetConverter
             var relId = sheetEl.Attribute(R + "id")?.Value;
             if (relId == null || !rels.TryGetValue(relId, out var sheetPart)) continue;
 
-            var html = RenderSheet(pkg.ReadXml(sheetPart), sharedStrings, dateStyleIndices);
+            var html = RenderSheet(pkg.ReadXml(sheetPart), sharedStrings, dateStyleIndices, date1904);
             pages.Add(new OfficeDocumentPage(name, html));
         }
 
@@ -50,7 +62,7 @@ internal static class OoxmlSheetConverter
         return Task.FromResult(pages);
     }
 
-    private static string RenderSheet(XDocument? sheet, IReadOnlyList<string> sharedStrings, HashSet<int> dateStyles)
+    private static string RenderSheet(XDocument? sheet, IReadOnlyList<string> sharedStrings, HashSet<int> dateStyles, bool date1904)
     {
         var writer = new OfficeHtmlWriter();
         writer.RawLine("<table>");
@@ -61,13 +73,27 @@ internal static class OoxmlSheetConverter
         {
             if (++rowCount > OfficeLimits.MaxRows) break;
             writer.Raw("<tr>");
-            var colCount = 0;
+
+            // XLSX omits cells with no content, so a row with data only in columns A and D emits
+            // just two <c> elements - rendering them adjacently (the old behavior) silently shifted
+            // every following cell left, making data appear under the wrong header. Cells are
+            // padded up to their own r="..." column reference instead of relied-on document order.
+            var nextCol = 0;
             foreach (var cell in row.Elements(S + "c"))
             {
-                if (++colCount > OfficeLimits.MaxColumns) break;
+                var colIndex = ColumnIndexFromRef(cell.Attribute("r")?.Value);
+                if (colIndex < 0) colIndex = nextCol; // no/unparseable r= - fall back to positional
+
+                if (colIndex >= OfficeLimits.MaxColumns) break; // this and every later cell in the row are past budget
+
+                for (var pad = nextCol; pad < colIndex; pad++)
+                    writer.Raw("<td></td>");
+
                 writer.Raw("<td>");
-                writer.Text(RenderCellText(cell, sharedStrings, dateStyles));
+                writer.Text(RenderCellText(cell, sharedStrings, dateStyles, date1904));
                 writer.Raw("</td>");
+
+                nextCol = colIndex + 1;
             }
             writer.RawLine("</tr>");
         }
@@ -76,14 +102,40 @@ internal static class OoxmlSheetConverter
         return writer.Build();
     }
 
-    private static string RenderCellText(XElement cell, IReadOnlyList<string> sharedStrings, HashSet<int> dateStyles)
+    /// <summary>Parses the column letters from a cell reference like <c>"C7"</c> or <c>"AB123"</c>
+    /// into a 0-based column index (<c>"A"</c> → 0, <c>"AB"</c> → 27), or -1 if
+    /// <paramref name="cellRef"/> is missing/doesn't start with a letter. Per the OOXML spec cell
+    /// references are always uppercase A-Z; that's relied on here rather than normalized, since a
+    /// lowercase reference would already be a malformed file no real writer produces.</summary>
+    private static int ColumnIndexFromRef(string? cellRef)
+    {
+        if (string.IsNullOrEmpty(cellRef) || cellRef[0] is < 'A' or > 'Z') return -1;
+
+        var col = 0;
+        foreach (var c in cellRef)
+        {
+            if (c is < 'A' or > 'Z') break;
+            col = col * 26 + (c - 'A' + 1);
+        }
+        return col - 1;
+    }
+
+    private static string RenderCellText(XElement cell, IReadOnlyList<string> sharedStrings, HashSet<int> dateStyles, bool date1904)
     {
         var type = cell.Attribute("t")?.Value;
 
         if (type == "inlineStr")
             return cell.Element(S + "is")?.Element(S + "t")?.Value ?? "";
 
-        if (type == "str" || type == "e" || type == "b")
+        if (type == "b")
+        {
+            // A boolean cell's <v> is the literal digit "1"/"0", not a human-readable value -
+            // rendering it verbatim (the old behavior) showed "1"/"0" instead of TRUE/FALSE.
+            var raw = cell.Element(S + "v")?.Value;
+            return raw switch { "1" => "TRUE", "0" => "FALSE", _ => raw ?? "" };
+        }
+
+        if (type == "str" || type == "e")
             return cell.Element(S + "v")?.Value ?? "";
 
         var rawValue = cell.Element(S + "v")?.Value;
@@ -101,11 +153,15 @@ internal static class OoxmlSheetConverter
         if (double.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
         {
             var styleIndex = int.TryParse(cell.Attribute("s")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var s) ? s : 0;
-            if (dateStyles.Contains(styleIndex) && number >= 0)
+            if (dateStyles.Contains(styleIndex) && number >= 0 && number <= MaxExcelDateSerial)
             {
                 // Standard serial-date epoch trick (1899-12-30) - the same off-by-one every XLSX
                 // reader uses to absorb Excel's fictitious 1900-02-29 without special-casing it.
-                var date = new DateTime(1899, 12, 30, 0, 0, 0, DateTimeKind.Unspecified).AddDays(number);
+                // Mac-originated workbooks may instead declare the 1904 epoch (see date1904 above).
+                var epoch = date1904
+                    ? new DateTime(1904, 1, 1, 0, 0, 0, DateTimeKind.Unspecified)
+                    : new DateTime(1899, 12, 30, 0, 0, 0, DateTimeKind.Unspecified);
+                var date = epoch.AddDays(number);
                 return number == Math.Floor(number)
                     ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                     : date.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);

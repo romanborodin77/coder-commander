@@ -509,6 +509,7 @@ View.Office.PreviousPage=Previous
 View.Office.NextPage=Next
 View.Office.Print=Print
 View.Office.Encrypted=Unable to open this document — it may be password-protected or corrupted.
+View.Office.Rejected=This document was rejected by a safety limit (too large, too many parts, or an unusual compression ratio) and was not opened.
 
 # ═══ Multi-rename ═══
 MultiRename.Title=Multi-Rename

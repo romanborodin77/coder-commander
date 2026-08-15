@@ -656,6 +656,7 @@ public sealed class LocalizationService
         _strings["View.Office.NextPage"] = "Next";
         _strings["View.Office.Print"] = "Print";
         _strings["View.Office.Encrypted"] = "Unable to open this document — it may be password-protected or corrupted.";
+        _strings["View.Office.Rejected"] = "This document was rejected by a safety limit (too large, too many parts, or an unusual compression ratio) and was not opened.";
 
         // ═══ Editor ═══
         _strings["Edit.Title"] = "Editor";

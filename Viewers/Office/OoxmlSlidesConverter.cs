@@ -119,8 +119,14 @@ internal static class OoxmlSlidesConverter
         return $"position:absolute;left:{x}px;top:{y}px;width:{cx}px;height:{cy}px;";
     }
 
+    // OOXML's ST_PositiveCoordinate is a 64-bit quantity (up to ~27,273,042,316,900 EMU) - int
+    // silently overflows for any legitimately large offset/extent well before that, collapsing it
+    // to "left:0px" instead of clamping to something visible. long.TryParse plus an explicit clamp
+    // to int's range keeps the result usable as a CSS pixel value either way.
     private static int EmuToPx(string? emu) =>
-        int.TryParse(emu, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v / 9525 : 0;
+        long.TryParse(emu, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)
+            ? (int)Math.Clamp(v / 9525, int.MinValue, int.MaxValue)
+            : 0;
 
     private static string RelsPathFor(string partName)
     {

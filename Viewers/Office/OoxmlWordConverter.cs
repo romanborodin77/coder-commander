@@ -33,29 +33,51 @@ internal static class OoxmlWordConverter
 
         var writer = new OfficeHtmlWriter();
         var inList = false;
+        await RenderBodyElementsAsync(body.Elements(), pkg, rels, writer, 0, ct, () => inList, v => inList = v).ConfigureAwait(false);
+        if (inList) writer.RawLine("</ul>");
 
-        foreach (var element in body.Elements())
+        return writer.Build();
+    }
+
+    /// <summary>Renders a sequence of body-level nodes (paragraphs and tables), transparently
+    /// unwrapping <c>w:sdt</c> (content control) wrappers - a content control can wrap one or more
+    /// whole paragraphs/tables via <c>w:sdtContent</c>, and content controls are ubiquitous in
+    /// templates, not an edge case. Before this, a body-level <c>w:sdt</c> matched neither the
+    /// <c>w:p</c> nor <c>w:tbl</c> branch and its entire content vanished. <paramref name="getInList"/>/
+    /// <paramref name="setInList"/> thread the shared "currently inside a rendered &lt;ul&gt;" state
+    /// through the recursion, since a list can't be allowed to open/close incorrectly just because a
+    /// content control happens to wrap some of its items.</summary>
+    private static async Task RenderBodyElementsAsync(IEnumerable<XElement> nodes, OfficePackage pkg,
+        Dictionary<string, string> rels, OfficeHtmlWriter writer, int depth, CancellationToken ct,
+        Func<bool> getInList, Action<bool> setInList)
+    {
+        if (depth > OfficeLimits.MaxNestingDepth) return;
+
+        foreach (var element in nodes)
         {
             ct.ThrowIfCancellationRequested();
             if (element.Name == W + "p")
             {
                 var isListItem = element.Element(W + "pPr")?.Element(W + "numPr") != null;
-                if (isListItem != inList)
+                if (isListItem != getInList())
                 {
-                    writer.RawLine(inList ? "</ul>" : "<ul>");
-                    inList = isListItem;
+                    writer.RawLine(getInList() ? "</ul>" : "<ul>");
+                    setInList(isListItem);
                 }
                 await RenderParagraphAsync(element, pkg, rels, writer, isListItem, ct).ConfigureAwait(false);
             }
             else if (element.Name == W + "tbl")
             {
-                if (inList) { writer.RawLine("</ul>"); inList = false; }
+                if (getInList()) { writer.RawLine("</ul>"); setInList(false); }
                 await RenderTableAsync(element, pkg, rels, writer, ct).ConfigureAwait(false);
             }
+            else if (element.Name == W + "sdt")
+            {
+                var content = element.Element(W + "sdtContent");
+                if (content != null)
+                    await RenderBodyElementsAsync(content.Elements(), pkg, rels, writer, depth + 1, ct, getInList, setInList).ConfigureAwait(false);
+            }
         }
-        if (inList) writer.RawLine("</ul>");
-
-        return writer.Build();
     }
 
     /// <summary>Schemes a rendered <c>&lt;a href&gt;</c> is allowed to carry. HTML-escaping (already
@@ -114,6 +136,22 @@ internal static class OoxmlWordConverter
                 if (linkable) writer.Raw($"<a href=\"{WebUtility.HtmlEncode(href)}\">");
                 await RenderInlineContentAsync(node.Elements(), pkg, rels, writer, depth + 1, ct).ConfigureAwait(false);
                 if (linkable) writer.Raw("</a>");
+            }
+            else if (node.Name == W + "ins" || node.Name == W + "smartTag")
+            {
+                // w:ins (a tracked-change insertion - present in any document edited with Track
+                // Changes on) and w:smartTag both wrap ordinary runs without changing how they
+                // should render; treated as transparent rather than matching neither branch and
+                // dropping their content, which is what happened before this fix.
+                await RenderInlineContentAsync(node.Elements(), pkg, rels, writer, depth + 1, ct).ConfigureAwait(false);
+            }
+            else if (node.Name == W + "sdt")
+            {
+                // Inline content control - same idea as the body-level w:sdt unwrap in
+                // RenderBodyElementsAsync, just wrapping w:r/w:hyperlink instead of w:p/w:tbl.
+                var content = node.Element(W + "sdtContent");
+                if (content != null)
+                    await RenderInlineContentAsync(content.Elements(), pkg, rels, writer, depth + 1, ct).ConfigureAwait(false);
             }
         }
     }

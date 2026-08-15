@@ -60,6 +60,16 @@ internal abstract class OfficeViewerLoaderBase : IViewerLoader
             return new OfficeDocumentPayload(pages, L.GetString(StatusKey, pages.Count));
         }
         catch (OperationCanceledException) { throw; }
+        // Caught before the general InvalidDataException branch below - OfficePackageRejectedException
+        // is a subclass, and a safety-limit rejection (too many parts, too large, a suspicious
+        // compression ratio, an unsafe entry name) is not the same failure as a genuinely corrupt or
+        // password-protected package, so it gets its own, accurate message instead of being told
+        // "this looks encrypted" for a perfectly ordinary file that was simply too big.
+        catch (OfficePackageRejectedException ex)
+        {
+            LogService.Warning($"Office document rejected by a safety limit: {source.Path}: {ex.Message}");
+            return new ViewerErrorPayload(L.GetString("View.Office.Rejected"), Modal: true);
+        }
         catch (Exception ex) when (ex is InvalidDataException or IOException or XmlException)
         {
             LogService.Error($"Office document failed to open: {source.Path}", ex);

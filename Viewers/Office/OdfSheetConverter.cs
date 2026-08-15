@@ -45,7 +45,7 @@ internal static class OdfSheetConverter
     private static string RenderSheet(XElement table)
     {
         var rows = new List<List<string>>();
-        foreach (var rowEl in table.Elements(Table + "table-row"))
+        foreach (var rowEl in RowsOf(table))
         {
             if (rows.Count >= OfficeLimits.MaxRows) break;
             var rowRepeat = Math.Min(ParseRepeat(rowEl, "number-rows-repeated"), OfficeLimits.MaxRows - rows.Count);
@@ -59,8 +59,13 @@ internal static class OdfSheetConverter
                 for (var i = 0; i < cellRepeat; i++) cells.Add(text);
             }
 
-            // The same List<string> instance is shared across every repeated row - none of them
-            // are ever mutated after this point, so sharing is safe and avoids rowRepeat copies.
+            // The same List<string> instance is shared across every repeated row, saving
+            // rowRepeat-1 copies - NOT because nothing mutates it afterward (TrimTrailingEmpty
+            // below does call row.RemoveRange on these same shared instances). It's safe only
+            // because that trim is idempotent: RemoveRange(keep, row.Count - keep) is a no-op the
+            // second time TrimTrailingEmpty visits an already-trimmed shared row (row.Count > keep
+            // is already false). A future non-idempotent per-row mutation here would corrupt every
+            // repeated row at once - if one is ever needed, copy the list first.
             for (var i = 0; i < rowRepeat; i++) rows.Add(cells);
         }
 
@@ -81,6 +86,23 @@ internal static class OdfSheetConverter
         }
         writer.RawLine("</table>");
         return writer.Build();
+    }
+
+    /// <summary>Yields every <c>table:table-row</c> in document order, including ones nested one
+    /// level inside a <c>table:table-header-rows</c> (LibreOffice wraps a sheet's frozen header
+    /// rows in this) or <c>table:table-row-group</c> (used for grouped/outlined rows) - a plain
+    /// <c>table.Elements(Table + "table-row")</c> only sees direct children, so rows wrapped either
+    /// way used to vanish from the rendered sheet with no indication anything was skipped.</summary>
+    private static IEnumerable<XElement> RowsOf(XElement container)
+    {
+        foreach (var child in container.Elements())
+        {
+            if (child.Name == Table + "table-row")
+                yield return child;
+            else if (child.Name == Table + "table-header-rows" || child.Name == Table + "table-row-group")
+                foreach (var nested in RowsOf(child))
+                    yield return nested;
+        }
     }
 
     /// <summary>Drops fully-blank trailing rows, then fully-blank trailing columns - a single
@@ -120,10 +142,20 @@ internal static class OdfSheetConverter
         var text = string.Concat(cell.Elements(Text + "p").Select(p => p.Value));
         if (!string.IsNullOrEmpty(text)) return text;
 
-        // A numeric/date/currency cell sometimes carries its value only as an office:*-value
-        // attribute with no <text:p> child at all (no display text was cached when it was saved).
+        // A numeric/date/currency/boolean/string/time cell sometimes carries its value only as an
+        // office:*-value attribute with no <text:p> child at all (no display text was cached when
+        // it was saved) - boolean-value/string-value/time-value were previously missing here, so
+        // such cells rendered blank instead of their actual content.
         return cell.Attribute(Office + "value")?.Value
             ?? cell.Attribute(Office + "date-value")?.Value
+            ?? (cell.Attribute(Office + "boolean-value")?.Value switch
+                {
+                    "true" => "TRUE",
+                    "false" => "FALSE",
+                    _ => null
+                })
+            ?? cell.Attribute(Office + "string-value")?.Value
+            ?? cell.Attribute(Office + "time-value")?.Value
             ?? "";
     }
 }

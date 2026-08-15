@@ -38,7 +38,7 @@ internal sealed class OfficePackage : IDisposable
             if (!dir.IsValid)
                 throw new InvalidDataException("Not a valid OOXML/ODF package.");
             if (dir.Entries.Count > OfficeLimits.MaxEntries)
-                throw new InvalidDataException("Package has too many parts.");
+                throw new OfficePackageRejectedException("Package has too many parts.");
 
             var entriesByName = new Dictionary<string, ArchiveEntryRecord>(StringComparer.Ordinal);
             long totalUncompressed = 0;
@@ -48,14 +48,14 @@ internal sealed class OfficePackage : IDisposable
 
                 var name = NormalizeName(entry.FullName);
                 if (ArchiveSafety.EscapesTarget(name))
-                    throw new InvalidDataException("Package contains an unsafe entry name.");
+                    throw new OfficePackageRejectedException("Package contains an unsafe entry name.");
 
                 if (entry.PackedSize > 0 && entry.Size / (double)entry.PackedSize > OfficeLimits.MaxCompressionRatio)
-                    throw new InvalidDataException("Package failed a compression-ratio safety check.");
+                    throw new OfficePackageRejectedException("Package failed a compression-ratio safety check.");
 
                 totalUncompressed += entry.Size;
                 if (totalUncompressed > OfficeLimits.MaxTotalUncompressedBytes)
-                    throw new InvalidDataException("Package is too large to open.");
+                    throw new OfficePackageRejectedException("Package is too large to open.");
 
                 entriesByName[name] = entry;
             }
@@ -82,7 +82,7 @@ internal sealed class OfficePackage : IDisposable
         var name = NormalizeName(entryName);
         if (!_entriesByName.TryGetValue(name, out var entry)) return null;
         if (entry.Size > OfficeLimits.MaxPartBytes)
-            throw new InvalidDataException($"Part '{name}' exceeds the size limit.");
+            throw new OfficePackageRejectedException($"Part '{name}' exceeds the size limit.");
 
         using var stream = _reader.OpenEntry(entry);
         return SafeXml.LoadSafe(stream);
@@ -148,4 +148,30 @@ internal sealed class OfficePackage : IDisposable
     }
 
     public void Dispose() => _reader.Dispose();
+}
+
+/// <summary>
+/// Thrown when <see cref="OfficePackage"/> deliberately refuses a package for exceeding a declared
+/// safety limit (too many parts, an unsafe entry name, a suspicious compression ratio, too large
+/// overall, or one part too large) - distinct from a plain <see cref="InvalidDataException"/>, which
+/// stays reserved for genuine structural failure to parse the package at all (not a valid ZIP,
+/// OOXML encryption wrapping the whole file in an OLE compound document).
+///
+/// <para>Before this type existed, both cases threw the same <see cref="InvalidDataException"/> and
+/// <c>OfficeViewerLoaderBase</c> mapped every one of them to the same "this looks password
+/// protected" message - technically defensible only for the corrupt/encrypted case (see that
+/// class's own doc comment for why those two are genuinely indistinguishable without decrypting).
+/// A user who hit a size ceiling on an otherwise perfectly normal, unencrypted document was told
+/// their file was password-protected, which it never was.</para>
+///
+/// <para><see cref="System.IO.InvalidDataException"/> is <c>sealed</c>, so this is an
+/// <see cref="Exception"/> subclass instead, not a sibling in that hierarchy - existing callers
+/// that only ever caught plain <see cref="InvalidDataException"/> (the zip-slip/compression-ratio
+/// regression tests) were updated to check for this type specifically at the two call sites that
+/// changed. <c>OfficeViewerLoaderBase</c> catches this type before its general
+/// <see cref="InvalidDataException"/> branch to tell the two apart.</para>
+/// </summary>
+internal sealed class OfficePackageRejectedException : Exception
+{
+    public OfficePackageRejectedException(string message) : base(message) { }
 }
