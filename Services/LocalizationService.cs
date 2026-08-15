@@ -743,6 +743,8 @@ public sealed class LocalizationService
         _strings["Archive.PackTargetReadOnly"] = "This archive format is read-only and cannot be modified.";
         _strings["Archive.PackTargetUnsupported"] = "This archive's format is not supported for writing.";
         _strings["Archive.OpenUnsupported"] = "Files inside an archive cannot be opened in place yet. Extract the file to a local folder first.";
+        _strings["Archive.ConfirmWriteBack"] = "\"{0}\" was changed while browsing it. Save the changes back?";
+        _strings["Archive.WriteBackFailed"] = "Could not save changes back to \"{0}\".\n\n{1}";
         _strings["Archive.ConfirmDownload"] = "\"{0}\" is {1}. Download a copy to browse it?";
 
         // ═══ SyncDirs ═══

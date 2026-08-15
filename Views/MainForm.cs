@@ -972,6 +972,12 @@ public sealed class MainForm : Form
 
     private void WireEvents()
     {
+        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        {
+            panel.ConfirmArchiveWriteBack = ConfirmArchiveWriteBack;
+            panel.ArchiveWriteBackFailed = OnArchiveWriteBackFailed;
+        }
+
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.DeleteConfirmRequested += OnDeleteConfirm;
         _vm.WipeConfirmRequested += OnWipeConfirm;
@@ -1263,6 +1269,32 @@ public sealed class MainForm : Form
     /// permanently removing the remaining files is the only option left. Marshals to the UI thread,
     /// same pattern as <see cref="CreateOverwriteResolver"/>.
     /// </summary>
+    /// <summary>
+    /// <see cref="PanelViewModel.ConfirmArchiveWriteBack"/> - asks whether to upload a materialized
+    /// archive's edits back to <paramref name="originPath"/> before its temp copy is deleted.
+    /// Unlike <see cref="OnConfirmPermanentDelete"/>, no thread marshaling is needed here:
+    /// <c>PanelViewModel.ReleaseArchiveLease</c> is only ever reached from UI-thread code
+    /// (navigating out of an archive, entering a different one, or closing the app).
+    /// </summary>
+    private bool ConfirmArchiveWriteBack(string originPath)
+    {
+        var L = LocalizationService.Current;
+        return StyledMessageBox.Show(
+            L.GetString("Archive.ConfirmWriteBack", VfsPath.GetName(originPath)),
+            L.GetString("Archive.Title"), MsgBoxButtons.YesNo, MsgBoxIcon.Question, this) == MsgBoxResult.Yes;
+    }
+
+    /// <summary><see cref="PanelViewModel.ArchiveWriteBackFailed"/> - the lease is already gone by
+    /// the time this fires (see that property's own doc comment), so this is purely informational:
+    /// the user's edits didn't make it back to <paramref name="originPath"/>.</summary>
+    private void OnArchiveWriteBackFailed(string originPath, Exception ex)
+    {
+        LogService.Error($"Archive write-back failed: {originPath}", ex);
+        var L = LocalizationService.Current;
+        StyledMessageBox.Show(L.GetString("Archive.WriteBackFailed", VfsPath.GetName(originPath), ex.Message),
+            L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+    }
+
     private void OnConfirmPermanentDelete(object? sender, ConfirmPermanentDeleteEventArgs e)
     {
         if (!IsHandleCreated)
@@ -1711,8 +1743,9 @@ public sealed class MainForm : Form
     /// comment for why that needs no extra check here), it is materialized to a real local temp
     /// copy first (<see cref="FileSystem.Materialization.MaterializedFile"/>), owned by
     /// <paramref name="panel"/>'s own <c>ViewModel</c> for as long as it keeps browsing that
-    /// archive, and wrapped <see cref="ReadOnlyFileSystem"/> - there is no navigation trigger to
-    /// write such a copy back on, so mutating it would silently discard on the way out.</para>
+    /// archive, and wrapped <see cref="DirtyTrackingFileSystem"/> - fully writable against the temp
+    /// copy, with a write-back offered (via <c>PanelViewModel.ConfirmArchiveWriteBack</c>) when the
+    /// panel leaves the archive, rather than refusing every write outright.</para>
     /// </summary>
     private async Task EnterArchiveAsync(FilePanelUserControl panel, FileSystemItem item)
     {
@@ -1762,14 +1795,16 @@ public sealed class MainForm : Form
             return;
         }
 
-        // Passthrough (a local item) keeps the archive fully writable, exactly as before this
-        // method learned to materialize anything - only a genuinely downloaded copy is read-only.
+        // Passthrough (a local item) needs no wrapping at all - nothing was copied, mutations
+        // already land on the real archive. A genuinely downloaded copy is wrapped so any mutation
+        // marks the lease dirty, which is what lets ReleaseArchiveLease know later whether there is
+        // anything worth offering to write back.
         if (!materialized.IsPassthrough)
-            archiveFs = new ReadOnlyFileSystem(archiveFs);
+            archiveFs = new DirtyTrackingFileSystem(archiveFs, materialized.MarkDirty);
 
         try
         {
-            panel.ViewModel.AttachArchiveLease(materialized);
+            await panel.ViewModel.AttachArchiveLeaseAsync(materialized);
             panel.ViewModel.CurrentFileSystem = archiveFs;
             var archivePath = ArchivePath.MakePath(materialized.LocalPath, "");
             await panel.ViewModel.NavigateAsync(archivePath);

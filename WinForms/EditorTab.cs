@@ -44,8 +44,10 @@ public sealed class EditorTab : IDisposable
     /// <summary>
     /// True when the file's own filesystem can't be written to (set after a successful
     /// <see cref="LoadFileAsync"/> from <see cref="_fs"/>'s own <see cref="FileSystemCapabilities.Writable"/>
-    /// - e.g. a read-only archive format, or a materialized (downloaded-to-browse) remote archive
-    /// wrapped in <see cref="ReadOnlyFileSystem"/>). Editing itself is not blocked at the canvas
+    /// - e.g. a read-only archive format like RAR/7z/TAR.XZ). A materialized (downloaded-to-browse)
+    /// remote archive is NOT read-only this way - it is fully writable against its local temp copy,
+    /// with a write-back offered on leaving it (see <c>DirtyTrackingFileSystem</c>/
+    /// <c>PanelViewModel.ReleaseArchiveLease</c>) rather than being refused here. Editing itself is not blocked at the canvas
     /// level - see this class's own scope note in <see cref="SaveFileAsync"/> - but Save refuses
     /// outright instead of attempting (and failing) a write, and the tab title marks it so the
     /// user isn't surprised by an error only once they try to save.
@@ -112,7 +114,7 @@ public sealed class EditorTab : IDisposable
     /// silent discard) when <see cref="IsReadOnly"/> - refusing up front is what
     /// <see cref="LoadFileAsync"/>'s own doc comment means by "Save refuses outright instead of
     /// attempting (and failing) a write": the alternative is calling <see cref="IFileSystem.CopyFromStreamAsync"/>
-    /// on a <see cref="ReadOnlyFileSystem"/>-wrapped provider and surfacing its
+    /// on a provider that lacks <see cref="FileSystemCapabilities.Writable"/> and surfacing its
     /// <see cref="NotSupportedException"/> as a generic save-failed message instead of this clear one.
     ///
     /// <para>Scope note: this class does not disable keystroke input for a read-only file - the

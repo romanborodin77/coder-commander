@@ -108,11 +108,28 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// immediately before assigning the wrapped <see cref="Archives.ArchiveFileSystem"/> to
     /// <see cref="CurrentFileSystem"/>.
     /// </summary>
-    public void AttachArchiveLease(FileSystem.Materialization.MaterializedFile lease)
+    public async Task AttachArchiveLeaseAsync(FileSystem.Materialization.MaterializedFile lease, CancellationToken ct = default)
     {
-        _archiveLease?.Dispose();
+        await ReleaseArchiveLeaseAsync(ct).ConfigureAwait(true);
         _archiveLease = lease;
     }
+
+    /// <summary>
+    /// Invoked by <see cref="ReleaseArchiveLease"/> when the panel is about to leave/replace a
+    /// materialized archive that was actually edited, asking whether to write those edits back to
+    /// the origin (<paramref name="originPath"/> in the callback). Return <c>true</c> to write
+    /// back, <c>false</c> to discard. Set once by <c>MainForm</c> after constructing this panel;
+    /// left <c>null</c> (defensive default), edits are discarded without asking - the same
+    /// fail-safe <c>DeleteOperation.ConfirmPermanentDelete</c> uses when nothing is listening.
+    /// </summary>
+    public Func<string, bool>? ConfirmArchiveWriteBack { get; set; }
+
+    /// <summary>Invoked when a write-back requested via <see cref="ConfirmArchiveWriteBack"/>
+    /// fails. The lease is disposed either way (see <see cref="ReleaseArchiveLease"/>) - once its
+    /// temp copy is about to be torn down there is no "retry later" option, so this exists purely
+    /// to let <c>MainForm</c> tell the user their edits didn't make it back, not to offer a
+    /// second chance.</summary>
+    public Action<string, Exception>? ArchiveWriteBackFailed { get; set; }
 
     /// <summary>Materializes <paramref name="path"/> from <paramref name="fs"/> into this panel's
     /// own session - the temp-folder mechanics stay private to the panel; callers (<c>MainForm</c>)
@@ -126,19 +143,46 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Releases this panel's materialized archive temp copy, if it is holding one - a no-op
     /// otherwise. Called whenever the panel stops showing that archive for good: exiting it
-    /// (<see cref="GoToParentAsync"/>'s exit-archive branch), entering a different one
-    /// (<see cref="AttachArchiveLease"/> calls this first), and panel disposal
-    /// (<see cref="Dispose"/>). Deliberately NOT called from <see cref="GoBackAsync"/>/
-    /// <see cref="GoForwardAsync"/> - history can still hold a reference to an already-materialized
-    /// archive's filesystem instance after this panel has moved on, and re-visiting it via Back/
-    /// Forward once the lease is gone is an accepted, read-only-safe limitation (browsing fails
-    /// with an ordinary navigation error, nothing is corrupted) rather than something worth a
+    /// (<see cref="GoToParentAsync"/>'s exit-archive branch) and entering a different one
+    /// (<see cref="AttachArchiveLeaseAsync"/> calls this first). Deliberately NOT called from
+    /// <see cref="GoBackAsync"/>/<see cref="GoForwardAsync"/> - history can still hold a reference
+    /// to an already-materialized archive's filesystem instance after this panel has moved on, and
+    /// re-visiting it via Back/Forward once the lease is gone is an accepted limitation (browsing
+    /// fails with an ordinary navigation error, nothing is corrupted - any edits from that session
+    /// were already offered a write-back when the lease was released) rather than something worth a
     /// refcounted lifetime to prevent - see <see cref="_archiveLease"/>'s own doc comment.
+    ///
+    /// <para>If the lease was actually edited (<c>MaterializedFile.IsDirty</c>, set by
+    /// <see cref="DirtyTrackingFileSystem"/> after any mutating call this panel made against it),
+    /// asks <see cref="ConfirmArchiveWriteBack"/> then genuinely awaits <c>WriteBackAsync</c> -
+    /// deliberately NOT <c>.GetAwaiter().GetResult()</c>. That looks safe on paper (WriteBackAsync
+    /// uses <c>ConfigureAwait(false)</c> throughout, so it doesn't need to resume on any particular
+    /// thread) but isn't: blocking the calling thread synchronously while its OWN continuation still
+    /// needs a free thread pool worker to run on is a real thread-pool-starvation deadlock under a
+    /// small enough pool - reproduced directly during this feature's own test run, which is what
+    /// caught this before it shipped. <see cref="Dispose"/> is the one caller that genuinely cannot
+    /// await (a plain <see cref="IDisposable"/>) - see its own comment for why it discards instead.
+    /// </para>
     /// </summary>
-    public void ReleaseArchiveLease()
+    public async Task ReleaseArchiveLeaseAsync(CancellationToken ct = default)
     {
-        _archiveLease?.Dispose();
+        var lease = _archiveLease;
+        if (lease == null) return;
         _archiveLease = null;
+
+        if (lease.IsDirty && (ConfirmArchiveWriteBack?.Invoke(lease.OriginPath) ?? false))
+        {
+            try
+            {
+                await lease.WriteBackAsync(ct).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ArchiveWriteBackFailed?.Invoke(lease.OriginPath, ex);
+            }
+        }
+
+        lease.Dispose();
     }
 
     /// <summary><c>true</c> when there is at least one entry on the back-navigation stack.</summary>
@@ -441,7 +485,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (string.IsNullOrEmpty(innerPath))
             {
                 // Exit archive — switch back to local filesystem, navigate to archive's parent directory
-                ReleaseArchiveLease();
+                await ReleaseArchiveLeaseAsync();
                 CurrentFileSystem = new LocalFileSystem();
                 var parentDir = Path.GetDirectoryName(archivePath);
                 if (!string.IsNullOrEmpty(parentDir))
@@ -846,10 +890,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             _ = RefreshAsync();
     }
 
-    /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.</summary>
+    /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.
+    /// Discards a dirty materialized archive lease without offering to write it back - unlike
+    /// <see cref="ReleaseArchiveLeaseAsync"/>, a plain <see cref="IDisposable.Dispose"/> cannot
+    /// await, and there is no safe way to synchronously block here (see
+    /// <see cref="ReleaseArchiveLeaseAsync"/>'s own doc comment for why that specific mistake was
+    /// caught and reverted). App/panel shutdown discarding an edited-but-never-left archive is a
+    /// narrow, honestly-scoped limitation, not a silent one worth pretending otherwise about.</summary>
     public void Dispose()
     {
-        ReleaseArchiveLease();
+        _archiveLease?.Dispose();
+        _archiveLease = null;
         _materializeSession.Dispose();
         StopWatcher();
 
