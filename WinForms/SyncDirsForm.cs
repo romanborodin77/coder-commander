@@ -1,3 +1,4 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -20,6 +21,13 @@ public class SyncDirsForm : ThemedForm
     private readonly Button _closeBtn;
     private readonly List<SyncEntry> _entries = new();
 
+    // Each side starts on the file system the panel it came from is browsing (local disk,
+    // archive, or SFTP/FTP/WebDAV connection), but Browse... only knows how to pick a real local
+    // folder - picking one switches that side to LocalFileSystem independently of the other side,
+    // which is why these are two separate mutable fields rather than one shared file system.
+    private IFileSystem _leftFs;
+    private IFileSystem _rightFs;
+
     /// <summary>Raised when the user initiates a copy operation. The event data contains the direction and file queue.</summary>
     public event EventHandler<SyncCopyRequest>? CopyRequested;
 
@@ -28,8 +36,12 @@ public class SyncDirsForm : ThemedForm
     /// </summary>
     /// <param name="leftPath">Path to the left (source) directory.</param>
     /// <param name="rightPath">Path to the right (destination) directory.</param>
-    public SyncDirsForm(string leftPath, string rightPath)
+    /// <param name="leftFs">File system the left path lives on (normally the left panel's <c>CurrentFileSystem</c>).</param>
+    /// <param name="rightFs">File system the right path lives on (normally the right panel's <c>CurrentFileSystem</c>).</param>
+    public SyncDirsForm(string leftPath, string rightPath, IFileSystem leftFs, IFileSystem rightFs)
     {
+        _leftFs = leftFs;
+        _rightFs = rightFs;
         var L = LocalizationService.Current;
         Text = L.GetString("SyncDirs.Title");
         ClientSize = new Size(880, 620); // +20 to match the top panel's 132→152 growth below
@@ -70,7 +82,7 @@ public class SyncDirsForm : ThemedForm
         var leftBrowse = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
         leftBrowse.Dock = DockStyle.Fill;
         leftBrowse.Margin = new Padding(8, 0, 0, 0);
-        leftBrowse.Click += (_, _) => Browse(_leftBox);
+        leftBrowse.Click += (_, _) => Browse(_leftBox, fs => _leftFs = fs);
         top.Controls.Add(UiHelpers.CreateLabel(""), 2, 0);
         top.Controls.Add(leftBrowse, 3, 0);
 
@@ -82,7 +94,7 @@ public class SyncDirsForm : ThemedForm
         var rightBrowse = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
         rightBrowse.Dock = DockStyle.Fill;
         rightBrowse.Margin = new Padding(8, 0, 0, 0);
-        rightBrowse.Click += (_, _) => Browse(_rightBox);
+        rightBrowse.Click += (_, _) => Browse(_rightBox, fs => _rightFs = fs);
         top.Controls.Add(UiHelpers.CreateLabel(""), 2, 1);
         top.Controls.Add(rightBrowse, 3, 1);
 
@@ -176,7 +188,10 @@ public class SyncDirsForm : ThemedForm
         CancelButton = _closeBtn;
     }
 
-    private void Browse(TextBox box)
+    /// <summary>A native folder picker only ever browses the real local disk - picking one always
+    /// switches that side to <see cref="LocalFileSystem"/>, independently of whatever it started
+    /// on (a panel's archive or connection).</summary>
+    private static void Browse(TextBox box, Action<IFileSystem> setFs)
     {
         using var dlg = new FolderBrowserDialog
         {
@@ -184,7 +199,10 @@ public class SyncDirsForm : ThemedForm
             UseDescriptionForTitle = true
         };
         if (dlg.ShowDialog() == DialogResult.OK)
+        {
             box.Text = dlg.SelectedPath;
+            setFs(new LocalFileSystem());
+        }
     }
 
     private async Task CompareAsync()
@@ -192,8 +210,13 @@ public class SyncDirsForm : ThemedForm
         var L = LocalizationService.Current;
         var left = _leftBox.Text.Trim();
         var right = _rightBox.Text.Trim();
-        if (string.IsNullOrEmpty(left) || !Directory.Exists(left) ||
-            string.IsNullOrEmpty(right) || !Directory.Exists(right))
+        var leftFs = _leftFs;
+        var rightFs = _rightFs;
+
+        var leftRoot = string.IsNullOrEmpty(left) ? null : await leftFs.GetFileInfoAsync(left).ConfigureAwait(true);
+        var rightRoot = string.IsNullOrEmpty(right) ? null : await rightFs.GetFileInfoAsync(right).ConfigureAwait(true);
+        if (IsDisposed || !IsHandleCreated) return;
+        if (leftRoot is not { IsDirectory: true } || rightRoot is not { IsDirectory: true })
         {
             StyledMessageBox.Show(L.GetString("SyncDirs.BadPaths"),
                 L.GetString("SyncDirs.Title"), MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
@@ -210,8 +233,8 @@ public class SyncDirsForm : ThemedForm
             var ignoreTime = _ignoreTimeCheck.Checked;
             var subdirs = _subdirsCheck.Checked;
 
-            var leftMap = await Task.Run(() => BuildMap(left, subdirs));
-            var rightMap = await Task.Run(() => BuildMap(right, subdirs));
+            var leftMap = await BuildMapAsync(leftFs, left, subdirs).ConfigureAwait(true);
+            var rightMap = await BuildMapAsync(rightFs, right, subdirs).ConfigureAwait(true);
             if (IsDisposed || !IsHandleCreated) return;
 
             var paths = CombinePathKeys(leftMap, rightMap);
@@ -226,10 +249,10 @@ public class SyncDirsForm : ThemedForm
                 SyncStatus status;
                 if (l == null) { status = SyncStatus.RightOnly; rightOnly++; }
                 else if (r == null) { status = SyncStatus.LeftOnly; leftOnly++; }
-                else if (l.IsDir != r.IsDir) { status = SyncStatus.TypeDiffers; diff++; }
-                else if (l.IsDir) { status = SyncStatus.Equal; equal++; }
+                else if (l.IsDirectory != r.IsDirectory) { status = SyncStatus.TypeDiffers; diff++; }
+                else if (l.IsDirectory) { status = SyncStatus.Equal; equal++; }
                 else if (l.Size != r.Size) { status = SyncStatus.SizeDiffers; diff++; }
-                else if (!ignoreTime && l.Modified != r.Modified) { status = SyncStatus.TimeDiffers; diff++; }
+                else if (!ignoreTime && l.LastWriteTimeUtc != r.LastWriteTimeUtc) { status = SyncStatus.TimeDiffers; diff++; }
                 else { status = SyncStatus.Equal; equal++; }
 
                 var entry = new SyncEntry(path, l, r, status);
@@ -261,8 +284,8 @@ public class SyncDirsForm : ThemedForm
             Checked = entry.Status != SyncStatus.Equal
         };
         lvi.SubItems.Add(entry.RelativePath);
-        lvi.SubItems.Add(entry.Left is { IsDir: false } ? UiHelpers.FormatSize(entry.Left.Size) : "—");
-        lvi.SubItems.Add(entry.Right is { IsDir: false } ? UiHelpers.FormatSize(entry.Right.Size) : "—");
+        lvi.SubItems.Add(entry.Left is { IsDirectory: false } ? UiHelpers.FormatSize(entry.Left.Size) : "—");
+        lvi.SubItems.Add(entry.Right is { IsDirectory: false } ? UiHelpers.FormatSize(entry.Right.Size) : "—");
         lvi.SubItems.Add(StatusLabel(L, entry.Status));
         _diffList.Items.Add(lvi);
     }
@@ -305,9 +328,11 @@ public class SyncDirsForm : ThemedForm
     {
         var left = _leftBox.Text.Trim();
         var right = _rightBox.Text.Trim();
-        var queue = new List<(string source, string destination)>();
+        var queue = new List<FileEntry>();
         var destRoot = dir == SyncDirection.LeftToRight ? right : left;
         var sourceRoot = dir == SyncDirection.LeftToRight ? left : right;
+        var sourceFs = dir == SyncDirection.LeftToRight ? _leftFs : _rightFs;
+        var destFs = dir == SyncDirection.LeftToRight ? _rightFs : _leftFs;
 
         foreach (ListViewItem lvi in _diffList.Items)
         {
@@ -316,9 +341,11 @@ public class SyncDirsForm : ThemedForm
 
             if (!ShouldInclude(entry.Status, dir)) continue;
 
-            var source = Path.Combine(sourceRoot, entry.RelativePath);
-            var dest = Path.Combine(destRoot, entry.RelativePath);
-            queue.Add((source, dest));
+            // The source side is guaranteed non-null for every status ShouldInclude admits (only
+            // an entry missing entirely from the source - LeftOnly for RightToLeft, RightOnly for
+            // LeftToRight - would have a null source here, and ShouldInclude already excludes it).
+            var source = dir == SyncDirection.LeftToRight ? entry.Left : entry.Right;
+            if (source != null) queue.Add(source);
         }
 
         if (queue.Count == 0)
@@ -329,7 +356,7 @@ public class SyncDirsForm : ThemedForm
             return;
         }
 
-        CopyRequested?.Invoke(this, new SyncCopyRequest(dir, queue));
+        CopyRequested?.Invoke(this, new SyncCopyRequest(dir, sourceFs, destFs, sourceRoot, destRoot, queue));
         Close();
     }
 
@@ -342,44 +369,54 @@ public class SyncDirsForm : ThemedForm
     /// (whose own lookups ARE case-insensitive), so the same file ended up in the diff list -
     /// and counted in the summary - twice.</summary>
     private static IEnumerable<string> CombinePathKeys(
-        Dictionary<string, FileSnapshot> leftMap, Dictionary<string, FileSnapshot> rightMap) =>
+        Dictionary<string, FileEntry> leftMap, Dictionary<string, FileEntry> rightMap) =>
         leftMap.Keys.Union(rightMap.Keys, StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
 
-    private static Dictionary<string, FileSnapshot> BuildMap(string root, bool subdirs)
+    /// <summary>VFS equivalent of the old <c>DirectoryInfo</c>-based walk - works against local
+    /// disk, an archive, or a remote connection alike, since it only ever calls through
+    /// <paramref name="fs"/>. When <paramref name="subdirs"/> is false, only <paramref name="root"/>'s
+    /// own immediate files are listed (mirrors the original: subdirectories were never even pushed
+    /// onto the walk stack in that case).</summary>
+    private static async Task<Dictionary<string, FileEntry>> BuildMapAsync(IFileSystem fs, string root, bool subdirs)
     {
-        var map = new Dictionary<string, FileSnapshot>(StringComparer.OrdinalIgnoreCase);
-        var stack = new Stack<DirectoryInfo>();
-        stack.Push(new DirectoryInfo(root));
+        var map = new Dictionary<string, FileEntry>(StringComparer.OrdinalIgnoreCase);
+        var stack = new Stack<string>();
+        stack.Push(root);
 
         while (stack.Count > 0)
         {
             var dir = stack.Pop();
+            IReadOnlyList<FileEntry> children;
             try
             {
-                foreach (var sub in dir.EnumerateDirectories())
-                {
-                    if ((sub.Attributes & FileAttributes.Hidden) != 0) continue;
-                    if (!subdirs) continue;
-                    var rel = Path.GetRelativePath(root, sub.FullName);
-                    map[rel] = new FileSnapshot(sub.FullName, rel, true, 0, sub.LastWriteTimeUtc);
-                    // A junction/symlink can point back at an ancestor (e.g. a self-referencing
-                    // directory junction) - pushing it onto the stack unconditionally would walk
-                    // the same tree forever, growing map/stack without bound. List the reparse
-                    // point itself (above) but don't descend through it.
-                    if ((sub.Attributes & FileAttributes.ReparsePoint) == 0)
-                        stack.Push(sub);
-                }
-                foreach (var f in dir.EnumerateFiles())
-                {
-                    if ((f.Attributes & FileAttributes.Hidden) != 0) continue;
-                    var rel = Path.GetRelativePath(root, f.FullName);
-                    map[rel] = new FileSnapshot(f.FullName, rel, false, f.Length, f.LastWriteTimeUtc);
-                }
+                children = await fs.EnumerateAsync(dir, includeHidden: false).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                LogService.Warning($"SyncDirs: cannot enumerate {dir.FullName}: {ex.Message}");
+                LogService.Warning($"SyncDirs: cannot enumerate {dir}: {ex.Message}");
+                continue;
+            }
+
+            foreach (var entry in children)
+            {
+                var rel = VfsPath.GetRelative(root, entry.FullPath);
+                if (entry.IsDirectory)
+                {
+                    if (!subdirs) continue;
+                    map[rel] = entry;
+                    // A junction/symlink can point back at an ancestor (e.g. a self-referencing
+                    // directory junction) - pushing it onto the stack unconditionally would walk
+                    // the same tree forever, growing map/stack without bound. List the reparse
+                    // point itself (above) but don't descend through it. Archive/remote providers
+                    // never set ReparsePoint, so this only ever filters local disk.
+                    if ((entry.Attributes & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(entry.FullPath);
+                }
+                else
+                {
+                    map[rel] = entry;
+                }
             }
         }
 
@@ -392,22 +429,22 @@ public enum SyncStatus { Equal, SizeDiffers, TimeDiffers, TypeDiffers, LeftOnly,
 /// <summary>Indicates the direction of a copy operation requested by the user.</summary>
 public enum SyncDirection { LeftToRight, RightToLeft }
 
-/// <summary>Snapshot of a file or directory entry captured during directory comparison.</summary>
-/// <param name="FullPath">Absolute path on disk.</param>
-/// <param name="RelPath">Path relative to the comparison root.</param>
-/// <param name="IsDir"><c>true</c> if this entry is a directory.</param>
-/// <param name="Size">File size in bytes; zero for directories.</param>
-/// <param name="Modified">Last-write timestamp in UTC.</param>
-public sealed record FileSnapshot(string FullPath, string RelPath, bool IsDir, long Size, DateTime Modified);
-
-/// <summary>A single row in the sync-differences list, pairing the relative path with left/right snapshots and status.</summary>
+/// <summary>A single row in the sync-differences list, pairing the relative path with left/right
+/// <see cref="FileEntry"/> snapshots (from each side's own <see cref="IFileSystem"/>) and status.</summary>
 /// <param name="RelativePath">Path relative to the comparison root.</param>
-/// <param name="Left">Snapshot from the left directory, or <c>null</c> if absent.</param>
-/// <param name="Right">Snapshot from the right directory, or <c>null</c> if absent.</param>
+/// <param name="Left">Entry from the left directory, or <c>null</c> if absent.</param>
+/// <param name="Right">Entry from the right directory, or <c>null</c> if absent.</param>
 /// <param name="Status">Comparison result for this entry.</param>
-public sealed record SyncEntry(string RelativePath, FileSnapshot? Left, FileSnapshot? Right, SyncStatus Status);
+public sealed record SyncEntry(string RelativePath, FileEntry? Left, FileEntry? Right, SyncStatus Status);
 
-/// <summary>Event data for <see cref="SyncDirsForm.CopyRequested"/>, describing which files to copy and in which direction.</summary>
+/// <summary>Event data for <see cref="SyncDirsForm.CopyRequested"/>, describing which files to copy,
+/// in which direction, and on which file systems - a copy can cross from a local folder into an
+/// archive or a remote connection (or vice versa) exactly like an ordinary panel-to-panel copy.</summary>
 /// <param name="Direction">Copy direction (left-to-right or right-to-left).</param>
-/// <param name="Items">Ordered list of (source, destination) path pairs.</param>
-public sealed record SyncCopyRequest(SyncDirection Direction, List<(string Source, string Destination)> Items);
+/// <param name="SourceFs">File system the source side lives on.</param>
+/// <param name="DestFs">File system the destination side lives on.</param>
+/// <param name="SourceRoot">Root path of the source side (left or right, per <paramref name="Direction"/>).</param>
+/// <param name="DestRoot">Root path of the destination side.</param>
+/// <param name="Items">Checked entries to copy, each resolved relative to <paramref name="SourceRoot"/>/<paramref name="DestRoot"/> by the copy operation.</param>
+public sealed record SyncCopyRequest(
+    SyncDirection Direction, IFileSystem SourceFs, IFileSystem DestFs, string SourceRoot, string DestRoot, List<FileEntry> Items);

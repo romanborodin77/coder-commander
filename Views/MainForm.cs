@@ -1622,63 +1622,31 @@ public sealed class MainForm : Form
 
     private void OnSyncDirs(object? sender, (string leftPath, string rightPath) e)
     {
-        using var dlg = new SyncDirsForm(e.leftPath, e.rightPath);
+        using var dlg = new SyncDirsForm(e.leftPath, e.rightPath, _vm.LeftPanel.CurrentFileSystem, _vm.RightPanel.CurrentFileSystem);
         dlg.CopyRequested += (_, req) => IssueSyncCopy(req);
         if (dlg.ShowDialog(this) == DialogResult.OK) { /* copy requests handled via CopyRequested event */ }
     }
 
+    /// <summary>Routes a Sync Dirs copy through the same <see cref="CopyOperation"/> every other
+    /// copy in the app uses (queued, progress-tracked, VFS-aware) instead of a hand-rolled
+    /// <c>File.Copy</c>/<c>Directory</c> walk - what makes syncing into/out of an archive or a
+    /// remote connection actually work, and what makes a copy into a materialized archive lease
+    /// correctly mark that lease dirty (via <see cref="Operations.CopyOperation"/> writing through
+    /// the panel's own <c>DirtyTrackingFileSystem</c>-wrapped <see cref="IFileSystem"/>, not a
+    /// private bypass). <see cref="TransferOptions.Overwrite"/> is forced on, matching the old
+    /// unconditional <c>overwrite: true</c> - the sync list's checkboxes are the user's conflict
+    /// resolution, a second per-file prompt would be redundant.</summary>
     private void IssueSyncCopy(SyncCopyRequest req)
     {
-        foreach (var (source, dest) in req.Items)
-        {
-            try
-            {
-                if (File.Exists(source))
-                {
-                    var destDir = Path.GetDirectoryName(dest);
-                    if (!string.IsNullOrEmpty(destDir)) Directory.CreateDirectory(destDir);
-                    File.Copy(source, dest, overwrite: true);
-                }
-                else if (Directory.Exists(source))
-                {
-                    CopyDirectoryRecursive(source, dest);
-                }
-            }
-            catch (Exception ex)
-            {
-                LogService.Error($"SyncDirs copy failed: {source} -> {dest}: {ex.Message}", ex);
-            }
-        }
+        if (req.Items.Count == 0) return;
 
-        _ = _vm.LeftPanel.RefreshAsync();
-        _ = _vm.RightPanel.RefreshAsync();
-    }
-
-    private static void CopyDirectoryRecursive(string source, string dest)
-    {
-        // The SearchOption.AllDirectories shorthand has no way to skip reparse points, so this is
-        // spelled out as EnumerationOptions instead - see ReparsePointGuard. Without it, a junction
-        // inside the folder being synced pulled the linked target's files into the destination
-        // tree, materializing content that was never part of the source folder - confirmed with a
-        // real junction before this fix.
-        var options = new EnumerationOptions
-        {
-            IgnoreInaccessible = true,
-            RecurseSubdirectories = true,
-            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
-        };
-
-        Directory.CreateDirectory(dest);
-        foreach (var dir in Directory.EnumerateDirectories(source, "*", options))
-        {
-            var rel = Path.GetRelativePath(source, dir);
-            Directory.CreateDirectory(Path.Combine(dest, rel));
-        }
-        foreach (var file in Directory.EnumerateFiles(source, "*", options))
-        {
-            var rel = Path.GetRelativePath(source, file);
-            File.Copy(file, Path.Combine(dest, rel), overwrite: true);
-        }
+        // CA2000: ownership transfers to Operations.RunAsync, which disposes it on completion -
+        // same pattern as every other operation constructed directly by this window/MainViewModel.
+#pragma warning disable CA2000
+        var op = new CopyOperation(req.SourceFs, req.DestFs, req.Items, req.SourceRoot, req.DestRoot,
+            new TransferOptions { Overwrite = true });
+#pragma warning restore CA2000
+        _ = _vm.Operations.RunAsync(op, LocalizationService.Current.GetString("Op.DisplaySyncDirs", req.Items.Count));
     }
 
     /// <summary>
@@ -2045,7 +2013,7 @@ public sealed class MainForm : Form
             .ToList();
         var left = selected.Count > 0 ? selected[0].FullPath : null;
         var right = selected.Count > 1 ? selected[1].FullPath : null;
-        using var dlg = new DifferForm(left, right);
+        using var dlg = new DifferForm(left, right, _vm.ActivePanel.CurrentFileSystem);
         dlg.ShowDialog(this);
     }
 

@@ -1,3 +1,4 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.Globalization;
@@ -9,8 +10,8 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public class DifferForm : ThemedForm
 {
-    /// <summary>Above this (per file), <c>File.ReadAllLines</c> means loading the whole file into
-    /// memory - large enough to freeze the UI thread for seconds or throw
+    /// <summary>Above this (per file), reading the whole file into memory to diff it line-by-line
+    /// is large enough to freeze the UI thread for seconds or throw
     /// <see cref="OutOfMemoryException"/> comparing two multi-GB files. Same threshold
     /// <see cref="ViewerForm"/> uses for its own text mode.</summary>
     private const long LargeFileConfirmBytes = 16 * 1024 * 1024;
@@ -24,13 +25,25 @@ public class DifferForm : ThemedForm
     private readonly TextBox _leftPathBox;
     private readonly TextBox _rightPathBox;
 
+    // Each side starts on the file system the panel selection came from (so a file inside an
+    // archive or on an SFTP/FTP/WebDAV connection can actually be diffed), but Browse... only
+    // knows how to pick a real local file - picking one switches that side to LocalFileSystem
+    // independently of the other side, which is why these are two separate mutable fields rather
+    // than one shared "current file system" for the whole dialog.
+    private IFileSystem _leftFs;
+    private IFileSystem _rightFs;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DifferForm"/> class, optionally pre-filling both file paths.
     /// </summary>
     /// <param name="leftPath">Path to the left-side file, or <c>null</c> for an empty field.</param>
     /// <param name="rightPath">Path to the right-side file, or <c>null</c> for an empty field.</param>
-    public DifferForm(string? leftPath = null, string? rightPath = null)
+    /// <param name="fileSystem">File system both initial paths live on - normally the active
+    /// panel's <c>CurrentFileSystem</c>, since both selected files come from the same panel.</param>
+    public DifferForm(string? leftPath, string? rightPath, IFileSystem fileSystem)
     {
+        _leftFs = fileSystem;
+        _rightFs = fileSystem;
         var L = LocalizationService.Current;
         Text = L.GetString("Differ.Title");
         ClientSize = new Size(900, 616); // +16 to match the top bar's 72→88 growth below
@@ -66,7 +79,7 @@ public class DifferForm : ThemedForm
         topBar.Controls.Add(_leftPathBox, 1, 0);
         _leftBrowseBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
         _leftBrowseBtn.Dock = DockStyle.Fill;
-        _leftBrowseBtn.Click += (_, _) => Browse(_leftPathBox);
+        _leftBrowseBtn.Click += (_, _) => Browse(_leftPathBox, fs => _leftFs = fs);
         topBar.Controls.Add(_leftBrowseBtn, 2, 0);
 
         topBar.Controls.Add(UiHelpers.CreateLabel(L.GetString("Differ.Right")), 0, 1);
@@ -75,7 +88,7 @@ public class DifferForm : ThemedForm
         topBar.Controls.Add(_rightPathBox, 1, 1);
         _rightBrowseBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
         _rightBrowseBtn.Dock = DockStyle.Fill;
-        _rightBrowseBtn.Click += (_, _) => Browse(_rightPathBox);
+        _rightBrowseBtn.Click += (_, _) => Browse(_rightPathBox, fs => _rightFs = fs);
         topBar.Controls.Add(_rightBrowseBtn, 2, 1);
 
         // Split view
@@ -106,7 +119,7 @@ public class DifferForm : ThemedForm
 
         var compareBtn = ThemedForm.CreateThemedButton(L.GetString("Differ.Compare"), accent: true);
         compareBtn.Margin = new Padding(0);
-        compareBtn.Click += (_, _) => CompareFiles();
+        compareBtn.Click += (_, _) => _ = CompareFilesAsync();
 
         _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
         _closeBtn.Margin = new Padding(0, 0, 8, 0);
@@ -168,30 +181,45 @@ public class DifferForm : ThemedForm
         };
     }
 
-    private void Browse(TextBox box)
+    /// <summary>A native folder/file picker only ever browses the real local disk - picking a
+    /// file this way always switches that side to <see cref="LocalFileSystem"/>, independently of
+    /// whatever the side started on (a panel's archive or connection).</summary>
+    private static void Browse(TextBox box, Action<IFileSystem> setFs)
     {
         using var dlg = new OpenFileDialog
         {
             Filter = LocalizationService.Current.GetString("Differ.FilterAll")
         };
         if (dlg.ShowDialog() == DialogResult.OK)
+        {
             box.Text = dlg.FileName;
+            setFs(new LocalFileSystem());
+        }
     }
 
-    private void CompareFiles()
+    private async Task CompareFilesAsync()
     {
         var L = LocalizationService.Current;
         var left = _leftPathBox.Text.Trim();
         var right = _rightPathBox.Text.Trim();
+        var leftFs = _leftFs;
+        var rightFs = _rightFs;
 
-        if (string.IsNullOrEmpty(left) || !File.Exists(left) ||
-            string.IsNullOrEmpty(right) || !File.Exists(right))
+        if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right) ||
+            !await leftFs.ExistsAsync(left).ConfigureAwait(true) ||
+            !await rightFs.ExistsAsync(right).ConfigureAwait(true))
         {
-            _statusLabel.Text = L.GetString("Differ.FilesNotFound");
+            if (!IsDisposed && IsHandleCreated)
+                _statusLabel.Text = L.GetString("Differ.FilesNotFound");
             return;
         }
+        if (IsDisposed || !IsHandleCreated) return;
 
-        var largestSize = Math.Max(new FileInfo(left).Length, new FileInfo(right).Length);
+        var leftInfo = await leftFs.GetFileInfoAsync(left).ConfigureAwait(true);
+        var rightInfo = await rightFs.GetFileInfoAsync(right).ConfigureAwait(true);
+        if (IsDisposed || !IsHandleCreated) return;
+
+        var largestSize = Math.Max(leftInfo?.Size ?? 0, rightInfo?.Size ?? 0);
         if (largestSize > LargeFileConfirmBytes)
         {
             var confirmed = StyledMessageBox.Show(
@@ -202,9 +230,10 @@ public class DifferForm : ThemedForm
 
         try
         {
-            var leftLines = File.ReadAllLines(left);
-            var rightLines = File.ReadAllLines(right);
-            var maxLines = Math.Max(leftLines.Length, rightLines.Length);
+            var leftLines = await ReadAllLinesAsync(leftFs, left).ConfigureAwait(true);
+            var rightLines = await ReadAllLinesAsync(rightFs, right).ConfigureAwait(true);
+            if (IsDisposed || !IsHandleCreated) return;
+            var maxLines = Math.Max(leftLines.Count, rightLines.Count);
 
             int diffCount = 0;
             var sbLeft = new System.Text.StringBuilder();
@@ -212,8 +241,8 @@ public class DifferForm : ThemedForm
 
             for (int i = 0; i < maxLines; i++)
             {
-                var l = i < leftLines.Length ? leftLines[i] : "";
-                var r = i < rightLines.Length ? rightLines[i] : "";
+                var l = i < leftLines.Count ? leftLines[i] : "";
+                var r = i < rightLines.Count ? rightLines[i] : "";
                 var lineNum = (i + 1).ToString(CultureInfo.InvariantCulture).PadLeft(5);
 
                 if (string.Equals(l, r, StringComparison.Ordinal))
@@ -234,12 +263,28 @@ public class DifferForm : ThemedForm
             _leftBox.SelectionStart = 0;
             _rightBox.SelectionStart = 0;
 
-            _statusLabel.Text = L.GetString("Differ.Summary", leftLines.Length, rightLines.Length, diffCount);
+            _statusLabel.Text = L.GetString("Differ.Summary", leftLines.Count, rightLines.Count, diffCount);
         }
         catch (Exception ex)
         {
-            _statusLabel.Text = ex.Message;
+            if (!IsDisposed && IsHandleCreated)
+                _statusLabel.Text = ex.Message;
             LogService.Error("Differ compare failed", ex);
         }
+    }
+
+    /// <summary>Reads every line of <paramref name="path"/> through <paramref name="fs"/> - the
+    /// VFS equivalent of <c>File.ReadAllLines</c>, working for a file inside an archive or on a
+    /// remote connection the same way it does for a local one. Bounded by the same
+    /// <see cref="LargeFileConfirmBytes"/> confirmation the caller already gates on, so this never
+    /// buffers more than what the user explicitly agreed to load.</summary>
+    private static async Task<List<string>> ReadAllLinesAsync(IFileSystem fs, string path)
+    {
+        var lines = new List<string>();
+        using var stream = await fs.OpenReadAsync(path).ConfigureAwait(true);
+        using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+        while (await reader.ReadLineAsync().ConfigureAwait(true) is { } line)
+            lines.Add(line);
+        return lines;
     }
 }

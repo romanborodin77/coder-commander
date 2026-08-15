@@ -418,6 +418,7 @@ Op.DisplayDelete=Delete {0} item(s)
 Op.DisplayWipe=Wipe {0} item(s)
 Op.DisplayPack=Pack {0} item(s) to {1}
 Op.DisplayUnpack=Unpack {0} to {1}
+Op.DisplaySyncDirs=Sync {0} item(s)
 Common.Confirm=Confirm
 
 # ═══ Viewer ═══

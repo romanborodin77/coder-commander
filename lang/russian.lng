@@ -532,6 +532,7 @@ Op.DisplayDelete=Удаление: {0} файл(ов)
 Op.DisplayWipe=Стирание: {0} файл(ов)
 Op.DisplayPack=Упаковка {0} файл(ов) в {1}
 Op.DisplayUnpack=Распаковка {0} в {1}
+Op.DisplaySyncDirs=Синхронизация: {0} файл(ов)
 Edit.Toolbar.New=Создать
 Edit.Toolbar.Open=Открыть
 Edit.Toolbar.Save=Сохранить
