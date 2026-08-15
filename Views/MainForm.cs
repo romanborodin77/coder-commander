@@ -886,7 +886,7 @@ public sealed class MainForm : Form
 
     private void OpenBookmarks()
     {
-        using var dlg = new BookmarksForm();
+        using var dlg = new BookmarksForm(_vm.PathExistsAsync);
         dlg.BookmarkActivated += (_, path) => _ = _vm.ActivePanel.NavigateAsync(path);
         dlg.ShowDialog(this);
     }
@@ -936,7 +936,7 @@ public sealed class MainForm : Form
     private void OpenDirectoryTree()
     {
 #pragma warning disable CA2000
-        var dlg = new DirectoryTreeForm(_vm.ActivePanel.CurrentPath);
+        var dlg = new DirectoryTreeForm(_vm.ActivePanel.CurrentPath, _vm.ActivePanel.CurrentFileSystem);
 #pragma warning restore CA2000
         dlg.NavigateRequested += (_, path) => _ = _vm.ActivePanel.NavigateAsync(path);
         dlg.FormClosed += (_, _) => dlg.Dispose();

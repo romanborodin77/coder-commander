@@ -112,13 +112,19 @@ public class BookmarksForm : ThemedForm
     private readonly Button _addBtn;
     private readonly Button _removeBtn;
     private readonly Button _closeBtn;
+    private readonly Func<string, Task<bool>> _pathExists;
 
     /// <summary>Raised when a bookmark is double-clicked (navigate to it).</summary>
     public event EventHandler<string>? BookmarkActivated;
 
     /// <summary>Initializes the bookmarks dialog and loads persisted bookmarks.</summary>
-    public BookmarksForm()
+    /// <param name="pathExists">Validates a hand-typed bookmark path before it's saved - normally
+    /// <c>MainViewModel.PathExistsAsync</c>, which (unlike a bare <c>Directory.Exists</c>) also
+    /// accepts an archive or connection path, so a folder inside either can actually be
+    /// bookmarked.</param>
+    public BookmarksForm(Func<string, Task<bool>> pathExists)
     {
+        _pathExists = pathExists;
         var L = LocalizationService.Current;
         Text = L.GetString("Bookmark.Title");
         ClientSize = new Size(600, 400);
@@ -214,18 +220,29 @@ public class BookmarksForm : ThemedForm
         _listView.EndUpdate();
     }
 
-    /// <summary>Prompts for a name and path, then adds a new bookmark.</summary>
-    private void AddBookmark()
+    /// <summary>Prompts for a name and path, then adds a new bookmark. <c>async void</c> - the
+    /// established pattern this codebase uses for a UI event handler that needs to await (see
+    /// e.g. <c>MainForm.OnArchiveEntered</c>); the button's own <c>Click</c> handler already treats
+    /// this as fire-and-forget.</summary>
+    private async void AddBookmark()
     {
         var L = LocalizationService.Current;
         using var dlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkName"));
         if (dlg.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
         {
             using var pathDlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkPath"), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-            if (pathDlg.ShowDialog() == DialogResult.OK && Directory.Exists(pathDlg.Value))
+            if (pathDlg.ShowDialog() == DialogResult.OK)
             {
-                BookmarkStore.Instance.Add(dlg.Value, pathDlg.Value);
-                RefreshList();
+                var path = pathDlg.Value;
+                var name = dlg.Value;
+                // _pathExists (not a bare Directory.Exists) accepts an archive/connection path too -
+                // see the constructor's own doc comment. IsDisposed guards against the dialog having
+                // been closed while this await was in flight.
+                if (await _pathExists(path).ConfigureAwait(true) && !IsDisposed)
+                {
+                    BookmarkStore.Instance.Add(name, path);
+                    RefreshList();
+                }
             }
         }
     }

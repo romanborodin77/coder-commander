@@ -413,6 +413,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Whether an arbitrary (possibly hand-typed) path exists, resolved through
+    /// <see cref="ResolveFileSystem"/> - archive and connection paths included, not just plain
+    /// local ones. Public because <c>MainForm</c>'s <c>BookmarksForm.AddBookmark</c> validation
+    /// used to be a bare <c>Directory.Exists</c> call, which is never true for an
+    /// "archive.zip|inner/dir" or "sftp://host/dir"-shaped path - a user could never bookmark a
+    /// folder inside an archive or on a connection, the two path flavours this whole VFS layer
+    /// exists for. A connection that isn't currently open resolves to no filesystem at all
+    /// (<see cref="ResolveFileSystem"/> returns null) and is reported as not existing, rather than
+    /// throwing - the same "can't verify, so don't accept it" call
+    /// <c>MainViewModel.ExecuteTransfer</c> already makes for the same case.
+    /// </summary>
+    public async Task<bool> PathExistsAsync(string path)
+    {
+        var fs = ResolveFileSystem(path);
+        return fs != null && await fs.ExistsAsync(path).ConfigureAwait(true);
+    }
+
+    /// <summary>
     /// The filesystem an archive FILE itself lives on - never the archive's own internal VFS
     /// (contrast <see cref="ResolveFileSystem"/>, which for an archive path returns the browsable
     /// tree inside it). Almost always <see cref="FileSystem"/> (the local filesystem) today, since

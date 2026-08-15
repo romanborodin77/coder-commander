@@ -1,21 +1,33 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Directory tree navigation window with lazy-loading nodes.
+/// Directory tree navigation window with lazy-loading nodes. Reads through
+/// <see cref="IFileSystem"/> (not <c>System.IO</c> directly) - opened with
+/// <c>ActivePanel.CurrentPath</c>, which can legitimately be an archive or remote-connection path,
+/// this used to silently show an empty tree (or throw) the moment the active panel was browsing
+/// anything other than a real local drive: <c>Directory.Exists</c>/<c>Directory.GetDirectories</c>
+/// don't understand an archive's <c>archive.zip|inner/dir</c> syntax or a connection's
+/// <c>sftp://host/dir</c> syntax at all.
 /// </summary>
 public class DirectoryTreeForm : ThemedForm
 {
     private readonly TreeView _tree;
     private readonly Button _closeBtn;
+    private readonly IFileSystem _fs;
 
     /// <summary>Raised when a node is double-clicked (navigate to that folder).</summary>
     public event EventHandler<string>? NavigateRequested;
 
     /// <param name="rootPath">The root directory to start the tree from.</param>
-    public DirectoryTreeForm(string rootPath)
+    /// <param name="fs">The file system <paramref name="rootPath"/> (and everything under it)
+    /// lives on - normally the active panel's own <c>CurrentFileSystem</c>, so the tree matches
+    /// exactly what that panel is browsing, archive/connection included.</param>
+    public DirectoryTreeForm(string rootPath, IFileSystem fs)
     {
+        _fs = fs;
         var L = LocalizationService.Current;
         Text = L.GetString("DirTree.Title");
         ClientSize = new Size(480, 520);
@@ -56,14 +68,14 @@ public class DirectoryTreeForm : ThemedForm
         Controls.Add(bottomPanel);
 
         CancelButton = _closeBtn;
-        Load += (_, _) => PopulateRoot(rootPath);
+        Load += (_, _) => _ = PopulateRootAsync(rootPath);
     }
 
     /// <summary>Populates the tree with the root node and its immediate children.</summary>
-    private void PopulateRoot(string rootPath)
+    private async Task PopulateRootAsync(string rootPath)
     {
         _tree.Nodes.Clear();
-        var root = CreateNode(rootPath);
+        var root = await CreateNodeAsync(rootPath).ConfigureAwait(true);
         if (root != null)
         {
             _tree.Nodes.Add(root);
@@ -72,42 +84,44 @@ public class DirectoryTreeForm : ThemedForm
     }
 
     /// <summary>Creates a <see cref="TreeNode"/> for a directory path, with lazy-loaded children.</summary>
-    private static TreeNode? CreateNode(string path)
+    private async Task<TreeNode?> CreateNodeAsync(string path)
     {
-        if (!Directory.Exists(path)) return null;
-        var di = new DirectoryInfo(path);
-        var node = new TreeNode(di.Name == "" ? path : di.Name) { Tag = path };
-        LoadChildDirs(node, path);
+        if (!await _fs.ExistsAsync(path).ConfigureAwait(true)) return null;
+        var name = VfsPath.GetName(path);
+        var node = new TreeNode(string.IsNullOrEmpty(name) ? path : name) { Tag = path };
+        await LoadChildDirsAsync(node, path).ConfigureAwait(true);
         return node;
     }
 
-    /// <summary>Reconciles a node's children against disk (excluding hidden directories): adds
-    /// folders that are new, removes ones that no longer exist, and leaves nodes for folders that
-    /// still exist - along with any descendants the user had already expanded under them -
-    /// completely untouched. Deliberately not a Nodes.Clear()-and-rebuild: that reads identically
-    /// for a freshly-created, still-empty parent (the common case, from <see cref="CreateNode"/>),
-    /// but on a re-expand it would destroy the whole previously-expanded subtree underneath,
-    /// since <see cref="TreeNodeCollection.Clear"/> removes descendants along with their parent -
-    /// collapsing e.g. A\B\C\D back to just "A → B" on every re-expand of A.</summary>
-    private static void LoadChildDirs(TreeNode parent, string path)
+    /// <summary>Reconciles a node's children against the file system (excluding hidden
+    /// directories): adds folders that are new, removes ones that no longer exist, and leaves
+    /// nodes for folders that still exist - along with any descendants the user had already
+    /// expanded under them - completely untouched. Deliberately not a Nodes.Clear()-and-rebuild:
+    /// that reads identically for a freshly-created, still-empty parent (the common case, from
+    /// <see cref="CreateNodeAsync"/>), but on a re-expand it would destroy the whole
+    /// previously-expanded subtree underneath, since <see cref="TreeNodeCollection.Clear"/>
+    /// removes descendants along with their parent - collapsing e.g. A\B\C\D back to just
+    /// "A → B" on every re-expand of A.</summary>
+    private async Task LoadChildDirsAsync(TreeNode parent, string path)
     {
         try
         {
+            var entries = await _fs.EnumerateAsync(path, includeHidden: false, CancellationToken.None).ConfigureAwait(true);
+
             var onDisk = new List<(string Dir, string Name)>();
             var onDiskPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var dir in Directory.GetDirectories(path))
+            foreach (var entry in entries)
             {
-                var di = new DirectoryInfo(dir);
-                if ((di.Attributes & FileAttributes.Hidden) != 0) continue;
-                onDisk.Add((dir, di.Name));
-                onDiskPaths.Add(dir);
+                if (!entry.IsDirectory) continue;
+                onDisk.Add((entry.FullPath, entry.Name));
+                onDiskPaths.Add(entry.FullPath);
             }
 
             for (var i = parent.Nodes.Count - 1; i >= 0; i--)
             {
-                // Keep only nodes that still exist on disk. This also removes the dummy "..."
-                // placeholder (Tag is null, so it never matches the "still exists" check) - it
-                // must go too, or it would linger alongside the real children added below.
+                // Keep only nodes that still exist. This also removes the dummy "..." placeholder
+                // (Tag is null, so it never matches the "still exists" check) - it must go too, or
+                // it would linger alongside the real children added below.
                 if (parent.Nodes[i].Tag is string existingPath && onDiskPaths.Contains(existingPath))
                     continue;
                 parent.Nodes.RemoveAt(i);
@@ -137,12 +151,12 @@ public class DirectoryTreeForm : ThemedForm
     /// unconditionally means a folder created/deleted outside the app while this dialog is open
     /// shows up the next time its parent is re-expanded, instead of staying stuck on whatever was
     /// there the first time the node was ever opened for the rest of the dialog's lifetime -
-    /// without losing the user's already-expanded descendants (see <see cref="LoadChildDirs"/>).</summary>
-    private void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
+    /// without losing the user's already-expanded descendants (see <see cref="LoadChildDirsAsync"/>).</summary>
+    private async void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
     {
         if (e.Node?.Tag is string path)
         {
-            LoadChildDirs(e.Node, path);
+            await LoadChildDirsAsync(e.Node, path).ConfigureAwait(true);
         }
     }
 }
