@@ -26,6 +26,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     private FileSystem.Materialization.MaterializedFile? _archiveLease;
 
+    /// <summary>Serializes every attach/release of <see cref="_archiveLease"/> - without it, a
+    /// double-Enter on a slow archive (two <c>MainForm.EnterArchiveAsync</c> calls overlapping
+    /// while the first is still awaiting its own network download) could interleave two
+    /// <see cref="AttachArchiveLeaseAsync"/> calls: the first attaches lease A, starts releasing
+    /// it again on its way to nothing, the second's release sees a null lease and does nothing,
+    /// then both assign their own lease - whichever runs last wins the field, while the panel's
+    /// <c>DirtyTrackingFileSystem</c> wrapper (built once per <c>EnterArchiveAsync</c> call, before
+    /// either assignment) may end up marking dirty a lease that isn't the one actually attached,
+    /// and the other leaks until panel disposal. A lock, not just a simple reentrancy flag, so a
+    /// caller that legitimately needs to release-then-attach in sequence (the normal
+    /// <see cref="AttachArchiveLeaseAsync"/> path) still works - each of the two public methods
+    /// takes it once and calls the un-locked core, since re-entering a non-reentrant
+    /// <see cref="SemaphoreSlim"/> from the same call chain would deadlock.</summary>
+    private readonly SemaphoreSlim _archiveLeaseLock = new(1, 1);
+
     /// <summary>This panel's own materialize session - one per panel lifetime, not one per archive
     /// entered, so re-entering archives over a session doesn't accumulate empty session-root
     /// folders on disk (only <see cref="_archiveLease"/>'s own per-file subfolder is deleted when a
@@ -109,10 +124,46 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// immediately before assigning the wrapped <see cref="Archives.ArchiveFileSystem"/> to
     /// <see cref="CurrentFileSystem"/>.
     /// </summary>
+    /// <summary>
+    /// Marks this panel's attached archive lease dirty if its own local temp copy is exactly
+    /// <paramref name="containerLocalPath"/> - a no-op otherwise (no lease attached, or a
+    /// different one).
+    ///
+    /// <para><b>Why this exists.</b> A <c>PackOperation</c>/<c>UnpackOperation</c> targeting an
+    /// archive container that happens to already be materialized as this panel's lease (F5/F6
+    /// copying INTO the archive the panel is currently browsing, from the other panel) writes
+    /// through its own, entirely separate <c>MaterializedFile</c> instance and - for a native/local
+    /// path, which a materialized-then-browsed archive's temp copy always is - takes the
+    /// passthrough branch: <c>IArchiveWriter</c> opens <em>the same real file on disk</em> directly
+    /// via <c>System.IO</c>, never once calling back through the <see cref="IFileSystem"/> the
+    /// panel's own lease is wrapped in. So the bytes on disk are genuinely, correctly updated, but
+    /// this panel's own <c>_archiveLease.IsDirty</c> - a flag on a DIFFERENT <c>MaterializedFile</c>
+    /// object than the one the pack operation used - stays false, and
+    /// <see cref="ReleaseArchiveLeaseAsync"/> never offers to upload the (now up to date) local
+    /// file back to its remote origin when the panel later leaves the archive. Called by
+    /// <c>MainViewModel</c> after a pack/unpack into an archive path actually completes.</para>
+    /// </summary>
+    public void MarkArchiveLeaseDirtyIfMatches(string containerLocalPath)
+    {
+        if (_archiveLease != null &&
+            string.Equals(_archiveLease.LocalPath, containerLocalPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _archiveLease.MarkDirty();
+        }
+    }
+
     public async Task AttachArchiveLeaseAsync(FileSystem.Materialization.MaterializedFile lease, CancellationToken ct = default)
     {
-        await ReleaseArchiveLeaseAsync(ct).ConfigureAwait(true);
-        _archiveLease = lease;
+        await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true);
+        try
+        {
+            await ReleaseArchiveLeaseCoreAsync(ct).ConfigureAwait(true);
+            _archiveLease = lease;
+        }
+        finally
+        {
+            _archiveLeaseLock.Release();
+        }
     }
 
     /// <summary>
@@ -166,6 +217,24 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </para>
     /// </summary>
     public async Task ReleaseArchiveLeaseAsync(CancellationToken ct = default)
+    {
+        await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true);
+        try
+        {
+            await ReleaseArchiveLeaseCoreAsync(ct).ConfigureAwait(true);
+        }
+        finally
+        {
+            _archiveLeaseLock.Release();
+        }
+    }
+
+    /// <summary>Unlocked body shared by <see cref="ReleaseArchiveLeaseAsync"/> and
+    /// <see cref="AttachArchiveLeaseAsync"/> - <see cref="SemaphoreSlim"/> is not reentrant, so
+    /// <see cref="AttachArchiveLeaseAsync"/> (which already holds <see cref="_archiveLeaseLock"/>)
+    /// calls this directly instead of the public, lock-taking <see cref="ReleaseArchiveLeaseAsync"/>,
+    /// which would otherwise deadlock waiting on a lock its own caller is still holding.</summary>
+    private async Task ReleaseArchiveLeaseCoreAsync(CancellationToken ct)
     {
         var lease = _archiveLease;
         if (lease == null) return;
@@ -339,6 +408,24 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task NavigateAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
+
+        // Releases a held archive lease the moment the panel is about to show a path outside that
+        // archive - the single choke point every navigation source (drive button, bookmark,
+        // directory tree, typed path/Ctrl+G) already funnels through via this method. Before this,
+        // only GoToParentAsync's own "Up" exit-archive branch called ReleaseArchiveLeaseAsync
+        // explicitly; every other way of leaving a materialized archive silently discarded any
+        // edits without ever offering a write-back, because the lease was still attached when the
+        // panel's filesystem/path were swapped out from under it a few lines below. Comparing
+        // archive FILES (not full paths) means navigating between folders inside the SAME archive
+        // correctly does nothing here - only actually leaving it releases anything. A harmless
+        // no-op when GoToParentAsync already released it moments earlier (ReleaseArchiveLeaseAsync
+        // is itself a no-op once _archiveLease is null).
+        if (_archiveLease != null &&
+            (!FileSystem.VfsPath.IsArchive(path) ||
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
+        {
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+        }
 
         // The trailing separator is a Windows-path convention (it is what makes "C:" mean the root
         // of C: rather than the process's current directory on C:). Neither virtual flavour uses
@@ -935,6 +1022,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         try { cts?.Cancel(); } catch (ObjectDisposedException) { }
         cts?.Dispose();
         _refreshLock.Dispose();
+        _archiveLeaseLock.Dispose();
     }
 }
 

@@ -318,8 +318,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
             op = new PackOperation(sourceFs, entries, sourceBase, destArchiveFs, destArchive,
                 VfsPath.GetInner(destPath), options, removeSource: move);
+            // Not the shared Operations.RunAsync(op, ...) call at the bottom of this method - a
+            // pack into an archive needs the extra step of syncing an already-attached panel lease
+            // once the operation actually finishes, see RunPackAndSyncLeaseAsync's own doc comment.
+            _ = RunPackAndSyncLeaseAsync(op, $"{verb} {entries.Count} item(s) to {destPath}", destArchive);
+#pragma warning restore CA2000
+            return;
         }
-        else if (fromArchive)
+
+        // Re-disabled for the two remaining branches below - the intoArchive branch above already
+        // restored it (and returned) once its own op was safely handed off.
+#pragma warning disable CA2000
+        if (fromArchive)
         {
             var unpackDestFs = ResolveFileSystem(destPath);
             if (unpackDestFs is null)
@@ -364,6 +374,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         _ = Operations.RunAsync(op, $"{verb} {entries.Count} item(s) to {destPath}");
 #pragma warning restore CA2000
+    }
+
+    /// <summary>
+    /// Runs a <see cref="PackOperation"/> and, once it actually finishes, syncs either panel's
+    /// attached archive lease if that lease's own local temp copy is the exact container the pack
+    /// just wrote into - see <see cref="PanelViewModel.MarkArchiveLeaseDirtyIfMatches"/> for why a
+    /// plain <c>Operations.RunAsync</c> call alone (what every other operation uses) isn't enough
+    /// here: <c>PackOperation</c> writes through its own, separate <c>MaterializedFile</c>, whose
+    /// passthrough write bypasses the container <see cref="IFileSystem"/> interface entirely for a
+    /// local temp copy, so nothing already flowing through this call would ever notice.
+    /// </summary>
+    private async Task RunPackAndSyncLeaseAsync(IFileOperation op, string displayName, string destArchive)
+    {
+        await Operations.RunAsync(op, displayName).ConfigureAwait(true);
+        if (op.State != OperationState.Completed) return;
+
+        LeftPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
+        RightPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
     }
 
     /// <summary>
@@ -847,7 +875,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 #pragma warning disable CA2000
         var op = new PackOperation(ActivePanel.CurrentFileSystem, entries, ActivePanel.CurrentPath,
             archiveFs, archivePath, "", options, removeSource: move);
-        _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayPack", entries.Count, Path.GetFileName(archivePath)));
+        // See RunPackAndSyncLeaseAsync's own doc comment - the explicit Pack command needs the same
+        // lease-sync ExecuteTransfer's intoArchive branch does, for the same reason.
+        _ = RunPackAndSyncLeaseAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayPack", entries.Count, Path.GetFileName(archivePath)), archivePath);
 #pragma warning restore CA2000
     }
 

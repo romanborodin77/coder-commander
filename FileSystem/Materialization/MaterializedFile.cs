@@ -141,7 +141,18 @@ public sealed class MaterializedFile : IDisposable
 
     /// <summary>Marks the local copy as modified, so <see cref="WriteBackAsync"/> actually uploads
     /// it instead of no-op'ing. Idempotent - call it after every mutation, not just once.</summary>
-    public void MarkDirty() => IsDirty = true;
+    /// <exception cref="ObjectDisposedException">This instance was already released (its owning
+    /// panel left the archive, or the editor tab this was writing through has outlived the lease)
+    /// - see <see cref="Dispose"/>'s own note. A silent no-op here would make a save into an
+    /// already-torn-down archive look like it succeeded when nothing was actually kept; a loud,
+    /// specific exception at least tells the caller their edit did not make it anywhere, rather
+    /// than surfacing as a confusing FileNotFoundException from whatever the temp folder's deletion
+    /// happened to break next.</exception>
+    public void MarkDirty()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IsDirty = true;
+    }
 
     /// <summary>
     /// Uploads <see cref="LocalPath"/> back over <see cref="OriginPath"/>. No-op when
@@ -153,8 +164,11 @@ public sealed class MaterializedFile : IDisposable
     /// </summary>
     /// <exception cref="MaterializationConflictException">The origin changed on the server since
     /// <see cref="AcquireAsync"/>.</exception>
+    /// <exception cref="ObjectDisposedException">This instance was already released - see
+    /// <see cref="MarkDirty"/>'s own note on why this throws rather than silently no-op'ing.</exception>
     public async Task WriteBackAsync(CancellationToken ct)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (IsPassthrough || !IsDirty) return;
 
         if (!IsNew)
