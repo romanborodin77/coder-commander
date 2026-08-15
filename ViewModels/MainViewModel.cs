@@ -302,7 +302,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            op = new PackOperation(sourceFs, entries, sourceBase, destArchive,
+            var rejectKey = ValidatePackTargetFormat(destArchive);
+            if (rejectKey != null)
+            {
+                OperationRejected?.Invoke(this, rejectKey);
+                return;
+            }
+
+            var destArchiveFs = ResolveContainerFileSystem(destArchive);
+            if (destArchiveFs is null)
+            {
+                OperationRejected?.Invoke(this, "Conn.NotConnected");
+                return;
+            }
+
+            op = new PackOperation(sourceFs, entries, sourceBase, destArchiveFs, destArchive,
                 VfsPath.GetInner(destPath), options, removeSource: move);
         }
         else if (fromArchive)
@@ -314,7 +328,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            op = new UnpackOperation(sourceArchive, entries, VfsPath.GetInner(sourceBase),
+            var sourceArchiveFs = ResolveContainerFileSystem(sourceArchive);
+            if (sourceArchiveFs is null)
+            {
+                OperationRejected?.Invoke(this, "Conn.NotConnected");
+                return;
+            }
+
+            op = new UnpackOperation(sourceArchiveFs, sourceArchive, entries, VfsPath.GetInner(sourceBase),
                 unpackDestFs, destPath, options, removeSource: move);
         }
         else
@@ -364,6 +385,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// The filesystem an archive FILE itself lives on - never the archive's own internal VFS
+    /// (contrast <see cref="ResolveFileSystem"/>, which for an archive path returns the browsable
+    /// tree inside it). Almost always <see cref="FileSystem"/> (the local filesystem) today, since
+    /// nothing yet lets a panel browse an archive that lives on a remote connection or nested
+    /// inside another archive - both are refused up front elsewhere (<c>MainForm.EnterArchiveAsync</c>).
+    /// Resolving it properly here rather than assuming <see cref="FileSystem"/> is what makes
+    /// <see cref="PackOperation"/>/<see cref="UnpackOperation"/> correctly reject (via their own
+    /// <see cref="MaterializedFile"/> acquisition) an archive-container path that turns out not to
+    /// be reachable, instead of a caller silently handing them the wrong provider.
+    /// </summary>
+    private IFileSystem? ResolveContainerFileSystem(string archiveFilePath)
+    {
+        if (RemotePath.IsRemote(archiveFilePath))
+            return Services.ConnectionManager.Instance.GetConnectedForPath(archiveFilePath);
+        if (VfsPath.IsArchive(archiveFilePath))
+            return ResolveFileSystem(archiveFilePath);
+        return FileSystem;
+    }
+
+    /// <summary>
     /// Guards against transferring a plain (non-archive) selection onto itself: the destination
     /// folder is the same as the source folder, or is a subfolder of one of the selected directories.
     /// Without this check, copying/moving with both panels on the same path (or one being a
@@ -373,6 +414,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (RemotePath.IsRemote(sourceBase) || RemotePath.IsRemote(destPath))
             return IsRemoteDestinationInsideSource(sourceBase, destPath, entries);
+
+        if (VfsPath.IsArchive(sourceBase) || VfsPath.IsArchive(destPath))
+            return IsArchiveDestinationInsideSource(sourceBase, destPath, entries);
 
         string Normalize(string p) => Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
@@ -441,6 +485,36 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return false;
     }
 
+    /// <summary>
+    /// The same containment question between two archive-VFS paths (either or both sides inside a
+    /// <c>.zip</c>/<c>.tar</c>/...). Before this existed, two-archive containment fell through to
+    /// the local-path branch above and called <see cref="Path.GetFullPath"/> on a string containing
+    /// <c>|</c> - saved from crashing only by that branch's own <c>catch (ArgumentException)</c>,
+    /// which degrades to "not contained" rather than answering the question correctly. Two archives
+    /// with different host files can never contain each other, matching the local/remote helpers'
+    /// own "different root -> unrelated trees" rule.
+    /// </summary>
+    private static bool IsArchiveDestinationInsideSource(string sourceBase, string destPath, IReadOnlyList<FileEntry> entries)
+    {
+        if (!VfsPath.IsArchive(sourceBase) || !VfsPath.IsArchive(destPath)) return false;
+        if (!string.Equals(VfsPath.GetArchiveFile(sourceBase), VfsPath.GetArchiveFile(destPath), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.Equals(destPath, sourceBase, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        foreach (var entry in entries)
+        {
+            if (!entry.IsDirectory) continue;
+
+            if (string.Equals(destPath, entry.FullPath, StringComparison.OrdinalIgnoreCase) ||
+                VfsPath.IsDescendantOf(entry.FullPath, destPath))
+                return true;
+        }
+
+        return false;
+    }
+
     /// <summary>Deletes selected items, optionally using the Recycle Bin.</summary>
     public void Delete()
     {
@@ -488,9 +562,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var files = ActivePanel.GetSelectedOrActive();
         if (files.Count == 0) return;
 
-        if (ActivePanel.IsInsideArchive)
+        if (ActivePanel.IsVirtual)
         {
-            OperationRejected?.Invoke(this, "Archive.WipeUnsupported");
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.WipeUnsupported" : "Archive.WipeUnsupported");
             return;
         }
 
@@ -519,9 +594,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     public void CalculateFolderSize()
     {
-        if (ActivePanel.IsInsideArchive)
+        if (ActivePanel.IsVirtual)
         {
-            OperationRejected?.Invoke(this, "Archive.CalculateSizeUnsupported");
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.CalculateSizeUnsupported" : "Archive.CalculateSizeUnsupported");
             return;
         }
 
@@ -679,26 +755,64 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var files = ActivePanel.GetSelectedOrActive();
         if (files.Count == 0) return;
 
-        if (ActivePanel.IsInsideArchive)
+        if (ActivePanel.IsVirtual)
         {
-            OperationRejected?.Invoke(this, "Archive.PackUnsupported");
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.PackUnsupported" : "Archive.PackUnsupported");
             return;
         }
 
         // Use the opposite panel as the place for the new archive.
-        var suggestedDir = InactivePanel.IsInsideArchive ? ActivePanel.CurrentPath : InactivePanel.CurrentPath;
+        var suggestedDir = InactivePanel.IsVirtual ? ActivePanel.CurrentPath : InactivePanel.CurrentPath;
         PackRequested?.Invoke(this, (files, ActivePanel.CurrentPath, suggestedDir));
+    }
+
+    /// <summary>
+    /// Checked before any <see cref="PackOperation"/> starts, whether from the explicit Pack
+    /// command (<see cref="ExecutePack"/>) or from a plain copy/move whose destination panel is
+    /// browsing an archive (<see cref="ExecuteTransfer"/>'s <c>intoArchive</c> branch): without
+    /// this, writing into a read-only format (7z/RAR/TAR.XZ) only fails once <c>PackOperation</c>
+    /// has already read the archive's directory and reaches <c>format.OpenWrite</c> mid-operation,
+    /// as a raw <see cref="NotSupportedException"/> rather than a clear up-front rejection.
+    /// <see cref="PackDialogForm"/> already restricts its own format picker to
+    /// <see cref="ArchiveFormatRegistry.Creatable"/> for a brand-new archive, so this mainly closes
+    /// the "add to an existing read-only archive" path that dialog never gates.
+    /// Returns the localization key to reject with, or <c>null</c> when writing is possible.
+    /// </summary>
+    private static string? ValidatePackTargetFormat(string archivePath)
+    {
+        var format = ArchiveFormatRegistry.Detect(archivePath);
+        if (format == null) return "Archive.PackTargetUnsupported";
+        if (!format.Capabilities.HasFlag(ArchiveCapabilities.Create) &&
+            !format.Capabilities.HasFlag(ArchiveCapabilities.AddEntries))
+            return "Archive.PackTargetReadOnly";
+        return null;
     }
 
     /// <summary>Starts a pack once the UI has settled on an archive path.</summary>
     public void ExecutePack(IReadOnlyList<Models.FileSystemItem> files, string archivePath, TransferOptions options, bool move)
     {
         if (files.Count == 0) return;
+
+        var rejectKey = ValidatePackTargetFormat(archivePath);
+        if (rejectKey != null)
+        {
+            OperationRejected?.Invoke(this, rejectKey);
+            return;
+        }
+
+        var archiveFs = ResolveContainerFileSystem(archivePath);
+        if (archiveFs is null)
+        {
+            OperationRejected?.Invoke(this, "Conn.NotConnected");
+            return;
+        }
+
         var entries = files.Select(f => f.Entry).ToList();
         // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
 #pragma warning disable CA2000
         var op = new PackOperation(ActivePanel.CurrentFileSystem, entries, ActivePanel.CurrentPath,
-            archivePath, "", options, removeSource: move);
+            archiveFs, archivePath, "", options, removeSource: move);
         _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayPack", entries.Count, Path.GetFileName(archivePath)));
 #pragma warning restore CA2000
     }
@@ -712,7 +826,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         if (archives.Count == 0) return;
 
-        var suggestedDir = InactivePanel.IsInsideArchive ? ActivePanel.CurrentPath : InactivePanel.CurrentPath;
+        var suggestedDir = InactivePanel.IsVirtual ? ActivePanel.CurrentPath : InactivePanel.CurrentPath;
         UnpackRequested?.Invoke(this, (archives, suggestedDir));
     }
 
@@ -734,7 +848,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 #pragma warning disable CA2000
         foreach (var archive in archives)
         {
-            var op = new UnpackOperation(archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options);
+            var archiveFs = ResolveContainerFileSystem(archive.FullPath);
+            if (archiveFs is null)
+            {
+                OperationRejected?.Invoke(this, "Conn.NotConnected");
+                continue;
+            }
+
+            var op = new UnpackOperation(archiveFs, archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options);
             _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayUnpack", archive.Name, destPath));
         }
 #pragma warning restore CA2000

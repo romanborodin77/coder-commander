@@ -1,5 +1,6 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
+using CoderCommander.FileSystem.Materialization;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 
@@ -13,12 +14,22 @@ namespace CoderCommander.Operations;
 /// archive. Entries are addressed by their <see cref="ArchiveEntryRecord.Index"/>, so names that
 /// were stored in a legacy code page resolve to the very same bytes the panel displays.
 /// </para>
+/// <para>
+/// The archive CONTAINER also lives on an arbitrary <see cref="IFileSystem"/> (<see cref="_archiveFs"/>) -
+/// materialized via <see cref="MaterializedFile"/> at the start of <see cref="ExecuteCoreAsync"/>,
+/// the same identity-vs-IO split <see cref="PackOperation"/> uses: the materialized local path is
+/// what every <see cref="IArchiveFormat"/> call touches, while <see cref="_archivePath"/> stays the
+/// container's real identity for every user-facing/archive-inner path. Write-back only happens
+/// when <see cref="_removeSource"/> actually mutated the container (see
+/// <see cref="RemoveExtractedAsync"/>) - a plain extract never needs to touch the container again.
+/// </para>
 /// </summary>
 public sealed class UnpackOperation : FileOperation
 {
     public override OperationType Type => OperationType.Unpack;
     public override string Title => "Unpack";
 
+    private readonly IFileSystem _archiveFs;
     private readonly string _archivePath;
     private readonly IReadOnlyList<FileEntry> _items;
     private readonly string _innerBasePath;
@@ -38,10 +49,13 @@ public sealed class UnpackOperation : FileOperation
     private readonly List<string> _extractFailures = new();
 
     /// <summary>Creates an unpack operation that extracts entries from an archive.</summary>
+    /// <param name="archiveFs">The filesystem the archive FILE itself lives on - never the
+    /// archive's own internal VFS. <see cref="FileSystem.LocalFileSystem"/> for the common case.</param>
     /// <param name="items">Entries to extract; empty means the whole archive.</param>
     /// <param name="innerBasePath">Folder inside the archive the paths are relative to.</param>
     /// <param name="removeSource">Drop the extracted entries from the archive afterwards (move semantics).</param>
     public UnpackOperation(
+        IFileSystem archiveFs,
         string archivePath,
         IReadOnlyList<FileEntry> items,
         string innerBasePath,
@@ -50,6 +64,7 @@ public sealed class UnpackOperation : FileOperation
         TransferOptions? options = null,
         bool removeSource = false)
     {
+        _archiveFs = archiveFs;
         _archivePath = archivePath;
         _items = items;
         _innerBasePath = VfsPath.NormalizeInner(innerBasePath);
@@ -62,12 +77,17 @@ public sealed class UnpackOperation : FileOperation
     /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
-        var format = ArchiveFormatRegistry.Detect(_archivePath)
+        using var session = new TempSessionRoot("materialize");
+        using var container = await MaterializedFile.AcquireAsync(
+            _archiveFs, _archivePath, session, MaterializeOptions.ForArchiveRead, ct).ConfigureAwait(false);
+        var localArchivePath = container.LocalPath;
+
+        var format = ArchiveFormatRegistry.Detect(localArchivePath)
             ?? throw new NotSupportedException($"Unsupported archive format: {_archivePath}");
 
         var extracted = new List<ArchiveEntryRecord>();
 
-        using (var reader = format.OpenRead(_archivePath))
+        using (var reader = format.OpenRead(localArchivePath))
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
             // Audit Phase 5/6 (DEBUG.md §0, archive_fuzz): IsValid is false only when
@@ -124,7 +144,13 @@ public sealed class UnpackOperation : FileOperation
         }
 
         if (_removeSource && extracted.Count > 0)
-            await RemoveExtractedAsync(format, extracted, ct).ConfigureAwait(false);
+        {
+            await RemoveExtractedAsync(format, localArchivePath, extracted, ct).ConfigureAwait(false);
+            // AFTER the writer inside RemoveExtractedAsync has closed - uploading earlier would
+            // ship stale, pre-commit bytes. No-op for a passthrough (local) container.
+            container.MarkDirty();
+            await container.WriteBackAsync(ct).ConfigureAwait(false);
+        }
 
         // Extract everything that could be extracted (above) before reporting the failure,
         // rather than aborting the whole operation the instant one entry can't be written - but
@@ -368,11 +394,11 @@ public sealed class UnpackOperation : FileOperation
         return true;
     }
 
-    private async Task RemoveExtractedAsync(IArchiveFormat format, IReadOnlyList<ArchiveEntryRecord> extracted, CancellationToken ct)
+    private async Task RemoveExtractedAsync(IArchiveFormat format, string localArchivePath, IReadOnlyList<ArchiveEntryRecord> extracted, CancellationToken ct)
     {
         try
         {
-            await using (var writer = format.OpenWrite(_archivePath, new ArchiveWriteOptions()))
+            await using (var writer = format.OpenWrite(localArchivePath, new ArchiveWriteOptions()))
             {
                 foreach (var record in extracted.OrderByDescending(r => r.Index))
                     writer.TryDeleteEntry(record);

@@ -20,7 +20,10 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <inheritdoc/>
     /// <remarks>A virtual tree inside a single file: none of the OS-level side channels apply, and
     /// its paths (<c>archive.zip|inner/name</c>) are not valid OS paths at all.</remarks>
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+    /// <summary>ZIP always supports adding and deleting entries (unlike e.g. RAR/7z/TAR.XZ via
+    /// <c>Archives.ArchiveFileSystem</c>), so this declares both write-side flags unconditionally.
+    /// Still no <see cref="FileSystemCapabilities.NativePaths"/> - a ZIP is a purely virtual tree.</summary>
+    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
 
     /// <summary>Path to the underlying ZIP archive file on disk.</summary>
     public string ArchivePath => _archivePath;
@@ -770,6 +773,17 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 await ts.CopyToAsync(es, ct);
                 session.Commit();
                 Forget(dstArchive);
+            }
+            else if (RemotePath.IsRemote(destination))
+            {
+                // Same reasoning as ArchiveFileSystem.CopyFileAsync's identical guard: this type has
+                // no reference to the live connection a remote destination would need, and the
+                // operations layer never actually reaches this branch (Copy/MoveOperation transfer
+                // via the destination's own IFileSystem.CopyFromStreamAsync, never through here) -
+                // but without this check, a "sftp://host/x.txt" destination would silently be
+                // File.Copy'd as a literal local Windows path instead of failing.
+                throw new NotSupportedException(
+                    $"\"{destination}\" is a remote path; use the destination's own IFileSystem instead of ZipArchiveFileSystem.CopyFileAsync.");
             }
             else
             {

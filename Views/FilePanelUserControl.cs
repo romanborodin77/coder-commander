@@ -85,6 +85,13 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when Edit is requested from context menu.</summary>
     public event EventHandler<FileSystemItem?>? EditRequested;
 
+    /// <summary>Raised when View is requested from context menu - distinct from
+    /// <see cref="ItemActivated"/> (Enter/double-click, which falls through to ShellExecute for a
+    /// non-archive file): this must resolve through the VFS-aware F3 viewer the same way
+    /// <c>MainViewModel.ViewFileAsync</c> does, so "View" from the right-click menu works on a file
+    /// inside an archive or on a connection exactly like F3 does, not just on local disk.</summary>
+    public event EventHandler<FileSystemItem?>? ViewRequested;
+
     /// <summary>Raised when Copy is requested from context menu.</summary>
     public event EventHandler? CopyRequested;
 
@@ -567,7 +574,7 @@ public sealed class FilePanelUserControl : UserControl
             {
                 _ = _vm.NavigateAsync(item.FullPath);
             }
-            else if (HasNativePaths && ArchiveFormatRegistry.FromExtension(item.FullPath) != null)
+            else if (CanEnterAsArchive(item.FullPath))
             {
                 ArchiveEntered?.Invoke(this, item);
             }
@@ -577,6 +584,22 @@ public sealed class FilePanelUserControl : UserControl
             }
         }
     }
+
+    /// <summary>
+    /// Whether Enter/double-click on this item should try to browse it as an archive.
+    ///
+    /// <para>Not just <see cref="HasNativePaths"/> - a recognized archive file sitting directly on
+    /// a connection (FTP/SFTP/WebDAV) is enterable too, materialized to a local temp copy first
+    /// (see <c>MainForm.EnterArchiveAsync</c>). A nested archive - one already living inside
+    /// another archive - stays refused with zero extra logic here: once inside ANY archive
+    /// (materialized or not), the panel's own filesystem never declares <see cref="FileSystemCapabilities.NativePaths"/>
+    /// and every item's path is the local temp/real path <c>ArchivePath</c> built, which is never
+    /// <see cref="FileSystem.RemotePath.IsRemote"/> either - so both halves of this condition stay
+    /// false for a nested item exactly the way <see cref="HasNativePaths"/> alone already did before
+    /// remote archives existed.</para>
+    /// </summary>
+    private bool CanEnterAsArchive(string path) =>
+        (HasNativePaths || FileSystem.RemotePath.IsRemote(path)) && ArchiveFormatRegistry.FromExtension(path) != null;
 
     private void OnFileListKeyDown(object? sender, KeyEventArgs e)
     {
@@ -598,7 +621,7 @@ public sealed class FilePanelUserControl : UserControl
                 _ = _vm.GoToParentAsync();
             else if (enterItem.IsDirectory)
                 _ = _vm.NavigateAsync(enterItem.FullPath);
-            else if (HasNativePaths && ArchiveFormatRegistry.FromExtension(enterItem.FullPath) != null)
+            else if (CanEnterAsArchive(enterItem.FullPath))
                 ArchiveEntered?.Invoke(this, enterItem);
             else
                 ItemActivated?.Invoke(this, enterItem);
@@ -867,7 +890,7 @@ public sealed class FilePanelUserControl : UserControl
         };
 #pragma warning restore CA2000
 
-        CtxItem(menu, "Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ItemActivated?.Invoke(this, item); });
+        CtxItem(menu, "Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ViewRequested?.Invoke(this, item); });
         CtxItem(menu, "Ctx.Edit", "edit", () => { if (_vm.SelectedItem is { IsParent: false } item) EditRequested?.Invoke(this, item); });
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));

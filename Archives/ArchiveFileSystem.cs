@@ -35,10 +35,34 @@ public sealed class ArchiveFileSystem : IFileSystem
     public string Name => _format.Id.ToUpperInvariant();
 
     /// <inheritdoc/>
-    /// <remarks>Same as <see cref="FileSystem.ZipArchiveFileSystem"/> - a virtual tree inside one
-    /// file. This provider backs every format except ZIP, and it is precisely the provider the old
-    /// <c>is ZipArchiveFileSystem</c> guards failed to recognise.</remarks>
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.None;
+    /// <remarks>
+    /// Same as <see cref="FileSystem.ZipArchiveFileSystem"/> - a virtual tree inside one file, so
+    /// never <see cref="FileSystemCapabilities.NativePaths"/>. This provider backs every format
+    /// except ZIP, and it is precisely the provider the old <c>is ZipArchiveFileSystem</c> guards
+    /// failed to recognise.
+    ///
+    /// <para>Unlike ZIP, the write-side flags are NOT unconditional: they're derived from
+    /// <see cref="_format"/>'s own <see cref="ArchiveCapabilities"/>, because this is the one
+    /// provider whose format can genuinely be read-only (7z, RAR, TAR.XZ - see each format's own
+    /// <c>Capabilities</c>). This is what lets a caller (menu enablement, a pre-flight check before
+    /// Pack) ask "can I write here" once, up front, instead of discovering it from the
+    /// <see cref="NotSupportedException"/> that <see cref="DeleteAsync"/>/<see cref="CreateDirectoryAsync"/>/
+    /// <see cref="CopyFromStreamAsync"/> still throw as the fail-closed lower layer - the flags don't
+    /// replace those throws, they let most callers avoid reaching them.</para>
+    /// </remarks>
+    public FileSystemCapabilities Capabilities
+    {
+        get
+        {
+            var caps = FileSystemCapabilities.None;
+            if (_format.Capabilities.HasFlag(ArchiveCapabilities.Create) ||
+                _format.Capabilities.HasFlag(ArchiveCapabilities.AddEntries))
+                caps |= FileSystemCapabilities.Writable;
+            if (_format.Capabilities.HasFlag(ArchiveCapabilities.DeleteEntries))
+                caps |= FileSystemCapabilities.Deletable;
+            return caps;
+        }
+    }
 
     /// <summary>Invalidates the cached directory listing for the given archive path, forcing a fresh read on the next access.</summary>
     public static void Forget(string archivePath) => Cache.Forget(archivePath);
@@ -163,6 +187,20 @@ public sealed class ArchiveFileSystem : IFileSystem
             var destFs = ArchiveFormatRegistry.CreateFileSystem(destArchivePath)
                 ?? throw new NotSupportedException($"Unsupported archive format: {destArchivePath}");
             await destFs.CopyFromStreamAsync(destination, content, ct).ConfigureAwait(false);
+        }
+        else if (RemotePath.IsRemote(destination))
+        {
+            // Archives/ has no reference to FileSystem.Remote's ConnectionManager (nor should it -
+            // it doesn't know which live connection owns this path), so a remote destination here
+            // cannot be routed correctly. The operations layer never actually reaches this branch -
+            // Copy/MoveOperation always transfer via OpenReadAsync + destFs.CopyFromStreamAsync on
+            // the DESTINATION's own IFileSystem instance, never through this method - but failing
+            // loudly is what keeps that true: the previous code silently treated a
+            // "sftp://host/x.txt" destination as a literal local Windows path (Path.GetDirectoryName
+            // + new FileStream), which would have written a file with that exact string as its name
+            // into whatever the current working directory happened to be, rather than failing.
+            throw new NotSupportedException(
+                $"\"{destination}\" is a remote path; use the destination's own IFileSystem instead of ArchiveFileSystem.CopyFileAsync.");
         }
         else
         {

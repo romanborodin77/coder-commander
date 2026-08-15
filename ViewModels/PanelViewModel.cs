@@ -13,6 +13,25 @@ namespace CoderCommander.ViewModels;
 public sealed partial class PanelViewModel : ObservableObject, IDisposable
 {
     private IFileSystem _fs;
+
+    /// <summary>
+    /// The materialized temp copy backing this panel's current archive, when that archive's real
+    /// container isn't on this machine (see <c>Views.MainForm.EnterArchiveAsync</c>) - null while
+    /// browsing a local archive or anything else. Owned per-panel, not refcounted: two panels
+    /// entering the same remote archive independently download two temp copies. A shared,
+    /// refcounted cache would save the second download, but the lifetime bookkeeping it needs
+    /// (who releases it, and when, across two panels with independent navigation) is not worth it
+    /// for what is already a read-only, best-effort convenience - see
+    /// <see cref="ReleaseArchiveLease"/>/<see cref="AttachArchiveLease"/>.
+    /// </summary>
+    private FileSystem.Materialization.MaterializedFile? _archiveLease;
+
+    /// <summary>This panel's own materialize session - one per panel lifetime, not one per archive
+    /// entered, so re-entering archives over a session doesn't accumulate empty session-root
+    /// folders on disk (only <see cref="_archiveLease"/>'s own per-file subfolder is deleted when a
+    /// lease is released; the session root itself is cleaned up once, here, on panel disposal).</summary>
+    private readonly Services.TempSessionRoot _materializeSession = new("materialize");
+
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private CancellationTokenSource? _navCts;
     private readonly object _navLock = new();
@@ -60,8 +79,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// <c>true</c> when this panel is looking at a virtual tree rather than the real filesystem,
-    /// i.e. inside an archive of any format.
+    /// <c>true</c> when this panel is looking at a virtual tree rather than the real filesystem -
+    /// inside an archive of any format, OR on a remote connection (FTP/SFTP/WebDAV). Named
+    /// <c>IsVirtual</c>, not <c>IsInsideArchive</c> (its name until this comment) - the old name
+    /// promised something the property never actually tested: it answers true for a remote panel
+    /// too, and every one of its own callers relies on that (see below), so the name was simply
+    /// wrong, not the logic.
     ///
     /// Used to reject operations that have to reach around the provider to real paths - secure
     /// wipe, folder-size calculation, creating an archive. It used to be <c>_fs is
@@ -71,9 +94,52 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     ///
     /// Asking for the capability instead makes the answer correct for providers nobody has written
     /// yet, which is the whole point - a remote provider will have no native paths either, and the
-    /// same operations must be refused there for the same reason.
+    /// same operations must be refused there for the same reason. Every current caller (in
+    /// <c>MainViewModel</c>) picks between an <c>Archive.*</c> and a <c>Conn.*</c> rejection message
+    /// by separately testing <c>RemotePath.IsRemote(CurrentPath)</c>, so the user is told the actual
+    /// reason rather than "archive" on a remote panel.
     /// </summary>
-    public bool IsInsideArchive => !_fs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
+    public bool IsVirtual => !_fs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
+
+    /// <summary>
+    /// Takes ownership of a newly-materialized archive's temp copy, releasing whatever this panel
+    /// was previously holding first - re-entering a different remote archive (or the same one
+    /// again) must not leak the earlier download. Called by <c>MainForm.EnterArchiveAsync</c>
+    /// immediately before assigning the wrapped <see cref="Archives.ArchiveFileSystem"/> to
+    /// <see cref="CurrentFileSystem"/>.
+    /// </summary>
+    public void AttachArchiveLease(FileSystem.Materialization.MaterializedFile lease)
+    {
+        _archiveLease?.Dispose();
+        _archiveLease = lease;
+    }
+
+    /// <summary>Materializes <paramref name="path"/> from <paramref name="fs"/> into this panel's
+    /// own session - the temp-folder mechanics stay private to the panel; callers (<c>MainForm</c>)
+    /// only ever see the resulting <see cref="FileSystem.Materialization.MaterializedFile"/>. Used
+    /// both for entering a non-local archive (<c>EnterArchiveAsync</c>) and for launching a
+    /// non-local document in its external program (<c>OnItemActivated</c>).</summary>
+    public Task<FileSystem.Materialization.MaterializedFile> MaterializeAsync(
+        IFileSystem fs, string path, FileSystem.Materialization.MaterializeOptions options, CancellationToken ct) =>
+        FileSystem.Materialization.MaterializedFile.AcquireAsync(fs, path, _materializeSession, options, ct);
+
+    /// <summary>
+    /// Releases this panel's materialized archive temp copy, if it is holding one - a no-op
+    /// otherwise. Called whenever the panel stops showing that archive for good: exiting it
+    /// (<see cref="GoToParentAsync"/>'s exit-archive branch), entering a different one
+    /// (<see cref="AttachArchiveLease"/> calls this first), and panel disposal
+    /// (<see cref="Dispose"/>). Deliberately NOT called from <see cref="GoBackAsync"/>/
+    /// <see cref="GoForwardAsync"/> - history can still hold a reference to an already-materialized
+    /// archive's filesystem instance after this panel has moved on, and re-visiting it via Back/
+    /// Forward once the lease is gone is an accepted, read-only-safe limitation (browsing fails
+    /// with an ordinary navigation error, nothing is corrupted) rather than something worth a
+    /// refcounted lifetime to prevent - see <see cref="_archiveLease"/>'s own doc comment.
+    /// </summary>
+    public void ReleaseArchiveLease()
+    {
+        _archiveLease?.Dispose();
+        _archiveLease = null;
+    }
 
     /// <summary><c>true</c> when there is at least one entry on the back-navigation stack.</summary>
     public bool CanGoBack => _back.Count > 0;
@@ -375,6 +441,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (string.IsNullOrEmpty(innerPath))
             {
                 // Exit archive — switch back to local filesystem, navigate to archive's parent directory
+                ReleaseArchiveLease();
                 CurrentFileSystem = new LocalFileSystem();
                 var parentDir = Path.GetDirectoryName(archivePath);
                 if (!string.IsNullOrEmpty(parentDir))
@@ -782,6 +849,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.</summary>
     public void Dispose()
     {
+        ReleaseArchiveLease();
+        _materializeSession.Dispose();
         StopWatcher();
 
         if (_settingsSaveDebounce is { Enabled: true })

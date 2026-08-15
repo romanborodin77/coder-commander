@@ -54,9 +54,12 @@ internal static class Program
         ViewerFormatRegistry.Register(OfficeSheetViewerFormat.Instance);
         ViewerFormatRegistry.Register(OfficeSlidesViewerFormat.Instance);
 
-        // Best-effort cleanup of any viewer temp-session folder a previous run left behind (crash,
-        // kill -9, a killed UiTests host) - see ViewerTempSession.SweepOrphans's own doc comment.
+        // Best-effort cleanup of any viewer/materialize temp-session folder a previous run left
+        // behind (crash, kill -9, a killed UiTests host) - see ViewerTempSession.SweepOrphans's own
+        // doc comment; "materialize" is PanelViewModel's own per-panel session category (archives
+        // browsed/packed/unpacked from a non-local container).
         ViewerTempSession.SweepOrphans();
+        TempSessionRoot.SweepOrphans("materialize");
 
         LogCrash("=== App startup ===");
 

@@ -1,5 +1,6 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
+using CoderCommander.FileSystem.Materialization;
 using CoderCommander.Services;
 
 namespace CoderCommander.Operations;
@@ -12,6 +13,16 @@ namespace CoderCommander.Operations;
 /// Directories are expanded recursively and the archive is opened exactly once, which keeps the
 /// cost linear instead of rewriting the container for every file.
 /// </para>
+/// <para>
+/// The archive CONTAINER also lives on an arbitrary <see cref="IFileSystem"/> (<see cref="_archiveFs"/>) -
+/// <see cref="IArchiveFormat.OpenRead"/>/<see cref="IArchiveFormat.OpenWrite"/> only accept a real
+/// local path, so a non-local container is materialized via <see cref="MaterializedFile"/> at the
+/// start of <see cref="ExecuteCoreAsync"/> and written back once the writer has closed. Everywhere
+/// below that touches the file SYSTEM uses the materialized local path; everywhere that builds a
+/// user-facing or archive-inner path (conflict resolution, entry addressing) keeps using
+/// <see cref="_archivePath"/>, the container's real identity - the two must never be swapped, since
+/// <see cref="_archivePath"/> may not even be a path <c>System.IO</c> can resolve.
+/// </para>
 /// </summary>
 public sealed class PackOperation : FileOperation
 {
@@ -21,6 +32,7 @@ public sealed class PackOperation : FileOperation
     private readonly IFileSystem _sourceFs;
     private readonly IReadOnlyList<FileEntry> _files;
     private readonly string _sourceBasePath;
+    private readonly IFileSystem _archiveFs;
     private readonly string _archivePath;
     private readonly string _innerDestPath;
     private readonly TransferOptions _options;
@@ -32,12 +44,15 @@ public sealed class PackOperation : FileOperation
     private long _bytesTotal;
 
     /// <summary>Creates a pack operation that writes files into an archive.</summary>
+    /// <param name="archiveFs">The filesystem the archive FILE itself lives on - never the
+    /// archive's own internal VFS. <see cref="FileSystem.LocalFileSystem"/> for the common case.</param>
     /// <param name="innerDestPath">Folder inside the archive that receives the files; empty for the root.</param>
     /// <param name="removeSource">Delete the originals once everything is written (move semantics).</param>
     public PackOperation(
         IFileSystem sourceFs,
         IReadOnlyList<FileEntry> files,
         string sourceBasePath,
+        IFileSystem archiveFs,
         string archivePath,
         string innerDestPath = "",
         TransferOptions? options = null,
@@ -46,6 +61,7 @@ public sealed class PackOperation : FileOperation
         _sourceFs = sourceFs;
         _files = files;
         _sourceBasePath = sourceBasePath;
+        _archiveFs = archiveFs;
         _archivePath = archivePath;
         _innerDestPath = VfsPath.NormalizeInner(innerDestPath);
         _options = options ?? new TransferOptions();
@@ -74,11 +90,19 @@ public sealed class PackOperation : FileOperation
         _filesTotal = plan.Count;
         _bytesTotal = plan.Where(i => !i.IsDirectory && i.Source != null).Sum(i => i.Source!.Size);
 
-        var format = ArchiveFormatRegistry.Detect(_archivePath)
+        // Materialized AFTER confirming there's work to do (above), not before - a no-op pack
+        // (empty plan) never touches the network for a non-local container. Passthrough (the
+        // common, local case) copies nothing at all - see MaterializedFile's own doc comment.
+        using var session = new TempSessionRoot("materialize");
+        using var container = await MaterializedFile.AcquireAsync(
+            _archiveFs, _archivePath, session, MaterializeOptions.ForArchiveWrite, ct).ConfigureAwait(false);
+        var localArchivePath = container.LocalPath;
+
+        var format = ArchiveFormatRegistry.Detect(localArchivePath)
             ?? throw new NotSupportedException($"Unsupported archive format: {_archivePath}");
 
         IReadOnlyDictionary<string, ArchiveEntryRecord> existing;
-        using (var reader = format.OpenRead(_archivePath))
+        using (var reader = format.OpenRead(localArchivePath))
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
             existing = directory.Entries
@@ -89,7 +113,7 @@ public sealed class PackOperation : FileOperation
         var written = 0;
         var writtenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        await using (var writer = format.OpenWrite(_archivePath, new ArchiveWriteOptions { PlannedEntryNames = plan.Select(i => i.EntryName).ToList() }))
+        await using (var writer = format.OpenWrite(localArchivePath, new ArchiveWriteOptions { PlannedEntryNames = plan.Select(i => i.EntryName).ToList() }))
         {
             foreach (var item in plan)
             {
@@ -116,6 +140,11 @@ public sealed class PackOperation : FileOperation
 
             await writer.CommitAsync(ct).ConfigureAwait(false);
         }
+
+        // AFTER the writer above has closed - uploading while it's still open would ship stale,
+        // pre-commit bytes. No-op for a passthrough (local) container.
+        container.MarkDirty();
+        await container.WriteBackAsync(ct).ConfigureAwait(false);
 
         if (_removeSource && written > 0)
             await RemoveSourcesAsync(plan, writtenPaths, ct).ConfigureAwait(false);
@@ -289,9 +318,22 @@ public sealed class PackOperation : FileOperation
                 // used to silently exclude such a file from this folder's own descendant check,
                 // so "every descendant was written" could come back true while that file - never
                 // written to the archive - still got swept up by the recursive delete below.
-                var folderPrefix = file.FullPath + Path.DirectorySeparatorChar;
+                //
+                // VfsPath.IsDescendantOf, not a bare Path.DirectorySeparatorChar prefix test: a
+                // remote or archive source path never contains '\', so the old prefix test always
+                // found zero descendants for a non-local folder, and .All() on an empty sequence is
+                // vacuously true - the recursive delete below then fired unconditionally, deleting
+                // the whole source folder from the server regardless of what actually made it into
+                // the archive. descendantFiles.Count == 0 no longer means "nothing to check", it
+                // means "this folder has no files in the plan at all" - see the emptiness guard below.
                 var descendantFiles = plan.Where(p => !p.IsDirectory && p.Source != null &&
-                    p.Source!.FullPath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
+                    VfsPath.IsDescendantOf(file.FullPath, p.Source!.FullPath)).ToList();
+                // .All() on an empty descendantFiles is true - and correctly so now that the filter
+                // above is VFS-aware: an empty list here genuinely means "this folder has no file
+                // descendants in the plan" (an empty directory, or one containing only further empty
+                // subdirectories), not "the filter couldn't find any" the way the old
+                // Path.DirectorySeparatorChar prefix test silently mismatched for every remote/
+                // archive path regardless of how many descendants actually existed.
                 var allWritten = descendantFiles.All(d => writtenPaths.Contains(d.Source!.FullPath));
 
                 if (allWritten)
