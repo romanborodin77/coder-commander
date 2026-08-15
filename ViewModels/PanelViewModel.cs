@@ -56,6 +56,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     [ObservableProperty] private FileSystemItem? _selectedItem;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private bool _showHidden;
+    [ObservableProperty] private bool _showSystem;
     [ObservableProperty] private bool _isFlatView;
     [ObservableProperty] private string _filter = "";
     [ObservableProperty] private string _sortColumn = "Name";
@@ -223,6 +224,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         _fs = fs;
         var s = SettingsService.Load();
         ShowHidden = s.ShowHidden;
+        ShowSystem = s.ShowSystem;
         IsFlatView = s.FlatView;
         _sortColumn = s.SortColumn;
         _sortDescending = s.SortDescending;
@@ -247,6 +249,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     }
 
     partial void OnShowHiddenChanged(bool value)
+    {
+        _ = RefreshAsync();
+    }
+
+    partial void OnShowSystemChanged(bool value)
     {
         _ = RefreshAsync();
     }
@@ -584,6 +591,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
             foreach (var e in entries)
             {
+                // AppSettings.ShowSystem was, until this fix, persisted and read back but never
+                // actually consulted anywhere - the same "declared, never enforced" defect class as
+                // the old VtLimits.MaxPasteBytes finding. IFileSystem.EnumerateAsync only takes an
+                // includeHidden flag (System is a separate, independent FileAttributes bit a file
+                // can carry with or without Hidden - e.g. desktop.ini is System but not Hidden), so
+                // System filtering happens client-side here rather than by widening the interface
+                // every provider implements. Directories are never filtered by this flag even when
+                // marked System - unlike Hidden, a System directory (e.g. a mount point placeholder)
+                // is still something the user may need to navigate into.
+                if (!ShowSystem && e.IsSystem && !e.IsDirectory) continue;
+
                 var item = IsFlatView
                     // VfsPath, not Path: in flat view over an archive or a connection, the two
                     // paths are not Windows paths and GetRelativePath would resolve them against

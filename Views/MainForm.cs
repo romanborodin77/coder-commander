@@ -593,7 +593,14 @@ public sealed class MainForm : Form
         // alone would miss an archive panel; the capability flag is the one check that is correct
         // for both, matching FileSystemCapabilities.NativePaths's own doc comment.
         var isNative = originFs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
-        var isExecutable = ExecutableExtensions.Contains(FileEntry.GetExtension(item.FullPath));
+        // TrimEnd('.', ' ') before extracting the extension: Win32 silently strips a trailing dot
+        // or space when it materializes a file on disk (the same fact RemotePath.IsSafeEntryName
+        // rejects names for), so an entry named "invoice.exe." or "invoice.exe " reports extension
+        // ".exe." / ".exe " here - neither matches ExecutableExtensions - yet becomes a real
+        // "invoice.exe" the moment MaterializedFile.AcquireAsync creates the local temp copy below,
+        // running unconfirmed. Trimming first closes that gap without changing FileEntry.GetExtension
+        // itself, which many unrelated call sites rely on to report the exact on-disk extension.
+        var isExecutable = ExecutableExtensions.Contains(FileEntry.GetExtension(item.Name.TrimEnd('.', ' ')));
 
         // Security decision, not a missing feature: an executable reached via a connection or an
         // archive is refused outright, never confirmed - downloading an unknown .exe from wherever
@@ -866,6 +873,8 @@ public sealed class MainForm : Form
             var s = SettingsService.Load();
             _vm.LeftPanel.ShowHidden = s.ShowHidden;
             _vm.RightPanel.ShowHidden = s.ShowHidden;
+            _vm.LeftPanel.ShowSystem = s.ShowSystem;
+            _vm.RightPanel.ShowSystem = s.ShowSystem;
             _vm.LeftPanel.IsFlatView = s.FlatView;
             _vm.RightPanel.IsFlatView = s.FlatView;
             _leftPanel.RefreshFromViewModel();
@@ -1438,7 +1447,7 @@ public sealed class MainForm : Form
         return Path.GetFileName(candidate);
     }
 
-    private void OnMakeDir(object? sender, string path)
+    private async void OnMakeDir(object? sender, string path)
     {
         var L = LocalizationService.Current;
         using var dlg = new InputDialogForm(L.GetString("Input.CreateDir"), L.GetString("Input.CreateDirPrompt"));
@@ -1446,7 +1455,16 @@ public sealed class MainForm : Form
         {
             try
             {
-                Directory.CreateDirectory(Path.Combine(path, dlg.Value));
+                // Through the active panel's own IFileSystem + VfsPath.Combine, not
+                // Directory.CreateDirectory(Path.Combine(...)) - the previous System.IO-only
+                // implementation was the one command MainViewModel.MakeDir's own Writable capability
+                // gate could enable (a writable archive or connection) that then still failed here:
+                // System.IO.Path.Combine on a "archive.zip|inner/dir" or "sftp://host/dir" path
+                // either throws on the illegal '|'/':' or silently resolves against the process's
+                // own working directory, and Directory.CreateDirectory would create a REAL local
+                // folder with that garbled name instead of the intended virtual one.
+                var fs = _vm.ActivePanel.CurrentFileSystem;
+                await fs.CreateDirectoryAsync(VfsPath.Combine(path, dlg.Value));
                 _ = _vm.ActivePanel.RefreshAsync();
             }
             catch (Exception ex)
@@ -1456,7 +1474,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OnRename(object? sender, FileSystemItem item)
+    private async void OnRename(object? sender, FileSystemItem item)
     {
         var L = LocalizationService.Current;
         using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), item.Name);
@@ -1464,12 +1482,15 @@ public sealed class MainForm : Form
         {
             try
             {
-                var dir = Path.GetDirectoryName(item.FullPath) ?? "";
-                var newPath = Path.Combine(dir, dlg.Value);
-                if (item.IsDirectory)
-                    Directory.Move(item.FullPath, newPath);
-                else
-                    File.Move(item.FullPath, newPath);
+                // VfsPath.ChangeName (not Path.GetDirectoryName + File.Move/Directory.Move) is the
+                // same fix as MakeDir above, plus it's the one choke point that validates the typed
+                // name against RemotePath.IsSafeEntryName - blocking a path separator, an ADS colon,
+                // a reserved DOS device name, or a display-spoofing character before it ever reaches
+                // the provider, the same protection Copy/Move/Pack/Unpack's overwrite-rename flow
+                // already gets (see F007/F020 in the audit history) but this command never did.
+                var fs = _vm.ActivePanel.CurrentFileSystem;
+                var newPath = VfsPath.ChangeName(item.FullPath, dlg.Value);
+                await fs.MoveAsync(item.FullPath, newPath, overwrite: false);
                 _ = _vm.ActivePanel.RefreshAsync();
             }
             catch (Exception ex)
@@ -2160,6 +2181,7 @@ public sealed class MainForm : Form
         s.LeftPath = _vm.LeftPanel.CurrentPath;
         s.RightPath = _vm.RightPanel.CurrentPath;
         s.ShowHidden = _vm.LeftPanel.ShowHidden;
+        s.ShowSystem = _vm.LeftPanel.ShowSystem;
         s.FlatView = _vm.LeftPanel.IsFlatView;
 
         s.TerminalVisible = _terminalVisible;

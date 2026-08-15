@@ -536,6 +536,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ExecuteDelete(IReadOnlyList<Models.FileSystemItem> files)
     {
         var fs = ActivePanel.CurrentFileSystem;
+
+        // Gate on Deletable *before* the operation starts, not via a caught NotSupportedException
+        // mid-operation (F8 inside a 7z/RAR/TAR.XZ archive - the read-only formats
+        // FileSystemCapabilities computes None for - used to reach DeleteOperation, fail on its
+        // first entry, and surface a raw exception dialog instead of never having been reachable).
+        // This is the same "capability, not a caught exception" gate FileSystemCapabilities.Writable's
+        // own doc comment describes for Pack/paste/MakeDir - Delete was the one command that still
+        // relied on the operation itself to notice.
+        if (!fs.Capabilities.HasFlag(FileSystemCapabilities.Deletable))
+        {
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.DeleteUnsupported" : "Archive.DeleteUnsupported");
+            return;
+        }
+
         var entries = files.Select(f => f.Entry).ToList();
         // The shell Recycle Bin only understands real paths.
         // CA2000: ownership transfers to Operations.RunAsync, which disposes it on completion -
@@ -656,17 +671,36 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         return total;
     }
-    /// <summary>Raises <see cref="MakeDirRequested"/> so the UI can prompt for a new directory name.</summary>
+    /// <summary>Raises <see cref="MakeDirRequested"/> so the UI can prompt for a new directory name -
+    /// unless the active panel's provider can't accept new content at all (a read-only archive
+    /// format: 7z/RAR/TAR.XZ), in which case the request never reaches the UI and the user sees why
+    /// instead of a dialog for a name that will fail to create.</summary>
     public void MakeDir()
     {
+        if (!ActivePanel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.Writable))
+        {
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.MakeDirUnsupported" : "Archive.MakeDirUnsupported");
+            return;
+        }
         MakeDirRequested?.Invoke(this, ActivePanel.CurrentPath);
     }
 
-    /// <summary>Raises <see cref="RenameRequested"/> for the currently selected item.</summary>
+    /// <summary>Raises <see cref="RenameRequested"/> for the currently selected item - gated the
+    /// same way <see cref="MakeDir"/> is, since a rename is implemented as a
+    /// <see cref="IFileSystem.MoveAsync"/> within the same provider and needs the same write
+    /// capability a read-only archive format lacks.</summary>
     public void Rename()
     {
-        if (ActivePanel.SelectedItem != null && !ActivePanel.SelectedItem.IsParent)
-            RenameRequested?.Invoke(this, ActivePanel.SelectedItem);
+        if (ActivePanel.SelectedItem == null || ActivePanel.SelectedItem.IsParent) return;
+
+        if (!ActivePanel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.Writable))
+        {
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.RenameUnsupported" : "Archive.RenameUnsupported");
+            return;
+        }
+        RenameRequested?.Invoke(this, ActivePanel.SelectedItem);
     }
 
     /// <summary>Raises <see cref="ViewRequested"/> for the selected non-directory item.</summary>

@@ -375,6 +375,7 @@ public sealed class LocalizationService
         _strings["Settings.Theme.Light"] = "Light";
         _strings["Settings.Language"] = "Language:";
         _strings["Settings.ShowHidden"] = "Show hidden files";
+        _strings["Settings.ShowSystem"] = "Show system files";
         _strings["Settings.ShowToolbar"] = "Show toolbar";
         _strings["Settings.ShowStatusBar"] = "Show status bar";
         _strings["Settings.ShowCommandLine"] = "Show command line";
@@ -430,6 +431,9 @@ public sealed class LocalizationService
         _strings["Conn.WipeUnsupported"] = "Secure wipe requires direct disk access and is not available on a connection. Use Delete instead.";
         _strings["Conn.CalculateSizeUnsupported"] = "Folder size calculation is not available on a connection.";
         _strings["Conn.PackUnsupported"] = "Packing is not available for files on a connection yet. Copy them to a local folder first.";
+        _strings["Conn.DeleteUnsupported"] = "This connection does not support deleting.";
+        _strings["Conn.MakeDirUnsupported"] = "This connection does not support creating folders.";
+        _strings["Conn.RenameUnsupported"] = "This connection does not support renaming.";
         _strings["Conn.State.Disconnected"] = "not connected";
         _strings["Conn.State.Connecting"] = "connecting…";
         _strings["Conn.State.Connected"] = "connected";
@@ -739,6 +743,9 @@ public sealed class LocalizationService
         _strings["Archive.WipeUnsupported"] = "Secure wipe is not available for archive entries. Use Delete instead.";
         _strings["Archive.CalculateSizeUnsupported"] = "Folder size calculation is not available for archive entries.";
         _strings["Archive.PackUnsupported"] = "Packing is not available for archive entries. Unpack the files first.";
+        _strings["Archive.DeleteUnsupported"] = "This archive format is read-only and does not support deleting.";
+        _strings["Archive.MakeDirUnsupported"] = "This archive format is read-only and does not support creating folders.";
+        _strings["Archive.RenameUnsupported"] = "This archive format is read-only and does not support renaming.";
         _strings["Archive.NestedUnsupported"] = "Archives inside archives cannot be opened directly. Unpack \"{0}\" first.";
         _strings["Archive.PackTargetReadOnly"] = "This archive format is read-only and cannot be modified.";
         _strings["Archive.PackTargetUnsupported"] = "This archive's format is not supported for writing.";

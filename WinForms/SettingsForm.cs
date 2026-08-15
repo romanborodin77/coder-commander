@@ -13,6 +13,7 @@ public class SettingsForm : ThemedForm
     private readonly ThemedComboBox _themeCombo;
     private readonly ThemedComboBox _languageCombo;
     private readonly ThemedCheckBox _showHiddenCheck;
+    private readonly ThemedCheckBox _showSystemCheck;
     private readonly ThemedCheckBox _showToolbarCheck;
     private readonly ThemedCheckBox _showStatusBarCheck;
     private readonly ThemedCheckBox _showFnButtonsCheck;
@@ -99,6 +100,12 @@ public class SettingsForm : ThemedForm
         _showHiddenCheck.Dock = DockStyle.Fill;
         appearLayout.Controls.Add(_showHiddenCheck, 0, row);
         appearLayout.SetColumnSpan(_showHiddenCheck, 2);
+        row++;
+
+        _showSystemCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowSystem"), s.ShowSystem);
+        _showSystemCheck.Dock = DockStyle.Fill;
+        appearLayout.Controls.Add(_showSystemCheck, 0, row);
+        appearLayout.SetColumnSpan(_showSystemCheck, 2);
         row++;
 
         _showToolbarCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowToolbar"), s.ShowToolbar);
@@ -414,6 +421,7 @@ public class SettingsForm : ThemedForm
             langCode = langText[(openParen + 1)..closeParen];
         s.Language = langCode;
         s.ShowHidden = _showHiddenCheck.Checked;
+        s.ShowSystem = _showSystemCheck.Checked;
         s.ShowToolbar = _showToolbarCheck.Checked;
         s.ShowStatusBar = _showStatusBarCheck.Checked;
         s.ShowFunctionButtons = _showFnButtonsCheck.Checked;
