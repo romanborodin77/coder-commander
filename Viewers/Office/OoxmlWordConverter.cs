@@ -58,6 +58,17 @@ internal static class OoxmlWordConverter
         return writer.Build();
     }
 
+    /// <summary>Schemes a rendered <c>&lt;a href&gt;</c> is allowed to carry. HTML-escaping (already
+    /// applied via <see cref="WebUtility.HtmlEncode"/>) prevents attribute breakout, but says
+    /// nothing about the scheme itself - an untrusted document could otherwise get
+    /// <c>javascript:</c>/<c>vbscript:</c>/<c>data:text/html</c> rendered as a clickable link.
+    /// Anything outside this list is still shown, just as plain text rather than a link.</summary>
+    private static bool IsSafeLinkScheme(string href) =>
+        href.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith('#');
+
     private static async Task RenderParagraphAsync(XElement p, OfficePackage pkg, Dictionary<string, string> rels,
         OfficeHtmlWriter writer, bool isListItem, CancellationToken ct)
     {
@@ -65,7 +76,7 @@ internal static class OoxmlWordConverter
         var tag = isListItem ? "li" : HeadingTag(styleId);
 
         writer.Raw($"<{tag}>");
-        await RenderInlineContentAsync(p.Elements(), pkg, rels, writer, ct).ConfigureAwait(false);
+        await RenderInlineContentAsync(p.Elements(), pkg, rels, writer, 0, ct).ConfigureAwait(false);
         writer.RawLine($"</{tag}>");
     }
 
@@ -82,8 +93,12 @@ internal static class OoxmlWordConverter
     };
 
     private static async Task RenderInlineContentAsync(IEnumerable<XElement> nodes, OfficePackage pkg,
-        Dictionary<string, string> rels, OfficeHtmlWriter writer, CancellationToken ct)
+        Dictionary<string, string> rels, OfficeHtmlWriter writer, int depth, CancellationToken ct)
     {
+        // See OfficeLimits.MaxNestingDepth: this recursion is real stack depth (w:hyperlink can
+        // nest), and StackOverflowException cannot be caught - stop well short of it.
+        if (depth > OfficeLimits.MaxNestingDepth) return;
+
         foreach (var node in nodes)
         {
             ct.ThrowIfCancellationRequested();
@@ -95,9 +110,10 @@ internal static class OoxmlWordConverter
             {
                 var relId = node.Attribute(R + "id")?.Value;
                 var href = relId != null && rels.TryGetValue(relId, out var target) ? target : null;
-                if (href != null) writer.Raw($"<a href=\"{WebUtility.HtmlEncode(href)}\">");
-                await RenderInlineContentAsync(node.Elements(), pkg, rels, writer, ct).ConfigureAwait(false);
-                if (href != null) writer.Raw("</a>");
+                var linkable = href != null && IsSafeLinkScheme(href);
+                if (linkable) writer.Raw($"<a href=\"{WebUtility.HtmlEncode(href)}\">");
+                await RenderInlineContentAsync(node.Elements(), pkg, rels, writer, depth + 1, ct).ConfigureAwait(false);
+                if (linkable) writer.Raw("</a>");
             }
         }
     }
@@ -150,7 +166,7 @@ internal static class OoxmlWordConverter
                 writer.Raw("<td>");
                 foreach (var p in cell.Elements(W + "p"))
                 {
-                    await RenderInlineContentAsync(p.Elements(), pkg, rels, writer, ct).ConfigureAwait(false);
+                    await RenderInlineContentAsync(p.Elements(), pkg, rels, writer, 0, ct).ConfigureAwait(false);
                     writer.Raw("<br>");
                 }
                 writer.Raw("</td>");
@@ -161,11 +177,18 @@ internal static class OoxmlWordConverter
     }
 
     /// <summary>Reads a <c>_rels/*.rels</c> part and returns relationship id → resolved target.
-    /// External targets (hyperlinks with <c>TargetMode="External"</c>) are kept as literal URLs;
-    /// internal targets are resolved and safety-checked via
-    /// <see cref="OfficePackage.ResolveRelationshipTarget"/> - an id whose target fails that check
-    /// is simply absent from the result, so anything referencing it (an image, a hyperlink) is
-    /// silently skipped rather than followed.</summary>
+    /// External targets are kept as literal URLs ONLY for hyperlink relationships - that is the one
+    /// kind this converter ever treats as a URL rather than an in-package part name. Every other
+    /// relationship type (image, worksheet, slide, theme, ...) is always resolved and
+    /// safety-checked via <see cref="OfficePackage.ResolveRelationshipTarget"/>, regardless of what
+    /// <c>TargetMode</c> claims: a document declaring, say, an image relationship as
+    /// <c>TargetMode="External"</c> must not be able to smuggle an arbitrary string past the
+    /// zip-slip/absolute-path guard that resolver applies, even though nothing in this codebase
+    /// currently reads such a target from local disk (see <c>OfficePackage.ReadXml</c>/
+    /// <c>ReadBytesAsync</c>, both pure in-package dictionary lookups) - the guard must not depend
+    /// on that staying true. An id whose target fails the safety check is simply absent from the
+    /// result, so anything referencing it (an image, a hyperlink) is silently skipped rather than
+    /// followed.</summary>
     internal static Dictionary<string, string> LoadRelationships(OfficePackage pkg, string relsPart, string referencingPart)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -178,7 +201,11 @@ internal static class OoxmlWordConverter
             var target = r.Attribute("Target")?.Value;
             if (id == null || target == null) continue;
 
-            if (string.Equals(r.Attribute("TargetMode")?.Value, "External", StringComparison.OrdinalIgnoreCase))
+            var type = r.Attribute("Type")?.Value ?? "";
+            var isHyperlink = type.EndsWith("/hyperlink", StringComparison.OrdinalIgnoreCase);
+            var isExternal = string.Equals(r.Attribute("TargetMode")?.Value, "External", StringComparison.OrdinalIgnoreCase);
+
+            if (isHyperlink && isExternal)
             {
                 result[id] = target;
             }

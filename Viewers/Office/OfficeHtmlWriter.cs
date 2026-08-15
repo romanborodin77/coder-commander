@@ -15,29 +15,53 @@ namespace CoderCommander.Viewers.Office;
 internal sealed class OfficeHtmlWriter
 {
     private readonly StringBuilder _body = new();
-    private long _totalImageBytes;
+    private readonly OfficeImageBudget _imageBudget;
+    private bool _truncated;
 
-    public void Raw(string html) => _body.Append(html);
+    public OfficeHtmlWriter(OfficeImageBudget? sharedImageBudget = null)
+    {
+        _imageBudget = sharedImageBudget ?? new OfficeImageBudget();
+    }
 
-    public void Text(string text) => _body.Append(WebUtility.HtmlEncode(text));
+    public void Raw(string html)
+    {
+        if (_truncated) return;
+        if (_body.Length + html.Length > OfficeLimits.MaxOutputChars) { _truncated = true; return; }
+        _body.Append(html);
+    }
 
-    public void RawLine(string html) => _body.Append(html).Append('\n');
+    public void Text(string text)
+    {
+        if (_truncated) return;
+        // Encoded length can exceed text.Length (e.g. every char becomes "&amp;"), but text.Length
+        // is a safe/cheap pre-check - a caller feeding megabytes of "&" is still capped by the next
+        // Raw()/Text() call once _body.Length itself crosses the ceiling.
+        if (_body.Length + text.Length > OfficeLimits.MaxOutputChars) { _truncated = true; return; }
+        _body.Append(WebUtility.HtmlEncode(text));
+    }
+
+    public void RawLine(string html) => Raw(html + "\n");
 
     /// <summary>Converts <paramref name="bytes"/> into a <c>data:</c> URI, or null when the image
-    /// should be skipped: too large individually, over the document's running image budget, or an
-    /// unsupported format (EMF/WMF - GDI-family vector formats no browser decodes; callers render
-    /// a labeled placeholder instead of a broken &lt;img&gt;, per the plan's own decision).</summary>
+    /// should be skipped: too large individually, over the running image budget (shared across
+    /// every page of a multi-page document via <paramref name="sharedImageBudget"/> passed to the
+    /// constructor - a single writer-per-slide would otherwise reset to a fresh 64MB budget on
+    /// every slide, multiplying the effective ceiling by the slide count), or an unsupported format
+    /// (EMF/WMF - GDI-family vector formats no browser decodes; callers render a labeled
+    /// placeholder instead of a broken &lt;img&gt;, per the plan's own decision). The same part
+    /// referenced from multiple pages is charged to the budget once and reused from cache after.</summary>
     public string? TryEmbedImage(byte[]? bytes, string partName)
     {
-        if (bytes == null || bytes.Length == 0) return null;
-        if (bytes.LongLength > OfficeLimits.MaxImageBytes) return null;
-        if (_totalImageBytes + bytes.LongLength > OfficeLimits.MaxTotalImageBytes) return null;
+        if (_imageBudget.Cache.TryGetValue(partName, out var cached)) return cached;
+        if (bytes == null || bytes.Length == 0) return _imageBudget.Cache[partName] = null;
+        if (bytes.LongLength > OfficeLimits.MaxImageBytes) return _imageBudget.Cache[partName] = null;
+        if (_imageBudget.TotalBytes + bytes.LongLength > OfficeLimits.MaxTotalImageBytes) return _imageBudget.Cache[partName] = null;
 
         var mime = MimeFromExtension(partName);
-        if (mime == null) return null;
+        if (mime == null) return _imageBudget.Cache[partName] = null;
 
-        _totalImageBytes += bytes.LongLength;
-        return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+        _imageBudget.TotalBytes += bytes.LongLength;
+        return _imageBudget.Cache[partName] = $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
     }
 
     private static string? MimeFromExtension(string partName) =>
@@ -51,5 +75,20 @@ internal sealed class OfficeHtmlWriter
             _ => null, // EMF/WMF and anything else - unsupported, see TryEmbedImage's doc comment
         };
 
-    public string Build() => ViewerHtmlTemplate.WrapDocument(_body.ToString());
+    public string Build()
+    {
+        if (_truncated) _body.Append("\n<p style=\"opacity:.6;font-style:italic;\">[…document truncated - too large to display in full…]</p>");
+        return ViewerHtmlTemplate.WrapDocument(_body.ToString());
+    }
+}
+
+/// <summary>Image-embedding state shared across every <see cref="OfficeHtmlWriter"/> instance
+/// rendering the same logical document - see <see cref="OfficeHtmlWriter.TryEmbedImage"/>. A
+/// single-page format (Word/Sheet) just lets each writer default to its own budget; a multi-page
+/// format (Slides) constructs one of these per document and passes it to every per-slide
+/// writer.</summary>
+internal sealed class OfficeImageBudget
+{
+    public long TotalBytes;
+    public readonly Dictionary<string, string?> Cache = new(StringComparer.Ordinal);
 }

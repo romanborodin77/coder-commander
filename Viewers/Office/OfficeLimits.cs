@@ -36,4 +36,21 @@ internal static class OfficeLimits
     /// dimension - the second-layer cap once the "last non-empty cell/row" trim has already run.</summary>
     public const int MaxRows = 20_000;
     public const int MaxColumns = 500;
+
+    /// <summary>Ceiling on recursive descent through a document's own element tree (nested
+    /// <c>text:span</c>/<c>text:list</c>/<c>text:a</c> in ODF, nested <c>w:hyperlink</c> in OOXML).
+    /// Every converter recursion is real C# stack depth - <c>await</c>ing an already-completed
+    /// continuation runs synchronously on the same stack - and .NET cannot catch
+    /// <see cref="StackOverflowException"/>: an attacker-crafted part with tens of thousands of
+    /// nested elements kills the whole process, not just the conversion. Chosen well under the
+    /// default 1MB thread stack's practical depth for these async frames.</summary>
+    public const int MaxNestingDepth = 100;
+
+    /// <summary>Ceiling on the generated HTML fragment's own length (chars), enforced by
+    /// <c>OfficeHtmlWriter.Raw</c>/<c>Text</c>. <see cref="MaxRows"/>/<see cref="MaxColumns"/> bound
+    /// the sheet grid's cell *count*, not the length of any one cell's text nor the resulting
+    /// output size - a grid at the cap with long cell values, or a document with very long
+    /// paragraphs, can still produce output large enough to hang the WebView2 render or exhaust
+    /// memory. This is the final backstop on generated size regardless of what produced it.</summary>
+    public const int MaxOutputChars = 32 * 1024 * 1024; // 32M chars (~32-64MB of HTML)
 }

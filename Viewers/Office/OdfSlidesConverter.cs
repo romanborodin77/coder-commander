@@ -25,22 +25,24 @@ internal static class OdfSlidesConverter
                             ?? throw new InvalidDataException("Presentation body not found.");
 
         var pages = new List<OfficeDocumentPage>();
+        // Shared across every page - see OfficeHtmlWriter.TryEmbedImage's doc comment.
+        var imageBudget = new OfficeImageBudget();
         var index = 0;
         foreach (var page in presentation.Elements(Draw + "page"))
         {
             ct.ThrowIfCancellationRequested();
             index++;
             var name = page.Attribute(Draw + "name")?.Value ?? index.ToString(CultureInfo.InvariantCulture);
-            pages.Add(new OfficeDocumentPage(name, await RenderPageAsync(page, pkg, ct).ConfigureAwait(false)));
+            pages.Add(new OfficeDocumentPage(name, await RenderPageAsync(page, pkg, imageBudget, ct).ConfigureAwait(false)));
         }
 
         if (pages.Count == 0) throw new InvalidDataException("Presentation has no readable slides.");
         return pages;
     }
 
-    private static async Task<string> RenderPageAsync(XElement page, OfficePackage pkg, CancellationToken ct)
+    private static async Task<string> RenderPageAsync(XElement page, OfficePackage pkg, OfficeImageBudget imageBudget, CancellationToken ct)
     {
-        var writer = new OfficeHtmlWriter();
+        var writer = new OfficeHtmlWriter(imageBudget);
         writer.RawLine("<div style=\"position:relative;min-height:400px;\">");
 
         foreach (var frame in page.Elements(Draw + "frame"))
@@ -76,8 +78,9 @@ internal static class OdfSlidesConverter
 
         var bytes = await pkg.ReadBytesAsync(resolved, OfficeLimits.MaxImageBytes, ct).ConfigureAwait(false);
         var dataUri = writer.TryEmbedImage(bytes, resolved);
-        if (dataUri != null)
-            writer.RawLine($"<img src=\"{dataUri}\" style=\"{style}max-width:100%;\">");
+        writer.RawLine(dataUri != null
+            ? $"<img src=\"{dataUri}\" style=\"{style}max-width:100%;\">"
+            : $"<div style=\"{style}opacity:.6;font-style:italic;\">[image]</div>");
     }
 
     private static string PositionStyle(XElement frame)

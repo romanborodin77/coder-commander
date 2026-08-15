@@ -32,24 +32,40 @@ internal static class OdfTextConverter
         foreach (var element in body.Elements())
         {
             ct.ThrowIfCancellationRequested();
-            await RenderBlockAsync(element, pkg, writer, ct).ConfigureAwait(false);
+            await RenderBlockAsync(element, pkg, writer, 0, ct).ConfigureAwait(false);
         }
         return writer.Build();
     }
 
-    private static async Task RenderBlockAsync(XElement element, OfficePackage pkg, OfficeHtmlWriter writer, CancellationToken ct)
+    /// <summary>Schemes a rendered <c>&lt;a href&gt;</c> is allowed to carry. HTML-escaping (already
+    /// applied via <see cref="WebUtility.HtmlEncode"/>) prevents attribute breakout, but says
+    /// nothing about the scheme itself - an untrusted document could otherwise get
+    /// <c>javascript:</c>/<c>vbscript:</c>/<c>data:text/html</c> rendered as a clickable link.
+    /// Anything outside this list is still shown, just as plain text rather than a link.</summary>
+    private static bool IsSafeLinkScheme(string href) =>
+        href.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ||
+        href.StartsWith('#');
+
+    private static async Task RenderBlockAsync(XElement element, OfficePackage pkg, OfficeHtmlWriter writer, int depth, CancellationToken ct)
     {
+        // See OfficeLimits.MaxNestingDepth: this recursion is real stack depth, and a
+        // StackOverflowException cannot be caught - stop descending well before that, rendering the
+        // remainder as nothing rather than crashing the whole process on a hostile document.
+        if (depth > OfficeLimits.MaxNestingDepth) return;
+
         if (element.Name == Text + "h")
         {
             var level = int.TryParse(element.Attribute(Text + "outline-level")?.Value, out var l) ? Math.Clamp(l, 1, 6) : 1;
             writer.Raw($"<h{level}>");
-            await RenderInlineAsync(element, pkg, writer, ct).ConfigureAwait(false);
+            await RenderInlineAsync(element, pkg, writer, depth + 1, ct).ConfigureAwait(false);
             writer.RawLine($"</h{level}>");
         }
         else if (element.Name == Text + "p")
         {
             writer.Raw("<p>");
-            await RenderInlineAsync(element, pkg, writer, ct).ConfigureAwait(false);
+            await RenderInlineAsync(element, pkg, writer, depth + 1, ct).ConfigureAwait(false);
             writer.RawLine("</p>");
         }
         else if (element.Name == Text + "list")
@@ -59,7 +75,7 @@ internal static class OdfTextConverter
             {
                 writer.Raw("<li>");
                 foreach (var child in item.Elements())
-                    await RenderBlockAsync(child, pkg, writer, ct).ConfigureAwait(false);
+                    await RenderBlockAsync(child, pkg, writer, depth + 1, ct).ConfigureAwait(false);
                 writer.RawLine("</li>");
             }
             writer.RawLine("</ul>");
@@ -70,8 +86,10 @@ internal static class OdfTextConverter
         }
     }
 
-    private static async Task RenderInlineAsync(XElement container, OfficePackage pkg, OfficeHtmlWriter writer, CancellationToken ct)
+    private static async Task RenderInlineAsync(XElement container, OfficePackage pkg, OfficeHtmlWriter writer, int depth, CancellationToken ct)
     {
+        if (depth > OfficeLimits.MaxNestingDepth) return;
+
         foreach (var node in container.Nodes())
         {
             ct.ThrowIfCancellationRequested();
@@ -83,14 +101,15 @@ internal static class OdfTextConverter
             {
                 if (el.Name == Text + "span")
                 {
-                    await RenderInlineAsync(el, pkg, writer, ct).ConfigureAwait(false);
+                    await RenderInlineAsync(el, pkg, writer, depth + 1, ct).ConfigureAwait(false);
                 }
                 else if (el.Name == Text + "a")
                 {
                     var href = el.Attribute(XLink + "href")?.Value;
-                    if (href != null) writer.Raw($"<a href=\"{WebUtility.HtmlEncode(href)}\">");
-                    await RenderInlineAsync(el, pkg, writer, ct).ConfigureAwait(false);
-                    if (href != null) writer.Raw("</a>");
+                    var linkable = href != null && IsSafeLinkScheme(href);
+                    if (linkable) writer.Raw($"<a href=\"{WebUtility.HtmlEncode(href)}\">");
+                    await RenderInlineAsync(el, pkg, writer, depth + 1, ct).ConfigureAwait(false);
+                    if (linkable) writer.Raw("</a>");
                 }
                 else if (el.Name == Text + "line-break")
                 {
@@ -134,7 +153,7 @@ internal static class OdfTextConverter
                 writer.Raw("<td>");
                 foreach (var p in cell.Elements(Text + "p"))
                 {
-                    await RenderInlineAsync(p, pkg, writer, ct).ConfigureAwait(false);
+                    await RenderInlineAsync(p, pkg, writer, 0, ct).ConfigureAwait(false);
                     writer.Raw("<br>");
                 }
                 writer.Raw("</td>");

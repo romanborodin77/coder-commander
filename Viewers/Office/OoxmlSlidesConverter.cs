@@ -34,6 +34,10 @@ internal static class OoxmlSlidesConverter
         var slideHeightPx = EmuToPx(sldSz?.Attribute("cy")?.Value);
 
         var pages = new List<OfficeDocumentPage>();
+        // Shared across every slide - see OfficeHtmlWriter.TryEmbedImage's doc comment. Without
+        // this, each slide's own fresh OfficeHtmlWriter got its own 64MB image budget, so the
+        // effective per-document ceiling was 64MB times the slide count.
+        var imageBudget = new OfficeImageBudget();
         var index = 0;
         foreach (var sldId in presentation.Root?.Element(P + "sldIdLst")?.Elements(P + "sldId") ?? [])
         {
@@ -42,7 +46,7 @@ internal static class OoxmlSlidesConverter
             var relId = sldId.Attribute(R + "id")?.Value;
             if (relId == null || !rels.TryGetValue(relId, out var slidePart)) continue;
 
-            var html = await RenderSlideAsync(pkg, slidePart, slideWidthPx, slideHeightPx, ct).ConfigureAwait(false);
+            var html = await RenderSlideAsync(pkg, slidePart, slideWidthPx, slideHeightPx, imageBudget, ct).ConfigureAwait(false);
             pages.Add(new OfficeDocumentPage(index.ToString(CultureInfo.InvariantCulture), html));
         }
 
@@ -50,13 +54,14 @@ internal static class OoxmlSlidesConverter
         return pages;
     }
 
-    private static async Task<string> RenderSlideAsync(OfficePackage pkg, string slidePart, int widthPx, int heightPx, CancellationToken ct)
+    private static async Task<string> RenderSlideAsync(OfficePackage pkg, string slidePart, int widthPx, int heightPx,
+        OfficeImageBudget imageBudget, CancellationToken ct)
     {
         var slideDoc = pkg.ReadXml(slidePart);
         var spTree = slideDoc?.Root?.Element(P + "cSld")?.Element(P + "spTree");
         var rels = OoxmlWordConverter.LoadRelationships(pkg, RelsPathFor(slidePart), slidePart);
 
-        var writer = new OfficeHtmlWriter();
+        var writer = new OfficeHtmlWriter(imageBudget);
         var containerStyle = widthPx > 0 && heightPx > 0
             ? $"position:relative;width:{widthPx}px;height:{heightPx}px;margin:0 auto;overflow:hidden;"
             : "position:relative;";
@@ -96,10 +101,10 @@ internal static class OoxmlSlidesConverter
 
         var bytes = await pkg.ReadBytesAsync(partName, OfficeLimits.MaxImageBytes, ct).ConfigureAwait(false);
         var dataUri = writer.TryEmbedImage(bytes, partName);
-        if (dataUri == null) return;
-
         var style = PositionStyle(pic.Element(P + "spPr")?.Element(A + "xfrm"));
-        writer.RawLine($"<img src=\"{dataUri}\" style=\"{style}max-width:100%;\">");
+        writer.RawLine(dataUri != null
+            ? $"<img src=\"{dataUri}\" style=\"{style}max-width:100%;\">"
+            : $"<div style=\"{style}opacity:.6;font-style:italic;\">[image]</div>");
     }
 
     private static string PositionStyle(XElement? xfrm)
