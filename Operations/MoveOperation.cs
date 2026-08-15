@@ -45,13 +45,17 @@ public sealed class MoveOperation : FileOperation
 
     /// <summary>Drops any selected entry that's physically nested inside another selected
     /// directory - moving that directory already relocates it, so processing it again separately
-    /// would only find its source gone.</summary>
+    /// would only find its source gone. VfsPath.IsDescendantOf, not a bare
+    /// Path.DirectorySeparatorChar prefix test: a remote or archive path never contains '\', so the
+    /// old prefix test silently failed to dedup a nested selection on those filesystems, and the
+    /// nested entry was processed a second time after its containing folder's move had already
+    /// relocated it - failing, not corrupting data, but still the exact case this method exists to
+    /// prevent.</summary>
     internal static List<FileEntry> RemoveEntriesInsideSelectedDirectories(IReadOnlyList<FileEntry> files)
     {
         var directories = files.Where(f => f.IsDirectory).ToList();
         return files.Where(f => !directories.Any(d =>
-                !ReferenceEquals(d, f) &&
-                f.FullPath.StartsWith(d.FullPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+                !ReferenceEquals(d, f) && VfsPath.IsDescendantOf(d.FullPath, f.FullPath)))
             .ToList();
     }
 

@@ -159,6 +159,22 @@ public sealed class WipeOperation : FileOperation
     /// <inheritdoc/>
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
+        // Fail-closed, inside the operation itself rather than trusting the caller to have gated
+        // it first: every wipe primitive below (WipeDirectory/WipeFile) goes straight to
+        // System.IO (DirectoryInfo/FileInfo/FileStream) against _fs's paths, bypassing IFileSystem
+        // entirely. For a remote directory, DirectoryInfo(path).Exists is false for a path that
+        // does exist on the server - not "wipe failed", but "nothing to wipe" - so WipeDirectory
+        // silently reports success and the caller falls through to an ordinary recursive
+        // IFileSystem.DeleteAsync: "secure overwrite" quietly degrades to a plain delete with no
+        // overwrite pass and no visible sign anything was skipped, which is exactly the outcome
+        // this class's own contract (see the comment below) says must never happen. Until now this
+        // was caught only by MainViewModel checking PanelViewModel.IsVirtual before constructing a
+        // WipeOperation at all - true for remote panels too, but by accident of what that flag
+        // actually tests, not by a rule this class enforces, and only on that one call path.
+        if (!_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
+            throw new NotSupportedException(
+                $"Secure wipe requires direct disk access; \"{_fs.Name}\" does not provide it.");
+
         _filesTotal = _files.Count;
 
         // Wipe's entire point is guaranteeing the overwritten content is unrecoverable - deleting

@@ -114,6 +114,53 @@ public static class VfsPath
         return GetName(fullPath);
     }
 
+    /// <summary>
+    /// True when <paramref name="candidate"/> lies strictly inside the directory
+    /// <paramref name="ancestorDir"/>, in whatever path flavour the two share - remote, archive, or
+    /// plain. Returns false for two paths of different flavours, two different connections/archives,
+    /// or when <paramref name="candidate"/> equals <paramref name="ancestorDir"/> itself (a
+    /// directory is not its own descendant). This is the choke point every "is this entry nested
+    /// inside that other selected entry" check must go through instead of hand-rolling a
+    /// <c>Path.DirectorySeparatorChar</c> prefix test, which silently answers false for every
+    /// remote/archive path (both use <c>/</c>, never <c>\</c>).
+    /// </summary>
+    public static bool IsDescendantOf(string ancestorDir, string candidate)
+    {
+        if (RemotePath.IsRemote(ancestorDir) || RemotePath.IsRemote(candidate))
+        {
+            if (!RemotePath.IsRemote(ancestorDir) || !RemotePath.IsRemote(candidate) ||
+                !string.Equals(RemotePath.GetRoot(ancestorDir), RemotePath.GetRoot(candidate), StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return IsInnerDescendant(RemotePath.PathOf(ancestorDir), RemotePath.PathOf(candidate));
+        }
+
+        if (IsArchive(ancestorDir) || IsArchive(candidate))
+        {
+            if (!IsArchive(ancestorDir) || !IsArchive(candidate) ||
+                !string.Equals(GetArchiveFile(ancestorDir), GetArchiveFile(candidate), StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return IsInnerDescendant(GetInner(ancestorDir), GetInner(candidate));
+        }
+
+        var prefix = ancestorDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        return candidate.Length > prefix.Length && candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Shared tail of <see cref="IsDescendantOf"/> for the two slash-separated flavours:
+    /// both reduce to "does the candidate's inner path start with the ancestor's inner path plus a
+    /// slash boundary" once the two are confirmed to share the same root/archive file.</summary>
+    private static bool IsInnerDescendant(string ancestorInner, string candidateInner)
+    {
+        if (ancestorInner.Length == 0)
+            return candidateInner.Length > 0;
+
+        return candidateInner.Length > ancestorInner.Length &&
+               candidateInner.StartsWith(ancestorInner, StringComparison.OrdinalIgnoreCase) &&
+               candidateInner[ancestorInner.Length] == '/';
+    }
+
     /// <summary>Parent directory, or an empty string when there is none.</summary>
     public static string GetParent(string path)
     {
