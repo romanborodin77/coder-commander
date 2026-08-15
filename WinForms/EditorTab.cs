@@ -123,11 +123,16 @@ public sealed class EditorTab : IDisposable
     /// silently overwritten; the user can still type, and will find out it can't be saved.</para>
     /// </summary>
     /// <param name="path">Destination path, or <c>null</c>/<see cref="string.Empty"/> to save to <see cref="FilePath"/>.</param>
-    public async Task SaveFileAsync(string? path = null, CancellationToken ct = default)
+    /// <returns><c>true</c> if the save actually completed; <c>false</c> on refusal (read-only,
+    /// empty path) or failure (shown to the user via a dialog either way). Callers that close a tab
+    /// or the window after "save and continue" must check this - previously the return type was
+    /// <c>void</c>/<c>Task</c>, so a failed save (network drop, auth expiry, disk full) still let
+    /// the caller proceed to discard the buffer as though the save had succeeded.</returns>
+    public async Task<bool> SaveFileAsync(string? path = null, CancellationToken ct = default)
     {
         var savePath = path ?? FilePath;
         if (string.IsNullOrEmpty(savePath))
-            return;
+            return false;
 
         var L = LocalizationService.Current;
 
@@ -135,7 +140,7 @@ public sealed class EditorTab : IDisposable
         {
             StyledMessageBox.Show(L.GetString("Edit.ErrorSaving", L.GetString("Edit.ReadOnlyFile")),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
-            return;
+            return false;
         }
 
         try
@@ -171,19 +176,40 @@ public sealed class EditorTab : IDisposable
                 }
                 catch
                 {
-                    try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
-                    catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
-                    throw;
+                    // Same reasoning as MaterializedFile.WriteBackAsync's identical guard: some
+                    // providers' MoveAsync(overwrite: true) deletes the destination before renaming
+                    // (SFTP has no atomic overwrite in the base protocol - see
+                    // SftpFileSystem.MoveAsync), so if the rename step itself is what failed, the
+                    // origin is already gone and this sidecar - fully uploaded and verified above -
+                    // is the only surviving copy. Only delete it when the origin is confirmed still
+                    // present; otherwise keep it and say where it is.
+                    FileEntry? originStillThere;
+                    try { originStillThere = await _fs.GetFileInfoAsync(savePath, CancellationToken.None).ConfigureAwait(false); }
+                    catch { originStillThere = null; }
+
+                    if (originStillThere is not null)
+                    {
+                        try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
+                        catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
+                        throw;
+                    }
+
+                    throw new IOException(
+                        $"Save of \"{savePath}\" failed after the original file was already removed. " +
+                        $"Your changes were NOT lost - they are sitting at \"{sidecar}\" and must be " +
+                        $"renamed back to \"{savePath}\" manually.");
                 }
             }
 
             FilePath = savePath;
             IsModified = false;
+            return true;
         }
         catch (Exception ex)
         {
             StyledMessageBox.Show(L.GetString("Edit.ErrorSaving", ex.Message),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
+            return false;
         }
     }
 

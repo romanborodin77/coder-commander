@@ -180,11 +180,32 @@ public sealed class MaterializedFile : IDisposable
             // origin, which is strictly worse than spending one more round trip to finish the swap.
             await Origin.MoveAsync(sidecar, OriginPath, overwrite: true, CancellationToken.None).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex)
         {
-            try { await Origin.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
-            catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
-            throw;
+            // Some providers' MoveAsync(overwrite: true) is not atomic - SftpFileSystem.MoveAsync
+            // deletes the destination first, then renames (SFTP's base protocol offers no atomic
+            // overwrite). If the rename step itself fails after that delete, the origin is already
+            // gone and the sidecar - fully uploaded and verified above - is now the ONLY surviving
+            // copy of the data. Blind-deleting it here (the original bug) would silently destroy
+            // both copies. Only clean up the sidecar when the origin is confirmed still present -
+            // i.e. the swap never got as far as removing it, so the sidecar is a redundant partial
+            // upload, safe to discard. When the origin is gone, keep the sidecar and say so: the
+            // thrown exception is the only place left to tell the user where their data is.
+            FileEntry? originStillThere;
+            try { originStillThere = await Origin.GetFileInfoAsync(OriginPath, CancellationToken.None).ConfigureAwait(false); }
+            catch { originStillThere = null; }
+
+            if (originStillThere is not null)
+            {
+                try { await Origin.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
+                catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
+                throw;
+            }
+
+            throw new IOException(
+                $"Write-back of \"{OriginPath}\" failed after the origin was already removed. " +
+                $"The uploaded data was NOT lost - it is sitting at \"{sidecar}\" and must be renamed " +
+                $"back to \"{OriginPath}\" manually.", ex);
         }
 
         var fresh = await Origin.GetFileInfoAsync(OriginPath, CancellationToken.None).ConfigureAwait(false);

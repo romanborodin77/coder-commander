@@ -655,11 +655,21 @@ public class EditorForm : ThemedForm
 
             if (result == MsgBoxResult.Cancel)
                 return;
-            if (result == MsgBoxResult.Yes)
-                await tab.SaveFileAsync();
+            // A failed save (network drop, auth expiry, disk full - SaveFileAsync already showed
+            // the error dialog) must not still close the tab: that would discard the buffer the
+            // user explicitly asked to keep. Leave the tab open exactly as if Cancel had been
+            // pressed, so nothing is lost.
+            if (result == MsgBoxResult.Yes && !await tab.SaveFileAsync())
+                return;
         }
 
-        var idx = _tabControl.SelectedIndex;
+        // Re-resolve the tab's own index after the await above, not _tabControl.SelectedIndex: the
+        // save can take seconds on a slow connection, during which the user can switch tabs, and
+        // removing "whichever tab happens to be selected now" would close/dispose the wrong one
+        // (losing ITS unsaved buffer with no prompt) while leaving this one open.
+        var idx = _tabs.IndexOf(tab);
+        if (idx < 0) return; // already closed by a re-entrant call while this one was awaiting
+
         _tabs.RemoveAt(idx);
         _tabControl.RemovePage(_tabPages[idx]);
         _tabPages.RemoveAt(idx);
@@ -702,7 +712,28 @@ public class EditorForm : ThemedForm
         }
 
         e.Cancel = true;
-        _ = ConfirmAndCloseAsync();
+        if (_closingInProgress) return; // a second X-click while a prior save is still in flight
+        _ = ConfirmAndCloseGuardedAsync();
+    }
+
+    /// <summary>Guards <see cref="ConfirmAndCloseAsync"/> against re-entrancy: without it, clicking
+    /// the window's X a second time while an earlier save is still uploading re-runs the whole loop
+    /// concurrently - duplicate confirmation dialogs for the same tab and, worse, two overlapping
+    /// <c>SaveFileAsync</c> calls racing their own sidecar-then-rename uploads for the same
+    /// file.</summary>
+    private bool _closingInProgress;
+
+    private async Task ConfirmAndCloseGuardedAsync()
+    {
+        _closingInProgress = true;
+        try
+        {
+            await ConfirmAndCloseAsync();
+        }
+        finally
+        {
+            _closingInProgress = false;
+        }
     }
 
     private async Task ConfirmAndCloseAsync()
@@ -720,8 +751,11 @@ public class EditorForm : ThemedForm
             if (result == MsgBoxResult.Cancel)
                 return; // leave the window open - OnFormClosing already cancelled this attempt
 
-            if (result == MsgBoxResult.Yes)
-                await tab.SaveFileAsync();
+            // A failed save must not let the window close anyway - SaveFileAsync already reported
+            // the error; stop here so the tab (and the window) stays open with the buffer intact,
+            // exactly as if the user had pressed Cancel.
+            if (result == MsgBoxResult.Yes && !await tab.SaveFileAsync())
+                return;
         }
 
         _closeConfirmed = true;
