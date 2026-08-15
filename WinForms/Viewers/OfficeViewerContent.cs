@@ -91,11 +91,15 @@ internal sealed class OfficeViewerContent : IViewerContent
 
         CleanupFolder();
         var folder = _ctx.TempSession.AllocateFileFolder();
+        // Recorded immediately, before the page-writing loop - see MarkdownViewerContent.ShowAsync's
+        // identical fix. A multi-page document superseded mid-write otherwise leaves a real folder
+        // (with however many pages had been written so far) that nothing ever cleans up until the
+        // next app startup's orphan sweep.
+        _folder = folder;
         for (var i = 0; i < doc.Pages.Count; i++)
             await File.WriteAllTextAsync(Path.Combine(folder, PageFileName(i)), doc.Pages[i].Html, ct);
         if (ct.IsCancellationRequested) return;
 
-        _folder = folder;
         _pages = doc.Pages;
         _currentPage = 0;
 

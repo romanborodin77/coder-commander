@@ -24,6 +24,13 @@ internal sealed class ViewerFindBar : Panel
     private int _matchLength;
     private int _currentIndex = -1;
 
+    // Debounces Rescan() off the keystroke that triggers it - a full linear rescan materializes
+    // every match into _matchStarts, and at the loaders' own ~16MB text cap that is up to ~1.5M
+    // hits collected synchronously on the UI thread. Without this, EVERY keystroke while typing a
+    // short, common pattern (e.g. "e") into a large file re-scans from scratch, visibly stalling
+    // the window for the first few characters typed.
+    private readonly System.Windows.Forms.Timer _debounceTimer = new() { Interval = 200 };
+
     public ViewerFindBar()
     {
         Dock = DockStyle.Top;
@@ -41,10 +48,12 @@ internal sealed class ViewerFindBar : Panel
             WrapContents = false
         };
 
+        _debounceTimer.Tick += (_, _) => { _debounceTimer.Stop(); Rescan(); };
+
         _findBox = UiHelpers.CreateTextBox();
         _findBox.Width = 220;
         _findBox.Margin = new Padding(0, 3, 6, 3);
-        _findBox.TextChanged += (_, _) => Rescan();
+        _findBox.TextChanged += (_, _) => { _debounceTimer.Stop(); _debounceTimer.Start(); };
         _findBox.KeyDown += OnFindBoxKeyDown;
 
         // Glyph-only buttons: AccessibleName/ToolTipText are what give a screen reader (or a UIA
@@ -112,6 +121,7 @@ internal sealed class ViewerFindBar : Panel
     public void ShowBar()
     {
         if (_target == null) return;
+        _debounceTimer.Stop();
         Visible = true;
         if (!Focused && !_findBox.Focused)
         {
@@ -128,6 +138,7 @@ internal sealed class ViewerFindBar : Panel
     /// the content changes.</summary>
     public void CloseBar()
     {
+        _debounceTimer.Stop();
         Visible = false;
         _matchStarts.Clear();
         _currentIndex = -1;
@@ -222,6 +233,12 @@ internal sealed class ViewerFindBar : Panel
         if (wrapped)
             text += "  •  " + L.GetString(forward ? "View.FindBar.WrappedToTop" : "View.FindBar.WrappedToBottom");
         _matchCountLabel.Text = text;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _debounceTimer.Dispose();
+        base.Dispose(disposing);
     }
 
     private void OnFindBoxKeyDown(object? sender, KeyEventArgs e)

@@ -318,10 +318,20 @@ public class ViewerForm : ThemedForm
     /// in this window, and shows/hides every cached matched-format button so at most one is
     /// visible - called on every navigation, independent of which format is actually active
     /// (matched-format buttons reflect "what this file could be shown as", not the sticky active
-    /// selection).</summary>
-    private void UpdateMatchedFormatForCurrentFile()
+    /// selection).
+    ///
+    /// <para><paramref name="header"/> defaults to empty for the callers that need an instant,
+    /// synchronous answer before any I/O has happened (construction, the moment Prev/Next is
+    /// clicked) - in that shape only <see cref="IViewerFormat.MatchesExtension"/> ever contributes,
+    /// same as before this parameter existed. <see cref="LoadFileAsync"/> calls this a second time
+    /// once it has actually read a real prefix off the file, letting
+    /// <see cref="IViewerFormat.MatchesSignature"/> contribute too - e.g. a screenshot saved as
+    /// <c>capture.dat</c> or a PDF named <c>invoice.bin</c> gets its Image/PDF button offered once
+    /// the bytes are in hand, without ever blocking the UI thread on a synchronous read to get
+    /// there.</para></summary>
+    private void UpdateMatchedFormatForCurrentFile(ReadOnlySpan<byte> header = default)
     {
-        var detected = ViewerFormatRegistry.Detect(_path, ReadOnlySpan<byte>.Empty);
+        var detected = ViewerFormatRegistry.Detect(_path, header);
 
         foreach (var (id, btn) in _matchedButtons)
             btn.Visible = detected != null && id == detected.Id;
@@ -459,6 +469,23 @@ public class ViewerForm : ThemedForm
             // round-trip on a remote filesystem, accepted rather than threading a pre-fetched size
             // through IViewerLoader's signature for every format.
             var size = await source.GetSizeAsync(ct);
+            if (ct != _loadCts?.Token) return;
+
+            // A small, cheap extra read (see UpdateMatchedFormatForCurrentFile's own doc comment)
+            // so signature-based matched-format detection (Image/PDF-by-content, not just by
+            // extension) actually has real bytes to work with - every prior call in this class
+            // passed an empty span, making IViewerFormat.MatchesSignature dead code. Best-effort:
+            // a failed prefix read (permission hiccup, connection drop) just means this file keeps
+            // whatever extension-only match it already had, not a load failure.
+            try
+            {
+                var header = await source.ReadPrefixAsync(512, ct);
+                if (ct == _loadCts?.Token) UpdateMatchedFormatForCurrentFile(header);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogService.Warning($"Viewer signature-prefix read failed: {path}: {ex.Message}");
+            }
             if (ct != _loadCts?.Token) return;
 
             payload = await Task.Run(() => loader.LoadAsync(source, ct), ct);

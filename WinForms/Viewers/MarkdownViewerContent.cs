@@ -88,10 +88,14 @@ internal sealed class MarkdownViewerContent : IViewerContent
 
         CleanupFolder();
         var folder = _ctx.TempSession.AllocateFileFolder();
+        // Recorded immediately, before either write - not after both, like the original code did.
+        // A load superseded mid-write (the two awaits above) still leaves a real folder on disk;
+        // recording it here means the NEXT ShowAsync's CleanupFolder() (or Dispose) actually finds
+        // and deletes it, instead of orphaning it until TempSessionRoot's next-startup sweep.
+        _folder = folder;
         await File.WriteAllTextAsync(Path.Combine(folder, RenderedFileName), md.RenderedHtml, ct);
         await File.WriteAllTextAsync(Path.Combine(folder, SourceFileName), BuildSourceHtml(md.SourceText), ct);
         if (ct.IsCancellationRequested) return;
-        _folder = folder;
 
         _showingSource = false;
         _sourceToggleBtn.Checked = false;
