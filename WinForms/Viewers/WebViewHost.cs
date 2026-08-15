@@ -44,6 +44,11 @@ public sealed class WebViewHost : IDisposable
     private Panel? _currentOwner;
     private bool _disposed;
 
+    /// <summary>Serializes <see cref="NavigateAndWaitAsync"/> calls - see that method's own doc
+    /// comment for why event-id correlation alone isn't safe on a host shared by every format in
+    /// the window.</summary>
+    private readonly SemaphoreSlim _navLock = new(1, 1);
+
     public Control Control => _webView;
 
     public bool IsInitialized => _webView.CoreWebView2 != null;
@@ -148,43 +153,67 @@ public sealed class WebViewHost : IDisposable
     /// described on <c>Viewers.IViewerLoader</c>'s own doc comment. <paramref name="ct"/> only
     /// abandons the wait on this side; it cannot cancel the underlying browser navigation
     /// (WebView2 exposes no such API), which is why <c>ViewerForm.LoadFileAsync</c>'s own
-    /// staleness guard - checking <c>ct</c> again after this returns - is still required.</summary>
+    /// staleness guard - checking <c>ct</c> again after this returns - is still required.
+    ///
+    /// <para><b>Serialized via <see cref="_navLock"/>, not just matched by navigation id.</b> An
+    /// earlier version of this method matched <see cref="CoreWebView2.NavigationStarting"/> to
+    /// <see cref="CoreWebView2.NavigationCompleted"/> purely by <c>NavigationId</c>, reasoning that
+    /// "the first <c>NavigationStarting</c> to fire after we subscribe is guaranteed to be the one
+    /// <c>Navigate(url)</c> causes, since that call happens synchronously, before any await". That
+    /// reasoning covers only ONE call's own subscribe-then-navigate window; it does not hold once a
+    /// SECOND, overlapping call exists. This host is shared, and more than one caller can trigger a
+    /// navigation close together (Prev/Next racing a toolbar action like Markdown's source toggle or
+    /// HTML's Back button): call A subscribes and calls <c>Navigate(urlA)</c>, then <c>await</c>s -
+    /// yielding the UI thread back to the message pump BEFORE the browser process has actually
+    /// dispatched <c>NavigationStarting</c> for that request (WebView2 raises it asynchronously, not
+    /// inside the synchronous <c>Navigate()</c> call itself). If a second UI event fires call B in
+    /// that window, B subscribes its OWN <c>OnStarting</c> before A's event has been delivered - so
+    /// when it finally arrives, BOTH handlers see it and both record A's id as "their own",
+    /// including B, which never actually caused it. A lock removes the ambiguity structurally
+    /// instead of trying to correlate it more cleverly: at most one <c>NavigateAndWaitAsync</c> call
+    /// is ever subscribed to these events at a time, so there is nothing left for a second call to
+    /// misattribute. Acceptable because this is one shared, single-visible-page control per window -
+    /// two navigations were never going to show simultaneously anyway, so a caller waiting briefly
+    /// for the lock loses nothing a would-be "concurrent" navigation could have given it.</para>
+    /// </summary>
     public async Task NavigateAndWaitAsync(string url, CancellationToken ct)
     {
-        var core = _webView.CoreWebView2!;
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        // Matched by navigation ID, not "whichever NavigationCompleted fires next" - this host is
-        // shared, and more than one caller can trigger a navigation close together (Prev/Next
-        // racing a toolbar action like Markdown's source toggle or HTML's Back button). The first
-        // NavigationStarting to fire after we subscribe is guaranteed to be the one Navigate(url)
-        // below causes, since that call happens synchronously, on this same UI thread, before any
-        // await - nothing else can interleave a navigation request in between.
-        var navId = 0UL;
-        var gotId = false;
-        void OnStarting(object? s, CoreWebView2NavigationStartingEventArgs e)
-        {
-            if (gotId) return;
-            gotId = true;
-            navId = e.NavigationId;
-        }
-        void OnCompleted(object? s, CoreWebView2NavigationCompletedEventArgs e)
-        {
-            if (gotId && e.NavigationId == navId) tcs.TrySetResult();
-        }
-
-        core.NavigationStarting += OnStarting;
-        core.NavigationCompleted += OnCompleted;
-        using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+        await _navLock.WaitAsync(ct).ConfigureAwait(true);
         try
         {
-            core.Navigate(url);
-            await tcs.Task;
+            var core = _webView.CoreWebView2!;
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            var navId = 0UL;
+            var gotId = false;
+            void OnStarting(object? s, CoreWebView2NavigationStartingEventArgs e)
+            {
+                if (gotId) return;
+                gotId = true;
+                navId = e.NavigationId;
+            }
+            void OnCompleted(object? s, CoreWebView2NavigationCompletedEventArgs e)
+            {
+                if (gotId && e.NavigationId == navId) tcs.TrySetResult();
+            }
+
+            core.NavigationStarting += OnStarting;
+            core.NavigationCompleted += OnCompleted;
+            using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+            try
+            {
+                core.Navigate(url);
+                await tcs.Task;
+            }
+            finally
+            {
+                core.NavigationStarting -= OnStarting;
+                core.NavigationCompleted -= OnCompleted;
+            }
         }
         finally
         {
-            core.NavigationStarting -= OnStarting;
-            core.NavigationCompleted -= OnCompleted;
+            _navLock.Release();
         }
     }
 
@@ -205,5 +234,6 @@ public sealed class WebViewHost : IDisposable
         if (_disposed) return;
         _disposed = true;
         _webView.Dispose();
+        _navLock.Dispose();
     }
 }
