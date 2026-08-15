@@ -47,12 +47,18 @@ internal sealed class ViewerFindBar : Panel
         _findBox.TextChanged += (_, _) => Rescan();
         _findBox.KeyDown += OnFindBoxKeyDown;
 
+        // Glyph-only buttons: AccessibleName/ToolTipText are what give a screen reader (or a UIA
+        // dump) anything to say for these - without it they read as e.g. "black up-pointing
+        // triangle button", the same gap ViewerToolbarFactory.CreateIconButton already closes for
+        // every toolbar icon button, just not brought along here when this bar was written.
         var prevBtn = ThemedForm.CreateThemedButton("▲");
         prevBtn.Margin = new Padding(0, 0, 4, 0);
+        prevBtn.AccessibleName = L.GetString("View.Toolbar.Previous");
         prevBtn.Click += (_, _) => GoTo(-1);
 
         var nextBtn = ThemedForm.CreateThemedButton("▼");
         nextBtn.Margin = new Padding(0, 0, 10, 0);
+        nextBtn.AccessibleName = L.GetString("View.Toolbar.Next");
         nextBtn.Click += (_, _) => GoTo(1);
 
         _matchCaseCheck = UiHelpers.CreateCheckBox(L.GetString("View.FindBar.MatchCase"));
@@ -62,6 +68,7 @@ internal sealed class ViewerFindBar : Panel
 
         var closeBtn = ThemedForm.CreateThemedButton("✕");
         closeBtn.Margin = new Padding(0, 0, 10, 0);
+        closeBtn.AccessibleName = L.GetString("Common.Close");
         closeBtn.Click += (_, _) => CloseBar();
 
         _matchCountLabel = UiHelpers.CreateLabel("");

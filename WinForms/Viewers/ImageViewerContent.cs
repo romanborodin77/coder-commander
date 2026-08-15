@@ -88,9 +88,17 @@ internal sealed class ImageViewerContent : IViewerContent
                 break;
             case ViewerErrorPayload err:
                 ClearImage();
-                StatusText = LocalizationService.Current.GetString("View.ImageMode");
-                StyledMessageBox.Show(err.Message, LocalizationService.Current.GetString("View.Error"),
-                    MsgBoxButtons.OK, MsgBoxIcon.Error);
+                // err.Modal distinguishes "the user asked for this file specifically" (worth an
+                // explicit dialog) from "Prev/Next landed on a file this format can't show" (routine
+                // navigation, not an error worth a popup) - holding Right through a folder of mixed
+                // file types must not fire one StyledMessageBox per keystroke. The inline status
+                // text still reports what happened either way.
+                StatusText = err.Message;
+                if (err.Modal)
+                {
+                    StyledMessageBox.Show(err.Message, LocalizationService.Current.GetString("View.Error"),
+                        MsgBoxButtons.OK, MsgBoxIcon.Error);
+                }
                 break;
         }
         return Task.CompletedTask;

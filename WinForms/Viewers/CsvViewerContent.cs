@@ -127,9 +127,15 @@ internal sealed class CsvViewerContent : IViewerContent
                 _rows = [];
                 _listView.Columns.Clear();
                 _listView.Items.Clear();
-                StatusText = "";
-                StyledMessageBox.Show(err.Message, LocalizationService.Current.GetString("View.Error"),
-                    MsgBoxButtons.OK, MsgBoxIcon.Error);
+                // err.Modal distinguishes an error worth an explicit dialog from a routine
+                // Prev/Next landing on a file this format can't show (e.g. "too large for text
+                // mode") - see the identical reasoning in ImageViewerContent.RenderAsync.
+                StatusText = err.Message;
+                if (err.Modal)
+                {
+                    StyledMessageBox.Show(err.Message, LocalizationService.Current.GetString("View.Error"),
+                        MsgBoxButtons.OK, MsgBoxIcon.Error);
+                }
                 break;
         }
         return Task.CompletedTask;

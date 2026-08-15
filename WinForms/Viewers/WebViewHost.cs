@@ -91,6 +91,15 @@ public sealed class WebViewHost : IDisposable
         s.IsGeneralAutofillEnabled = false;
         s.IsZoomControlEnabled = true;
         s.IsStatusBarEnabled = false;
+        // Chromium's built-in accelerators (Ctrl+O open-file, Ctrl+S save, Ctrl+P print, Ctrl+R
+        // reload, ...) stay live by default even with scripts and DevTools off - Ctrl+O in
+        // particular pops a native file-open dialog that then navigates to whatever local file the
+        // user picks. IsOwnOrigin + the WebResourceRequested 403 backstop above still block that
+        // navigation, but the stray OS dialog and silently-cancelled load are not what a "locked
+        // down" viewer should ever present. Formats that need a specific one of these already have
+        // their own explicit toolbar button calling the CoreWebView2 API directly (Print via
+        // ShowPrintUI() in HtmlViewerContent/OfficeViewerContent/MarkdownViewerContent).
+        s.AreBrowserAcceleratorKeysEnabled = false;
 
         core.NavigationStarting += (_, e) => { if (!IsOwnOrigin(e.Uri)) e.Cancel = true; };
         core.FrameNavigationStarting += (_, e) => { if (!IsOwnOrigin(e.Uri)) e.Cancel = true; };

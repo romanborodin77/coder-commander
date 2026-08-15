@@ -53,6 +53,12 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
             _ctx.Settings.ViewerHtmlAllowScripts = _scriptsBtn.Checked;
             SettingsService.Save(_ctx.Settings);
             Host.SetScriptEnabled(_scriptsBtn.Checked);
+            // WebView2 applies IsScriptEnabled at the next navigation, not to the page already
+            // loaded - without a reload here, turning the toggle OFF looks like it disabled
+            // scripts (the button un-checks, the setting persists as false) while whatever
+            // scripts the page already started (timers, event handlers) keep running. Reload
+            // makes the toggle's visible state always match what's actually executing.
+            Host.Core?.Reload();
         };
 
         _printBtn = ViewerToolbarFactory.CreateIconButton("print", "View.Html.Print", (_, _) => Host.Core?.ShowPrintUI());

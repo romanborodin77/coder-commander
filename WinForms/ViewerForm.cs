@@ -531,7 +531,17 @@ public class ViewerForm : ThemedForm
     /// the form's own Close() plus the owner form disposing its owned windows on shutdown) -
     /// without the guard, the second call hits an already-disposed <see cref="_loadCts"/> and
     /// <see cref="CancellationTokenSource.Cancel"/> throws <see cref="ObjectDisposedException"/>
-    /// as an unhandled exception on the UI thread.</summary>
+    /// as an unhandled exception on the UI thread.
+    ///
+    /// <para>Nulling <see cref="_loadCts"/> after disposing it (not just the disposed-guard above)
+    /// matters on its own: a still-running <see cref="LoadFileAsync"/> reads <c>_loadCts?.Token</c>
+    /// as its staleness check at several points after this method returns (the load itself is not
+    /// cancelled synchronously - GDI+ decode/file I/O isn't reliably cancellable mid-operation).
+    /// With the field left pointing at the disposed instance, <c>.Token</c> throws
+    /// <see cref="ObjectDisposedException"/> on that next check instead of the intended "superseded,
+    /// stop here" comparison; with it nulled, <c>_loadCts?.Token</c> short-circuits to <c>null</c>
+    /// and the existing <c>ct != _loadCts?.Token</c> comparisons correctly read as "no longer
+    /// current" without touching the disposed object.</para></summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing && !_disposed)
@@ -540,6 +550,7 @@ public class ViewerForm : ThemedForm
             ThemeService.ThemeChanged -= OnThemeChanged;
             _loadCts?.Cancel();
             _loadCts?.Dispose();
+            _loadCts = null;
             _loadingAnimTimer?.Dispose();
             foreach (var content in _contents.Values) content.Dispose();
             // WebViewHost before ViewerTempSession: disposing the WebView2 control releases its
