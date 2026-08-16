@@ -64,7 +64,12 @@ public class SyncDirsForm : ThemedForm
         };
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
         top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+        // 80 wasn't enough once this column started also holding _ignoreTimeCheck's column-span
+        // (with column 3 below) on row 2 - the Russian "Игнорировать время (только размер)" is
+        // wider than the English "Ignore time (size only)" and the checkbox was hard-clipping it
+        // (LayoutAuditTests' TextOverflow detector, F122). 130 gives the combined span (this
+        // column + the 120px one below) enough room for the longer translation.
+        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         // Wide enough for the localized "Browse…" text - CreateThemedButton's own auto-sizing
         // would give it ~100px, and this used to be 80 (RoundedButton's EndEllipsis then silently
         // truncated it to "Brows..."). 100 wasn't enough once this same column started also
