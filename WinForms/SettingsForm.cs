@@ -24,6 +24,12 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _showStatusBarCheck;
     private readonly ThemedCheckBox _showFnButtonsCheck;
     private readonly ThemedCheckBox _dirsFirstCheck;
+    private readonly Label _uiFontDisplayLabel;
+    private readonly Label _monoFontDisplayLabel;
+    private string _workingUiFontFamily;
+    private float _workingUiFontSize;
+    private string _workingMonoFontFamily;
+    private float _workingMonoFontSize;
     private readonly ThemedComboBox _compressionFormatCombo;
     private readonly ThemedComboBox _compressionPresetCombo;
     private readonly List<IArchiveFormat> _compressionFormats;
@@ -86,7 +92,7 @@ public class SettingsForm : ThemedForm
         _nav = new SettingsNavControl { Dock = DockStyle.Fill };
 
         // ── Appearance section ──
-        var appearLayout = CreateSectionLayout(rows: 5, columns: 2);
+        var appearLayout = CreateSectionLayout(rows: 7, columns: 2);
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -117,6 +123,34 @@ public class SettingsForm : ThemedForm
         _showToolbarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowToolbar", s.ShowToolbar);
         _showStatusBarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowStatusBar", s.ShowStatusBar);
         _showFnButtonsCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowFunctionButtons", s.ShowFunctionButtons);
+
+        // UI/monospace fonts - working copies so Cancel discards a font picked via FontDialog,
+        // same pattern as _workingCompression/_workingExtensions above. "" / 0 = built-in default
+        // (Segoe UI 9pt / Consolas 9.5pt), matching AppSettings.UiFontFamily's own sentinel.
+        _workingUiFontFamily = s.UiFontFamily;
+        _workingUiFontSize = (float)s.UiFontSize;
+        _workingMonoFontFamily = s.MonoFontFamily;
+        _workingMonoFontSize = (float)s.MonoFontSize;
+
+        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.UiFont")), 0, row);
+        _uiFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingUiFontFamily, _workingUiFontSize, "Segoe UI", 9F));
+        _uiFontDisplayLabel.Dock = DockStyle.Fill;
+        _uiFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
+        var uiFontRow = BuildFontPickerRow(_uiFontDisplayLabel,
+            onChange: () => PickFont(ref _workingUiFontFamily, ref _workingUiFontSize, "Segoe UI", 9F, _uiFontDisplayLabel),
+            onReset: () => { _workingUiFontFamily = ""; _workingUiFontSize = 0; _uiFontDisplayLabel.Text = FormatFontDisplay("", 0, "Segoe UI", 9F); });
+        appearLayout.Controls.Add(uiFontRow, 1, row);
+        row++;
+
+        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.MonoFont")), 0, row);
+        _monoFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingMonoFontFamily, _workingMonoFontSize, "Consolas", 9.5F));
+        _monoFontDisplayLabel.Dock = DockStyle.Fill;
+        _monoFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
+        var monoFontRow = BuildFontPickerRow(_monoFontDisplayLabel,
+            onChange: () => PickFont(ref _workingMonoFontFamily, ref _workingMonoFontSize, "Consolas", 9.5F, _monoFontDisplayLabel),
+            onReset: () => { _workingMonoFontFamily = ""; _workingMonoFontSize = 0; _monoFontDisplayLabel.Text = FormatFontDisplay("", 0, "Consolas", 9.5F); });
+        appearLayout.Controls.Add(monoFontRow, 1, row);
+        row++;
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Appearance"), appearLayout, "Settings.Nav.Appearance"));
 
@@ -535,6 +569,87 @@ public class SettingsForm : ThemedForm
             _workingCompression[format.Id] = format.SupportedPresets[presetIndex];
     }
 
+    /// <summary>Builds a font row: the display label (fill) plus "Change…" and "Reset" buttons.
+    /// A plain <see cref="TableLayoutPanel"/> rather than a <see cref="FlowLayoutPanel"/> - Flow
+    /// has no "fill the remaining space" column, which is what lets the label truncate long family
+    /// names with an ellipsis instead of pushing the buttons off the section's edge.</summary>
+    private static Control BuildFontPickerRow(Label displayLabel, Action onChange, Action onReset)
+    {
+        var L = LocalizationService.Current;
+        var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = ThemeService.Current.Background };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        displayLabel.AutoEllipsis = true;
+        row.Controls.Add(displayLabel, 0, 0);
+
+        var changeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Change"));
+        changeBtn.Margin = new Padding(4, 2, 4, 2);
+        changeBtn.Click += (_, _) => onChange();
+        row.Controls.Add(changeBtn, 1, 0);
+
+        var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Reset"));
+        resetBtn.Margin = new Padding(0, 2, 0, 2);
+        resetBtn.Click += (_, _) => onReset();
+        row.Controls.Add(resetBtn, 2, 0);
+
+        return row;
+    }
+
+    /// <summary>"Family, 9.5pt" for an explicit override, or "Family, 9pt (default)" for the "" / 0
+    /// sentinel - so Appearance always shows what font is actually in effect, never a blank row.</summary>
+    private static string FormatFontDisplay(string family, float size, string defaultFamily, float defaultSize)
+    {
+        var L = LocalizationService.Current;
+        return string.IsNullOrWhiteSpace(family) || size <= 0
+            ? L.GetString("Settings.Font.DefaultLabel", $"{defaultFamily}, {defaultSize:0.#}pt")
+            : $"{family}, {size:0.#}pt";
+    }
+
+    /// <summary>Opens the native <see cref="FontDialog"/> (family/size only - no bold/italic/color,
+    /// which every <see cref="ThemePalette"/> role already decides on its own) seeded with the
+    /// current working value, and writes the result back into <paramref name="family"/>/
+    /// <paramref name="size"/> plus the display label on OK. A field passed by <c>ref</c> from
+    /// inside a button-click lambda is legal here (fields aren't "captured" the way local variables
+    /// are - the lambda reaches them through <c>this</c>), unlike trying to ref a captured local.</summary>
+    private static void PickFont(ref string family, ref float size, string defaultFamily, float defaultSize, Label displayLabel)
+    {
+        var currentFamily = string.IsNullOrWhiteSpace(family) ? defaultFamily : family;
+        var currentSize = size > 0 ? size : defaultSize;
+
+        using var previewFont = SafeCreateFont(currentFamily, currentSize, defaultFamily);
+        using var dlg = new FontDialog
+        {
+            Font = previewFont,
+            ShowEffects = false,
+            ShowColor = false,
+            FontMustExist = true,
+            MinSize = 6,
+            MaxSize = 36
+        };
+        if (dlg.ShowDialog() != DialogResult.OK) return;
+
+        family = dlg.Font.Name;
+        size = dlg.Font.Size;
+        displayLabel.Text = FormatFontDisplay(family, size, defaultFamily, defaultSize);
+    }
+
+    /// <summary>Same "fall back rather than throw" contract as <c>FontCache.CreateFont</c> (kept
+    /// separate rather than reusing it - that one is <c>internal</c> to <c>Services</c> and always
+    /// falls back to Segoe UI specifically, not to whichever default this call site wants). GDI+
+    /// doesn't actually throw for an unavailable family - <c>new Font(name, size)</c> silently
+    /// substitutes a fallback and reports the substitute's own name back, so detecting the failure
+    /// means comparing <see cref="Font.Name"/> against what was asked for, same as FontCache does.</summary>
+    private static Font SafeCreateFont(string family, float size, string fallbackFamily)
+    {
+        var font = new Font(family, size);
+        if (string.Equals(font.Name, family, StringComparison.OrdinalIgnoreCase)) return font;
+        font.Dispose();
+        return new Font(fallbackFamily, size);
+    }
+
     private void RefreshExtensionsListBox()
     {
         _extensionsListBox.Items.Clear();
@@ -593,6 +708,10 @@ public class SettingsForm : ThemedForm
         s.ShowToolbar = _showToolbarCheck.Checked;
         s.ShowStatusBar = _showStatusBarCheck.Checked;
         s.ShowFunctionButtons = _showFnButtonsCheck.Checked;
+        s.UiFontFamily = _workingUiFontFamily;
+        s.UiFontSize = _workingUiFontSize;
+        s.MonoFontFamily = _workingMonoFontFamily;
+        s.MonoFontSize = _workingMonoFontSize;
         s.DirectoriesFirst = _dirsFirstCheck.Checked;
         s.ShowExtensionInName = _showExtInNameCheck.Checked;
         s.ConfirmDelete = _confirmDeleteCheck.Checked;

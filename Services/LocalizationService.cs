@@ -383,6 +383,11 @@ public sealed class LocalizationService
         _strings["Settings.ShowCommandLine"] = "Show command line";
         _strings["Settings.ShowFunctionButtons"] = "Show function buttons";
         _strings["Settings.DirectoriesFirst"] = "Directories first";
+        _strings["Settings.UiFont"] = "UI font:";
+        _strings["Settings.MonoFont"] = "Monospace font:";
+        _strings["Settings.Font.Change"] = "Change…";
+        _strings["Settings.Font.Reset"] = "Reset";
+        _strings["Settings.Font.DefaultLabel"] = "{0} (default)";
         _strings["Settings.ShowExtInName"] = "Show extension in file name";
         _strings["Settings.ConfirmDelete"] = "Confirm delete";
         _strings["Settings.ConfirmOverwrite"] = "Confirm overwrite";

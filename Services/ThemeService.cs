@@ -341,6 +341,53 @@ public sealed class ThemePalette
     public Font LinkFont { get; init; } = FontCache.Get("Segoe UI", 9F, FontStyle.Underline);
 }
 
+/// <summary>Every <see cref="ThemePalette"/> font role, computed once per <c>CreateDark</c>/
+/// <c>CreateLight</c> call from <see cref="AppSettings.UiFontFamily"/>/<c>UiFontSize</c>/
+/// <c>MonoFontFamily</c>/<c>MonoFontSize</c> - split out so both factories list the same 14
+/// properties from one source instead of duplicating the settings-reading logic itself.</summary>
+internal readonly record struct ThemeFontSet(
+    Font Grid, Font GridBold, Font Header, Font StatusBar, Font Caption, Font Mono,
+    Font Title, Font Subtitle, Font Section, Font Small, Font Italic, Font IconGlyph,
+    Font ButtonGlyph, Font Link)
+{
+    /// <summary>Builds every font role from current settings. The UI family/size override
+    /// applies uniformly to every non-mono role; each role keeps its own built-in offset from the
+    /// 9pt base (Title stays 6pt larger than body text, Small stays 0.5pt smaller, etc.) so
+    /// choosing a larger UI size scales the whole dialog-chrome hierarchy rather than flattening
+    /// it to one size. Mono is entirely independent (its own family + size, no offset math).</summary>
+    public static ThemeFontSet FromSettings()
+    {
+        var s = SettingsService.Load();
+        var uiFamily = string.IsNullOrWhiteSpace(s.UiFontFamily) ? "Segoe UI" : s.UiFontFamily;
+        var uiSize = s.UiFontSize > 0 ? (float)s.UiFontSize : 9F;
+        var delta = uiSize - 9F;
+        var monoFamily = string.IsNullOrWhiteSpace(s.MonoFontFamily) ? "Consolas" : s.MonoFontFamily;
+        var monoSize = s.MonoFontSize > 0 ? (float)s.MonoFontSize : 9.5F;
+
+        // Clamped defensively even though SettingsService.Validate already keeps UiFontSize/
+        // MonoFontSize in range - a role's own *offset* (e.g. Small = base - 0.5) could still dip
+        // below what Font(...) accepts if the base were ever chosen right at the validated floor.
+        static float Clamped(float v) => Math.Max(1F, v);
+
+        return new ThemeFontSet(
+            Grid: FontCache.Get(uiFamily, uiSize),
+            GridBold: FontCache.Get(uiFamily, uiSize, FontStyle.Bold),
+            Header: FontCache.Get(uiFamily, uiSize, FontStyle.Bold),
+            StatusBar: FontCache.Get(uiFamily, Clamped(8.5F + delta)),
+            Caption: FontCache.Get(uiFamily, uiSize),
+            Mono: FontCache.Get(monoFamily, monoSize),
+            Title: FontCache.Get(uiFamily, Clamped(15F + delta), FontStyle.Bold),
+            Subtitle: FontCache.Get(uiFamily, Clamped(13F + delta), FontStyle.Bold),
+            Section: FontCache.Get(uiFamily, Clamped(10F + delta), FontStyle.Bold),
+            Small: FontCache.Get(uiFamily, Clamped(8.5F + delta)),
+            Italic: FontCache.Get(uiFamily, uiSize, FontStyle.Italic),
+            IconGlyph: FontCache.Get(uiFamily, Clamped(24F + delta)),
+            ButtonGlyph: FontCache.Get(uiFamily, Clamped(12F + delta), FontStyle.Bold),
+            Link: FontCache.Get(uiFamily, uiSize, FontStyle.Underline)
+        );
+    }
+}
+
 /// <summary>
 /// Applies theme colors to WinForms controls.
 /// </summary>
@@ -350,10 +397,39 @@ public static class ThemeService
     public static ThemePalette Current { get; private set; } = CreateDark();
 
     /// <summary>Creates a new instance of the VSCode Dark+ theme palette.</summary>
-    public static ThemePalette CreateDark() => new();
+    public static ThemePalette CreateDark() => WithFonts(new(), ThemeFontSet.FromSettings());
+
+    /// <summary>Applies a <see cref="ThemeFontSet"/> onto an otherwise-built palette - both
+    /// <see cref="CreateDark"/> and <see cref="CreateLight"/> read the same 14 font roles from
+    /// current settings, so the settings-reading logic itself lives once in
+    /// <see cref="ThemeFontSet.FromSettings"/> rather than being copy-pasted into each factory.</summary>
+    private static ThemePalette WithFonts(ThemePalette p, ThemeFontSet f) => new()
+    {
+        // Colors/Syntax/Terminal come from whatever p already has (Dark's own field initializers,
+        // or Light's overrides below) - only the font roles are replaced here.
+        Background = p.Background, PanelBackground = p.PanelBackground, PanelActiveBorder = p.PanelActiveBorder,
+        PanelInactiveBorder = p.PanelInactiveBorder, Foreground = p.Foreground, DimForeground = p.DimForeground,
+        SeparatorForeground = p.SeparatorForeground, Selection = p.Selection, SelectionForeground = p.SelectionForeground,
+        InactiveSelection = p.InactiveSelection, HeaderBackground = p.HeaderBackground, HeaderForeground = p.HeaderForeground,
+        ToolbarBackground = p.ToolbarBackground, ToolbarHover = p.ToolbarHover, GridLine = p.GridLine,
+        AlternatingRow = p.AlternatingRow, Accent = p.Accent, AccentHover = p.AccentHover,
+        DirectoryColor = p.DirectoryColor, ExecutableColor = p.ExecutableColor, HiddenColor = p.HiddenColor,
+        ArchiveColor = p.ArchiveColor, GitModifiedColor = p.GitModifiedColor, GitAddedColor = p.GitAddedColor,
+        Danger = p.Danger, Warning = p.Warning, GlossOverlay = p.GlossOverlay, RowHover = p.RowHover,
+        SplitterNormal = p.SplitterNormal, SplitterHover = p.SplitterHover, FocusBorder = p.FocusBorder,
+        ColumnHeaderGradient = p.ColumnHeaderGradient, ScrollbarTrack = p.ScrollbarTrack, ScrollbarThumb = p.ScrollbarThumb,
+        ScrollbarThumbHover = p.ScrollbarThumbHover, ScrollbarThumbPressed = p.ScrollbarThumbPressed,
+        ScrollbarArrow = p.ScrollbarArrow, ScrollbarArrowHover = p.ScrollbarArrowHover, ScrollbarBorder = p.ScrollbarBorder,
+        Syntax = p.Syntax, Terminal = p.Terminal,
+        // Font roles - the only thing this method actually changes.
+        GridFont = f.Grid, GridFontBold = f.GridBold, HeaderFont = f.Header, StatusBarFont = f.StatusBar,
+        CaptionFont = f.Caption, MonoFont = f.Mono, TitleFont = f.Title, SubtitleFont = f.Subtitle,
+        SectionFont = f.Section, SmallFont = f.Small, ItalicFont = f.Italic, IconGlyphFont = f.IconGlyph,
+        ButtonGlyphFont = f.ButtonGlyph, LinkFont = f.Link
+    };
 
     /// <summary>Creates a new instance of the VSCode Light+ theme palette.</summary>
-    public static ThemePalette CreateLight() => new()
+    public static ThemePalette CreateLight() => WithFonts(new()
     {
         // VSCode Light+ colors
         Background = Color.FromArgb(255, 255, 255),
@@ -437,7 +513,7 @@ public static class ThemeService
             SearchMatchCurrent = Color.FromArgb(255, 173, 51),
             LinkUnderline = Color.FromArgb(1, 132, 188)
         }
-    };
+    }, ThemeFontSet.FromSettings());
 
     /// <summary>Raised after <see cref="ApplyTheme"/> swaps the active palette so that all
     /// controls can re-read <see cref="Current"/> and repaint.</summary>

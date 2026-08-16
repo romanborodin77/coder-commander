@@ -55,6 +55,26 @@ public sealed class AppSettings
     public bool ShowStatusBar { get; set; } = true;
     public bool ShowToolbar { get; set; } = true;
     public bool ShowFunctionButtons { get; set; } = true;
+
+    /// <summary>UI font family for panels, dialogs, and every <see cref="ThemePalette"/> font role
+    /// that isn't <see cref="MonoFontFamily"/> (see <see cref="ThemePalette.CreateDark"/>'s
+    /// <c>BuildFonts</c>). Empty means "use the built-in default" ("Segoe UI") - same empty-means-
+    /// default convention as <see cref="ViewerEncodingOverride"/>.</summary>
+    public string UiFontFamily { get; set; } = "";
+
+    /// <summary>Base UI font size in points (what <see cref="ThemePalette.GridFont"/> uses
+    /// directly; every other UI-family role keeps its own offset from the built-in 9pt base, so
+    /// the dialog-chrome size hierarchy - Title 15pt/Subtitle 13pt/Section 10pt/body 9pt/hint
+    /// 8.5pt - is preserved rather than collapsed to one flat size). 0 means "use the built-in
+    /// default" (9pt).</summary>
+    public double UiFontSize { get; set; }
+
+    /// <summary>Monospace font family for the code editor, F3 text/hex viewer, and terminal.
+    /// Empty means "use the built-in default" ("Consolas").</summary>
+    public string MonoFontFamily { get; set; } = "";
+
+    /// <summary>Monospace font size in points. 0 means "use the built-in default" (9.5pt).</summary>
+    public double MonoFontSize { get; set; }
     public bool FlatView { get; set; } = false;
     public string SortColumn { get; set; } = "Name";
     public bool SortDescending { get; set; } = false;
@@ -184,6 +204,13 @@ public static class SettingsService
     private const int MinSettingsWindowWidth = 620;
     private const int MinSettingsWindowHeight = 480;
 
+    // Matches SettingsForm's own FontDialog.MinSize/MaxSize bounds - kept in sync there rather
+    // than referenced across the Services/WinForms boundary, same reasoning as the two constants
+    // above. 0 (the "use built-in default" sentinel) is below MinFontSize by construction, so the
+    // Validate() check below resets it to 0 too - a harmless no-op, not a special case.
+    private const double MinFontSize = 6.0;
+    private const double MaxFontSize = 36.0;
+
     public static AppSettings Load()
     {
         lock (Lock)
@@ -258,6 +285,8 @@ public static class SettingsService
         if (s.SettingsWindowWidth < MinSettingsWindowWidth) s.SettingsWindowWidth = defaults.SettingsWindowWidth;
         if (s.SettingsWindowHeight < MinSettingsWindowHeight) s.SettingsWindowHeight = defaults.SettingsWindowHeight;
         if (s.TerminalHeight < 0) s.TerminalHeight = defaults.TerminalHeight;
+        if (s.UiFontSize is < MinFontSize or > MaxFontSize) s.UiFontSize = 0;
+        if (s.MonoFontSize is < MinFontSize or > MaxFontSize) s.MonoFontSize = 0;
 
         MigrateLegacyCompressionLevel(s);
         CleanArchiveCompression(s);
