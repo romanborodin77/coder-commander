@@ -139,9 +139,11 @@ public class SettingsForm : ThemedForm
         _workingMonoFontFamily = s.MonoFontFamily;
         _workingMonoFontSize = (float)s.MonoFontSize;
 
+        // Font picker rows are stacked (label above buttons - see BuildFontPickerRow's doc comment
+        // for why) and need more than the section's uniform 32px row height.
+        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 56);
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.UiFont")), 0, row);
         _uiFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingUiFontFamily, _workingUiFontSize, "Segoe UI", 9F));
-        _uiFontDisplayLabel.Dock = DockStyle.Fill;
         _uiFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
         var uiFontRow = BuildFontPickerRow(_uiFontDisplayLabel,
             onChange: () => PickFont(ref _workingUiFontFamily, ref _workingUiFontSize, "Segoe UI", 9F, _uiFontDisplayLabel),
@@ -149,9 +151,9 @@ public class SettingsForm : ThemedForm
         appearLayout.Controls.Add(uiFontRow, 1, row);
         row++;
 
+        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 56);
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.MonoFont")), 0, row);
         _monoFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingMonoFontFamily, _workingMonoFontSize, "Consolas", 9.5F));
-        _monoFontDisplayLabel.Dock = DockStyle.Fill;
         _monoFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
         var monoFontRow = BuildFontPickerRow(_monoFontDisplayLabel,
             onChange: () => PickFont(ref _workingMonoFontFamily, ref _workingMonoFontSize, "Consolas", 9.5F, _monoFontDisplayLabel),
@@ -661,33 +663,36 @@ public class SettingsForm : ThemedForm
         return row;
     }
 
-    /// <summary>Builds a font row: the display label (fill) plus "Change…" and "Reset" buttons.
-    /// A plain <see cref="TableLayoutPanel"/> rather than a <see cref="FlowLayoutPanel"/> - Flow
-    /// has no "fill the remaining space" column, which is what lets the label truncate long family
-    /// names with an ellipsis instead of pushing the buttons off the section's edge.</summary>
+    /// <summary>Builds a font row: the display label on its own line, "Change…"/"Reset" on the
+    /// line below. Stacked rather than a single label+2-buttons row - this section's label column
+    /// only leaves ~220px for the whole picker, and with the two buttons taking their own space in
+    /// a side-by-side layout, TableLayoutPanel starved the label's Percent column down to almost
+    /// nothing (rendered as just "S."/"C." in a live build, even with AutoSize=false - the columns
+    /// interact in a way a single extra row sidesteps entirely by giving the label the full row
+    /// width with nothing competing for it).</summary>
     private static Control BuildFontPickerRow(Label displayLabel, Action onChange, Action onReset)
     {
         var L = LocalizationService.Current;
-        var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = ThemeService.Current.Background };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var stack = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = ThemeService.Current.Background };
+        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
 
+        displayLabel.AutoSize = false;
         displayLabel.AutoEllipsis = true;
-        row.Controls.Add(displayLabel, 0, 0);
+        displayLabel.Dock = DockStyle.Fill;
+        stack.Controls.Add(displayLabel, 0, 0);
 
+        var buttonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
         var changeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Change"));
-        changeBtn.Margin = new Padding(4, 2, 4, 2);
+        changeBtn.Margin = new Padding(0, 0, 8, 0);
         changeBtn.Click += (_, _) => onChange();
-        row.Controls.Add(changeBtn, 1, 0);
-
         var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Reset"));
-        resetBtn.Margin = new Padding(0, 2, 0, 2);
         resetBtn.Click += (_, _) => onReset();
-        row.Controls.Add(resetBtn, 2, 0);
+        buttonRow.Controls.Add(changeBtn);
+        buttonRow.Controls.Add(resetBtn);
+        stack.Controls.Add(buttonRow, 0, 1);
 
-        return row;
+        return stack;
     }
 
     /// <summary>"Family, 9.5pt" for an explicit override, or "Family, 9pt (default)" for the "" / 0
@@ -695,9 +700,13 @@ public class SettingsForm : ThemedForm
     private static string FormatFontDisplay(string family, float size, string defaultFamily, float defaultSize)
     {
         var L = LocalizationService.Current;
+        // Invariant culture, not the OS locale's number format - "9.5pt" must read the same
+        // regardless of Windows' regional settings, the way every other size/unit string in this
+        // app already does (this one used the default culture and rendered "9,5pt" under a
+        // Russian-locale OS even with English selected as the app's own display language).
         return string.IsNullOrWhiteSpace(family) || size <= 0
-            ? L.GetString("Settings.Font.DefaultLabel", $"{defaultFamily}, {defaultSize:0.#}pt")
-            : $"{family}, {size:0.#}pt";
+            ? L.GetString("Settings.Font.DefaultLabel", $"{defaultFamily}, {defaultSize.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}pt")
+            : $"{family}, {size.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}pt";
     }
 
     /// <summary>Opens the native <see cref="FontDialog"/> (family/size only - no bold/italic/color,
