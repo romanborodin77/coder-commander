@@ -66,3 +66,10 @@ dotnet_diagnostic.CA1816.severity = error
 # would reintroduce the exact synchronous Dispose(bool) block the override exists to avoid).
 # Confirmed zero remaining occurrences before promoting.
 dotnet_diagnostic.CA2215.severity = error
+
+# CA1001 (type owns disposable field(s) but isn't itself IDisposable): round-3 audit finding F094.
+# AnalysisModeDesign=None above (public-API-surface advice, CA1002/CA1034/CA1051/CA1056/CA1063 -
+# irrelevant to an internal .exe) silently took this real leak-detector down with it, even though
+# it belongs with CA2213/CA2215's category, not Design's. Enabled pointedly here rather than by
+# flipping AnalysisModeDesign back on. Confirmed zero remaining occurrences before promoting.
+dotnet_diagnostic.CA1001.severity = error

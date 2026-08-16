@@ -18,7 +18,6 @@
     <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
     <AssemblyName>CoderCommander</AssemblyName>
     <RootNamespace>CoderCommander</RootNamespace>
     <!-- Required by the source-generated [LibraryImport] marshalling code used throughout
@@ -68,6 +67,15 @@
          every build without blocking one over a diagnosis already on record.-->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CA2213;CA1308</WarningsNotAsErrors>
+    <!-- F095: CLAUDE.md claimed "pinned exact version" for SSH.NET/SharpCompress/WebView2/Markdig,
+         but every PackageReference below is a bare version number - a NuGet minimum, not a pin.
+         A lock file is the softer, more accurate fix: it locks the FULL resolved graph (including
+         transitive packages like BouncyCastle.Cryptography, which bracket pins on direct
+         PackageReferences alone would never cover), and restore fails loudly on any drift instead
+         of silently resolving a different version. NuGetAuditMode=all additionally extends CVE
+         scanning to transitive packages (default is direct-only). -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
 
   <!-- F098: was a command-line-only flag for `dotnet publish -p:PublishSingleFile=true`, easy to

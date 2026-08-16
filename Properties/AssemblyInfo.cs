@@ -1,6 +1,18 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+
+// F093: GenerateAssemblyInfo=false (set so this hand-written file doesn't collide with SDK
+// auto-gen) also suppresses the SDK's own auto-generated [assembly: SupportedOSPlatform("windows7.0")]
+// that a "-windows"-suffixed TargetFramework normally gets for free - without it, CA1416 (platform
+// compatibility) has no way to know this assembly is Windows-only and flags every single WinForms
+// API call in the app (Label, Font, ToolStripButton, ...) as a platform-compatibility violation.
+// Restoring it here is what makes CA1416 usable again for its actual purpose: catching genuinely
+// version-gated APIs like the ConPTY functions this app already manually guards via
+// Utils.OsVersion.MinConPtyBuild, instead of a blanket NoWarn hiding both the noise and any real
+// finding together.
+[assembly: SupportedOSPlatform("windows7.0")]
 
 [assembly: AssemblyTitle("Coder Commander")]
 [assembly: AssemblyDescription("Dual-panel file manager for programmers")]
