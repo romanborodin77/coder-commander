@@ -176,17 +176,17 @@ public class MultiRenameForm : ThemedForm
         layout.Controls.Add(_previewList, 0, row);
         layout.SetColumnSpan(_previewList, 2);
 
-        // Buttons
+        // Buttons. Fixed Width = 100 previously clobbered CreateThemedButton's own text-measured
+        // width (same class of bug as WinForms/AboutForm.cs's copy/close buttons), truncating
+        // "Переименовать" ("Rename") to "Переим..." under Russian (caught by visual inspection of
+        // a live build) - removed, letting each button size to its own localized text.
         _okBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Rename"), accent: true);
         _okBtn.DialogResult = DialogResult.OK;
-        _okBtn.Width = 100;
 
         _cancelBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Cancel"), accent: false);
         _cancelBtn.DialogResult = DialogResult.Cancel;
-        _cancelBtn.Width = 100;
 
         _resetBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Reset"), accent: false);
-        _resetBtn.Width = 100;
         _resetBtn.Click += (_, _) =>
         {
             _patternBox.Text = "[N]";

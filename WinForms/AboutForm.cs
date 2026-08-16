@@ -258,14 +258,18 @@ public class AboutForm : ThemedForm
         };
         buttons.SetRole(ThemeRole.HeaderBackground);
 
+        // Height-only override (not Size) - CreateThemedButton already measures each button's own
+        // text and sizes its Width to fit; a fixed Size here previously clobbered that back down to
+        // a hardcoded width, truncating "Скопировать сведения" ("Copy info") under Russian to
+        // "Скопировать све..." (caught by visual inspection of a live build).
         copyBtn = ThemedForm.CreateThemedButton(L.GetString("About.CopyInfo"));
-        copyBtn.Size = new Size(150, 34);
+        copyBtn.Height = 34;
         copyBtn.Margin = new Padding(0, 3, 10, 3);
         var captured = copyBtn;
         copyBtn.Click += (_, _) => CopyDiagnosticsToClipboard(captured);
 
         var closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"), accent: true);
-        closeBtn.Size = new Size(110, 34);
+        closeBtn.Height = 34;
         closeBtn.Margin = new Padding(0, 3, 0, 3);
         closeBtn.Click += (_, _) => Close();
         CancelButton = closeBtn;

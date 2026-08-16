@@ -105,7 +105,6 @@ public class DifferForm : ThemedForm
         _rightBox = CreateTextBox();
         split.Panel1.Controls.Add(_leftBox);
         split.Panel2.Controls.Add(_rightBox);
-        split.SplitterDistance = (ClientSize.Width - 4) / 2;
 
         // Bottom
         _statusLabel = new Label
@@ -154,6 +153,13 @@ public class DifferForm : ThemedForm
         Controls.Add(split);
         Controls.Add(bottomPanel);
         Controls.Add(topBar);
+
+        // Must be set only after `split` is parented and docked - SplitContainer.Width is still
+        // its unparented default (150px) at construction time, so setting SplitterDistance against
+        // ClientSize.Width earlier either clamps to that tiny default or gets silently orphaned
+        // once the container grows to fill the real client area, leaving the splitter stuck near
+        // one edge instead of centered (caught by visual inspection of a live build).
+        split.SplitterDistance = (ClientSize.Width - 4) / 2;
 
         CancelButton = _closeBtn;
 

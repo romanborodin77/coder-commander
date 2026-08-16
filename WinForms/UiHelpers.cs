@@ -362,9 +362,15 @@ public sealed class ThemedCheckBox : Control
         using (var boxGrad = new LinearGradientBrush(boxRect, topColor, bottomColor, 90f))
             g.FillPath(boxGrad, boxPath);
 
-        // Box border
+        // Box border. Was p.GridLine for the non-hover case - GridLine is meant for subtle grid
+        // divider lines, not a control's own outline, and in Light theme
+        // (PanelBackground=243,243,243 vs GridLine=220,220,220) the two are only 23 apart, rendering
+        // an unchecked box as a barely-there gray blob instead of a legible checkbox outline
+        // (caught by visual inspection of a live build - Dark theme's larger gap, 37 vs 64,
+        // happened to stay readable). DimForeground gives consistently stronger contrast in both
+        // themes without the heavier weight of full Foreground.
         using (var boxPath2 = GraphicsHelpers.GetRoundedRect(boxRect, radius))
-        using (var boxBorderPen = new Pen(_hover ? p.Accent : p.GridLine, _hover ? 2 : 1))
+        using (var boxBorderPen = new Pen(_hover ? p.Accent : p.DimForeground, _hover ? 2 : 1))
             g.DrawPath(boxBorderPen, boxPath2);
 
         // Checkmark (Checked) or indeterminate marker

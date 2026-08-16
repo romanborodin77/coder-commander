@@ -36,7 +36,13 @@ public class OperationDialogForm : ThemedForm
         var L = LocalizationService.Current;
         var p = ThemeService.Current;
 
-        Text = operation.Title;
+        // operation.Title is a stable, always-English identifier (relied on as such elsewhere -
+        // see UiTests/OperationDialogsTests.cs's own doc comment on why CopyOperation.Title stays
+        // "Copy") - resolve it through Op.Title.* for display instead of showing it raw, which
+        // previously left the window title bar in English regardless of UI language (caught by
+        // visual inspection of a live build; the header label below it was already localized via
+        // the caller-supplied displayName).
+        Text = L.GetString("Op.Title." + operation.Title);
         ClientSize = new Size(540, 380);
         MaximizeBox = false;
         MinimizeBox = false;
@@ -54,7 +60,11 @@ public class OperationDialogForm : ThemedForm
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Header
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));  // Progress
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Stats
+        // statsPanel below needs 16 (overall progress) + 24 (speed/eta/files) + 12 (its own bottom
+        // padding) + ~22 (state label, SectionFont 10pt bold) = 74px; 60 starved the state label's
+        // row down to ~8px, clipping "Выполняется…"/etc. to a sliver bleeding into the row below
+        // (caught by visual inspection of a live build).
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));   // Stats
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // Spacer
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Buttons
 
@@ -211,13 +221,17 @@ public class OperationDialogForm : ThemedForm
             Padding = new Padding(20, 12, 20, 12)
         };
 
+        // Fixed Size (Width) previously clobbered CreateThemedButton's own text-measured width
+        // (same class of bug as WinForms/AboutForm.cs/MultiRenameForm.cs), truncating
+        // "Пропустить" ("Skip") to "Пропус..." under Russian (caught by visual inspection of a
+        // live build) - Height-only override keeps the buttons a consistent height.
         _skipBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Skip"));
-        _skipBtn.Size = new Size(100, 36);
+        _skipBtn.Height = 36;
         _skipBtn.Margin = new Padding(0, 0, 8, 0);
         _skipBtn.Click += (_, _) => SkipRequested?.Invoke(this, EventArgs.Empty);
 
         _pauseBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Pause"));
-        _pauseBtn.Size = new Size(100, 36);
+        _pauseBtn.Height = 36;
         _pauseBtn.Margin = new Padding(0);
         _pauseBtn.Enabled = false;
 
@@ -235,7 +249,7 @@ public class OperationDialogForm : ThemedForm
         btnPanel.Controls.Add(leftGroup);
 
         _cancelBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Cancel"), accent: true);
-        _cancelBtn.Size = new Size(100, 36);
+        _cancelBtn.Height = 36;
         _cancelBtn.Margin = new Padding(0);
         _cancelBtn.Click += (_, _) =>
         {

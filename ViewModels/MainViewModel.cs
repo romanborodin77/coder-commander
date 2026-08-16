@@ -266,7 +266,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var destArchive = VfsPath.GetArchiveFile(destPath);
         var fromArchive = VfsPath.IsArchive(sourceBase);
         var intoArchive = VfsPath.IsArchive(destPath);
-        var verb = move ? "Move" : "Copy";
+        // Was a raw "Move"/"Copy" literal - unlike every other operation's displayName (Delete/
+        // Wipe/Pack/Unpack/SyncDirs all already resolve through Op.Display*), this one never went
+        // through localization, so the progress dialog header always showed English text under
+        // Russian UI (caught by visual inspection of a live build).
+        var displayName = Services.LocalizationService.Current.GetString(
+            move ? "Op.DisplayMove" : "Op.DisplayCopy", entries.Count, destPath);
 
         if (fromArchive && intoArchive &&
             string.Equals(sourceArchive, destArchive, StringComparison.OrdinalIgnoreCase))
@@ -321,7 +326,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Not the shared Operations.RunAsync(op, ...) call at the bottom of this method - a
             // pack into an archive needs the extra step of syncing an already-attached panel lease
             // once the operation actually finishes, see RunPackAndSyncLeaseAsync's own doc comment.
-            _ = RunPackAndSyncLeaseAsync(op, $"{verb} {entries.Count} item(s) to {destPath}", destArchive);
+            _ = RunPackAndSyncLeaseAsync(op, displayName, destArchive);
 #pragma warning restore CA2000
             return;
         }
@@ -372,7 +377,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : new CopyOperation(sourceFs, destFs, entries, sourceBase, destPath, options);
         }
 
-        _ = Operations.RunAsync(op, $"{verb} {entries.Count} item(s) to {destPath}");
+        _ = Operations.RunAsync(op, displayName);
 #pragma warning restore CA2000
     }
 

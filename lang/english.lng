@@ -419,6 +419,14 @@ Op.DisplayWipe=Wipe {0} item(s)
 Op.DisplayPack=Pack {0} item(s) to {1}
 Op.DisplayUnpack=Unpack {0} to {1}
 Op.DisplaySyncDirs=Sync {0} item(s)
+Op.DisplayCopy=Copy {0} item(s) to {1}
+Op.DisplayMove=Move {0} item(s) to {1}
+Op.Title.Copy=Copy
+Op.Title.Move=Move
+Op.Title.Delete=Delete
+Op.Title.Wipe=Wipe
+Op.Title.Pack=Pack
+Op.Title.Unpack=Unpack
 Common.Confirm=Confirm
 
 # ═══ Viewer ═══

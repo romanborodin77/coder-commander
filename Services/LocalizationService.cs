@@ -707,6 +707,17 @@ public sealed class LocalizationService
         _strings["Op.DisplayWipe"] = "Wipe {0} item(s)";
         _strings["Op.DisplayPack"] = "Pack {0} item(s) to {1}";
         _strings["Op.DisplayUnpack"] = "Unpack {0} to {1}";
+        _strings["Op.DisplayCopy"] = "Copy {0} item(s) to {1}";
+        _strings["Op.DisplayMove"] = "Move {0} item(s) to {1}";
+        // Keys are IFileOperation.Title's own English identifier values ("Copy"/"Move"/"Delete"/
+        // "Wipe"/"Pack"/"Unpack" - see Operations/*.cs), looked up via string concatenation in
+        // OperationDialogForm, not written out as literals here.
+        _strings["Op.Title.Copy"] = "Copy";
+        _strings["Op.Title.Move"] = "Move";
+        _strings["Op.Title.Delete"] = "Delete";
+        _strings["Op.Title.Wipe"] = "Wipe";
+        _strings["Op.Title.Pack"] = "Pack";
+        _strings["Op.Title.Unpack"] = "Unpack";
         _strings["Common.Confirm"] = "Confirm";
 
         // ═══ Archive ═══

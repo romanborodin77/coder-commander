@@ -22,7 +22,12 @@ public class OverwriteDialogForm : ThemedForm
         var p = ThemeService.Current;
 
         Text = L.GetString("OverwriteDlg.Title");
-        ClientSize = new Size(500, 292); // +16 to match the button row's 72→88 growth below
+        // Width 640, not 500: the 3-column policy-button grid's narrowest column needs to fit
+        // "Перезаписать если старее" ("Overwrite if older") - measured 151px text + 44px
+        // CreateThemedButton padding = 195px minimum, which 500px (giving ~157px/column after the
+        // dialog's own padding) couldn't provide, truncating it to "Перезаписать ес..." (caught by
+        // visual inspection of a live build).
+        ClientSize = new Size(640, 292); // +16 to match the button row's 72→88 growth below
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
@@ -170,9 +175,12 @@ public class OverwriteDialogForm : ThemedForm
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
+        // Both callers (OverwriteDlg.Source/.Destination) already end in ":" in the .lng files -
+        // appending another one here produced a literal "Источник::" (caught by visual inspection
+        // of a live build).
         var titleLabel = new Label
         {
-            Text = title + ":",
+            Text = title,
             Font = p.GridFontBold,
             ForeColor = p.Foreground,
             Dock = DockStyle.Fill,

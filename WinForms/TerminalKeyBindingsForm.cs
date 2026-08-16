@@ -58,6 +58,11 @@ public sealed class TerminalKeyBindingsForm : ThemedForm
         hint.Dock = DockStyle.Top;
         hint.Height = 24;
         hint.ForeColor = p.DimForeground;
+        // CreateLabel's AutoSize gets overridden by Dock=Top's width, and unlike
+        // WinForms/PropertiesForm.cs's equivalent hint label (F121), AutoEllipsis was never set -
+        // Russian's longer text was raw-clipped mid-word ("...для от") instead of degrading to
+        // "..." (caught by visual inspection of a live build).
+        hint.AutoEllipsis = true;
 
         var clearBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Terminal.KeyBindings.Clear"));
         clearBtn.Click += (_, _) =>
