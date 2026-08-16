@@ -7,6 +7,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- UseWindowsForms=true's own SDK default silently turns this ON (verified in the generated
+         runtimeconfig.json - the sibling UiTests project, which lacks UseWindowsForms, gets the
+         opposite value). The reachable sink: FilePanelUserControl.CanAccept accepts a drag-drop
+         object from ANY process advertising the custom "CoderCommander.PanelItems" clipboard
+         format, and OnFileListDragDrop's GetData(PanelDragPayload.Format) deserializes it BEFORE
+         checking whether the result is actually a PanelDragPayload - CWE-502. Nothing in this app
+         legitimately needs BinaryFormatter (the in-process drag-drop path passes a live object
+         reference, not a serialized one), so this closes the gap with no code change required. -->
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NoWarn>$(NoWarn);CA1416</NoWarn>
