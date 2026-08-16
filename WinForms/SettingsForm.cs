@@ -39,6 +39,12 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _copyAttrsCheck;
     private readonly ThemedCheckBox _copyTsCheck;
     private readonly ThemedCheckBox _showExtInNameCheck;
+    private readonly ThemedCheckBox _viewerWordWrapCheck;
+    private readonly ThemedCheckBox _viewerImageFitCheck;
+    private readonly ThemedComboBox _viewerCsvDelimiterCombo;
+    private readonly ThemedCheckBox _viewerCsvHasHeaderCheck;
+    private readonly ThemedComboBox _viewerEncodingCombo;
+    private readonly ThemedCheckBox _viewerHtmlAllowScriptsCheck;
     private readonly ThemedComboBox _defaultShellCombo;
     private readonly ThemedComboBox _keyBindingPresetCombo;
     private readonly ThemedComboBox _followPanelCwdCombo;
@@ -48,6 +54,18 @@ public class SettingsForm : ThemedForm
 
     /// <summary>Raised after settings are saved and applied.</summary>
     public event EventHandler? SettingsSaved;
+
+    /// <summary>Mirrors the F3 CSV viewer's own delimiter choices (<c>AppSettings.ViewerCsvDelimiter</c>:
+    /// "auto"/","/";"/"\t"/"|") in combo-index order, paired with the exact localization key that
+    /// toolbar already uses.</summary>
+    private static readonly (string Value, string Key)[] CsvDelimiterOptions =
+    {
+        ("auto", "View.Csv.Delimiter.Auto"),
+        (",", "View.Csv.Delimiter.Comma"),
+        (";", "View.Csv.Delimiter.Semicolon"),
+        ("\t", "View.Csv.Delimiter.Tab"),
+        ("|", "View.Csv.Delimiter.Pipe"),
+    };
 
     /// <summary>Initializes the settings dialog with current <see cref="AppSettings"/> values.</summary>
     public SettingsForm()
@@ -242,6 +260,68 @@ public class SettingsForm : ThemedForm
         archivesLayout.SetColumnSpan(extensionsGroup, 2);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Archives"), archivesLayout, "Settings.Nav.Archives"));
+
+        // ── Viewer/Editor section ──
+        // Every setting here already existed and was persisted before this section did - only
+        // reachable via the F3 viewer's own toolbars, with no visible default anywhere (see the
+        // settings-expansion plan's "Ф3" gap list). Reuses the exact same localization keys the F3
+        // toolbars already use (View.WordWrap, View.Csv.*, View.Encoding.*, View.ZoomFit) rather
+        // than duplicating them under a Settings.* prefix - same string, same meaning, one place to
+        // translate.
+        var viewerLayout = CreateSectionLayout(rows: 6, columns: 2);
+        viewerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        viewerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        _viewerWordWrapCheck = AddFullWidthCheck(viewerLayout, 0, "View.WordWrap", s.ViewerWordWrap);
+        _viewerImageFitCheck = AddFullWidthCheck(viewerLayout, 1, "View.ZoomFit", s.ViewerImageFitToWindow);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("View.Csv.Delimiter")), 0, 2);
+        _viewerCsvDelimiterCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        // Index <-> stored value mapping kept in one place (this array) rather than a switch in
+        // both directions, matching the ArchiveFormatRegistry-driven combos above.
+        foreach (var (_, key) in CsvDelimiterOptions)
+            _viewerCsvDelimiterCombo.AddItem(L.GetString(key));
+        var csvDelimiterIndex = Array.FindIndex(CsvDelimiterOptions, o => o.Value == s.ViewerCsvDelimiter);
+        _viewerCsvDelimiterCombo.SelectedIndex = Math.Max(0, csvDelimiterIndex);
+        viewerLayout.Controls.Add(_viewerCsvDelimiterCombo, 1, 2);
+
+        _viewerCsvHasHeaderCheck = AddFullWidthCheck(viewerLayout, 3, "View.Csv.HasHeader", s.ViewerCsvHasHeader);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("View.Encoding")), 0, 4);
+        _viewerEncodingCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _viewerEncodingCombo.AddItem(L.GetString("View.Encoding.Auto"));
+        foreach (var entry in EncodingCatalog.Entries)
+            _viewerEncodingCombo.AddItem(L.GetString(entry.DisplayNameKey));
+        var encodingIndex = 0;
+        if (!string.IsNullOrEmpty(s.ViewerEncodingOverride))
+        {
+            for (var i = 0; i < EncodingCatalog.Entries.Count; i++)
+            {
+                if (EncodingCatalog.Entries[i].Id != s.ViewerEncodingOverride) continue;
+                encodingIndex = i + 1; // +1 for the leading "Auto-detect" entry
+                break;
+            }
+        }
+        _viewerEncodingCombo.SelectedIndex = encodingIndex;
+        viewerLayout.Controls.Add(_viewerEncodingCombo, 1, 4);
+
+        _viewerHtmlAllowScriptsCheck = AddFullWidthCheck(viewerLayout, 5, "Settings.ViewerHtmlAllowScripts", s.ViewerHtmlAllowScripts);
+
+        // AutoSize=false + a fixed height lets Label's default word-wrap fill the row instead of
+        // measuring for a single line and truncating. Sized generously (4 wrapped lines' worth) -
+        // the Russian warning text is long enough to need 3+ lines at this section's narrow
+        // effective width (nav column + padding leave well under half the dialog's own width), and
+        // a Label silently clips anything past its bounds instead of scrolling, so under-sizing
+        // this would hide part of a security-relevant warning rather than just look cramped.
+        var htmlScriptWarning = UiHelpers.CreateLabel(L.GetString("Settings.ViewerHtmlAllowScriptsWarning"));
+        htmlScriptWarning.SetRole(ThemeRole.Danger);
+        htmlScriptWarning.Dock = DockStyle.Top;
+        htmlScriptWarning.AutoSize = false;
+        htmlScriptWarning.Height = 76;
+        viewerLayout.Controls.Add(htmlScriptWarning, 0, 6);
+        viewerLayout.SetColumnSpan(htmlScriptWarning, 2);
+
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Editor"), viewerLayout, "Settings.Nav.Editor"));
 
         // ── Terminal section ──
         var terminalLayout = new TableLayoutPanel
@@ -528,6 +608,17 @@ public class SettingsForm : ThemedForm
         s.DeleteOriginalsAfterPack = _deleteOriginalsAfterPackCheck.Checked;
         s.AlreadyCompressedExtensions.Clear();
         s.AlreadyCompressedExtensions.AddRange(_workingExtensions);
+        s.ViewerWordWrap = _viewerWordWrapCheck.Checked;
+        s.ViewerImageFitToWindow = _viewerImageFitCheck.Checked;
+        if (_viewerCsvDelimiterCombo.SelectedIndex >= 0 && _viewerCsvDelimiterCombo.SelectedIndex < CsvDelimiterOptions.Length)
+            s.ViewerCsvDelimiter = CsvDelimiterOptions[_viewerCsvDelimiterCombo.SelectedIndex].Value;
+        s.ViewerCsvHasHeader = _viewerCsvHasHeaderCheck.Checked;
+        // Index 0 is the leading "Auto-detect" entry (empty override); anything after maps 1:1
+        // (offset by 1) onto EncodingCatalog.Entries.
+        s.ViewerEncodingOverride = _viewerEncodingCombo.SelectedIndex > 0 && _viewerEncodingCombo.SelectedIndex - 1 < EncodingCatalog.Entries.Count
+            ? EncodingCatalog.Entries[_viewerEncodingCombo.SelectedIndex - 1].Id
+            : "";
+        s.ViewerHtmlAllowScripts = _viewerHtmlAllowScriptsCheck.Checked;
         if (_defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count)
             s.DefaultShellType = _availableShells[_defaultShellCombo.SelectedIndex].Id;
         s.TerminalKeyBindingPreset = _keyBindingPresetCombo.SelectedIndex switch { 1 => "Classic", 2 => "Custom", _ => "WindowsTerminal" };

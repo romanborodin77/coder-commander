@@ -368,7 +368,7 @@ public sealed class LocalizationService
         _strings["Settings.Title"] = "Settings";
         _strings["Settings.Appearance"] = "Appearance";
         _strings["Settings.Panels"] = "Panels";
-        _strings["Settings.Editor"] = "Editor";
+        _strings["Settings.Editor"] = "Viewer & Editor";
         _strings["Settings.FileOps"] = "File Operations";
         _strings["Settings.Archives"] = "Archives";
         _strings["Settings.Confirmations"] = "Confirmations";
@@ -397,6 +397,8 @@ public sealed class LocalizationService
         _strings["Settings.AlreadyCompressedExtensions.Add"] = "Add";
         _strings["Settings.AlreadyCompressedExtensions.Remove"] = "Remove";
         _strings["Settings.AlreadyCompressedExtensions.RestoreDefaults"] = "Restore defaults";
+        _strings["Settings.ViewerHtmlAllowScripts"] = "Allow scripts in HTML preview (F3)";
+        _strings["Settings.ViewerHtmlAllowScriptsWarning"] = "Runs the page's own JavaScript when previewing local HTML files. Off by default for a reason - only enable this for files you trust.";
 
         // ═══ Search ═══
         _strings["Search.Title"] = "Search";

@@ -222,7 +222,7 @@ OpQueue.Type.Unpack=Распаковка
 Settings.Title=Настройки
 Settings.Appearance=Внешний вид
 Settings.Panels=Панели
-Settings.Editor=Редактор
+Settings.Editor=Просмотр и редактор
 Settings.FileOps=Файловые операции
 Settings.Archives=Архивы
 Settings.Confirmations=Подтверждения
@@ -251,6 +251,8 @@ Settings.AlreadyCompressedExtensions=Расширения уже сжатых ф
 Settings.AlreadyCompressedExtensions.Add=Добавить
 Settings.AlreadyCompressedExtensions.Remove=Удалить
 Settings.AlreadyCompressedExtensions.RestoreDefaults=Восстановить встроенные
+Settings.ViewerHtmlAllowScripts=Разрешить скрипты в предпросмотре HTML (F3)
+Settings.ViewerHtmlAllowScriptsWarning=Запускает собственный JavaScript страницы при просмотре локальных HTML-файлов. По умолчанию выключено не просто так — включайте только для файлов, которым доверяете.
 
 # ═══ Поиск ═══
 Search.Title=Поиск
