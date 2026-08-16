@@ -51,6 +51,12 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _viewerCsvHasHeaderCheck;
     private readonly ThemedComboBox _viewerEncodingCombo;
     private readonly ThemedCheckBox _viewerHtmlAllowScriptsCheck;
+    private readonly ThemedCheckBox _externalViewerEnabledCheck;
+    private readonly TextBox _externalViewerPathBox;
+    private readonly TextBox _externalViewerArgsBox;
+    private readonly ThemedCheckBox _externalEditorEnabledCheck;
+    private readonly TextBox _externalEditorPathBox;
+    private readonly TextBox _externalEditorArgsBox;
     private readonly ThemedComboBox _defaultShellCombo;
     private readonly ThemedComboBox _keyBindingPresetCombo;
     private readonly ThemedComboBox _followPanelCwdCombo;
@@ -302,7 +308,7 @@ public class SettingsForm : ThemedForm
         // toolbars already use (View.WordWrap, View.Csv.*, View.Encoding.*, View.ZoomFit) rather
         // than duplicating them under a Settings.* prefix - same string, same meaning, one place to
         // translate.
-        var viewerLayout = CreateSectionLayout(rows: 6, columns: 2);
+        var viewerLayout = CreateSectionLayout(rows: 13, columns: 2);
         viewerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         viewerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -349,11 +355,40 @@ public class SettingsForm : ThemedForm
         // this would hide part of a security-relevant warning rather than just look cramped.
         var htmlScriptWarning = UiHelpers.CreateLabel(L.GetString("Settings.ViewerHtmlAllowScriptsWarning"));
         htmlScriptWarning.SetRole(ThemeRole.Danger);
-        htmlScriptWarning.Dock = DockStyle.Top;
+        htmlScriptWarning.Dock = DockStyle.Fill;
         htmlScriptWarning.AutoSize = false;
-        htmlScriptWarning.Height = 76;
+        // This row's own height, overridden from CreateSectionLayout's uniform 32px - the warning
+        // needs 3+ wrapped lines at this section's narrow effective width (see the comment that
+        // used to sit here), the only row in this section that isn't a single checkbox/combo line.
+        viewerLayout.RowStyles[6] = new RowStyle(SizeType.Absolute, 76);
         viewerLayout.Controls.Add(htmlScriptWarning, 0, 6);
         viewerLayout.SetColumnSpan(htmlScriptWarning, 2);
+
+        // External viewer (F3) - only reachable for a file on a native-path filesystem (checked at
+        // launch time in MainForm.OnView, not here); a stale/missing path silently falls back to
+        // the built-in viewer (ExternalToolLauncher.TryLaunch), never blocks F3.
+        _externalViewerEnabledCheck = AddFullWidthCheck(viewerLayout, 7, "Settings.ExternalViewerEnabled", s.ExternalViewerEnabled);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolPath")), 0, 8);
+        _externalViewerPathBox = UiHelpers.CreateTextBox(s.ExternalViewerPath, "ExternalViewerPathBox");
+        viewerLayout.Controls.Add(BuildPathPickerRow(_externalViewerPathBox), 1, 8);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolArgs")), 0, 9);
+        _externalViewerArgsBox = UiHelpers.CreateTextBox(s.ExternalViewerArgs, "ExternalViewerArgsBox");
+        _externalViewerArgsBox.Dock = DockStyle.Fill;
+        viewerLayout.Controls.Add(_externalViewerArgsBox, 1, 9);
+
+        // External editor (F4) - same shape as the viewer block above.
+        _externalEditorEnabledCheck = AddFullWidthCheck(viewerLayout, 10, "Settings.ExternalEditorEnabled", s.ExternalEditorEnabled);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolPath")), 0, 11);
+        _externalEditorPathBox = UiHelpers.CreateTextBox(s.ExternalEditorPath, "ExternalEditorPathBox");
+        viewerLayout.Controls.Add(BuildPathPickerRow(_externalEditorPathBox), 1, 11);
+
+        viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolArgs")), 0, 12);
+        _externalEditorArgsBox = UiHelpers.CreateTextBox(s.ExternalEditorArgs, "ExternalEditorArgsBox");
+        _externalEditorArgsBox.Dock = DockStyle.Fill;
+        viewerLayout.Controls.Add(_externalEditorArgsBox, 1, 12);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Editor"), viewerLayout, "Settings.Nav.Editor"));
 
@@ -569,6 +604,34 @@ public class SettingsForm : ThemedForm
             _workingCompression[format.Id] = format.SupportedPresets[presetIndex];
     }
 
+    /// <summary>Builds a path row: the path text box (fill, hand-editable) plus a "Browse…" button
+    /// that opens a native <see cref="OpenFileDialog"/> scoped to executables. Native picker, not a
+    /// themed one - same reasoning as <c>DifferForm.Browse</c>'s own file picker: a real Windows
+    /// file dialog is the right tool for "pick a file from the real local disk", themed or not.</summary>
+    private static Control BuildPathPickerRow(TextBox pathBox)
+    {
+        var L = LocalizationService.Current;
+        var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = ThemeService.Current.Background };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        pathBox.Dock = DockStyle.Fill;
+        row.Controls.Add(pathBox, 0, 0);
+
+        var browseBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.ExternalToolBrowse"));
+        browseBtn.Margin = new Padding(4, 2, 0, 2);
+        browseBtn.Click += (_, _) =>
+        {
+            using var dlg = new OpenFileDialog { Filter = L.GetString("Settings.ExternalToolBrowseFilter") };
+            if (dlg.ShowDialog() == DialogResult.OK)
+                pathBox.Text = dlg.FileName;
+        };
+        row.Controls.Add(browseBtn, 1, 0);
+
+        return row;
+    }
+
     /// <summary>Builds a font row: the display label (fill) plus "Change…" and "Reset" buttons.
     /// A plain <see cref="TableLayoutPanel"/> rather than a <see cref="FlowLayoutPanel"/> - Flow
     /// has no "fill the remaining space" column, which is what lets the label truncate long family
@@ -738,6 +801,12 @@ public class SettingsForm : ThemedForm
             ? EncodingCatalog.Entries[_viewerEncodingCombo.SelectedIndex - 1].Id
             : "";
         s.ViewerHtmlAllowScripts = _viewerHtmlAllowScriptsCheck.Checked;
+        s.ExternalViewerEnabled = _externalViewerEnabledCheck.Checked;
+        s.ExternalViewerPath = _externalViewerPathBox.Text.Trim();
+        s.ExternalViewerArgs = _externalViewerArgsBox.Text;
+        s.ExternalEditorEnabled = _externalEditorEnabledCheck.Checked;
+        s.ExternalEditorPath = _externalEditorPathBox.Text.Trim();
+        s.ExternalEditorArgs = _externalEditorArgsBox.Text;
         if (_defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count)
             s.DefaultShellType = _availableShells[_defaultShellCombo.SelectedIndex].Id;
         s.TerminalKeyBindingPreset = _keyBindingPresetCombo.SelectedIndex switch { 1 => "Classic", 2 => "Custom", _ => "WindowsTerminal" };

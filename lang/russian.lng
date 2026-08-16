@@ -258,6 +258,12 @@ Settings.AlreadyCompressedExtensions.Remove=Удалить
 Settings.AlreadyCompressedExtensions.RestoreDefaults=Восстановить встроенные
 Settings.ViewerHtmlAllowScripts=Разрешить скрипты в предпросмотре HTML (F3)
 Settings.ViewerHtmlAllowScriptsWarning=Запускает собственный JavaScript страницы при просмотре локальных HTML-файлов. По умолчанию выключено не просто так — включайте только для файлов, которым доверяете.
+Settings.ExternalViewerEnabled=Использовать внешний просмотрщик для F3
+Settings.ExternalEditorEnabled=Использовать внешний редактор для F4
+Settings.ExternalToolPath=Путь к программе:
+Settings.ExternalToolArgs=Аргументы:
+Settings.ExternalToolBrowse=Обзор…
+Settings.ExternalToolBrowseFilter=Исполняемые файлы (*.exe)|*.exe|Все файлы (*.*)|*.*
 
 # ═══ Поиск ═══
 Search.Title=Поиск

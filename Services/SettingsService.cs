@@ -75,6 +75,31 @@ public sealed class AppSettings
 
     /// <summary>Monospace font size in points. 0 means "use the built-in default" (9.5pt).</summary>
     public double MonoFontSize { get; set; }
+
+    /// <summary>When true, F3 launches <see cref="ExternalViewerPath"/> instead of the built-in
+    /// <c>ViewerForm</c> - only for a file on a native-path filesystem (see
+    /// <see cref="FileSystem.FileSystemCapabilities.NativePaths"/>); a file inside an archive or on
+    /// a remote connection always uses the built-in viewer regardless of this setting, since an
+    /// external process has no way to read through those.</summary>
+    public bool ExternalViewerEnabled { get; set; }
+
+    /// <summary>Full path to the external viewer executable. A missing/nonexistent path falls back
+    /// to the built-in viewer silently (see <see cref="ExternalToolLauncher"/>) rather than failing
+    /// F3 outright.</summary>
+    public string ExternalViewerPath { get; set; } = "";
+
+    /// <summary>Command-line arguments for <see cref="ExternalViewerPath"/>; <c>%1</c> is replaced
+    /// with the quoted file path (appended if the template has no <c>%1</c> at all).</summary>
+    public string ExternalViewerArgs { get; set; } = "%1";
+
+    /// <summary>Same as <see cref="ExternalViewerEnabled"/>, for F4/<c>EditorForm</c>.</summary>
+    public bool ExternalEditorEnabled { get; set; }
+
+    /// <summary>Same as <see cref="ExternalViewerPath"/>, for F4/<c>EditorForm</c>.</summary>
+    public string ExternalEditorPath { get; set; } = "";
+
+    /// <summary>Same as <see cref="ExternalViewerArgs"/>, for F4/<c>EditorForm</c>.</summary>
+    public string ExternalEditorArgs { get; set; } = "%1";
     public bool FlatView { get; set; } = false;
     public string SortColumn { get; set; } = "Name";
     public bool SortDescending { get; set; } = false;

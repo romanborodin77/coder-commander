@@ -1505,6 +1505,18 @@ public sealed class MainForm : Form
         try
         {
             var panel = _vm.ActivePanel;
+
+            // External viewer only makes sense for a real local path - an archive entry or a
+            // remote file has no path an outside process could open, so those always fall through
+            // to the built-in viewer below regardless of the setting.
+            var settings = SettingsService.Load();
+            if (settings.ExternalViewerEnabled &&
+                panel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.NativePaths) &&
+                ExternalToolLauncher.TryLaunch(settings.ExternalViewerPath, settings.ExternalViewerArgs, item.FullPath))
+            {
+                return;
+            }
+
             var files = panel.Items
                 .Where(f => !f.IsDirectory && !f.IsParent)
                 .Select(f => f.FullPath)
@@ -1528,6 +1540,15 @@ public sealed class MainForm : Form
     {
         try
         {
+            // Same "native paths only, silent fallback otherwise" contract as OnView above.
+            var settings = SettingsService.Load();
+            if (settings.ExternalEditorEnabled &&
+                _vm.ActivePanel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.NativePaths) &&
+                ExternalToolLauncher.TryLaunch(settings.ExternalEditorPath, settings.ExternalEditorArgs, item.FullPath))
+            {
+                return;
+            }
+
 #pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
             var dlg = new EditorForm(_vm.ActivePanel.CurrentFileSystem, item.FullPath);
 #pragma warning restore CA2000

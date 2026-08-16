@@ -404,6 +404,12 @@ public sealed class LocalizationService
         _strings["Settings.AlreadyCompressedExtensions.RestoreDefaults"] = "Restore defaults";
         _strings["Settings.ViewerHtmlAllowScripts"] = "Allow scripts in HTML preview (F3)";
         _strings["Settings.ViewerHtmlAllowScriptsWarning"] = "Runs the page's own JavaScript when previewing local HTML files. Off by default for a reason - only enable this for files you trust.";
+        _strings["Settings.ExternalViewerEnabled"] = "Use an external viewer for F3";
+        _strings["Settings.ExternalEditorEnabled"] = "Use an external editor for F4";
+        _strings["Settings.ExternalToolPath"] = "Program path:";
+        _strings["Settings.ExternalToolArgs"] = "Arguments:";
+        _strings["Settings.ExternalToolBrowse"] = "Browse…";
+        _strings["Settings.ExternalToolBrowseFilter"] = "Executable files (*.exe)|*.exe|All files (*.*)|*.*";
 
         // ═══ Search ═══
         _strings["Search.Title"] = "Search";

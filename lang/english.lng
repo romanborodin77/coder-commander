@@ -260,6 +260,12 @@ Settings.AlreadyCompressedExtensions.Remove=Remove
 Settings.AlreadyCompressedExtensions.RestoreDefaults=Restore defaults
 Settings.ViewerHtmlAllowScripts=Allow scripts in HTML preview (F3)
 Settings.ViewerHtmlAllowScriptsWarning=Runs the page's own JavaScript when previewing local HTML files. Off by default for a reason - only enable this for files you trust.
+Settings.ExternalViewerEnabled=Use an external viewer for F3
+Settings.ExternalEditorEnabled=Use an external editor for F4
+Settings.ExternalToolPath=Program path:
+Settings.ExternalToolArgs=Arguments:
+Settings.ExternalToolBrowse=Browse…
+Settings.ExternalToolBrowseFilter=Executable files (*.exe)|*.exe|All files (*.*)|*.*
 
 # ═══ Search ═══
 Search.Title=Search
