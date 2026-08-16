@@ -70,6 +70,14 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CA2213;CA1308</WarningsNotAsErrors>
   </PropertyGroup>
 
+  <!-- F098: was a command-line-only flag for `dotnet publish -p:PublishSingleFile=true`, easy to
+       forget - a forgotten flag still builds/publishes successfully, but throws
+       DllNotFoundException on the first WebView2-backed viewer format at runtime (has happened,
+       documented in FIXES.md). Encoding it here means any single-file publish gets it for free. -->
+  <PropertyGroup Condition="'$(PublishSingleFile)'=='true'">
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Markdig" Version="1.3.2" />

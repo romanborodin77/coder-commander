@@ -501,9 +501,9 @@ public sealed class LocalizationService
         _strings["Props.Recursive"] = "Apply recursively";
         _strings["Props.TimestampHint"] = "Check the box beside a timestamp to change it; uncheck to leave unchanged.";
         _strings["Props.AttrHint"] = "Use the drop-down to set, clear or keep each attribute.";
-        _strings["SelectionChanged"] = "Set on all";
-        _strings["SelectionUnchanged"] = "Keep original";
-        _strings["SelectionCleared"] = "Clear on all";
+        _strings["SelectionChanged"] = "Set all";
+        _strings["SelectionUnchanged"] = "Keep";
+        _strings["SelectionCleared"] = "Clear all";
         _strings["Props.Folder"] = "Folder";
         _strings["Props.File"] = "File";
         _strings["Props.ApplyToAll"] = "Apply to {0} item(s)";

@@ -21,6 +21,10 @@ packages/
 *.log
 CoderCommander_crash.log
 
+## debug.ps1 process-tracking state (PID/HWND cache under %TEMP%, but covered here in case it
+## ever gets written locally)
+*.pid
+
 ## Local documentation and configuration (developer-only, not in repo)
 AGENTS.md
 CLAUDE.md
