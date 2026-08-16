@@ -271,7 +271,13 @@ public class SettingsForm : ThemedForm
         };
         extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        // 64px, not 30 - tall enough for the button row to wrap onto two lines (see WrapContents
+        // below) at the dialog's default width. At 560px wide, textbox+Add+Remove+"Restore
+        // defaults" don't fit on one line even in English, and WrapContents=false let them overflow
+        // silently past the visible edge instead of wrapping - "Restore defaults" rendered as just
+        // "Rest" in English and was entirely invisible in Russian ("Восстановить встроенные"),
+        // caught by an offscreen DrawToBitmap screenshot, not by eye on a live run.
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
 
         extensionsGroup.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.AlreadyCompressedExtensions")), 0, 0);
 
@@ -279,7 +285,7 @@ public class SettingsForm : ThemedForm
         RefreshExtensionsListBox();
         extensionsGroup.Controls.Add(_extensionsListBox, 0, 1);
 
-        var extensionsButtonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        var extensionsButtonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
         _extensionAddBox = UiHelpers.CreateTextBox(name: "ArchivesExtensionAddBox");
         _extensionAddBox.Width = 90;
         _extensionAddBox.Margin = new Padding(0, 2, 8, 0);
@@ -407,7 +413,14 @@ public class SettingsForm : ThemedForm
         terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        // 70px, not 32 - the key-binding combo + "Customize…" button need to wrap onto two full
+        // 32px-tall lines at this section's width (see keyBindingRow's WrapContents below), and
+        // 56px wasn't enough - the wrapped second line overlapped the row below it instead of
+        // fitting inside this one. Used to fit on one line before the left-hand nav control (Ф1)
+        // took a permanent ~176px out of every section's available width; a fixed-width combo +
+        // button that fit the old, wider single-column layout silently overflowed past the visible
+        // edge afterward - caught by an offscreen screenshot, not by eye on a live run.
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -421,8 +434,8 @@ public class SettingsForm : ThemedForm
         PopulateShellComboAsync(s.DefaultShellType);
 
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.KeyBindingPreset")), 0, 1);
-        var keyBindingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
-        _keyBindingPresetCombo = new ThemedComboBox { Width = 160, Margin = new Padding(0, 0, 8, 0) };
+        var keyBindingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+        _keyBindingPresetCombo = new ThemedComboBox { Width = 160, Margin = new Padding(0, 0, 8, 4) };
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.WindowsTerminal"));
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Classic"));
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Custom"));
@@ -601,6 +614,17 @@ public class SettingsForm : ThemedForm
         : format.SupportedPresets.Count > 0 ? format.SupportedPresets[0]
         : CompressionPreset.Balanced;
 
+    /// <summary>Guards <see cref="CommitSelectedPreset"/> against firing while
+    /// <see cref="LoadPresetComboForSelectedFormat"/> is (re)building the preset combo's item
+    /// list - <see cref="ThemedComboBox.AddItem"/> auto-selects index 0 the moment the first item
+    /// is added, which raises <c>SelectedIndexChanged</c> mid-population, before the real default/
+    /// working value has even been computed. Without this guard, that spurious event let
+    /// <see cref="CommitSelectedPreset"/> commit whatever preset happened to be at index 0 (Store)
+    /// into <see cref="_workingCompression"/> for every format, silently overwriting the correct
+    /// default - the Archives section always showed "None (store only)" instead of "Balanced" on a
+    /// fresh install, caught by an offscreen screenshot, not by eye on a live run.</summary>
+    private bool _isLoadingPresetCombo;
+
     /// <summary>Rebuilds the compression preset combo box to match the currently selected format.</summary>
     private void LoadPresetComboForSelectedFormat()
     {
@@ -608,24 +632,33 @@ public class SettingsForm : ThemedForm
         var format = _compressionFormats[_compressionFormatCombo.SelectedIndex];
         var L = LocalizationService.Current;
 
-        _compressionPresetCombo.ClearItems();
-        foreach (var preset in format.SupportedPresets)
-            _compressionPresetCombo.AddItem(L.GetString($"Archive.Compression.{preset}"));
-
-        var current = _workingCompression.TryGetValue(format.Id, out var preset0) ? preset0 : DefaultPresetFor(format);
-        var index = -1;
-        for (var i = 0; i < format.SupportedPresets.Count; i++)
+        _isLoadingPresetCombo = true;
+        try
         {
-            if (format.SupportedPresets[i] == current) { index = i; break; }
-        }
+            _compressionPresetCombo.ClearItems();
+            foreach (var preset in format.SupportedPresets)
+                _compressionPresetCombo.AddItem(L.GetString($"Archive.Compression.{preset}"));
 
-        _compressionPresetCombo.SelectedIndex = format.SupportedPresets.Count > 0 ? Math.Max(0, index) : -1;
-        _compressionPresetCombo.Enabled = format.SupportedPresets.Count > 1;
+            var current = _workingCompression.TryGetValue(format.Id, out var preset0) ? preset0 : DefaultPresetFor(format);
+            var index = -1;
+            for (var i = 0; i < format.SupportedPresets.Count; i++)
+            {
+                if (format.SupportedPresets[i] == current) { index = i; break; }
+            }
+
+            _compressionPresetCombo.SelectedIndex = format.SupportedPresets.Count > 0 ? Math.Max(0, index) : -1;
+            _compressionPresetCombo.Enabled = format.SupportedPresets.Count > 1;
+        }
+        finally
+        {
+            _isLoadingPresetCombo = false;
+        }
     }
 
     /// <summary>Commits the currently selected preset combo value into the working compression dictionary.</summary>
     private void CommitSelectedPreset()
     {
+        if (_isLoadingPresetCombo) return;
         if (_compressionFormatCombo.SelectedIndex < 0) return;
         var format = _compressionFormats[_compressionFormatCombo.SelectedIndex];
         if (format.SupportedPresets.Count == 0) return;
