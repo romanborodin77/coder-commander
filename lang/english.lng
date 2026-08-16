@@ -246,6 +246,13 @@ Settings.CopyAttributes=Copy attributes by default
 Settings.CopyTimestamps=Copy timestamps by default
 Settings.ArchiveCompressionFormat=Archive format:
 Settings.ArchiveCompressionPreset=Compression:
+Settings.DefaultArchiveFormat=Format for new archives:
+Settings.SkipCompressionForCompressedFiles=Don't recompress already-compressed files
+Settings.DeleteOriginalsAfterPack=Delete originals after packing by default
+Settings.AlreadyCompressedExtensions=Already-compressed extensions:
+Settings.AlreadyCompressedExtensions.Add=Add
+Settings.AlreadyCompressedExtensions.Remove=Remove
+Settings.AlreadyCompressedExtensions.RestoreDefaults=Restore defaults
 
 # ═══ Search ═══
 Search.Title=Search

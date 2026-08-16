@@ -257,8 +257,11 @@ public sealed class PackOperation : FileOperation
         (_options.AlreadyCompressedExtensions ?? DefaultAlreadyCompressedExtensions).Contains(extension, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Built-in default: formats that are already compressed - no benefit from Deflate.
-    /// Used whenever <see cref="TransferOptions.AlreadyCompressedExtensions"/> isn't set.</summary>
-    private static readonly IReadOnlyList<string> DefaultAlreadyCompressedExtensions = new[]
+    /// Used whenever <see cref="TransferOptions.AlreadyCompressedExtensions"/> isn't set. Internal
+    /// (not private) so <c>WinForms.SettingsForm</c>'s "restore built-in defaults" button in the
+    /// Archives section can offer the same list back to the user instead of duplicating the
+    /// literal extensions a second time.</summary>
+    internal static readonly IReadOnlyList<string> DefaultAlreadyCompressedExtensions = new[]
     {
         ".zip", ".rar", ".7z", ".gz", ".bz2", ".xz",
         ".jpg", ".jpeg", ".png", ".gif", ".webp",

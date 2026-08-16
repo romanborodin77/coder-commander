@@ -390,6 +390,13 @@ public sealed class LocalizationService
         _strings["Settings.CopyTimestamps"] = "Copy timestamps by default";
         _strings["Settings.ArchiveCompressionFormat"] = "Archive format:";
         _strings["Settings.ArchiveCompressionPreset"] = "Compression:";
+        _strings["Settings.DefaultArchiveFormat"] = "Format for new archives:";
+        _strings["Settings.SkipCompressionForCompressedFiles"] = "Don't recompress already-compressed files";
+        _strings["Settings.DeleteOriginalsAfterPack"] = "Delete originals after packing by default";
+        _strings["Settings.AlreadyCompressedExtensions"] = "Already-compressed extensions:";
+        _strings["Settings.AlreadyCompressedExtensions.Add"] = "Add";
+        _strings["Settings.AlreadyCompressedExtensions.Remove"] = "Remove";
+        _strings["Settings.AlreadyCompressedExtensions.RestoreDefaults"] = "Restore defaults";
 
         // ═══ Search ═══
         _strings["Search.Title"] = "Search";

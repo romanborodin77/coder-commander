@@ -244,6 +244,13 @@ Settings.CopyAttributes=Копировать атрибуты по умолча�
 Settings.CopyTimestamps=Копировать метки времени по умолчанию
 Settings.ArchiveCompressionFormat=Формат архива:
 Settings.ArchiveCompressionPreset=Сжатие:
+Settings.DefaultArchiveFormat=Формат новых архивов:
+Settings.SkipCompressionForCompressedFiles=Не сжимать уже сжатые файлы повторно
+Settings.DeleteOriginalsAfterPack=Удалять исходники после упаковки по умолчанию
+Settings.AlreadyCompressedExtensions=Расширения уже сжатых файлов:
+Settings.AlreadyCompressedExtensions.Add=Добавить
+Settings.AlreadyCompressedExtensions.Remove=Удалить
+Settings.AlreadyCompressedExtensions.RestoreDefaults=Восстановить встроенные
 
 # ═══ Поиск ═══
 Search.Title=Поиск

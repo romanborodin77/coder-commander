@@ -1833,7 +1833,7 @@ public sealed class MainForm : Form
         var settings = SettingsService.Load();
         var suggestedBaseName = SuggestArchiveBaseName(e.files, e.sourcePath);
 
-        using var dlg = new PackDialogForm(suggestedBaseName, e.destPath, settings.DefaultArchiveFormat);
+        using var dlg = new PackDialogForm(suggestedBaseName, e.destPath, settings.DefaultArchiveFormat, settings.DeleteOriginalsAfterPack);
         if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.ArchivePath)) return;
 
         var archivePath = dlg.ArchivePath;

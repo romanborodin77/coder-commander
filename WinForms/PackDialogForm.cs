@@ -53,7 +53,9 @@ public sealed class PackDialogForm : ThemedForm
     /// <param name="suggestedBaseName">Pre-filled name, without any extension.</param>
     /// <param name="destDir">Folder the new archive is created in.</param>
     /// <param name="defaultFormatId">Format id to preselect (see <c>AppSettings.DefaultArchiveFormat</c>).</param>
-    public PackDialogForm(string suggestedBaseName, string destDir, string defaultFormatId)
+    /// <param name="deleteOriginalsDefault">Initial checked state of the "delete originals"
+    /// checkbox (see <c>AppSettings.DeleteOriginalsAfterPack</c>).</param>
+    public PackDialogForm(string suggestedBaseName, string destDir, string defaultFormatId, bool deleteOriginalsDefault = false)
     {
         _destDir = destDir;
         var L = LocalizationService.Current;
@@ -111,7 +113,7 @@ public sealed class PackDialogForm : ThemedForm
 
         _formatCombo.SelectedIndexChanged += (_, _) => PopulateCompressionCombo();
 
-        _moveCheck = UiHelpers.CreateCheckBox(L.GetString("Archive.PackMoveOriginals"), false);
+        _moveCheck = UiHelpers.CreateCheckBox(L.GetString("Archive.PackMoveOriginals"), deleteOriginalsDefault);
         _moveCheck.AutoSize = true;
         _moveCheck.Dock = DockStyle.Left;
 

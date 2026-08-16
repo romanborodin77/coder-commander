@@ -103,6 +103,11 @@ public sealed class AppSettings
     /// dialog preselects for new archives - "zip", "tar", or "tar.gz".</summary>
     public string DefaultArchiveFormat { get; set; } = "zip";
 
+    /// <summary>Initial checked state of <c>PackDialogForm</c>'s "delete originals after packing"
+    /// checkbox (move semantics). The dialog itself always started unchecked before this existed -
+    /// off by default here too, so an upgraded install behaves identically until the user opts in.</summary>
+    public bool DeleteOriginalsAfterPack { get; set; } = false;
+
     // Terminal settings
     public bool TerminalVisible { get; set; } = false;
     public int TerminalHeight { get; set; } = 250;

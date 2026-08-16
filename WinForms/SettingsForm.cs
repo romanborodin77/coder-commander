@@ -28,6 +28,12 @@ public class SettingsForm : ThemedForm
     private readonly ThemedComboBox _compressionPresetCombo;
     private readonly List<IArchiveFormat> _compressionFormats;
     private readonly Dictionary<string, CompressionPreset> _workingCompression = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ThemedComboBox _defaultArchiveFormatCombo;
+    private readonly ThemedCheckBox _skipCompressionCheck;
+    private readonly ThemedCheckBox _deleteOriginalsAfterPackCheck;
+    private readonly ListBox _extensionsListBox;
+    private readonly TextBox _extensionAddBox;
+    private readonly List<string> _workingExtensions;
     private readonly ThemedCheckBox _confirmDeleteCheck;
     private readonly ThemedCheckBox _confirmOverwriteCheck;
     private readonly ThemedCheckBox _copyAttrsCheck;
@@ -118,40 +124,48 @@ public class SettingsForm : ThemedForm
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.FileOps"), fileOpsLayout, "Settings.Nav.FileOps"));
 
         // ── Archives section ──
-        var archivesLayout = CreateSectionLayout(rows: 4);
+        // Custom layout (not CreateSectionLayout) - the filler row hosts a rich list editor for
+        // AlreadyCompressedExtensions, not a single control, and every fixed row needs the 2-column
+        // label|control shape the compression combos already used.
+        var archivesLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 6,
+            Padding = new Padding(16),
+            BackColor = p.Background
+        };
+        archivesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        archivesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        for (int i = 0; i < 5; i++)
+            archivesLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        archivesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        // Default format for new archives (PackDialogForm's own preselection) - distinct from the
+        // per-format compression list below, which configures every creatable format at once.
+        archivesLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.DefaultArchiveFormat")), 0, 0);
+        _compressionFormats = ArchiveFormatRegistry.Creatable.ToList();
+        _defaultArchiveFormatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        foreach (var format in _compressionFormats)
+            _defaultArchiveFormatCombo.AddItem(L.GetString(format.DisplayNameKey));
+        var defaultFormatIndex = _compressionFormats.FindIndex(f => string.Equals(f.Id, s.DefaultArchiveFormat, StringComparison.OrdinalIgnoreCase));
+        if (_compressionFormats.Count > 0)
+            _defaultArchiveFormatCombo.SelectedIndex = Math.Max(0, defaultFormatIndex);
+        archivesLayout.Controls.Add(_defaultArchiveFormatCombo, 1, 0);
 
         // Per-format archive compression: a format list scoped to what PackDialogForm can actually
         // create (read-only formats like 7z/RAR have no compression to configure and would just
         // show a blank preset combo) + a preset combo scoped to whichever format is selected.
         // Built entirely from the registry, so a future creatable format gets a row here for free.
-        var compressionFormatLabel = new Label
-        {
-            Text = L.GetString("Settings.ArchiveCompressionFormat"),
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            ForeColor = p.Foreground,
-            Font = ThemeService.Current.GridFont
-        };
-        archivesLayout.Controls.Add(compressionFormatLabel, 0, 0);
-
-        _compressionFormats = ArchiveFormatRegistry.Creatable.ToList();
+        archivesLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ArchiveCompressionFormat")), 0, 1);
         _compressionFormatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
         foreach (var format in _compressionFormats)
             _compressionFormatCombo.AddItem(L.GetString(format.DisplayNameKey));
-        archivesLayout.Controls.Add(_compressionFormatCombo, 0, 1);
+        archivesLayout.Controls.Add(_compressionFormatCombo, 1, 1);
 
-        var compressionPresetLabel = new Label
-        {
-            Text = L.GetString("Settings.ArchiveCompressionPreset"),
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            ForeColor = p.Foreground,
-            Font = ThemeService.Current.GridFont
-        };
-        archivesLayout.Controls.Add(compressionPresetLabel, 0, 2);
-
+        archivesLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ArchiveCompressionPreset")), 0, 2);
         _compressionPresetCombo = new ThemedComboBox { Dock = DockStyle.Fill };
-        archivesLayout.Controls.Add(_compressionPresetCombo, 0, 3);
+        archivesLayout.Controls.Add(_compressionPresetCombo, 1, 2);
 
         foreach (var format in _compressionFormats)
         {
@@ -177,6 +191,55 @@ public class SettingsForm : ThemedForm
             _compressionFormatCombo.SelectedIndex = 0;
             LoadPresetComboForSelectedFormat();
         }
+
+        _skipCompressionCheck = AddFullWidthCheck(archivesLayout, 3, "Settings.SkipCompressionForCompressedFiles", s.SkipCompressionForCompressedFiles);
+        _deleteOriginalsAfterPackCheck = AddFullWidthCheck(archivesLayout, 4, "Settings.DeleteOriginalsAfterPack", s.DeleteOriginalsAfterPack);
+
+        // Already-compressed extensions editor - list + add/remove + restore built-in defaults.
+        // Working copy so Cancel discards edits, same pattern as _workingCompression above.
+        _workingExtensions = s.AlreadyCompressedExtensions.Count > 0
+            ? new List<string>(s.AlreadyCompressedExtensions)
+            : new List<string>(Operations.PackOperation.DefaultAlreadyCompressedExtensions);
+
+        var extensionsGroup = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            BackColor = p.Background
+        };
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+
+        extensionsGroup.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.AlreadyCompressedExtensions")), 0, 0);
+
+        _extensionsListBox = new ListBox { Dock = DockStyle.Fill, Name = "ArchivesExtensionsList" };
+        RefreshExtensionsListBox();
+        extensionsGroup.Controls.Add(_extensionsListBox, 0, 1);
+
+        var extensionsButtonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        _extensionAddBox = UiHelpers.CreateTextBox(name: "ArchivesExtensionAddBox");
+        _extensionAddBox.Width = 90;
+        _extensionAddBox.Margin = new Padding(0, 2, 8, 0);
+        // Width left at CreateThemedButton's own text-measured value (not hardcoded) - Russian
+        // labels ("Восстановить встроенные") run noticeably longer than their English counterparts
+        // and a fixed pixel width would truncate them (the exact class of bug LayoutAuditTests
+        // exists to catch, see CreateSectionLayout's own doc comment above).
+        var addExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.Add"));
+        addExtBtn.Click += (_, _) => OnAddExtension();
+        var removeExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.Remove"));
+        removeExtBtn.Click += (_, _) => OnRemoveSelectedExtension();
+        var restoreExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.RestoreDefaults"));
+        restoreExtBtn.Click += (_, _) => OnRestoreDefaultExtensions();
+        extensionsButtonRow.Controls.Add(_extensionAddBox);
+        extensionsButtonRow.Controls.Add(addExtBtn);
+        extensionsButtonRow.Controls.Add(removeExtBtn);
+        extensionsButtonRow.Controls.Add(restoreExtBtn);
+        extensionsGroup.Controls.Add(extensionsButtonRow, 0, 2);
+
+        archivesLayout.Controls.Add(extensionsGroup, 0, 5);
+        archivesLayout.SetColumnSpan(extensionsGroup, 2);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Archives"), archivesLayout, "Settings.Nav.Archives"));
 
@@ -392,6 +455,46 @@ public class SettingsForm : ThemedForm
             _workingCompression[format.Id] = format.SupportedPresets[presetIndex];
     }
 
+    private void RefreshExtensionsListBox()
+    {
+        _extensionsListBox.Items.Clear();
+        foreach (var ext in _workingExtensions)
+            _extensionsListBox.Items.Add(ext);
+    }
+
+    /// <summary>Adds the text box's content as a new extension - normalizes to a leading dot (the
+    /// form every other extension list in the app uses, see <c>CleanAlreadyCompressedExtensions</c>)
+    /// and skips a case-insensitive duplicate rather than adding a second entry for it.</summary>
+    private void OnAddExtension()
+    {
+        var text = _extensionAddBox.Text.Trim();
+        if (text.Length == 0) return;
+        if (!text.StartsWith('.')) text = "." + text;
+
+        if (!_workingExtensions.Contains(text, StringComparer.OrdinalIgnoreCase))
+        {
+            _workingExtensions.Add(text);
+            RefreshExtensionsListBox();
+        }
+        _extensionAddBox.Clear();
+        _extensionAddBox.Focus();
+    }
+
+    private void OnRemoveSelectedExtension()
+    {
+        var index = _extensionsListBox.SelectedIndex;
+        if (index < 0 || index >= _workingExtensions.Count) return;
+        _workingExtensions.RemoveAt(index);
+        RefreshExtensionsListBox();
+    }
+
+    private void OnRestoreDefaultExtensions()
+    {
+        _workingExtensions.Clear();
+        _workingExtensions.AddRange(Operations.PackOperation.DefaultAlreadyCompressedExtensions);
+        RefreshExtensionsListBox();
+    }
+
     /// <summary>Handles the Save button click: persists settings, applies theme and language.</summary>
     private void OnSave(object? sender, EventArgs e)
     {
@@ -419,6 +522,12 @@ public class SettingsForm : ThemedForm
         s.ArchiveCompression.Clear();
         foreach (var kv in _workingCompression)
             s.ArchiveCompression[kv.Key] = kv.Value.ToString();
+        if (_defaultArchiveFormatCombo.SelectedIndex >= 0 && _defaultArchiveFormatCombo.SelectedIndex < _compressionFormats.Count)
+            s.DefaultArchiveFormat = _compressionFormats[_defaultArchiveFormatCombo.SelectedIndex].Id;
+        s.SkipCompressionForCompressedFiles = _skipCompressionCheck.Checked;
+        s.DeleteOriginalsAfterPack = _deleteOriginalsAfterPackCheck.Checked;
+        s.AlreadyCompressedExtensions.Clear();
+        s.AlreadyCompressedExtensions.AddRange(_workingExtensions);
         if (_defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count)
             s.DefaultShellType = _availableShells[_defaultShellCombo.SelectedIndex].Id;
         s.TerminalKeyBindingPreset = _keyBindingPresetCombo.SelectedIndex switch { 1 => "Classic", 2 => "Custom", _ => "WindowsTerminal" };
