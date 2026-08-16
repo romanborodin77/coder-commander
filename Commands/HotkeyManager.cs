@@ -13,6 +13,16 @@ public sealed class HotkeyDef
     public string? Param { get; init; }
     /// <summary>Human-readable description for display in hotkey configuration UIs.</summary>
     public string Description { get; init; } = "";
+
+    /// <summary>Stable identity for this specific binding, independent of its current
+    /// <see cref="Shortcut"/> - what <see cref="AppSettings.CustomHotkeys"/> keys an override by,
+    /// and how <see cref="HotkeyManager.ApplyOverrides"/> finds the right entry to rebind.
+    /// Auto-derived by <see cref="HotkeyManager.Register(Keys,string,string?,string)"/> as
+    /// <c>"{CommandId}[:{Param}]#{N}"</c>, where N counts repeated registrations of the same
+    /// command+param (several commands, e.g. GoToParent, legitimately have two default shortcuts -
+    /// this is what tells those two rows apart without depending on either one's own key value,
+    /// which is exactly the thing a rebind changes).</summary>
+    public string Id { get; init; } = "";
 }
 
 /// <summary>
@@ -22,6 +32,7 @@ public sealed class HotkeyManager
 {
     private readonly CommandEngine _engine;
     private readonly List<HotkeyDef> _hotkeys = new();
+    private readonly Dictionary<string, int> _idOccurrences = new(StringComparer.Ordinal);
 
     /// <summary>Initializes a new hotkey manager backed by the given command engine.</summary>
     /// <param name="engine">The <see cref="CommandEngine"/> that will handle dispatched commands.</param>
@@ -43,7 +54,44 @@ public sealed class HotkeyManager
     /// <param name="param">Optional parameter string for the command.</param>
     /// <param name="description">Human-readable description of the hotkey.</param>
     public void Register(Keys keys, string commandId, string? param = null, string description = "")
-        => Register(new HotkeyDef { Shortcut = keys, CommandId = commandId, Param = param, Description = description });
+    {
+        var baseKey = param is null ? commandId : commandId + ":" + param;
+        _idOccurrences.TryGetValue(baseKey, out var count);
+        count++;
+        _idOccurrences[baseKey] = count;
+        var id = baseKey + "#" + count;
+        Register(new HotkeyDef { Shortcut = keys, CommandId = commandId, Param = param, Description = description, Id = id });
+    }
+
+    /// <summary>Applies user-chosen overrides (<see cref="AppSettings.CustomHotkeys"/>: binding
+    /// <see cref="HotkeyDef.Id"/> → chord string in <c>TerminalKeyBindings.FormatChord</c>'s
+    /// format, or <c>""</c> for "explicitly unbound") on top of whatever <see cref="RegisterDefaults"/>
+    /// already registered. An id with no entry in <paramref name="overrides"/> keeps its built-in
+    /// default untouched - this is a partial-override model (only what the user actually changed
+    /// is stored), not a full replacement table like <c>TerminalCustomKeyBindings</c>'s "Custom"
+    /// preset, since forcing the user to configure all ~30 app hotkeys just to change one would be
+    /// a much worse editing experience for a list this size. An unparseable chord string (hand-
+    /// edited settings.json) is treated the same as "no override" - the default wins rather than
+    /// silently dropping the binding.</summary>
+    public void ApplyOverrides(IReadOnlyDictionary<string, string> overrides)
+    {
+        if (overrides.Count == 0) return;
+
+        for (var i = _hotkeys.Count - 1; i >= 0; i--)
+        {
+            var def = _hotkeys[i];
+            if (!overrides.TryGetValue(def.Id, out var chordText)) continue;
+
+            if (chordText.Length == 0)
+            {
+                _hotkeys.RemoveAt(i);
+                continue;
+            }
+
+            if (Terminal.Input.TerminalKeyBindings.TryParseChord(chordText, out var chord))
+                _hotkeys[i] = new HotkeyDef { Shortcut = chord, CommandId = def.CommandId, Param = def.Param, Description = def.Description, Id = def.Id };
+        }
+    }
 
     /// <summary>
     /// Attempts to handle a key press. Returns true if a hotkey matched.
@@ -64,6 +112,23 @@ public sealed class HotkeyManager
             }
         }
         return false;
+    }
+
+    /// <summary>Rebuilds the hotkey table from scratch: clears everything registered so far, calls
+    /// <see cref="RegisterDefaults"/>, then applies <paramref name="overrides"/>. Unlike calling
+    /// <see cref="ApplyOverrides"/> alone, this correctly reverts an id that <em>used</em> to have
+    /// an override but no longer does (the user reset it in the editor) - <see cref="ApplyOverrides"/>
+    /// only ever touches ids present in the dictionary it's given, so without a full rebuild first,
+    /// a removed override would leave the previous (now-stale) shortcut in place instead of
+    /// reverting to the built-in default. Safe to call again on a live <see cref="HotkeyManager"/>
+    /// after Settings saves a new set of overrides - see <c>MainForm.OpenSettings</c>'s
+    /// <c>SettingsSaved</c> handler.</summary>
+    public void Reload(IReadOnlyDictionary<string, string> overrides)
+    {
+        _hotkeys.Clear();
+        _idOccurrences.Clear();
+        RegisterDefaults();
+        ApplyOverrides(overrides);
     }
 
     /// <summary>

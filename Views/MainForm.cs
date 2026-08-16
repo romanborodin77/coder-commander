@@ -880,6 +880,7 @@ public sealed class MainForm : Form
             _leftPanel.RefreshFromViewModel();
             _rightPanel.RefreshFromViewModel();
             _cachedTerminalFollow = s.TerminalFollowPanelCwd;
+            _vm.Hotkeys.Reload(s.CustomHotkeys);
         };
         dlg.ShowDialog(this);
     }

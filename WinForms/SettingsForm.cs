@@ -63,6 +63,7 @@ public class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _loadShellProfileCheck;
     private IReadOnlyList<Terminal.Shells.ShellDescriptor> _availableShells = Array.Empty<Terminal.Shells.ShellDescriptor>();
     private Dictionary<string, string> _customKeyBindings;
+    private Dictionary<string, string> _customHotkeys;
 
     /// <summary>Raised after settings are saved and applied.</summary>
     public event EventHandler? SettingsSaved;
@@ -445,6 +446,27 @@ public class SettingsForm : ThemedForm
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Terminal"), terminalLayout, "Settings.Nav.Terminal"));
 
+        // ── Hotkeys section ──
+        // Working copy - the Customize dialog mutates this in place; only persisted on Save, same
+        // pattern as _customKeyBindings above (the terminal's own analogous editor).
+        _customHotkeys = new Dictionary<string, string>(s.CustomHotkeys, StringComparer.Ordinal);
+
+        var hotkeysLayout = CreateSectionLayout(rows: 2);
+        var hotkeysHint = UiHelpers.CreateLabel(L.GetString("Settings.Hotkeys.SectionHint"));
+        hotkeysHint.Dock = DockStyle.Fill;
+        hotkeysHint.AutoEllipsis = false;
+        hotkeysHint.AutoSize = false;
+        hotkeysLayout.RowStyles[0] = new RowStyle(SizeType.Absolute, 48);
+        hotkeysLayout.Controls.Add(hotkeysHint, 0, 0);
+
+        var hotkeysCustomizeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Hotkeys.Customize"));
+        hotkeysCustomizeBtn.Click += OnCustomizeHotkeys;
+        var hotkeysBtnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        hotkeysBtnRow.Controls.Add(hotkeysCustomizeBtn);
+        hotkeysLayout.Controls.Add(hotkeysBtnRow, 0, 1);
+
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Hotkeys"), hotkeysLayout, "Settings.Nav.Hotkeys"));
+
         // Bottom buttons
         var saveBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Save"), accent: true);
         saveBtn.Click += OnSave;
@@ -562,6 +584,13 @@ public class SettingsForm : ThemedForm
         using var dlg = new TerminalKeyBindingsForm(_customKeyBindings);
         if (dlg.ShowDialog(this) == DialogResult.OK)
             _customKeyBindings = dlg.ResultBindings;
+    }
+
+    private void OnCustomizeHotkeys(object? sender, EventArgs e)
+    {
+        using var dlg = new HotkeyBindingsForm(_customHotkeys);
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+            _customHotkeys = dlg.ResultBindings;
     }
 
     /// <summary>Returns the default <see cref="CompressionPreset"/> for a format, preferring Balanced.</summary>
@@ -815,6 +844,9 @@ public class SettingsForm : ThemedForm
             s.TerminalCustomKeyBindings[kv.Key] = kv.Value;
         s.TerminalFollowPanelCwd = _followPanelCwdCombo.SelectedIndex switch { 0 => "Never", 2 => "Always", _ => "OnOpen" };
         s.TerminalLoadShellProfile = _loadShellProfileCheck.Checked;
+        s.CustomHotkeys.Clear();
+        foreach (var kv in _customHotkeys)
+            s.CustomHotkeys[kv.Key] = kv.Value;
         SettingsService.Save(s);
 
         // Apply language

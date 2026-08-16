@@ -266,6 +266,17 @@ Settings.ExternalToolPath=Program path:
 Settings.ExternalToolArgs=Arguments:
 Settings.ExternalToolBrowse=Browse…
 Settings.ExternalToolBrowseFilter=Executable files (*.exe)|*.exe|All files (*.*)|*.*
+Settings.Hotkeys=Hotkeys
+Settings.Hotkeys.SectionHint=Rebind any of the application's ~30 default keyboard shortcuts (F5 Copy, Ctrl+A Select All, and so on).
+Settings.Hotkeys.Customize=Customize Hotkeys…
+Settings.Hotkeys.Title=Application Hotkeys
+Settings.Hotkeys.Action=Action
+Settings.Hotkeys.Shortcut=Shortcut
+Settings.Hotkeys.Hint=Double-click a row to set a new shortcut, or Escape to cancel.
+Settings.Hotkeys.Clear=Clear Shortcut
+Settings.Hotkeys.ResetAll=Reset All to Defaults
+Settings.Hotkeys.PressKeys=Press a key combination…
+Settings.Hotkeys.ConflictConfirm="{0}" is already used by "{1}". Reassign it to this action instead?
 
 # ═══ Search ═══
 Search.Title=Search

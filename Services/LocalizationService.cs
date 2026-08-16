@@ -410,6 +410,17 @@ public sealed class LocalizationService
         _strings["Settings.ExternalToolArgs"] = "Arguments:";
         _strings["Settings.ExternalToolBrowse"] = "Browse…";
         _strings["Settings.ExternalToolBrowseFilter"] = "Executable files (*.exe)|*.exe|All files (*.*)|*.*";
+        _strings["Settings.Hotkeys"] = "Hotkeys";
+        _strings["Settings.Hotkeys.SectionHint"] = "Rebind any of the application's ~30 default keyboard shortcuts (F5 Copy, Ctrl+A Select All, and so on).";
+        _strings["Settings.Hotkeys.Customize"] = "Customize Hotkeys…";
+        _strings["Settings.Hotkeys.Title"] = "Application Hotkeys";
+        _strings["Settings.Hotkeys.Action"] = "Action";
+        _strings["Settings.Hotkeys.Shortcut"] = "Shortcut";
+        _strings["Settings.Hotkeys.Hint"] = "Double-click a row to set a new shortcut, or Escape to cancel.";
+        _strings["Settings.Hotkeys.Clear"] = "Clear Shortcut";
+        _strings["Settings.Hotkeys.ResetAll"] = "Reset All to Defaults";
+        _strings["Settings.Hotkeys.PressKeys"] = "Press a key combination…";
+        _strings["Settings.Hotkeys.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
 
         // ═══ Search ═══
         _strings["Search.Title"] = "Search";

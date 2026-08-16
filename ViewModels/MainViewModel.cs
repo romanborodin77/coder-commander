@@ -71,7 +71,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Operations.OperationChanged += OnOperationChanged;
 
         RegisterCommands();
-        Hotkeys.RegisterDefaults();
+        Hotkeys.Reload(SettingsService.Load().CustomHotkeys);
     }
 
     // ── Panel management ──

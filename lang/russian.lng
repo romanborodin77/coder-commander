@@ -264,6 +264,17 @@ Settings.ExternalToolPath=Путь к программе:
 Settings.ExternalToolArgs=Аргументы:
 Settings.ExternalToolBrowse=Обзор…
 Settings.ExternalToolBrowseFilter=Исполняемые файлы (*.exe)|*.exe|Все файлы (*.*)|*.*
+Settings.Hotkeys=Горячие клавиши
+Settings.Hotkeys.SectionHint=Перебиндить любую из ~30 горячих клавиш приложения по умолчанию (F5 — копирование, Ctrl+A — выделить всё, и так далее).
+Settings.Hotkeys.Customize=Настроить горячие клавиши…
+Settings.Hotkeys.Title=Горячие клавиши приложения
+Settings.Hotkeys.Action=Действие
+Settings.Hotkeys.Shortcut=Комбинация
+Settings.Hotkeys.Hint=Двойной клик по строке — задать новую комбинацию, Escape — отмена.
+Settings.Hotkeys.Clear=Очистить комбинацию
+Settings.Hotkeys.ResetAll=Сбросить всё к умолчаниям
+Settings.Hotkeys.PressKeys=Нажмите комбинацию клавиш…
+Settings.Hotkeys.ConflictConfirm="{0}" уже используется для «{1}». Переназначить на это действие?
 
 # ═══ Поиск ═══
 Search.Title=Поиск

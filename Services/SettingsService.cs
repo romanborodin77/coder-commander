@@ -100,6 +100,15 @@ public sealed class AppSettings
 
     /// <summary>Same as <see cref="ExternalViewerArgs"/>, for F4/<c>EditorForm</c>.</summary>
     public string ExternalEditorArgs { get; set; } = "%1";
+
+    /// <summary>App-hotkey rebinds - keyed by <c>Commands.HotkeyManager.HotkeyDef.Id</c> (stable
+    /// per default binding, independent of its shortcut), valued by a chord string in
+    /// <c>Terminal.Input.TerminalKeyBindings.FormatChord</c>'s format, or <c>""</c> for
+    /// "explicitly unbound". Partial-override model, unlike <see cref="TerminalCustomKeyBindings"/>'s
+    /// full-replacement "Custom" preset - an id missing here simply keeps its built-in default (see
+    /// <c>HotkeyManager.ApplyOverrides</c>).</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Dictionary<string, string> CustomHotkeys { get; } = new(StringComparer.Ordinal);
     public bool FlatView { get; set; } = false;
     public string SortColumn { get; set; } = "Name";
     public bool SortDescending { get; set; } = false;
