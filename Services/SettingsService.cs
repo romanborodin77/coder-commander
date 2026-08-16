@@ -17,6 +17,12 @@ public sealed class AppSettings
     public int WindowWidth { get; set; } = 1200;
     public int WindowHeight { get; set; } = 800;
     public bool WindowMaximized { get; set; }
+
+    /// <summary>Last size of the Settings dialog itself (now resizable - was a fixed 560x520).
+    /// Defaults match that original fixed size so an upgraded install opens at the same size it
+    /// always did.</summary>
+    public int SettingsWindowWidth { get; set; } = 560;
+    public int SettingsWindowHeight { get; set; } = 520;
     public bool ConfirmDelete { get; set; } = true;
     public bool ConfirmOverwrite { get; set; } = true;
     public bool ViewerWordWrap { get; set; }
@@ -168,6 +174,10 @@ public static class SettingsService
     private static AppSettings? _cached;
 
     private const int MinWindowSize = 200;
+    // Matches SettingsForm.MinimumSize - kept in sync there rather than referenced across the
+    // Services/WinForms boundary, same as MinWindowSize's relationship to MainForm.
+    private const int MinSettingsWindowWidth = 620;
+    private const int MinSettingsWindowHeight = 480;
 
     public static AppSettings Load()
     {
@@ -240,6 +250,8 @@ public static class SettingsService
         var defaults = new AppSettings();
         if (s.WindowWidth < MinWindowSize) s.WindowWidth = defaults.WindowWidth;
         if (s.WindowHeight < MinWindowSize) s.WindowHeight = defaults.WindowHeight;
+        if (s.SettingsWindowWidth < MinSettingsWindowWidth) s.SettingsWindowWidth = defaults.SettingsWindowWidth;
+        if (s.SettingsWindowHeight < MinSettingsWindowHeight) s.SettingsWindowHeight = defaults.SettingsWindowHeight;
         if (s.TerminalHeight < 0) s.TerminalHeight = defaults.TerminalHeight;
 
         MigrateLegacyCompressionLevel(s);

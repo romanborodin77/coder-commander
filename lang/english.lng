@@ -223,8 +223,10 @@ OpQueue.Type.Unpack=Unpack
 # ═══ Settings ═══
 Settings.Title=Settings
 Settings.Appearance=Appearance
+Settings.Panels=Panels
 Settings.Editor=Editor
 Settings.FileOps=File Operations
+Settings.Archives=Archives
 Settings.Confirmations=Confirmations
 Settings.Theme=Theme:
 Settings.Theme.Dark=Dark

@@ -221,8 +221,10 @@ OpQueue.Type.Unpack=Распаковка
 # ═══ Настройки ═══
 Settings.Title=Настройки
 Settings.Appearance=Внешний вид
+Settings.Panels=Панели
 Settings.Editor=Редактор
 Settings.FileOps=Файловые операции
+Settings.Archives=Архивы
 Settings.Confirmations=Подтверждения
 Settings.Theme=Тема:
 Settings.Theme.Dark=Тёмная

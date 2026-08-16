@@ -367,8 +367,10 @@ public sealed class LocalizationService
         // ═══ Settings ═══
         _strings["Settings.Title"] = "Settings";
         _strings["Settings.Appearance"] = "Appearance";
+        _strings["Settings.Panels"] = "Panels";
         _strings["Settings.Editor"] = "Editor";
         _strings["Settings.FileOps"] = "File Operations";
+        _strings["Settings.Archives"] = "Archives";
         _strings["Settings.Confirmations"] = "Confirmations";
         _strings["Settings.Theme"] = "Theme:";
         _strings["Settings.Theme.Dark"] = "Dark";

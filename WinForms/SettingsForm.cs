@@ -5,11 +5,17 @@ using CoderCommander.Services;
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Application settings dialog with tabbed sections.
+/// Application settings dialog with a left-hand section navigator (<see cref="SettingsNavControl"/>,
+/// VS Code-style - replaced the earlier horizontal tab strip, which ran out of room once the
+/// section count grew past what a single row of tab labels could hold without wrapping or
+/// truncating). Resizable, with its size persisted the same way <c>MainForm</c> persists its own
+/// (<see cref="AppSettings.SettingsWindowWidth"/>/<c>Height</c>, written in
+/// <see cref="OnFormClosing"/> regardless of Save vs Cancel - window size is a UI preference, not
+/// part of the settings the dialog edits).
 /// </summary>
 public class SettingsForm : ThemedForm
 {
-    private readonly ThemedTabControl _tabs;
+    private readonly SettingsNavControl _nav;
     private readonly ThemedComboBox _themeCombo;
     private readonly ThemedComboBox _languageCombo;
     private readonly ThemedCheckBox _showHiddenCheck;
@@ -42,35 +48,23 @@ public class SettingsForm : ThemedForm
     {
         var L = LocalizationService.Current;
         Text = L.GetString("Settings.Title");
-        ClientSize = new Size(560, 520);
-        Resizable = false;
+        var s = SettingsService.Load();
+        ClientSize = new Size(s.SettingsWindowWidth, s.SettingsWindowHeight);
+        Resizable = true;
+        // Tall enough for the densest section (Panels: 4 checkboxes) plus the nav strip's own
+        // minimum, wide enough that the nav column (176px) still leaves room for a combo row.
+        MinimumSize = new Size(560, 420);
 
         var p = ThemeService.Current;
-        var s = SettingsService.Load();
         // Working copy - the Customize dialog mutates this in place; only persisted on Save.
         _customKeyBindings = new Dictionary<string, string>(s.TerminalCustomKeyBindings);
 
-        _tabs = new ThemedTabControl
-        {
-            Dock = DockStyle.Fill,
-            Font = p.GridFont,
-            BackColor = p.Background
-        };
+        _nav = new SettingsNavControl { Dock = DockStyle.Fill };
 
-        // ── Appearance tab ──
-        var appearLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 10,
-            Padding = new Padding(16),
-            BackColor = p.Background
-        };
+        // ── Appearance section ──
+        var appearLayout = CreateSectionLayout(rows: 5, columns: 2);
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (int i = 0; i < 9; i++)
-            appearLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        appearLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         int row = 0;
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Theme")), 0, row);
@@ -96,70 +90,35 @@ public class SettingsForm : ThemedForm
         appearLayout.Controls.Add(_languageCombo, 1, row);
         row++;
 
-        _showHiddenCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowHidden"), s.ShowHidden);
-        _showHiddenCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showHiddenCheck, 0, row);
-        appearLayout.SetColumnSpan(_showHiddenCheck, 2);
-        row++;
+        _showToolbarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowToolbar", s.ShowToolbar);
+        _showStatusBarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowStatusBar", s.ShowStatusBar);
+        _showFnButtonsCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowFunctionButtons", s.ShowFunctionButtons);
 
-        _showSystemCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowSystem"), s.ShowSystem);
-        _showSystemCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showSystemCheck, 0, row);
-        appearLayout.SetColumnSpan(_showSystemCheck, 2);
-        row++;
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Appearance"), appearLayout, "Settings.Nav.Appearance"));
 
-        _showToolbarCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowToolbar"), s.ShowToolbar);
-        _showToolbarCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showToolbarCheck, 0, row);
-        appearLayout.SetColumnSpan(_showToolbarCheck, 2);
-        row++;
+        // ── Panels section ──
+        var panelsLayout = CreateSectionLayout(rows: 4);
+        int prow = 0;
+        _showHiddenCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowHidden", s.ShowHidden);
+        _showSystemCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowSystem", s.ShowSystem);
+        _dirsFirstCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.DirectoriesFirst", s.DirectoriesFirst);
+        _showExtInNameCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowExtInName", s.ShowExtensionInName);
 
-        _showStatusBarCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowStatusBar"), s.ShowStatusBar);
-        _showStatusBarCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showStatusBarCheck, 0, row);
-        appearLayout.SetColumnSpan(_showStatusBarCheck, 2);
-        row++;
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Panels"), panelsLayout, "Settings.Nav.Panels"));
 
-        _showFnButtonsCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowFunctionButtons"), s.ShowFunctionButtons);
-        _showFnButtonsCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showFnButtonsCheck, 0, row);
-        appearLayout.SetColumnSpan(_showFnButtonsCheck, 2);
-        row++;
+        // ── File Operations section (confirmations folded in - two checkboxes on their own
+        //    didn't earn a separate section, and both are file-operation behavior) ──
+        var fileOpsLayout = CreateSectionLayout(rows: 4);
+        int frow = 0;
+        _copyAttrsCheck = AddFullWidthCheck(fileOpsLayout, frow++, "Settings.CopyAttributes", s.CopyAttributes);
+        _copyTsCheck = AddFullWidthCheck(fileOpsLayout, frow++, "Settings.CopyTimestamps", s.CopyTimestamps);
+        _confirmDeleteCheck = AddFullWidthCheck(fileOpsLayout, frow++, "Settings.ConfirmDelete", s.ConfirmDelete);
+        _confirmOverwriteCheck = AddFullWidthCheck(fileOpsLayout, frow++, "Settings.ConfirmOverwrite", s.ConfirmOverwrite);
 
-        _dirsFirstCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.DirectoriesFirst"), s.DirectoriesFirst);
-        _dirsFirstCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_dirsFirstCheck, 0, row);
-        appearLayout.SetColumnSpan(_dirsFirstCheck, 2);
-        row++;
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.FileOps"), fileOpsLayout, "Settings.Nav.FileOps"));
 
-        _showExtInNameCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ShowExtInName"), s.ShowExtensionInName);
-        _showExtInNameCheck.Dock = DockStyle.Fill;
-        appearLayout.Controls.Add(_showExtInNameCheck, 0, row);
-        appearLayout.SetColumnSpan(_showExtInNameCheck, 2);
-        row++;
-
-        _tabs.AddPage(new ThemedTabPage(L.GetString("Settings.Appearance"), appearLayout));
-
-        // ── File Ops tab ──
-        var fileOpsLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 7,
-            Padding = new Padding(16),
-            BackColor = p.Background
-        };
-        for (int i = 0; i < 6; i++)
-            fileOpsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        fileOpsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _copyAttrsCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.CopyAttributes"), s.CopyAttributes);
-        _copyAttrsCheck.Dock = DockStyle.Fill;
-        fileOpsLayout.Controls.Add(_copyAttrsCheck, 0, 0);
-
-        _copyTsCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.CopyTimestamps"), s.CopyTimestamps);
-        _copyTsCheck.Dock = DockStyle.Fill;
-        fileOpsLayout.Controls.Add(_copyTsCheck, 0, 1);
+        // ── Archives section ──
+        var archivesLayout = CreateSectionLayout(rows: 4);
 
         // Per-format archive compression: a format list scoped to what PackDialogForm can actually
         // create (read-only formats like 7z/RAR have no compression to configure and would just
@@ -173,13 +132,13 @@ public class SettingsForm : ThemedForm
             ForeColor = p.Foreground,
             Font = ThemeService.Current.GridFont
         };
-        fileOpsLayout.Controls.Add(compressionFormatLabel, 0, 2);
+        archivesLayout.Controls.Add(compressionFormatLabel, 0, 0);
 
         _compressionFormats = ArchiveFormatRegistry.Creatable.ToList();
         _compressionFormatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
         foreach (var format in _compressionFormats)
             _compressionFormatCombo.AddItem(L.GetString(format.DisplayNameKey));
-        fileOpsLayout.Controls.Add(_compressionFormatCombo, 0, 3);
+        archivesLayout.Controls.Add(_compressionFormatCombo, 0, 1);
 
         var compressionPresetLabel = new Label
         {
@@ -189,10 +148,10 @@ public class SettingsForm : ThemedForm
             ForeColor = p.Foreground,
             Font = ThemeService.Current.GridFont
         };
-        fileOpsLayout.Controls.Add(compressionPresetLabel, 0, 4);
+        archivesLayout.Controls.Add(compressionPresetLabel, 0, 2);
 
         _compressionPresetCombo = new ThemedComboBox { Dock = DockStyle.Fill };
-        fileOpsLayout.Controls.Add(_compressionPresetCombo, 0, 5);
+        archivesLayout.Controls.Add(_compressionPresetCombo, 0, 3);
 
         foreach (var format in _compressionFormats)
         {
@@ -219,32 +178,9 @@ public class SettingsForm : ThemedForm
             LoadPresetComboForSelectedFormat();
         }
 
-        _tabs.AddPage(new ThemedTabPage(L.GetString("Settings.FileOps"), fileOpsLayout));
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Archives"), archivesLayout, "Settings.Nav.Archives"));
 
-        // ── Confirmations tab ──
-        var confLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(16),
-            BackColor = p.Background
-        };
-        for (int i = 0; i < 2; i++)
-            confLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        confLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _confirmDeleteCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ConfirmDelete"), s.ConfirmDelete);
-        _confirmDeleteCheck.Dock = DockStyle.Fill;
-        confLayout.Controls.Add(_confirmDeleteCheck, 0, 0);
-
-        _confirmOverwriteCheck = UiHelpers.CreateCheckBox(L.GetString("Settings.ConfirmOverwrite"), s.ConfirmOverwrite);
-        _confirmOverwriteCheck.Dock = DockStyle.Fill;
-        confLayout.Controls.Add(_confirmOverwriteCheck, 0, 1);
-
-        _tabs.AddPage(new ThemedTabPage(L.GetString("Settings.Confirmations"), confLayout));
-
-        // ── Terminal tab ──
+        // ── Terminal section ──
         var terminalLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -295,7 +231,7 @@ public class SettingsForm : ThemedForm
         terminalLayout.Controls.Add(_loadShellProfileCheck, 0, 3);
         terminalLayout.SetColumnSpan(_loadShellProfileCheck, 2);
 
-        _tabs.AddPage(new ThemedTabPage(L.GetString("Settings.Terminal"), terminalLayout));
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Terminal"), terminalLayout, "Settings.Nav.Terminal"));
 
         // Bottom buttons
         var saveBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Save"), accent: true);
@@ -315,13 +251,62 @@ public class SettingsForm : ThemedForm
         };
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        root.Controls.Add(_tabs, 0, 0);
+        root.Controls.Add(_nav, 0, 0);
         root.Controls.Add(bottomPanel, 0, 1);
 
         Controls.Add(root);
 
         AcceptButton = saveBtn;
         CancelButton = cancelBtn;
+        FormClosing += OnFormClosing;
+    }
+
+    /// <summary>Builds a section layout with <paramref name="rows"/> fixed 32px rows plus one
+    /// flexible filler row - the shape every section in this dialog shares. <paramref name="columns"/>
+    /// must match how many columns the caller actually populates - <c>TableLayoutPanel.ColumnCount</c>
+    /// doesn't auto-grow from adding <c>ColumnStyles</c> alone, and leaving it at the 1-column
+    /// default while placing controls in column 1 left every row's real height ambiguous, which
+    /// rendered as large uneven gaps between checkboxes instead of tightly packed 32px rows
+    /// (caught by visual inspection of a live build).</summary>
+    private static TableLayoutPanel CreateSectionLayout(int rows, int columns = 1)
+    {
+        var p = ThemeService.Current;
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = columns,
+            RowCount = rows + 1,
+            Padding = new Padding(16),
+            BackColor = p.Background
+        };
+        for (int i = 0; i < rows; i++)
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        return layout;
+    }
+
+    /// <summary>Adds a full-width checkbox row (column-spanned when the layout has 2 columns) at
+    /// <paramref name="row"/> and returns it.</summary>
+    private static ThemedCheckBox AddFullWidthCheck(TableLayoutPanel layout, int row, string labelKey, bool initial)
+    {
+        var L = LocalizationService.Current;
+        var check = UiHelpers.CreateCheckBox(L.GetString(labelKey), initial);
+        check.Dock = DockStyle.Fill;
+        layout.Controls.Add(check, 0, row);
+        if (layout.ColumnCount > 1)
+            layout.SetColumnSpan(check, layout.ColumnCount);
+        return check;
+    }
+
+    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        // Window size is a UI preference, not part of the settings this dialog edits - persisted
+        // regardless of Save vs Cancel, same reasoning MainForm's own OnFormClosing uses for its
+        // WindowWidth/WindowHeight.
+        var s = SettingsService.Load();
+        s.SettingsWindowWidth = Width;
+        s.SettingsWindowHeight = Height;
+        SettingsService.Save(s);
     }
 
     private async void PopulateShellComboAsync(string preferredShellId)
