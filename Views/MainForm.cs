@@ -1587,10 +1587,25 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Strips a menu-style "&amp;" mnemonic marker (single "&amp;" -&gt; removed, "&amp;&amp;" -&gt;
+    /// literal "&amp;") from a localized string reused as a dialog title - <see cref="Form.Text"/>
+    /// doesn't interpret "&amp;" as a mnemonic the way <c>ToolStripItem.Text</c> does, so
+    /// <c>ChangeDir</c>/<c>SelectGroup</c>/<c>DeselectGroup</c> (none of which have a real menu item
+    /// of their own - see the doc comments below) were showing the raw "&amp;" literally in their
+    /// title bar, caught by visual inspection of a live build.
+    /// </summary>
+    private static string StripMnemonic(string text) => text
+        .Replace("&&", "\0", StringComparison.Ordinal)
+        .Replace("&", "", StringComparison.Ordinal)
+        .Replace("\0", "&", StringComparison.Ordinal);
+
+    // ChangeDir has no menu item of its own (Ctrl+G only) - Menu.Commands.ChangeDir exists purely
+    // for this dialog's title, formatted with a menu mnemonic that was never meant to survive here.
     private void OnChangeDir(object? sender, string currentPath)
     {
         var L = LocalizationService.Current;
-        using var dlg = new InputDialogForm(L.GetString("Menu.Commands.ChangeDir") ?? "Change Directory",
+        using var dlg = new InputDialogForm(StripMnemonic(L.GetString("Menu.Commands.ChangeDir") ?? "Change Directory"),
             L.GetString("Input.ChangeDirPrompt") ?? "Path:", currentPath);
         if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value))
         {
@@ -1598,10 +1613,12 @@ public sealed class MainForm : Form
         }
     }
 
+    // Same mnemonic-leak fix as OnChangeDir - SelectGroup/DeselectGroup are hotkey/command-only,
+    // no menu item of their own, so Menu.Selection.Group/.DeselectGroup's "&" was pure noise here.
     private void OnSelectGroup(object? sender, EventArgs e)
     {
         var L = LocalizationService.Current;
-        using var dlg = new InputDialogForm(L.GetString("Menu.Selection.Group"),
+        using var dlg = new InputDialogForm(StripMnemonic(L.GetString("Menu.Selection.Group")),
             L.GetString("Input.SelectPattern") ?? "Pattern (e.g. *.txt):", "*.*");
         if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
         {
@@ -1612,7 +1629,7 @@ public sealed class MainForm : Form
     private void OnDeselectGroup(object? sender, EventArgs e)
     {
         var L = LocalizationService.Current;
-        using var dlg = new InputDialogForm(L.GetString("Menu.Selection.DeselectGroup"),
+        using var dlg = new InputDialogForm(StripMnemonic(L.GetString("Menu.Selection.DeselectGroup")),
             L.GetString("Input.SelectPattern") ?? "Pattern (e.g. *.txt):", "*.*");
         if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
         {
