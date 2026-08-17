@@ -34,4 +34,9 @@ DEBUG.md
 FIXES.md
 AUDIT-FULL-PROMPT.md
 
+## UI-automation test suite (FlaUI + NUnit) - developer-only, same as the audit docs above.
+## Nothing in the main project references it (the ProjectReference runs UiTests -> CoderCommander,
+## not the reverse) and there is no .sln, so a clone without this folder still builds normally.
+UiTests/
+
 
