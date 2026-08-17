@@ -383,6 +383,20 @@ public class OperationDialogForm : ThemedForm
                 g.DrawLine(pen, 14, 14, 14, 4);
                 g.FillPolygon(brush, new[] { new Point(10, 8), new Point(14, 2), new Point(18, 8) });
                 break;
+            case OperationType.Split:
+                // One box splitting into three smaller ones
+                g.DrawRectangle(pen, 10, 2, 8, 8);
+                g.DrawRectangle(pen, 2, 16, 6, 6);
+                g.DrawRectangle(pen, 11, 16, 6, 6);
+                g.DrawRectangle(pen, 20, 16, 6, 6);
+                break;
+            case OperationType.Combine:
+                // Three small boxes merging into one
+                g.DrawRectangle(pen, 2, 2, 6, 6);
+                g.DrawRectangle(pen, 11, 2, 6, 6);
+                g.DrawRectangle(pen, 20, 2, 6, 6);
+                g.DrawRectangle(pen, 10, 16, 8, 8);
+                break;
             default:
                 g.DrawEllipse(pen, 6, 6, 16, 16);
                 break;

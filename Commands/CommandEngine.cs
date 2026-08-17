@@ -34,6 +34,10 @@ public static class CommandIds
     public const string UnpackFiles = "cm_UnpackFiles";
     /// <summary>Compute checksums for selected files.</summary>
     public const string Checksum = "cm_Checksum";
+    /// <summary>Split a file into numbered parts.</summary>
+    public const string SplitFile = "cm_SplitFile";
+    /// <summary>Combine numbered parts back into a single file.</summary>
+    public const string CombineFiles = "cm_CombineFiles";
     public const string FindFiles = "cm_FindFiles";
 
     // Navigation

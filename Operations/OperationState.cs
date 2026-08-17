@@ -47,7 +47,13 @@ public enum OperationType
     Pack,
 
     /// <summary>Unpacking files from an archive.</summary>
-    Unpack
+    Unpack,
+
+    /// <summary>Splitting a file into numbered parts.</summary>
+    Split,
+
+    /// <summary>Combining numbered parts back into a single file.</summary>
+    Combine
 }
 
 /// <summary>

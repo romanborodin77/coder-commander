@@ -9,6 +9,7 @@ using CoderCommander.WinForms;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace CoderCommander.Views;
 
@@ -174,6 +175,9 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.File.Pack", "pack", "Alt+F5", CommandIds.PackFiles));
         m.DropDownItems.Add(Mi("Menu.File.Extract", "extract", "Alt+F9", CommandIds.UnpackFiles));
+        m.DropDownItems.Add(new ToolStripSeparator());
+        m.DropDownItems.Add(Mi("Menu.File.Split", "split", "", CommandIds.SplitFile));
+        m.DropDownItems.Add(Mi("Menu.File.Combine", "combine", "", CommandIds.CombineFiles));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.File.Properties", "properties", "Alt+Enter", CommandIds.ShowProperties));
         m.DropDownItems.Add(new ToolStripSeparator());
@@ -1006,6 +1010,8 @@ public sealed class MainForm : Form
         _vm.SyncDirsRequested += OnSyncDirs;
         _vm.PackRequested += OnPackRequested;
         _vm.UnpackRequested += OnUnpackRequested;
+        _vm.SplitRequested += OnSplitRequested;
+        _vm.CombineRequested += OnCombineRequested;
         _vm.OperationRejected += OnOperationRejected;
         _vm.EditNewRequested += (_, _) => OpenEditorNew();
         _vm.ChecksumRequested += (_, _) => OpenChecksum();
@@ -1914,6 +1920,102 @@ public sealed class MainForm : Form
         }
 
         return ArchiveCompressionSpec.Balanced;
+    }
+
+    /// <summary>Regex for a split-part file name: <c>&lt;base&gt;.NNN</c> (3+ digits) - matches
+    /// <see cref="Operations.CombineOperation"/>'s own pattern. Kept separate (not shared code)
+    /// because this one is only ever used for the dialog's informational preview list, never for
+    /// the authoritative missing-part check, which stays solely inside <c>CombineOperation</c>.</summary>
+    private static readonly Regex SplitPartNameRegex = new(@"^(?<base>.+)\.(?<num>\d{3,})$", RegexOptions.CultureInvariant);
+
+    private void OnSplitRequested(object? sender, (IReadOnlyList<FileSystemItem> files, string destDir) e)
+    {
+        var L = LocalizationService.Current;
+        using var dlg = new SplitDialogForm(e.destDir);
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        var partSize = dlg.PartSizeBytes;
+        if (partSize <= 0)
+        {
+            StyledMessageBox.Show(L.GetString("Split.InvalidSize"), L.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        _vm.ExecuteSplit(e.files, dlg.DestDir, partSize, dlg.WriteCrc, dlg.DeleteSource);
+    }
+
+    private async void OnCombineRequested(object? sender, (FileSystemItem firstPart, string destDir) e)
+    {
+        // async void: this is a top-level UI event handler (not awaited by anything), same
+        // contract as OnFormLoad - exceptions are caught below rather than left to the
+        // unhandled-exception path.
+        var L = LocalizationService.Current;
+        var match = SplitPartNameRegex.Match(e.firstPart.Name);
+        if (!match.Success)
+        {
+            StyledMessageBox.Show(L.GetString("Combine.NotAPart", e.firstPart.Name), L.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        var suggestedName = match.Groups["base"].Value;
+        List<string> partNames;
+        try
+        {
+            var fs = _vm.ActivePanel.CurrentFileSystem;
+            var siblings = await fs.EnumerateAsync(e.destDir, includeHidden: true).ConfigureAwait(true);
+            partNames = siblings
+                .Where(entry => !entry.IsDirectory)
+                .Select(entry => (entry.Name, Match: SplitPartNameRegex.Match(entry.Name)))
+                .Where(t => t.Match.Success && string.Equals(t.Match.Groups["base"].Value, suggestedName, StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.Name)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("Combine: failed to list part files", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        using var dlg = new CombineDialogForm(suggestedName, e.destDir, partNames);
+        if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.DestPath)) return;
+
+        // CA2000: ownership transfers to Operations.RunAsync inside ExecuteCombine, which disposes
+        // it on completion - see MainViewModel.ExecuteTransfer's own suppression for the same
+        // pattern. This method only holds a reference to subscribe StateChanged, never owns it.
+#pragma warning disable CA2000
+        var op = _vm.ExecuteCombine(e.firstPart.FullPath, dlg.DestPath, dlg.VerifyCrc, dlg.DeleteSource);
+#pragma warning restore CA2000
+        if (op != null && dlg.VerifyCrc)
+            op.StateChanged += OnCombineStateChanged;
+    }
+
+    /// <summary>Reports a CRC mismatch after a successful combine - not a failure (the file is
+    /// already written either way), just a heads-up. Silent on a verified match or when there was
+    /// nothing to verify against (no <c>.crc</c> sidecar - <see cref="CombineOperation.CrcVerified"/>
+    /// is null in that case, distinct from a confirmed false).</summary>
+    private void OnCombineStateChanged(object? sender, OperationState state)
+    {
+        if (state is not (OperationState.Completed or OperationState.Failed or OperationState.Canceled))
+            return;
+        if (sender is CombineOperation op)
+            op.StateChanged -= OnCombineStateChanged;
+        if (state != OperationState.Completed || sender is not CombineOperation combine || combine.CrcVerified != false)
+            return;
+
+        if (InvokeRequired) { BeginInvoke(() => ShowCrcMismatchWarning()); return; }
+        ShowCrcMismatchWarning();
+    }
+
+    private void ShowCrcMismatchWarning()
+    {
+        if (!IsHandleCreated) return;
+        var L = LocalizationService.Current;
+        StyledMessageBox.Show(L.GetString("Combine.CrcMismatch"), L.GetString("Combine.Title"),
+            MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
     }
 
     /// <summary>A single folder names the archive after itself; anything else after its parent.

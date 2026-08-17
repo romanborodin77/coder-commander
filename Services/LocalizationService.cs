@@ -464,6 +464,8 @@ public sealed class LocalizationService
         _strings["Conn.WipeUnsupported"] = "Secure wipe requires direct disk access and is not available on a connection. Use Delete instead.";
         _strings["Conn.CalculateSizeUnsupported"] = "Folder size calculation is not available on a connection.";
         _strings["Conn.PackUnsupported"] = "Packing is not available for files on a connection yet. Copy them to a local folder first.";
+        _strings["Conn.SplitUnsupported"] = "Splitting is not available for files on a connection yet. Copy them to a local folder first.";
+        _strings["Conn.CombineUnsupported"] = "Combining is not available for files on a connection yet. Copy the parts to a local folder first.";
         _strings["Conn.DeleteUnsupported"] = "This connection does not support deleting.";
         _strings["Conn.MakeDirUnsupported"] = "This connection does not support creating folders.";
         _strings["Conn.RenameUnsupported"] = "This connection does not support renaming.";
@@ -742,15 +744,19 @@ public sealed class LocalizationService
         _strings["Op.DisplayUnpack"] = "Unpack {0} to {1}";
         _strings["Op.DisplayCopy"] = "Copy {0} item(s) to {1}";
         _strings["Op.DisplayMove"] = "Move {0} item(s) to {1}";
+        _strings["Op.DisplaySplit"] = "Split {0} file(s)";
+        _strings["Op.DisplayCombine"] = "Combine into {0}";
         // Keys are IFileOperation.Title's own English identifier values ("Copy"/"Move"/"Delete"/
-        // "Wipe"/"Pack"/"Unpack" - see Operations/*.cs), looked up via string concatenation in
-        // OperationDialogForm, not written out as literals here.
+        // "Wipe"/"Pack"/"Unpack"/"Split"/"Combine" - see Operations/*.cs), looked up via string
+        // concatenation in OperationDialogForm, not written out as literals here.
         _strings["Op.Title.Copy"] = "Copy";
         _strings["Op.Title.Move"] = "Move";
         _strings["Op.Title.Delete"] = "Delete";
         _strings["Op.Title.Wipe"] = "Wipe";
         _strings["Op.Title.Pack"] = "Pack";
         _strings["Op.Title.Unpack"] = "Unpack";
+        _strings["Op.Title.Split"] = "Split";
+        _strings["Op.Title.Combine"] = "Combine";
         _strings["Common.Confirm"] = "Confirm";
 
         // ═══ Archive ═══
@@ -798,6 +804,32 @@ public sealed class LocalizationService
         _strings["Archive.ConfirmWriteBack"] = "\"{0}\" was changed while browsing it. Save the changes back?";
         _strings["Archive.WriteBackFailed"] = "Could not save changes back to \"{0}\".\n\n{1}";
         _strings["Archive.ConfirmDownload"] = "\"{0}\" is {1}. Download a copy to browse it?";
+        _strings["Archive.SplitUnsupported"] = "Splitting is not available for archive entries. Extract the file first.";
+        _strings["Archive.CombineUnsupported"] = "Combining is not available for archive entries. Extract the parts first.";
+
+        // ═══ Split / Combine ═══
+        _strings["Split.Title"] = "Split File";
+        _strings["Split.DestDir"] = "Destination folder:";
+        _strings["Split.PartSize"] = "Part size:";
+        _strings["Split.Preset.Floppy"] = "1.44 MB (floppy)";
+        _strings["Split.Preset.100Mb"] = "100 MB";
+        _strings["Split.Preset.Cd650"] = "650 MB (CD)";
+        _strings["Split.Preset.Cd700"] = "700 MB (CD)";
+        _strings["Split.Preset.Dvd"] = "4.7 GB (DVD)";
+        _strings["Split.Preset.Custom"] = "Custom size...";
+        _strings["Split.CustomSizeMb"] = "Custom size (MB):";
+        _strings["Split.WriteCrc"] = "Create .crc checksum file";
+        _strings["Split.DeleteSource"] = "Delete source file after splitting";
+        _strings["Split.InvalidSize"] = "Enter a valid part size.";
+        _strings["Combine.Title"] = "Combine Files";
+        _strings["Combine.OutputName"] = "Output file name:";
+        _strings["Combine.PartsFound"] = "Parts found:";
+        _strings["Combine.VerifyCrc"] = "Verify against .crc file, if present";
+        _strings["Combine.DeleteParts"] = "Delete part files after combining";
+        _strings["Combine.NotAPart"] = "\"{0}\" doesn't look like a split part (expected a name ending in \".NNN\").";
+        _strings["Combine.MissingPart"] = "Part .{0:D3} is missing - cannot combine reliably.";
+        _strings["Combine.CrcMismatch"] = "Combined successfully, but the checksum does not match the original file.";
+        _strings["Combine.CrcVerified"] = "Combined successfully - checksum verified.";
 
         // ═══ SyncDirs ═══
         _strings["SyncDirs.Title"] = "Synchronize Dirs";

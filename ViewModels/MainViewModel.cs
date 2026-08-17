@@ -162,6 +162,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.PackFiles, _ => PackFiles());
         Commands.Register(CommandIds.UnpackFiles, _ => UnpackFiles());
         Commands.Register(CommandIds.Checksum, _ => ChecksumRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.SplitFile, _ => SplitFiles());
+        Commands.Register(CommandIds.CombineFiles, _ => CombineFiles());
         Commands.Register(CommandIds.FindFiles, _ => FindFilesRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ToggleTerminal, _ => ToggleTerminalRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.CreateTerminalTab, _ => CreateTerminalTabRequested?.Invoke(this, EventArgs.Empty));
@@ -904,6 +906,73 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 #pragma warning restore CA2000
     }
 
+    /// <summary>Raises <see cref="SplitRequested"/> for the selected non-directory files. Same
+    /// virtual-panel restriction as <see cref="PackFiles"/> - Split/Combine only ever touch a real
+    /// local (or UNC) filesystem, never an archive's own VFS or a remote connection.</summary>
+    public void SplitFiles()
+    {
+        var files = ActivePanel.GetSelectedOrActive().Where(f => !f.IsDirectory).ToList();
+        if (files.Count == 0) return;
+
+        if (ActivePanel.IsVirtual)
+        {
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.SplitUnsupported" : "Archive.SplitUnsupported");
+            return;
+        }
+
+        SplitRequested?.Invoke(this, (files, ActivePanel.CurrentPath));
+    }
+
+    /// <summary>Starts a split once the UI has settled on part size/CRC/delete options.</summary>
+    public void ExecuteSplit(IReadOnlyList<Models.FileSystemItem> files, string destDir, long partSizeBytes, bool writeCrc, bool deleteSource)
+    {
+        if (files.Count == 0 || partSizeBytes <= 0) return;
+
+        var entries = files.Select(f => f.Entry).ToList();
+        // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
+#pragma warning disable CA2000
+        var op = new SplitOperation(ActivePanel.CurrentFileSystem, entries, destDir, partSizeBytes, writeCrc, deleteSource);
+        _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplaySplit", entries.Count));
+#pragma warning restore CA2000
+    }
+
+    /// <summary>Raises <see cref="CombineRequested"/> for the single selected part file. Combine
+    /// always starts from one part (typically <c>.001</c>, but any part in the sequence works -
+    /// <see cref="CombineOperation"/> discovers the rest); the user picks which file via the panel
+    /// selection the same way every other single-target command does.</summary>
+    public void CombineFiles()
+    {
+        var files = ActivePanel.GetSelectedOrActive().Where(f => !f.IsDirectory).ToList();
+        if (files.Count != 1) return;
+
+        if (ActivePanel.IsVirtual)
+        {
+            OperationRejected?.Invoke(this, RemotePath.IsRemote(ActivePanel.CurrentPath)
+                ? "Conn.CombineUnsupported" : "Archive.CombineUnsupported");
+            return;
+        }
+
+        CombineRequested?.Invoke(this, (files[0], ActivePanel.CurrentPath));
+    }
+
+    /// <summary>Starts a combine once the UI has settled on the output name/CRC-verify/delete
+    /// options. Returns the queued operation (not yet started) so the caller can subscribe to its
+    /// <see cref="IFileOperation.StateChanged"/> and read <see cref="CombineOperation.CrcVerified"/>
+    /// once it completes - CRC verification has no other outward signal (a mismatch doesn't fail
+    /// the operation; the combined file is already written either way).</summary>
+    public CombineOperation? ExecuteCombine(string firstPartPath, string destPath, bool verifyCrc, bool deleteSource)
+    {
+        if (string.IsNullOrWhiteSpace(firstPartPath) || string.IsNullOrWhiteSpace(destPath)) return null;
+
+        // CA2000: ownership transfers to Operations.RunAsync - see ExecuteTransfer's suppression.
+#pragma warning disable CA2000
+        var op = new CombineOperation(ActivePanel.CurrentFileSystem, firstPartPath, destPath, verifyCrc, deleteSource);
+        _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayCombine", Path.GetFileName(destPath)));
+#pragma warning restore CA2000
+        return op;
+    }
+
     /// <summary>Raises <see cref="UnpackRequested"/> for selected archive files.</summary>
     public void UnpackFiles()
     {
@@ -1046,6 +1115,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler<(string leftPath, string rightPath)>? SyncDirsRequested;
     /// <summary>Raised when a pack operation needs UI input (archive path, format, compression).</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath, string destPath)>? PackRequested;
+
+    /// <summary>Raised by <see cref="SplitFiles"/>; the view opens <c>SplitDialogForm</c> and then calls <see cref="ExecuteSplit"/>.</summary>
+    public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string destDir)>? SplitRequested;
+
+    /// <summary>Raised by <see cref="CombineFiles"/>; the view opens <c>CombineDialogForm</c> and then calls <see cref="ExecuteCombine"/>.</summary>
+    public event EventHandler<(Models.FileSystemItem firstPart, string destDir)>? CombineRequested;
     /// <summary>Raised when an unpack operation needs UI input (destination path).</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> archives, string destPath)>? UnpackRequested;
 

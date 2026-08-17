@@ -300,6 +300,8 @@ Conn.OpenUnsupported=Files on a connection cannot be opened in place yet. Copy t
 Conn.WipeUnsupported=Secure wipe requires direct disk access and is not available on a connection. Use Delete instead.
 Conn.CalculateSizeUnsupported=Folder size calculation is not available on a connection.
 Conn.PackUnsupported=Packing is not available for files on a connection yet. Copy them to a local folder first.
+Conn.SplitUnsupported=Splitting is not available for files on a connection yet. Copy them to a local folder first.
+Conn.CombineUnsupported=Combining is not available for files on a connection yet. Copy the parts to a local folder first.
 Conn.DeleteUnsupported=This connection does not support deleting.
 Conn.MakeDirUnsupported=This connection does not support creating folders.
 Conn.RenameUnsupported=This connection does not support renaming.
@@ -454,12 +456,16 @@ Op.DisplayUnpack=Unpack {0} to {1}
 Op.DisplaySyncDirs=Sync {0} item(s)
 Op.DisplayCopy=Copy {0} item(s) to {1}
 Op.DisplayMove=Move {0} item(s) to {1}
+Op.DisplaySplit=Split {0} file(s)
+Op.DisplayCombine=Combine into {0}
 Op.Title.Copy=Copy
 Op.Title.Move=Move
 Op.Title.Delete=Delete
 Op.Title.Wipe=Wipe
 Op.Title.Pack=Pack
 Op.Title.Unpack=Unpack
+Op.Title.Split=Split
+Op.Title.Combine=Combine
 Common.Confirm=Confirm
 
 # ═══ Viewer ═══
@@ -610,6 +616,32 @@ Archive.OpenUnsupported=Files inside an archive cannot be opened in place yet. E
 Archive.ConfirmWriteBack="{0}" was changed while browsing it. Save the changes back?
 Archive.WriteBackFailed=Could not save changes back to "{0}".\n\n{1}
 Archive.ConfirmDownload="{0}" is {1}. Download a copy to browse it?
+Archive.SplitUnsupported=Splitting is not available for archive entries. Extract the file first.
+Archive.CombineUnsupported=Combining is not available for archive entries. Extract the parts first.
+
+# ═══ Split / Combine ═══
+Split.Title=Split File
+Split.DestDir=Destination folder:
+Split.PartSize=Part size:
+Split.Preset.Floppy=1.44 MB (floppy)
+Split.Preset.100Mb=100 MB
+Split.Preset.Cd650=650 MB (CD)
+Split.Preset.Cd700=700 MB (CD)
+Split.Preset.Dvd=4.7 GB (DVD)
+Split.Preset.Custom=Custom size...
+Split.CustomSizeMb=Custom size (MB):
+Split.WriteCrc=Create .crc checksum file
+Split.DeleteSource=Delete source file after splitting
+Split.InvalidSize=Enter a valid part size.
+Combine.Title=Combine Files
+Combine.OutputName=Output file name:
+Combine.PartsFound=Parts found:
+Combine.VerifyCrc=Verify against .crc file, if present
+Combine.DeleteParts=Delete part files after combining
+Combine.NotAPart="{0}" doesn't look like a split part (expected a name ending in ".NNN").
+Combine.MissingPart=Part .{0:D3} is missing - cannot combine reliably.
+Combine.CrcMismatch=Combined successfully, but the checksum does not match the original file.
+Combine.CrcVerified=Combined successfully - checksum verified.
 
 # ═══ Sync Dirs ═══
 SyncDirs.Title=Synchronize Directories

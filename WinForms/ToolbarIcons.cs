@@ -162,6 +162,14 @@ public static class ToolbarIcons
                         + "M 8 5.5 V 8.5", Fill: "M 8 11.5 L 5.75 8.75 H 10.25 Z"),
         ["extract"] = new("M 1.5 5.5 H 14.5 V 13.5 H 1.5 Z M 1.5 5.5 L 3.5 2.5 H 12.5 L 14.5 5.5 "
                            + "M 8 11.5 V 8.5", Fill: "M 8 5.5 L 5.75 8.25 H 10.25 Z"),
+        // One page becoming three numbered parts - the page outline above a dashed cut line, with
+        // three small filled blocks below standing in for ".001"/".002"/".003".
+        ["split"] = new(Page + " M 4.5 8.5 H 11.5",
+                         Fill: "M 4.5 9.5 H 6 V 11 H 4.5 Z M 7.25 9.5 H 8.75 V 11 H 7.25 Z M 10 9.5 H 11.5 V 11 H 10 Z"),
+        // The reverse of "split": three small blocks merging upward (arrowhead) into one page.
+        ["combine"] = new(Page + " M 8 8.5 V 5.5",
+                           Fill: "M 4.5 11.5 H 6 V 13 H 4.5 Z M 7.25 11.5 H 8.75 V 13 H 7.25 Z M 10 11.5 H 11.5 V 13 H 10 Z "
+                                 + "M 8 4 L 5.75 6.75 H 10.25 Z"),
 
         // ── Tools ───────────────────────────────────────────────────────────────────────────
         ["search"] = new(VectorIcon.Circle(6.75f, 6.75f, 4.25f) + " M 9.9 9.9 L 13.5 13.5"),
