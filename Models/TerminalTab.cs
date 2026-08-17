@@ -21,6 +21,15 @@ public class TerminalTab
     /// <summary>Current working directory for this terminal session.</summary>
     public string CurrentPath { get; set; }
 
+    /// <summary>A panel->shell <c>cd</c> that <see cref="WinForms.EmbeddedTerminalPanel.SetWorkingDirectory"/>
+    /// couldn't send immediately (the shell wasn't at an idle prompt) and is holding for the next
+    /// <see cref="Terminal.Screen.TerminalScreen.BecameIdlePrompt"/> transition. Null when there's
+    /// nothing pending. A later call while one is already pending simply overwrites it - only the
+    /// most recent destination matters, so several quick panel navigations while a command is
+    /// still running coalesce into a single <c>cd</c> once the shell is actually ready, instead of
+    /// queuing (and eventually typing) every intermediate one.</summary>
+    public string? PendingCwd { get; set; }
+
     /// <summary>Is this tab currently active?</summary>
     public bool IsActive { get; set; }
 

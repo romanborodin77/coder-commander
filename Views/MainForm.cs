@@ -1119,10 +1119,24 @@ public sealed class MainForm : Form
 
     /// <summary>Push the active file panel's path into the terminal (default path for new tabs,
     /// and - gated by the <c>TerminalFollowPanelCwd</c> setting - the live working directory of
-    /// the active tab when the terminal is visible).</summary>
+    /// the active tab when the terminal is visible). A no-op for an archive/remote (VFS) panel
+    /// path: neither a new shell tab nor a live <c>cd</c> can meaningfully open inside a ZIP entry
+    /// or an FTP/SFTP/WebDAV connection, and pushing one used to silently pollute
+    /// <see cref="EmbeddedTerminalPanel.DefaultPath"/> until the next tab-open substituted
+    /// %USERPROFILE% for it with no visible cause - leaving <see cref="EmbeddedTerminalPanel.DefaultPath"/>
+    /// at whatever the last real local path was is the more useful behavior. Setting it to true
+    /// unconditionally below (even when the actual push is deferred by
+    /// <see cref="EmbeddedTerminalPanel.SetWorkingDirectory"/> because the shell wasn't at an idle
+    /// prompt) is correct, not a bug, now that a deferred push is queued and retried automatically
+    /// via <c>TerminalTab.PendingCwd</c>/<c>TerminalScreen.BecameIdlePrompt</c> rather than silently
+    /// dropped - "OnOpen" only needs to fire the attempt once per time the terminal becomes
+    /// visible, not once per successful delivery.</summary>
     private void PushActivePathToTerminal()
     {
         var path = _vm.ActivePanel.CurrentPath;
+        if (FileSystem.ArchivePath.IsArchivePath(path) || FileSystem.RemotePath.IsRemote(path))
+            return;
+
         _terminalPanel.DefaultPath = path;
         if (!_terminalVisible) return;
 
@@ -2380,5 +2394,14 @@ public sealed class MainForm : Form
                 .Select(parts => (ShellId: parts[0], Path: parts[1]));
             await _terminalPanel.RestoreTabsAsync(tabs);
         }
+
+        // The ctor sets _terminalVisible/_terminalPanel.Visible directly from settings, bypassing
+        // ToggleTerminal (which is what normally does this push) - so a terminal restored visible
+        // at startup, with tabs whose own saved path may differ from the panel's own restored
+        // path, previously never got a single sync push. One push here covers it; harmless (a
+        // no-op inside SetWorkingDirectory) when the paths already agree or TerminalFollowPanelCwd
+        // is "Never".
+        if (_terminalVisible)
+            PushActivePathToTerminal();
     }
 }

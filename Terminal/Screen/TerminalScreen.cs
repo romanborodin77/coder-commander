@@ -12,6 +12,23 @@ namespace CoderCommander.Terminal.Screen;
 /// </summary>
 internal sealed class TerminalScreen : IVtSink
 {
+    /// <summary>OSC 133 shell-integration prompt-mark phases (A/B/C/D per the de facto convention
+    /// shared by VS Code/iTerm2/kitty/etc.). <c>Unknown</c> is the pre-first-mark state, distinct
+    /// from any real phase so <see cref="HasShellIntegration"/> can tell "never seen a mark" apart
+    /// from "saw one, currently not idle".</summary>
+    private enum ShellPromptPhase
+    {
+        /// <summary>No OSC 133 mark received yet this session.</summary>
+        Unknown,
+        /// <summary>133;A - prompt is (re)drawing; not yet editable.</summary>
+        Starting,
+        /// <summary>133;B - prompt fully drawn, shell is waiting for input. The only phase
+        /// <see cref="IsAtIdlePrompt"/> reports true for.</summary>
+        Idle,
+        /// <summary>133;C - a command is executing; its output may follow.</summary>
+        CommandRunning
+    }
+
     private readonly TerminalBuffer _main;
     private readonly TerminalBuffer _alt;
     private TerminalBuffer _active;
@@ -54,6 +71,31 @@ internal sealed class TerminalScreen : IVtSink
     public int Rows => _active.Rows;
     public int Cols => _active.Cols;
     public int ScrollbackCount => _main.Scrollback?.Count ?? 0;
+
+    /// <summary>OSC 133 shell-integration prompt phase - see <see cref="ShellPromptPhase"/>. Set by
+    /// <see cref="HandlePromptMark"/>, never inferred from cursor position.</summary>
+    private ShellPromptPhase _promptPhase = ShellPromptPhase.Unknown;
+
+    /// <summary>True once any OSC 133 mark has ever been seen on this session. Lets a caller (see
+    /// <c>WinForms.EmbeddedTerminalPanel.SetWorkingDirectory</c>) distinguish "this shell doesn't
+    /// support/emit shell-integration marks, fall back to the cursor-position heuristic" from
+    /// "it does, and genuinely isn't at an idle prompt right now" - conflating the two would make
+    /// every non-integrated shell permanently unpushable instead of falling back correctly.</summary>
+    public bool HasShellIntegration { get; private set; }
+
+    /// <summary>True when the shell has reported (via OSC 133;B) that it's sitting at an empty,
+    /// user-editable prompt and hasn't since reported starting a command (OSC 133;C) or redrawing
+    /// the prompt (OSC 133;A) - the precise signal <c>SetWorkingDirectory</c> needs to know a
+    /// programmatic <c>cd</c> can be typed right now without corrupting mid-command input or a
+    /// running full-screen program. Always false while the alt screen is active (never type into a
+    /// running TUI), and false until <see cref="HasShellIntegration"/> is true.</summary>
+    public bool IsAtIdlePrompt => HasShellIntegration && _promptPhase == ShellPromptPhase.Idle && !_usingAlt;
+
+    /// <summary>Raised whenever <see cref="IsAtIdlePrompt"/> transitions from false to true - lets a
+    /// caller with a pending <c>cd</c> it couldn't send immediately (shell was mid-command) retry
+    /// the moment the shell becomes idle, instead of the fixed-one-shot-push model that silently
+    /// dropped a blocked push forever.</summary>
+    public event Action? BecameIdlePrompt;
 
     /// <summary>Monotonic total (never plateaus once the ring is full, unlike
     /// <see cref="ScrollbackCount"/>) - lets a scrolled-back viewport detect "old rows kept getting
@@ -793,6 +835,7 @@ internal sealed class TerminalScreen : IVtSink
     private void SetAltScreen(bool enable, bool alsoSaveRestoreCursor)
     {
         if (enable == _usingAlt) return;
+        var wasIdle = IsAtIdlePrompt; // always false while enable==true was about to become active
 
         if (enable)
         {
@@ -811,6 +854,12 @@ internal sealed class TerminalScreen : IVtSink
         _cursor.PendingWrap = false;
         ClampCursor();
         Dirty.MarkAll();
+
+        // Leaving the alt screen can restore IsAtIdlePrompt to true with no fresh OSC 133 mark
+        // (a full-screen program quitting back to a shell that was already sitting at 133;B before
+        // it launched) - HandlePromptMark can't see this transition, so fire it here too.
+        if (!wasIdle && IsAtIdlePrompt)
+            BecameIdlePrompt?.Invoke();
     }
 
     // ── OSC ─────────────────────────────────────────────────────────────────────────────────
@@ -844,13 +893,42 @@ internal sealed class TerminalScreen : IVtSink
             case 8:
                 HandleHyperlink(payload);
                 break;
-            // 4 (palette), 10/11/12 (set colors), 52 (clipboard), 133 (shell integration marks) -
-            // parsed-and-discarded for v1; wired up in later phases. Every "?"-suffixed query form
-            // of any OSC (color queries etc.) is included in that discard - never answered, by the
-            // same "never implemented, not individually refused" principle as VtResponder's CSI
-            // whitelist.
+            case 133:
+                HandlePromptMark(payload);
+                break;
+            // 4 (palette), 10/11/12 (set colors), 52 (clipboard) - parsed-and-discarded for v1;
+            // wired up in later phases. Every "?"-suffixed query form of any OSC (color queries
+            // etc.) is included in that discard - never answered, by the same "never implemented,
+            // not individually refused" principle as VtResponder's CSI whitelist.
             default: break;
         }
+    }
+
+    /// <summary>OSC 133 (<c>OSC 133 ; &lt;mark&gt; [;...] ST</c>) - shell-integration prompt marks.
+    /// Only the mark letter is read; any trailing parameters (e.g. 133;D's exit code) are ignored,
+    /// since only the phase transition itself matters for <see cref="IsAtIdlePrompt"/>. An unknown
+    /// mark letter is silently ignored rather than treated as an error - some shells/multiplexers
+    /// emit vendor marks (e.g. numeric ones) under the same OSC 133 umbrella.</summary>
+    private void HandlePromptMark(ReadOnlySpan<char> payload)
+    {
+        HasShellIntegration = true;
+        var wasIdle = IsAtIdlePrompt;
+
+        var mark = payload.Length > 0 ? payload[0] : '\0';
+        _promptPhase = mark switch
+        {
+            'A' => ShellPromptPhase.Starting,
+            'B' => ShellPromptPhase.Idle,
+            'C' => ShellPromptPhase.CommandRunning,
+            // D (command finished): the prompt is about to redraw - treat as "not idle yet" rather
+            // than assuming a subsequent A always follows immediately, so a caller never types into
+            // a one-frame window where the old prompt line is still on screen but stale.
+            'D' => ShellPromptPhase.Starting,
+            _ => _promptPhase
+        };
+
+        if (!wasIdle && IsAtIdlePrompt)
+            BecameIdlePrompt?.Invoke();
     }
 
     /// <summary>OSC 8 (<c>OSC 8 ; params ; URI ST</c>): opens a hyperlink that subsequently

@@ -20,7 +20,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     private readonly Dictionary<Guid, TerminalSession> _sessions = new();
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
     /// <summary>Event handler delegates per tab, for proper unsubscription when closing.</summary>
-    private readonly Dictionary<Guid, (TerminalSession Session, Action<int> Exited, Action<string> CwdReported, Action TitleChanged)> _tabEventHandlers = new();
+    private readonly Dictionary<Guid, (TerminalSession Session, Action<int> Exited, Action<string> CwdReported, Action TitleChanged, Action BecameIdle)> _tabEventHandlers = new();
     private ThemedTabControl? _tabControl;
     private RoundedButton? _newTabButton;
     private readonly ToolTip _newTabTooltip = new();
@@ -174,12 +174,21 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     /// <summary>Change the working directory of the active terminal tab (programmatic push, not
     /// something the user typed) - injects a <c>cd</c>-equivalent as if typed. Silently does
-    /// nothing if: the path isn't accessible, it's already where the tab is tracked as being
+    /// nothing if the path isn't accessible or is already where the tab is tracked as being
     /// (normalized, case-insensitive - also what breaks the push/report loop with
-    /// <see cref="OnSessionCwdReported"/>), the alt-screen is active (never type into a running
-    /// full-screen TUI like vim/htop on the user's behalf), or - a heuristic, not a precise
-    /// shell-idle check like the OSC 133 prompt marks a later phase could add - the cursor isn't
-    /// at the start of a line (probably mid-command, not sitting at an empty prompt).</summary>
+    /// <see cref="OnSessionCwdReported"/>). Otherwise, if the shell isn't at a safe moment to type
+    /// into right now (alt-screen active - never type into a running full-screen TUI like vim/htop
+    /// on the user's behalf - or mid-command), the push is held as <see cref="TerminalTab.PendingCwd"/>
+    /// and retried automatically once <see cref="Terminal.Screen.TerminalScreen.BecameIdlePrompt"/>
+    /// fires (see <see cref="OnScreenBecameIdle"/>) - never silently dropped the way it used to be.
+    /// <para>
+    /// "Safe to type into" itself prefers the shell's own word on it
+    /// (<see cref="Terminal.Screen.TerminalScreen.IsAtIdlePrompt"/>, driven by OSC 133 prompt marks
+    /// injected by <see cref="Terminal.Shells.ShellBootstrap"/>) and only falls back to the old
+    /// cursor-at-column-0 heuristic for a session where no OSC 133 mark has ever arrived
+    /// (<see cref="Terminal.Screen.TerminalScreen.HasShellIntegration"/> false) - a shell with no
+    /// prompt-mark support gets the same (imprecise, but not regressed) behavior as before.
+    /// </para></summary>
     public void SetWorkingDirectory(string path)
     {
         if (!ShellValidator.IsPathAccessible(path))
@@ -190,25 +199,88 @@ public sealed class EmbeddedTerminalPanel : Panel
             return;
 
         if (NormalizePath(path) == NormalizePath(activeTab.CurrentPath))
+        {
+            activeTab.PendingCwd = null; // already there - drop any earlier still-pending push too
             return;
-        if (session.Screen.IsAltScreenActive || session.Screen.CursorCol != 0)
+        }
+
+        // Screen state is mutated on the pty reader thread; read it as one consistent snapshot
+        // under SyncRoot rather than as two separate unguarded reads (see TerminalScreen's own
+        // threading contract).
+        bool canSendNow;
+        lock (session.Screen.SyncRoot)
+        {
+            canSendNow = !session.Screen.IsAltScreenActive && (session.Screen.HasShellIntegration
+                ? session.Screen.IsAtIdlePrompt
+                : session.Screen.CursorCol == 0);
+        }
+
+        if (!canSendNow)
+        {
+            activeTab.PendingCwd = path;
             return;
+        }
+
+        activeTab.PendingCwd = null;
+        TrySendCd(activeTab, session, path);
+    }
+
+    /// <summary>Retries a <see cref="TerminalTab.PendingCwd"/> the moment its session's shell
+    /// reports becoming idle - see <see cref="SetWorkingDirectory"/>. Raised from
+    /// <see cref="Terminal.Screen.TerminalScreen.BecameIdlePrompt"/>, which fires on the pty
+    /// reader thread, so this marshals to the UI thread before touching any tab/session state.</summary>
+    private void OnScreenBecameIdle(Guid tabId)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnScreenBecameIdle(tabId)); return; }
+        if (IsDisposed) return;
+        if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
+        if (string.IsNullOrEmpty(tab.PendingCwd)) return;
+        if (!_sessions.TryGetValue(tabId, out var session)) return;
+
+        var pending = tab.PendingCwd;
+        tab.PendingCwd = null;
+        TrySendCd(tab, session, pending);
+    }
+
+    /// <summary>Builds and sends the actual <c>cd</c>-equivalent for <paramref name="path"/> on
+    /// <paramref name="session"/> - the caller is responsible for having already confirmed this is
+    /// a safe moment to type into it (see <see cref="SetWorkingDirectory"/>'s idle check). Shared
+    /// by the immediate-send path there and the deferred retry in <see cref="OnScreenBecameIdle"/>.</summary>
+    private bool TrySendCd(TerminalTab tab, TerminalSession session, string path)
+    {
+        if (NormalizePath(path) == NormalizePath(tab.CurrentPath))
+            return false;
 
         var shellPath = path;
         if (session.Shell.Family is ShellFamily.Wsl)
         {
             var distro = ShellIds.DistroNameFromShellId(session.Shell.Id);
             if (!new WslPathMapper(distro).TryToWsl(path, out shellPath))
-                return; // e.g. a UNC path with no automount-root equivalent in this distro
+                return false; // e.g. a UNC path with no automount-root equivalent in this distro
+        }
+        else if (session.Shell.Family is ShellFamily.Bash)
+        {
+            // Minimal Git-for-Windows mount conversion (C:\Work -> /c/Work) so the push at least
+            // doesn't hand bash a raw Windows path full of backslashes to quote as POSIX - full
+            // bidirectional support (including /mnt/c under a WSL-flavoured bash, UNC, etc.) is
+            // Terminal.Shells.BashPathMapper, added in a later phase; this covers the common case.
+            if (path.Length >= 2 && path[1] == ':' && char.IsAsciiLetter(path[0]))
+            {
+                var rest = path[2..].Replace('\\', '/').TrimStart('/');
+                shellPath = rest.Length == 0
+                    ? $"/{char.ToLowerInvariant(path[0])}"
+                    : $"/{char.ToLowerInvariant(path[0])}/{rest}";
+            }
         }
 
         if (!ShellCwdQuoting.TryBuildCd(session.Shell.Family, shellPath, out var command))
-            return;
+            return false;
 
-        activeTab.CurrentPath = path;
+        tab.CurrentPath = path;
         SweepExpiredCwdGuards();
-        _suppressCwdReport[activeTab.Id] = (NormalizePath(path), DateTime.UtcNow + CwdReportSuppressWindow);
+        _suppressCwdReport[tab.Id] = (NormalizePath(path), DateTime.UtcNow + CwdReportSuppressWindow);
         session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
+        return true;
     }
 
     private static string NormalizePath(string path) =>
@@ -297,11 +369,13 @@ public sealed class EmbeddedTerminalPanel : Panel
             Action<int> exitedHandler = _ => OnSessionExited(tabId);
             Action<string> cwdHandler = path => OnSessionCwdReported(tabId, path);
             Action titleHandler = () => OnScreenTitleChanged(tabId);
-            _tabEventHandlers[tabId] = (session, exitedHandler, cwdHandler, titleHandler);
+            Action becameIdleHandler = () => OnScreenBecameIdle(tabId);
+            _tabEventHandlers[tabId] = (session, exitedHandler, cwdHandler, titleHandler, becameIdleHandler);
 
             session.Exited += exitedHandler;
             session.Screen.CwdReported += cwdHandler;
             session.Screen.TitleChanged += titleHandler;
+            session.Screen.BecameIdlePrompt += becameIdleHandler;
         });
         if (tab == null)
         {
@@ -511,6 +585,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             handlers.Session.Exited -= handlers.Exited;
             handlers.Session.Screen.CwdReported -= handlers.CwdReported;
             handlers.Session.Screen.TitleChanged -= handlers.TitleChanged;
+            handlers.Session.Screen.BecameIdlePrompt -= handlers.BecameIdle;
         }
         _tabEventHandlers.Remove(tabId);
 
@@ -540,6 +615,16 @@ public sealed class EmbeddedTerminalPanel : Panel
             }
             FocusTerminalContent(page.Content);
         }
+
+        // Sync the file panel to the newly active tab's own tracked path - a tab switch is a
+        // *display* change (show where this tab already is), never a push: SetWorkingDirectory is
+        // never called from here. Reuses the same DirectoryChanged event a live OSC7/9;9 cwd
+        // report raises; MainForm.OnTerminalDirectoryChanged already gates on e.TabId matching the
+        // active tab, which by this point it does. TerminalSessionManager only raises TabActivated
+        // from an explicit SwitchTab or from auto-reactivating a sibling when the active tab
+        // closes - never from CreateTab, so this never fires during tab restore at startup.
+        if (_sessionManager?.GetTab(tabId) is { } tab && !string.IsNullOrEmpty(tab.CurrentPath))
+            DirectoryChanged?.Invoke(this, new DirectoryChangedEventArgs { TabId = tabId, NewPath = tab.CurrentPath });
     }
 
     private void OnCanvasActionRequested(Guid tabId, TerminalAction action)
