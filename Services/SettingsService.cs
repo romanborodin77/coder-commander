@@ -18,11 +18,13 @@ public sealed class AppSettings
     public int WindowHeight { get; set; } = 800;
     public bool WindowMaximized { get; set; }
 
-    /// <summary>Last size of the Settings dialog itself (now resizable - was a fixed 560x520).
-    /// Defaults match that original fixed size so an upgraded install opens at the same size it
-    /// always did.</summary>
-    public int SettingsWindowWidth { get; set; } = 560;
-    public int SettingsWindowHeight { get; set; } = 520;
+    /// <summary>Last size of the Settings dialog itself (resizable since the Ф1 nav rewrite).
+    /// 640x580, not the original fixed 560x520 (F140) - the nav column (176px) permanently
+    /// narrowed every section's content width, and the densest section (Archives, with its
+    /// extensions list + add/remove/restore row) needed more room than the old fixed size gave it
+    /// to avoid its last row sitting right at the AutoScroll viewport's edge by default.</summary>
+    public int SettingsWindowWidth { get; set; } = 640;
+    public int SettingsWindowHeight { get; set; } = 580;
     public bool ConfirmDelete { get; set; } = true;
     public bool ConfirmOverwrite { get; set; } = true;
     public bool ViewerWordWrap { get; set; }

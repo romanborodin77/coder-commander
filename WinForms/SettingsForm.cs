@@ -88,9 +88,12 @@ public class SettingsForm : ThemedForm
         var s = SettingsService.Load();
         ClientSize = new Size(s.SettingsWindowWidth, s.SettingsWindowHeight);
         Resizable = true;
-        // Tall enough for the densest section (Panels: 4 checkboxes) plus the nav strip's own
-        // minimum, wide enough that the nav column (176px) still leaves room for a combo row.
-        MinimumSize = new Size(560, 420);
+        // Was (560, 420) - didn't actually match SettingsService's own MinSettingsWindowWidth/
+        // Height (620/480) despite a doc comment there claiming it did (F140). At the old size,
+        // the Archives section's last row ("Restore defaults") sat right at the visible edge and
+        // got clipped by the AutoScroll viewport boundary at the dialog's own default size -
+        // caught by a 2x-zoomed offscreen screenshot, not by eye on a live run.
+        MinimumSize = new Size(620, 480);
 
         var p = ThemeService.Current;
         // Working copy - the Customize dialog mutates this in place; only persisted on Save.
@@ -141,7 +144,7 @@ public class SettingsForm : ThemedForm
 
         // Font picker rows are stacked (label above buttons - see BuildFontPickerRow's doc comment
         // for why) and need more than the section's uniform 32px row height.
-        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 56);
+        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 72);
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.UiFont")), 0, row);
         _uiFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingUiFontFamily, _workingUiFontSize, "Segoe UI", 9F));
         _uiFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -151,7 +154,7 @@ public class SettingsForm : ThemedForm
         appearLayout.Controls.Add(uiFontRow, 1, row);
         row++;
 
-        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 56);
+        appearLayout.RowStyles[row] = new RowStyle(SizeType.Absolute, 72);
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.MonoFont")), 0, row);
         _monoFontDisplayLabel = UiHelpers.CreateLabel(FormatFontDisplay(_workingMonoFontFamily, _workingMonoFontSize, "Consolas", 9.5F));
         _monoFontDisplayLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -262,22 +265,33 @@ public class SettingsForm : ThemedForm
             ? new List<string>(s.AlreadyCompressedExtensions)
             : new List<string>(Operations.PackOperation.DefaultAlreadyCompressedExtensions);
 
+        // F141: the list used to be a Percent(100) row, greedily claiming every pixel
+        // SettingsNavControl's _contentPanel happened to hand this section - which has NO
+        // AutoScroll of its own (only the nav *sidebar* does; a page's content is Dock=Fill,
+        // which sizes to whatever's visible and clips the rest with nothing to scroll it back into
+        // view). That made the button row's visibility a function of the dialog's total window
+        // height, and even after bumping the default size (F140) it was still getting clipped at
+        // the very edge - a live screenshot at 2x zoom is what caught it, not eyeballing a live
+        // run. Fixed at the root: every row here is now Absolute except a genuine filler row placed
+        // *after* the buttons, so the button row's 64px is guaranteed regardless of window height -
+        // any extra space goes to the harmless filler, never subtracted from what the buttons need.
         var extensionsGroup = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             BackColor = p.Background
         };
         extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 150));
+        // AutoSize, not a hand-picked pixel height: a wrapping FlowLayoutPanel's real height
+        // depends on how many lines its children wrap onto, which depends on the current language's
+        // button-label widths - exactly the thing a magic number gets wrong. Two earlier attempts
+        // here (30px, then 64px) both left the second line's buttons overflowing their own parent's
+        // bounds (the panel measured 58px while its content needed 73px), which WinForms clips
+        // silently rather than growing to fit.
+        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        // 64px, not 30 - tall enough for the button row to wrap onto two lines (see WrapContents
-        // below) at the dialog's default width. At 560px wide, textbox+Add+Remove+"Restore
-        // defaults" don't fit on one line even in English, and WrapContents=false let them overflow
-        // silently past the visible edge instead of wrapping - "Restore defaults" rendered as just
-        // "Rest" in English and was entirely invisible in Russian ("Восстановить встроенные"),
-        // caught by an offscreen DrawToBitmap screenshot, not by eye on a live run.
-        extensionsGroup.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
 
         extensionsGroup.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.AlreadyCompressedExtensions")), 0, 0);
 
@@ -285,20 +299,27 @@ public class SettingsForm : ThemedForm
         RefreshExtensionsListBox();
         extensionsGroup.Controls.Add(_extensionsListBox, 0, 1);
 
-        var extensionsButtonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+        // AutoSize + Dock=Top (not Fill): Fill would size to the cell instead of reporting the
+        // height its own wrapped content actually needs, which is what the AutoSize row above
+        // measures against.
+        var extensionsButtonRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true
+        };
         _extensionAddBox = UiHelpers.CreateTextBox(name: "ArchivesExtensionAddBox");
         _extensionAddBox.Width = 90;
         _extensionAddBox.Margin = new Padding(0, 2, 8, 0);
-        // Width left at CreateThemedButton's own text-measured value (not hardcoded) - Russian
-        // labels ("Восстановить встроенные") run noticeably longer than their English counterparts
-        // and a fixed pixel width would truncate them (the exact class of bug LayoutAuditTests
-        // exists to catch, see CreateSectionLayout's own doc comment above).
         var addExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.Add"));
         addExtBtn.Click += (_, _) => OnAddExtension();
         var removeExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.Remove"));
         removeExtBtn.Click += (_, _) => OnRemoveSelectedExtension();
         var restoreExtBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.AlreadyCompressedExtensions.RestoreDefaults"));
         restoreExtBtn.Click += (_, _) => OnRestoreDefaultExtensions();
+        EqualizeWidths(addExtBtn, removeExtBtn, restoreExtBtn);
         extensionsButtonRow.Controls.Add(_extensionAddBox);
         extensionsButtonRow.Controls.Add(addExtBtn);
         extensionsButtonRow.Controls.Add(removeExtBtn);
@@ -413,14 +434,12 @@ public class SettingsForm : ThemedForm
         terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         terminalLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        // 70px, not 32 - the key-binding combo + "Customize…" button need to wrap onto two full
-        // 32px-tall lines at this section's width (see keyBindingRow's WrapContents below), and
-        // 56px wasn't enough - the wrapped second line overlapped the row below it instead of
-        // fitting inside this one. Used to fit on one line before the left-hand nav control (Ф1)
-        // took a permanent ~176px out of every section's available width; a fixed-width combo +
-        // button that fit the old, wider single-column layout silently overflowed past the visible
-        // edge afterward - caught by an offscreen screenshot, not by eye on a live run.
-        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+        // AutoSize, not a hand-picked height - same reasoning as the Archives extensions button
+        // row: the key-binding combo + "Customize…" button wrap onto a second line at this
+        // section's width (the left-hand nav control permanently took ~176px out of it), and how
+        // much height that needs depends on the current language's label widths. Two earlier
+        // fixed values (56px, 70px) each left the wrapped line clipped or overlapping.
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -434,7 +453,14 @@ public class SettingsForm : ThemedForm
         PopulateShellComboAsync(s.DefaultShellType);
 
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.KeyBindingPreset")), 0, 1);
-        var keyBindingRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+        var keyBindingRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true
+        };
         _keyBindingPresetCombo = new ThemedComboBox { Width = 160, Margin = new Padding(0, 0, 8, 4) };
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.WindowsTerminal"));
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Classic"));
@@ -476,7 +502,17 @@ public class SettingsForm : ThemedForm
 
         var hotkeysCustomizeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Hotkeys.Customize"));
         hotkeysCustomizeBtn.Click += OnCustomizeHotkeys;
-        var hotkeysBtnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        // AutoSize row + Dock=Top/AutoSize panel, not CreateSectionLayout's uniform 32px: a 32px
+        // button plus its margins doesn't fit a 32px row, which clipped the button's bottom edge.
+        hotkeysLayout.RowStyles[1] = new RowStyle(SizeType.AutoSize);
+        var hotkeysBtnRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
+        };
         hotkeysBtnRow.Controls.Add(hotkeysCustomizeBtn);
         hotkeysLayout.Controls.Add(hotkeysBtnRow, 0, 1);
 
@@ -668,6 +704,21 @@ public class SettingsForm : ThemedForm
             _workingCompression[format.Id] = format.SupportedPresets[presetIndex];
     }
 
+    /// <summary>Widens every button in a related group to the widest one's size, so a row of
+    /// buttons reads as one set instead of three differently-sized boxes.
+    /// <para><see cref="ThemedForm.CreateThemedButton"/> sizes each button to its own text, which
+    /// is right for a lone button (and is what keeps a long Russian label from truncating) but
+    /// looks visibly ragged when several sit side by side - "Add" 80px next to "Remove" 94px next
+    /// to "Restore defaults" 135px. Equalizing upward never truncates: the widest button already
+    /// fits its own text, so every other one gets strictly more room than it needs.</para></summary>
+    private static void EqualizeWidths(params Button[] buttons)
+    {
+        if (buttons.Length == 0) return;
+        var widest = buttons.Max(b => b.Width);
+        foreach (var b in buttons)
+            b.Width = widest;
+    }
+
     /// <summary>Builds a path row: the path text box (fill, hand-editable) plus a "Browse…" button
     /// that opens a native <see cref="OpenFileDialog"/> scoped to executables. Native picker, not a
     /// themed one - same reasoning as <c>DifferForm.Browse</c>'s own file picker: a real Windows
@@ -708,19 +759,32 @@ public class SettingsForm : ThemedForm
         var L = LocalizationService.Current;
         var stack = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = ThemeService.Current.Background };
         stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        stack.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        // AutoSize, not 30px: CreateThemedButton builds 32px-tall buttons, so a 30px row clipped
+        // 2px off the bottom of every Change…/Reset pair - subtle enough to read as a rendering
+        // artifact rather than a layout bug, which is exactly how it was reported.
+        stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         displayLabel.AutoSize = false;
         displayLabel.AutoEllipsis = true;
         displayLabel.Dock = DockStyle.Fill;
         stack.Controls.Add(displayLabel, 0, 0);
 
-        var buttonRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        // Dock=Top + AutoSize so the row reports the height its buttons actually need, which is
+        // what the AutoSize RowStyle above measures against (Fill would size to the cell instead).
+        var buttonRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
+        };
         var changeBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Change"));
         changeBtn.Margin = new Padding(0, 0, 8, 0);
         changeBtn.Click += (_, _) => onChange();
         var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Reset"));
         resetBtn.Click += (_, _) => onReset();
+        EqualizeWidths(changeBtn, resetBtn);
         buttonRow.Controls.Add(changeBtn);
         buttonRow.Controls.Add(resetBtn);
         stack.Controls.Add(buttonRow, 0, 1);
