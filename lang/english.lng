@@ -797,3 +797,19 @@ Network.NoShares=No shares
 Panel.NetworkButton=Browse network
 Panel.MtpDevice=MTP device: {0}
 Mtp.DeviceGone=The device is no longer connected.
+
+# ═══ Duplicate finder ═══
+Menu.Commands.FindDuplicates=Find &Duplicates…
+Dup.Title=Find Duplicates
+Dup.Scan=Scan
+Dup.Scanning=Scanning…
+Dup.ColName=Name
+Dup.ColSize=Size
+Dup.ColPath=Path
+Dup.GroupHeader=Group: {0} files, {1}
+Dup.FoundGroups=Found {0} group(s), {1} duplicate file(s)
+Dup.NoDuplicates=No duplicates found.
+Dup.GoTo=Go to
+Dup.Delete=Delete checked
+Dup.DeleteConfirm=Delete {0} duplicate file(s)?
+Dup.DeleteAllWarning=Warning: this would delete ALL copies of some files. {0} file(s) will be lost permanently. Continue?

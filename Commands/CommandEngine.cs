@@ -39,6 +39,8 @@ public static class CommandIds
     /// <summary>Combine numbered parts back into a single file.</summary>
     public const string CombineFiles = "cm_CombineFiles";
     public const string FindFiles = "cm_FindFiles";
+    /// <summary>Find duplicate files by content (size + CRC32).</summary>
+    public const string FindDuplicates = "cm_FindDuplicates";
 
     // Navigation
     /// <summary>Navigate to the parent directory (Backspace).</summary>

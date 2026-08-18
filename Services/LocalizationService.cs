@@ -941,5 +941,21 @@ public sealed class LocalizationService
         _strings["Panel.NetworkButton"] = "Browse network";
         _strings["Panel.MtpDevice"] = "MTP device: {0}";
         _strings["Mtp.DeviceGone"] = "The device is no longer connected.";
+
+        // ═══ Duplicate finder ═══
+        _strings["Menu.Commands.FindDuplicates"] = "Find &Duplicates…";
+        _strings["Dup.Title"] = "Find Duplicates";
+        _strings["Dup.Scan"] = "Scan";
+        _strings["Dup.Scanning"] = "Scanning…";
+        _strings["Dup.ColName"] = "Name";
+        _strings["Dup.ColSize"] = "Size";
+        _strings["Dup.ColPath"] = "Path";
+        _strings["Dup.GroupHeader"] = "Group: {0} files, {1}";
+        _strings["Dup.FoundGroups"] = "Found {0} group(s), {1} duplicate file(s)";
+        _strings["Dup.NoDuplicates"] = "No duplicates found.";
+        _strings["Dup.GoTo"] = "Go to";
+        _strings["Dup.Delete"] = "Delete checked";
+        _strings["Dup.DeleteConfirm"] = "Delete {0} duplicate file(s)?";
+        _strings["Dup.DeleteAllWarning"] = "Warning: this would delete ALL copies of some files. {0} file(s) will be lost permanently. Continue?";
     }
 }

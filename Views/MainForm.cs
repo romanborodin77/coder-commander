@@ -206,6 +206,7 @@ public sealed class MainForm : Form
         var m = new ToolStripMenuItem(L.GetString("Menu.Commands"));
 
         m.DropDownItems.Add(Mi("Menu.Commands.Search", "search", "Alt+F7", CommandIds.FindFiles));
+        m.DropDownItems.Add(Mi("Menu.Commands.FindDuplicates", "search", "", CommandIds.FindDuplicates));
         m.DropDownItems.Add(Mi("Menu.Commands.MultiRename", "multirename", "Ctrl+M", CommandIds.MultiRename));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.SyncDirs", "syncdirs", "", null, () => OnSyncDirs(this, (_vm.LeftPanel.CurrentPath, _vm.RightPanel.CurrentPath))));
@@ -1024,6 +1025,7 @@ public sealed class MainForm : Form
         _vm.EditNewRequested += (_, _) => OpenEditorNew();
         _vm.ChecksumRequested += (_, _) => OpenChecksum();
         _vm.FindFilesRequested += (_, _) => OpenFindFiles();
+        _vm.FindDuplicatesRequested += (_, _) => OpenDuplicateFinder();
         _vm.ToggleTerminalRequested += (_, _) => ToggleTerminal();
         _vm.CreateTerminalTabRequested += (_, _) => CreateTerminalTabWithDefaults();
         _vm.CloseTerminalTabRequested += (_, _) => CloseTerminalTab();
@@ -2189,6 +2191,31 @@ public sealed class MainForm : Form
 
         var target = dlg.SelectedPath;
         _ = SafeNavigateAndSelectAsync(panel, folder, target);
+    }
+
+    private void OpenDuplicateFinder()
+    {
+        var panel = _vm.ActivePanel;
+        using var dlg = new DuplicateFinderForm(panel.CurrentFileSystem, panel.CurrentPath);
+        dlg.GoToFileRequested += (_, path) =>
+        {
+            var folder = FileSystem.VfsPath.GetParent(path);
+            if (!string.IsNullOrEmpty(folder))
+                _ = SafeNavigateAndSelectAsync(_vm.ActivePanel, folder, path);
+        };
+        dlg.DeleteRequested += (_, paths) =>
+        {
+            var panel = _vm.ActivePanel;
+            var entries = paths.Select(p => new FileSystem.FileEntry(p, isDirectory: false)).ToList();
+#pragma warning disable CA2000
+            var op = new DeleteOperation(panel.CurrentFileSystem, entries)
+            {
+                UseRecycleBin = panel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.RecycleBin),
+            };
+            _ = _vm.Operations.RunAsync(op, LocalizationService.Current.GetString("Op.DisplayDelete", entries.Count));
+#pragma warning restore CA2000
+        };
+        dlg.ShowDialog(this);
     }
 
     private async Task SafeNavigateAndSelectAsync(ViewModels.PanelViewModel panel, string folder, string target)

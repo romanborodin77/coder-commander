@@ -796,3 +796,19 @@ Network.NoShares=Нет общих папок
 Panel.NetworkButton=Обзор сети
 Panel.MtpDevice=MTP-устройство: {0}
 Mtp.DeviceGone=Устройство больше не подключено.
+
+# ═══ Поиск дубликатов ═══
+Menu.Commands.FindDuplicates=Найти &дубликаты…
+Dup.Title=Поиск дубликатов
+Dup.Scan=Сканировать
+Dup.Scanning=Сканирование…
+Dup.ColName=Имя
+Dup.ColSize=Размер
+Dup.ColPath=Путь
+Dup.GroupHeader=Группа: {0} файлов, {1}
+Dup.FoundGroups=Найдено групп: {0}, файлов-дубликатов: {1}
+Dup.NoDuplicates=Дубликаты не найдены.
+Dup.GoTo=Перейти
+Dup.Delete=Удалить отмеченные
+Dup.DeleteConfirm=Удалить {0} файл(ов)-дубликатов?
+Dup.DeleteAllWarning=Внимание: будут удалены ВСЕ копии некоторых файлов. {0} файл(ов) будут потеряны безвозвратно. Продолжить?
