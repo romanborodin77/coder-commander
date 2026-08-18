@@ -62,21 +62,38 @@ public sealed class TarArchiveReader : IArchiveReader
     public async IAsyncEnumerable<ArchiveEntryStream> ScanAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
-        Stream source = _gzip ? new GZipStream(fileStream, CompressionMode.Decompress) : fileStream;
-        using var reader = new TarReader(source, leaveOpen: false);
+        Stream source;
+        TarReader reader;
+        try
+        {
+            source = _gzip ? new GZipStream(fileStream, CompressionMode.Decompress) : fileStream;
+            reader = new TarReader(source, leaveOpen: false);
+        }
+        catch
+        {
+            fileStream.Dispose();
+            throw;
+        }
 
         var index = 0;
         TarEntry? entry;
-        while ((entry = await reader.GetNextEntryAsync(copyData: false, ct).ConfigureAwait(false)) != null)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var record = ToRecord(entry, index++);
-            // TarReader inspects the previous entry's DataStream when asked for the next one (to
-            // know how much unread data to skip), so it must stay alive until then - see
-            // NonDisposingStream's doc comment for why every consumer's `using`/Dispose() must not
-            // be what tears it down.
-            var content = entry.DataStream is { } dataStream ? new NonDisposingStream(dataStream) : Stream.Null;
-            yield return new ArchiveEntryStream(record, content);
+            while ((entry = await reader.GetNextEntryAsync(copyData: false, ct).ConfigureAwait(false)) != null)
+            {
+                ct.ThrowIfCancellationRequested();
+                var record = ToRecord(entry, index++);
+                // TarReader inspects the previous entry's DataStream when asked for the next one (to
+                // know how much unread data to skip), so it must stay alive until then - see
+                // NonDisposingStream's doc comment for why every consumer's `using`/Dispose() must not
+                // be what tears it down.
+                var content = entry.DataStream is { } dataStream ? new NonDisposingStream(dataStream) : Stream.Null;
+                yield return new ArchiveEntryStream(record, content);
+            }
+        }
+        finally
+        {
+            reader.Dispose();
         }
     }
 

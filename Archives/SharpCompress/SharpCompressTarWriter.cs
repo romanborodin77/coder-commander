@@ -43,6 +43,7 @@ internal sealed class SharpCompressTarWriter : ISequentialArchiveWriter
         ArchiveCompressionSpec compression,
         CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         _writer.Write(NormalizeName(entryName, isDirectory: false), content, ToTimestamp(lastWriteTimeUtc), size);
         return Task.CompletedTask;
     }

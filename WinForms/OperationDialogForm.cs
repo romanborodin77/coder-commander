@@ -22,7 +22,6 @@ public class OperationDialogForm : ThemedForm
     private readonly Button _skipBtn;
     private readonly Button _pauseBtn;
     private readonly Button _cancelBtn;
-    private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _iconLabel;
 
     /// <summary>Raised when the user clicks Skip.</summary>
@@ -273,16 +272,10 @@ public class OperationDialogForm : ThemedForm
 
         Controls.Add(mainLayout);
 
-        _timer = new System.Windows.Forms.Timer { Interval = 200 };
-        _timer.Tick += OnTimerTick;
-        _timer.Start();
-
         _operation.StateChanged += OnOperationStateChanged;
 
         FormClosing += (_, _) =>
         {
-            _timer.Stop();
-            _timer.Dispose();
             _operation.StateChanged -= OnOperationStateChanged;
             // Closing via the X button should cancel the operation, not leave it running in the background.
             // Cancel is a no-op if the operation is already in a terminal state (Completed/Canceled/Failed).
@@ -301,8 +294,6 @@ public class OperationDialogForm : ThemedForm
         _stateLabel.ForeColor = p.Accent;
     }
 
-    private void OnTimerTick(object? sender, EventArgs e) { }
-
     private void OnOperationStateChanged(object? sender, OperationState state)
     {
         if (!IsHandleCreated) return;
@@ -320,7 +311,6 @@ public class OperationDialogForm : ThemedForm
             };
             if (state is OperationState.Completed or OperationState.Canceled or OperationState.Failed)
             {
-                _timer.Stop();
                 if (state == OperationState.Completed)
                 {
                     _overallProgress.Value = 100;

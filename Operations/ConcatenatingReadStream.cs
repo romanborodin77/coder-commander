@@ -43,7 +43,7 @@ internal sealed class ConcatenatingReadStream : Stream
     {
         while (true)
         {
-            if (_current == null && !await AdvanceAsync().ConfigureAwait(false))
+            if (_current == null && !await AdvanceAsync(ct).ConfigureAwait(false))
                 return 0; // no more parts - EOF for the whole logical stream
 
             var read = await _current!.ReadAsync(buffer, ct).ConfigureAwait(false);
@@ -62,13 +62,13 @@ internal sealed class ConcatenatingReadStream : Stream
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
         ReadAsync(buffer.AsMemory(offset, count), ct).AsTask();
 
-    private async Task<bool> AdvanceAsync()
+    private async Task<bool> AdvanceAsync(CancellationToken ct)
     {
         _index++;
         if (_index >= _partPaths.Count)
             return false;
 
-        _current = await _fs.OpenReadAsync(_partPaths[_index], _ct).ConfigureAwait(false);
+        _current = await _fs.OpenReadAsync(_partPaths[_index], ct).ConfigureAwait(false);
         return true;
     }
 

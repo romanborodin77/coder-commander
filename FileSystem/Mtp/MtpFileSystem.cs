@@ -287,10 +287,13 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        lock (_deviceLock) { try { _device.Disconnect(); } catch { /* best-effort on teardown */ } }
-        _device.Dispose();
+        lock (_deviceLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            try { _device.Disconnect(); } catch { /* best-effort on teardown */ }
+            _device.Dispose();
+        }
     }
 
     /// <summary>A <see cref="FileStream"/> over a temp file that deletes the file on dispose.

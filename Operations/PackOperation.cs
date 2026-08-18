@@ -143,8 +143,13 @@ public sealed class PackOperation : FileOperation
 
         // AFTER the writer above has closed - uploading while it's still open would ship stale,
         // pre-commit bytes. No-op for a passthrough (local) container.
-        container.MarkDirty();
-        await container.WriteBackAsync(ct).ConfigureAwait(false);
+        // Only mark dirty when something was actually written — an empty commit (all items
+        // skipped via conflict resolution) should not trigger a pointless WriteBack for remote archives.
+        if (written > 0)
+        {
+            container.MarkDirty();
+            await container.WriteBackAsync(ct).ConfigureAwait(false);
+        }
 
         if (_removeSource && written > 0)
             await RemoveSourcesAsync(plan, writtenPaths, ct).ConfigureAwait(false);
