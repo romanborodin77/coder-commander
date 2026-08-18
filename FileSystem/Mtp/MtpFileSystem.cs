@@ -248,7 +248,17 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             // MTP doesn't support streaming reads — download to a temp file and return a FileStream
             // that deletes the temp file on close.
             var tempFile = TempFileNaming.InSystemTemp("mtp");
-            lock (_deviceLock) { _device.DownloadFile(devicePath, tempFile); }
+            try
+            {
+                lock (_deviceLock) { _device.DownloadFile(devicePath, tempFile); }
+            }
+            catch
+            {
+                // DownloadFile failed — clean up the empty/partial temp file before rethrowing,
+                // matching the try/finally pattern in CopyFileAsync/MoveAsync.
+                try { File.Delete(tempFile); } catch { /* best-effort */ }
+                throw;
+            }
             return new MtpTempStream(tempFile);
         }, ct);
 

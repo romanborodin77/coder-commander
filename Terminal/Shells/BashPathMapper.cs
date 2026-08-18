@@ -61,7 +61,11 @@ internal sealed class BashPathMapper
         if (path.StartsWith(WslMountRoot, StringComparison.Ordinal))
         {
             var rest = path[WslMountRoot.Length..];
-            if (TryParseDriveLetter(rest, out var drive, out var tail))
+            // Require the drive letter to be followed by end-of-string or '/' — /mnt/usr must NOT
+            // match here (u is a letter, but usr is not a drive), same guard as the flat form below.
+            if (rest.Length >= 1 && char.IsLetter(rest[0]) &&
+                (rest.Length == 1 || rest[1] == '/') &&
+                TryParseDriveLetter(rest, out var drive, out var tail))
             {
                 windowsPath = tail.Length == 0 ? $"{drive}:\\" : $"{drive}:\\{tail}";
                 return true;

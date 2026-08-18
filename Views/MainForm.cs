@@ -1054,6 +1054,7 @@ public sealed class MainForm : Form
         FormClosing += OnFormClosing;
         FormClosed += (_, _) =>
         {
+            MtpDeviceCatalog.Instance.Dispose();
             _deviceWatcher.Dispose();
             ConnectionManager.Instance.Dispose();
         };

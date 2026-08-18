@@ -12,10 +12,13 @@ namespace CoderCommander.FileSystem.Remote.Smb;
 /// with WebDAV/FTP/SFTP) and (b) call <c>WNetCancelConnection2</c> on <see cref="Dispose"/> to close
 /// the credential-bearing network connection opened by <see cref="SmbProvider"/>.</para>
 ///
-/// <para><b>CAPABILITIES</b>: claims <see cref="FileSystemCapabilities.Local"/> because UNC paths
-/// are native Windows paths — ShellExecute, drag-out, and real-path operations all work. The one
-/// exception is <see cref="FileSystemCapabilities.RecycleBin"/>: <c>RecycleBinHelper</c> already
-/// detects UNC and refuses (permanent delete), which is the correct behaviour for network shares.</para>
+/// <para><b>CAPABILITIES</b>: claims everything <see cref="FileSystemCapabilities.Local"/> offers
+/// <b>except</b> <see cref="FileSystemCapabilities.NativePaths"/> — UNC paths are native, but the
+/// paths this filesystem exposes (<c>smb://host/path</c>) are not, and side-channel <c>System.IO</c>
+/// calls on them (e.g. <c>File.SetLastWriteTimeUtc</c>) fail. Operations that check NativePaths
+/// (timestamp stamping in UnpackOperation, wipe, folder-size via DirectoryInfo) are correctly
+/// skipped for SMB. <see cref="FileSystemCapabilities.RecycleBin"/> is absent for the same reason
+/// as network shares in general — <c>SHFileOperation</c> deletes permanently on UNC.</para>
 /// </summary>
 internal sealed class SmbFileSystem : IFileSystem, IDisposable
 {
@@ -25,7 +28,9 @@ internal sealed class SmbFileSystem : IFileSystem, IDisposable
     private bool _disposed;
 
     public string Name => "SMB";
-    public FileSystemCapabilities Capabilities => FileSystemCapabilities.Local;
+    public FileSystemCapabilities Capabilities =>
+        FileSystemCapabilities.FileWatch | FileSystemCapabilities.GitStatus |
+        FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
 
     /// <param name="host">Server name, e.g. <c>NAS1</c> — used as the <see cref="RemotePath"/> authority.</param>
     /// <param name="uncRoot">UNC root the connection was opened against, e.g. <c>\\NAS1</c> or

@@ -477,14 +477,21 @@ public class ViewerForm : ThemedForm
             // passed an empty span, making IViewerFormat.MatchesSignature dead code. Best-effort:
             // a failed prefix read (permission hiccup, connection drop) just means this file keeps
             // whatever extension-only match it already had, not a load failure.
-            try
+            // Skip signature-prefix read for non-native filesystems (MTP/archive/remote) —
+            // OpenReadAsync on MTP downloads the entire file to a temp, so ReadPrefixAsync would
+            // download it once for 512 bytes, discard the temp, then LoadAsync downloads it again.
+            // The extension-only match is sufficient for these providers.
+            if (source.FileSystem.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             {
-                var header = await source.ReadPrefixAsync(512, ct);
-                if (ct == _loadCts?.Token) UpdateMatchedFormatForCurrentFile(header);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                LogService.Warning($"Viewer signature-prefix read failed: {path}: {ex.Message}");
+                try
+                {
+                    var header = await source.ReadPrefixAsync(512, ct);
+                    if (ct == _loadCts?.Token) UpdateMatchedFormatForCurrentFile(header);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Warning($"Viewer signature-prefix read failed: {path}: {ex.Message}");
+                }
             }
             if (ct != _loadCts?.Token) return;
 

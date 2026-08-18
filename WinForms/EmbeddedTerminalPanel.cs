@@ -265,7 +265,9 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (!_sessions.TryGetValue(tabId, out var session)) return;
 
         page.HasShellIntegration = session.Screen.HasShellIntegration;
-        page.Busy = !session.Screen.IsAtIdlePrompt;
+        bool isAtIdle;
+        lock (session.Screen.SyncRoot) { isAtIdle = session.Screen.IsAtIdlePrompt; }
+        page.Busy = !isAtIdle;
         _tabControl.UpdateTabIndicator(page, page.Busy);
     }
 
