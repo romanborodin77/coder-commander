@@ -210,7 +210,7 @@ public sealed class SearchEngine
         }
         finally
         {
-            slots.Release();
+            try { slots.Release(); } catch (ObjectDisposedException) { /* search cancelled */ }
         }
     }
 }

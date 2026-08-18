@@ -210,7 +210,13 @@ public sealed class OperationManager : IDisposable
         // Cancel everything up front (queued and running) so a running operation gets a chance to
         // unwind cooperatively instead of us just waiting blindly below.
         foreach (var queued in _operations.Values)
+        {
             CancelQueued(queued);
+            // Dispose operations that may be in the 2-second delayed-disposal window — without this,
+            // an operation that finished just before Dispose() was called would never be disposed
+            // because the Task.Delay(2000) was cancelled by _disposeCts.Cancel() above.
+            (queued.Operation as IDisposable)?.Dispose();
+        }
 
         // Wait for queue lock with timeout (don't use async in Dispose). Only dispose the semaphore
         // if we actually acquired it here: if the wait times out, some operation is still running and

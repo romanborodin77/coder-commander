@@ -193,8 +193,8 @@ public sealed class SharpCompressReader : IArchiveReader
     private static ArchiveEntryRecord ToRecord(IEntry entry, int index)
     {
         var name = (entry.Key ?? "").Replace('\\', '/');
-        // Strip "./" prefix (e.g. from GNU tar or similar tools)
-        if (name.StartsWith("./", StringComparison.Ordinal))
+        // Strip "./" prefix (e.g. from GNU tar or similar tools) — loop to handle doubled "././"
+        while (name.StartsWith("./", StringComparison.Ordinal))
             name = name[2..];
 
         return new ArchiveEntryRecord

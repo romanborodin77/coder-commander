@@ -71,6 +71,14 @@ internal sealed class FtpControlConnection : IDisposable
     /// <see cref="FtpConnectionPool"/>.</summary>
     public DateTime LastUsedUtc { get; private set; } = DateTime.UtcNow;
 
+    /// <summary>Clears any buffered response data left from a cancelled read, so the next
+    /// command doesn't read stale bytes from a previous reply. Called by the pool on Return.</summary>
+    public void ResetReadBuffer()
+    {
+        _readOffset = 0;
+        _readLength = 0;
+    }
+
     // ── Session setup ───────────────────────────────────────────────────────────────────────
 
     public async Task OpenAsync(CancellationToken ct)

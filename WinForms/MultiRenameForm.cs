@@ -205,7 +205,9 @@ public class MultiRenameForm : ThemedForm
         AcceptButton = _okBtn;
         CancelButton = _cancelBtn;
 
-        UpdatePreview();
+        // UpdatePreview() in the constructor is a no-op (IsHandleCreated == false).
+        // Load fires after the handle is created, so the preview fills on first show.
+        Load += (_, _) => UpdatePreview();
     }
 
     /// <summary>Refreshes the preview list based on the current pattern and settings.</summary>
@@ -379,8 +381,8 @@ public class MultiRenameForm : ThemedForm
                 if (fullNewName == item.Name || !IsValidFileName(fullNewName))
                     continue;
 
-                var dir = Path.GetDirectoryName(item.FullPath) ?? "";
-                var newPath = Path.Combine(dir, fullNewName);
+                var dir = VfsPath.GetParent(item.FullPath) ?? "";
+                var newPath = VfsPath.Combine(dir, fullNewName);
                 Results.Add((item.FullPath, newPath));
             }
 

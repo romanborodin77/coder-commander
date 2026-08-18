@@ -82,7 +82,7 @@ public static class ArchiveFileRetry
             {
                 return attempt();
             }
-            catch (Exception ex2)
+            catch (IOException ex2) when (IsSharingViolation(ex2))
             {
                 lastError = ex2;
             }

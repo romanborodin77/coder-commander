@@ -528,6 +528,9 @@ public sealed class MainForm : Form
         var destination = e.Destination;
         if (string.IsNullOrEmpty(destination)) return;
 
+        var destPanel = (FilePanelUserControl?)sender;
+        var destFs = destPanel?.ViewModel.CurrentFileSystem ?? _vm.ActivePanel.CurrentFileSystem;
+
         var settings = SettingsService.Load();
         var options = new TransferOptions
         {
@@ -536,7 +539,7 @@ public sealed class MainForm : Form
             Compression = ResolveCompressionForDestination(destination, settings),
             SkipCompressionForCompressedFiles = settings.SkipCompressionForCompressedFiles,
             AlreadyCompressedExtensions = settings.AlreadyCompressedExtensions.Count > 0 ? settings.AlreadyCompressedExtensions : null,
-            OverwriteResolver = settings.ConfirmOverwrite ? CreateOverwriteResolver() : null,
+            OverwriteResolver = settings.ConfirmOverwrite ? CreateOverwriteResolver(destFs) : null,
             Overwrite = !settings.ConfirmOverwrite
         };
 
@@ -1054,6 +1057,7 @@ public sealed class MainForm : Form
         FormClosing += OnFormClosing;
         FormClosed += (_, _) =>
         {
+            MtpConnectionRegistry.DisposeAll();
             MtpDeviceCatalog.Instance.Dispose();
             _deviceWatcher.Dispose();
             ConnectionManager.Instance.Dispose();
@@ -1367,7 +1371,7 @@ public sealed class MainForm : Form
         using var dlg = new CopyMoveDialogForm(e.files, e.destPath, isMove: false);
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath);
+        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem);
         _vm.ExecuteCopy(e.files, dlg.DestinationPath, options);
     }
 
@@ -1379,12 +1383,12 @@ public sealed class MainForm : Form
         LogService.Info($"OnMoveConfirm: dialog result={result}, destination={dlg.DestinationPath}");
         if (result != DialogResult.OK) return;
 
-        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath);
+        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem);
         LogService.Info($"OnMoveConfirm: calling ExecuteMove with dest={dlg.DestinationPath}");
         _vm.ExecuteMove(e.files, dlg.DestinationPath, options);
     }
 
-    private TransferOptions BuildTransferOptions(int policyIndex, bool copyAttrs, bool copyTs, string destinationPath)
+    private TransferOptions BuildTransferOptions(int policyIndex, bool copyAttrs, bool copyTs, string destinationPath, IFileSystem destFs)
     {
         var action = (OverwriteAction)policyIndex;
         var settings = SettingsService.Load();
@@ -1404,7 +1408,7 @@ public sealed class MainForm : Form
                 options.Overwrite = true;
                 break;
             case OverwriteAction.Ask:
-                options.OverwriteResolver = CreateOverwriteResolver();
+                options.OverwriteResolver = CreateOverwriteResolver(destFs);
                 break;
             case OverwriteAction.Skip:
             case OverwriteAction.SkipAll:
@@ -1424,7 +1428,7 @@ public sealed class MainForm : Form
         return options;
     }
 
-    private OverwriteResolveHandler CreateOverwriteResolver()
+    private OverwriteResolveHandler CreateOverwriteResolver(IFileSystem destFs)
     {
         OverwriteAction? cachedAction = null;
 
@@ -1456,7 +1460,7 @@ public sealed class MainForm : Form
 
             if (chosen == OverwriteAction.Rename)
             {
-                newName = GenerateUniqueName(destination);
+                newName = GenerateUniqueName(destination, destFs);
                 return OverwriteAction.Rename;
             }
 
@@ -1466,21 +1470,21 @@ public sealed class MainForm : Form
         return Resolve;
     }
 
-    private static string GenerateUniqueName(string destPath)
+    private static string GenerateUniqueName(string destPath, IFileSystem destFs)
     {
-        var dir = Path.GetDirectoryName(destPath) ?? "";
+        var dir = VfsPath.GetParent(destPath) ?? "";
         var ext = FileSystem.FileEntry.GetExtension(destPath);
-        var fileName = Path.GetFileName(destPath);
+        var fileName = VfsPath.GetName(destPath);
         var name = ext.Length > 0 ? fileName[..^ext.Length] : fileName;
         int counter = 1;
         string candidate;
         do
         {
-            candidate = Path.Combine(dir, $"{name} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
+            candidate = VfsPath.Combine(dir, $"{name} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
             counter++;
         }
-        while (File.Exists(candidate) || Directory.Exists(candidate));
-        return Path.GetFileName(candidate);
+        while (destFs.ExistsAsync(candidate, CancellationToken.None).GetAwaiter().GetResult());
+        return VfsPath.GetName(candidate);
     }
 
     private async void OnMakeDir(object? sender, string path)
@@ -1613,21 +1617,19 @@ public sealed class MainForm : Form
         using var dlg = new MultiRenameForm(e.files, e.sourcePath);
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
+        var fs = _vm.ActivePanel.CurrentFileSystem;
         var failures = new List<string>();
 
         foreach (var (oldPath, newPath) in dlg.Results)
         {
             try
             {
-                if (Directory.Exists(oldPath))
-                    Directory.Move(oldPath, newPath);
-                else
-                    File.Move(oldPath, newPath);
+                fs.MoveAsync(oldPath, newPath, overwrite: false, CancellationToken.None).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
                 LogService.Error($"Multi-rename failed: {oldPath} -> {newPath}: {ex.Message}", ex);
-                failures.Add($"{Path.GetFileName(oldPath)}: {ex.Message}");
+                failures.Add($"{VfsPath.GetName(oldPath)}: {ex.Message}");
             }
         }
 
@@ -1785,7 +1787,15 @@ public sealed class MainForm : Form
                 return;
             }
 
-            device.Connect();
+            try
+            {
+                device.Connect();
+            }
+            catch
+            {
+                device.Dispose();
+                throw;
+            }
             MtpFileSystem fs;
             try
             {
@@ -2158,7 +2168,7 @@ public sealed class MainForm : Form
             {
                 CopyTimestamps = settings.CopyTimestamps,
                 // Compression is irrelevant here - UnpackOperation only ever reads, never writes.
-                OverwriteResolver = settings.ConfirmOverwrite ? CreateOverwriteResolver() : null,
+                OverwriteResolver = settings.ConfirmOverwrite ? CreateOverwriteResolver(_vm.ActivePanel.CurrentFileSystem) : null,
                 Overwrite = !settings.ConfirmOverwrite
             };
             _vm.ExecuteUnpack(valid, destPath, options);

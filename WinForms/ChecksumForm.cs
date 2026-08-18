@@ -238,7 +238,7 @@ public class ChecksumForm : ThemedForm
         var hash = _resultList.SelectedItems[0].SubItems[2].Text;
         if (!string.IsNullOrEmpty(hash))
         {
-            Clipboard.SetText(hash);
+            ClipboardHelper.TrySetClipboard(hash);
             _statusLabel.Text = LocalizationService.Current.GetString("Checksum.Copied");
         }
     }

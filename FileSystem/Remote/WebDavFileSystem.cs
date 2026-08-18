@@ -204,8 +204,16 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
         // must not become a 4 GB byte[].
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
             .ConfigureAwait(false);
-        EnsureSuccess(response, "GET", path);
-        return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        try
+        {
+            EnsureSuccess(response, "GET", path);
+            return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 
     // ── Writing ─────────────────────────────────────────────────────────────────────────────

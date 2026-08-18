@@ -88,11 +88,13 @@ internal static class ConflictResolver
         var baseName = lastDot > 0 ? originalName[..lastDot] : originalName;
         var ext = lastDot > 0 ? originalName[lastDot..] : "";
 
-        for (var counter = 1; ; counter++)
+        const int MaxRenameAttempts = 9999;
+        for (var counter = 1; counter <= MaxRenameAttempts; counter++)
         {
             var candidatePath = VfsPath.ChangeName(destPath, $"{baseName} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
             if (!await destFs.ExistsAsync(candidatePath, ct).ConfigureAwait(false))
                 return candidatePath;
         }
+        throw new IOException($"Could not generate a unique name for \"{originalName}\" after {MaxRenameAttempts} attempts.");
     }
 }

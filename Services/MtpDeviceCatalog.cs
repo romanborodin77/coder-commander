@@ -126,4 +126,18 @@ public static class MtpConnectionRegistry
         if (fs is null) return false;
         lock (s_lock) return s_live.Values.Any(live => ReferenceEquals(live, fs));
     }
+
+    /// <summary>Disposes all live MTP filesystems and clears the registry.
+    /// Called on application shutdown to release WPD COM objects.</summary>
+    public static void DisposeAll()
+    {
+        List<IFileSystem>? toDispose;
+        lock (s_lock)
+        {
+            toDispose = s_live.Values.ToList();
+            s_live.Clear();
+        }
+        foreach (var fs in toDispose)
+            (fs as IDisposable)?.Dispose();
+    }
 }

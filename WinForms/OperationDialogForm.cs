@@ -284,6 +284,9 @@ public class OperationDialogForm : ThemedForm
             _timer.Stop();
             _timer.Dispose();
             _operation.StateChanged -= OnOperationStateChanged;
+            // Closing via the X button should cancel the operation, not leave it running in the background.
+            // Cancel is a no-op if the operation is already in a terminal state (Completed/Canceled/Failed).
+            _operation.Cancel();
         };
     }
 

@@ -50,11 +50,14 @@ public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSy
 
     public string GetRootPath(string path) => _inner.GetRootPath(path);
 
-    /// <summary>No dirty mark - every provider already treats this as a best-effort cosmetic
-    /// step (see e.g. <c>WebDavFileSystem.SetAttributesAsync</c>'s own doc comment), not content
-    /// worth offering a write-back for.</summary>
-    public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
-        _inner.SetAttributesAsync(path, attributes, ct);
+    /// <summary>Marks dirty — while every current provider treats SetAttributes as a no-op or
+    /// best-effort cosmetic step, a future writable provider might actually persist attribute
+    /// changes into the archive, and those should be offered for write-back.</summary>
+    public async Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default)
+    {
+        await _inner.SetAttributesAsync(path, attributes, ct).ConfigureAwait(false);
+        _markDirty();
+    }
 
     public async Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
     {

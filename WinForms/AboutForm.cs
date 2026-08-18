@@ -329,7 +329,10 @@ public class AboutForm : ThemedForm
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            _fadeTimer?.Dispose();
             _toolTip.Dispose();
+        }
         base.Dispose(disposing);
     }
 

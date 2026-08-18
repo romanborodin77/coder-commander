@@ -984,6 +984,10 @@ public sealed class FilePanelUserControl : UserControl
 
     private void PopulateDriveBar()
     {
+        // Dispose old buttons — ToolStripItemCollection.Clear() does NOT call Dispose on items,
+        // which would leak each button's Image and event handlers.
+        foreach (var btn in _driveButtons)
+            btn.Dispose();
         _driveBar.Items.Clear();
         _driveButtons.Clear();
 

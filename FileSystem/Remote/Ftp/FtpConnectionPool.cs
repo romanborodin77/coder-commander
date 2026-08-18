@@ -78,7 +78,10 @@ internal sealed class FtpConnectionPool : IDisposable
         if (_disposed || !connection.IsUsable)
             connection.Dispose();
         else
+        {
+            connection.ResetReadBuffer();
             _idle.Add(connection);
+        }
 
         try
         {
