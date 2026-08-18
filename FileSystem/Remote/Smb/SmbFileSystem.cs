@@ -49,9 +49,12 @@ internal sealed class SmbFileSystem : IFileSystem, IDisposable
     private string ToSmb(string uncPath)
     {
         var body = uncPath.StartsWith("\\\\", StringComparison.Ordinal)
-            ? uncPath[2..].Replace('\\', '/')
-            : uncPath.Replace('\\', '/');
-        return RemotePath.Make("smb", _host, body);
+            ? uncPath[2..]
+            : uncPath;
+        // Strip the leading host segment — RemotePath.Make already injects _host as the authority.
+        var slash = body.IndexOf('\\', StringComparison.Ordinal);
+        var tail = slash >= 0 ? body[(slash + 1)..] : "";
+        return RemotePath.Make("smb", _host, tail.Replace('\\', '/'));
     }
 
     /// <summary>Creates a new <see cref="FileEntry"/> with <see cref="FileEntry.FullPath"/> translated

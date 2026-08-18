@@ -29,6 +29,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
 {
     private readonly MediaDevice _device;
     private readonly string _deviceId;
+    private readonly object _deviceLock = new();
     private bool _disposed;
 
     public string Name => "MTP";
@@ -78,19 +79,22 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             var devicePath = ToDevice(path);
             var entries = new List<FileEntry>();
 
-            foreach (var dir in _device.GetDirectories(devicePath))
+            lock (_deviceLock)
             {
-                var full = devicePath.TrimEnd('\\') + "\\" + dir;
-                entries.Add(new FileEntry(
-                    ToMtp(full), isDirectory: true, exists: true,
-                    attributes: FileAttributes.Directory));
-            }
-            foreach (var file in _device.GetFiles(devicePath))
-            {
-                var full = devicePath.TrimEnd('\\') + "\\" + file;
-                entries.Add(new FileEntry(
-                    ToMtp(full), isDirectory: false, exists: true,
-                    attributes: FileAttributes.Normal));
+                foreach (var dir in _device.GetDirectories(devicePath))
+                {
+                    var full = devicePath.TrimEnd('\\') + "\\" + dir;
+                    entries.Add(new FileEntry(
+                        ToMtp(full), isDirectory: true, exists: true,
+                        attributes: FileAttributes.Directory));
+                }
+                foreach (var file in _device.GetFiles(devicePath))
+                {
+                    var full = devicePath.TrimEnd('\\') + "\\" + file;
+                    entries.Add(new FileEntry(
+                        ToMtp(full), isDirectory: false, exists: true,
+                        attributes: FileAttributes.Normal));
+                }
             }
 
             return (IReadOnlyList<FileEntry>)entries;
@@ -119,20 +123,26 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         Task.Run<FileEntry?>(() =>
         {
             var devicePath = ToDevice(path);
-            if (_device.DirectoryExists(devicePath))
-                return new FileEntry(ToMtp(devicePath), isDirectory: true, exists: true,
-                    attributes: FileAttributes.Directory);
-            if (_device.FileExists(devicePath))
-                return new FileEntry(ToMtp(devicePath), isDirectory: false, exists: true,
-                    attributes: FileAttributes.Normal);
-            return null;
+            lock (_deviceLock)
+            {
+                if (_device.DirectoryExists(devicePath))
+                    return new FileEntry(ToMtp(devicePath), isDirectory: true, exists: true,
+                        attributes: FileAttributes.Directory);
+                if (_device.FileExists(devicePath))
+                    return new FileEntry(ToMtp(devicePath), isDirectory: false, exists: true,
+                        attributes: FileAttributes.Normal);
+                return null;
+            }
         }, ct);
 
     public Task<bool> ExistsAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
         {
             var p = ToDevice(path);
-            return _device.FileExists(p) || _device.DirectoryExists(p);
+            lock (_deviceLock)
+            {
+                return _device.FileExists(p) || _device.DirectoryExists(p);
+            }
         }, ct);
 
     public Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default) =>
@@ -140,12 +150,15 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             var src = ToDevice(source);
             var dst = ToDevice(destination);
-            if (!overwrite && _device.FileExists(dst)) return;
-            var tempFile = Path.Combine(Path.GetTempPath(), "cc_mtp_" + Guid.NewGuid().ToString("N"));
+            var tempFile = TempFileNaming.InSystemTemp("mtp");
             try
             {
-                _device.DownloadFile(src, tempFile);
-                _device.UploadFile(tempFile, dst);
+                lock (_deviceLock)
+                {
+                    if (!overwrite && _device.FileExists(dst)) return;
+                    _device.DownloadFile(src, tempFile);
+                    _device.UploadFile(tempFile, dst);
+                }
             }
             finally
             {
@@ -158,14 +171,17 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             var src = ToDevice(source);
             var dst = ToDevice(destination);
-            if (!overwrite && _device.FileExists(dst)) return;
-            // MTP doesn't expose rename; download + upload + delete original.
-            var tempFile = Path.Combine(Path.GetTempPath(), "cc_mtp_move_" + Guid.NewGuid().ToString("N"));
+            var tempFile = TempFileNaming.InSystemTemp("mtp_move");
             try
             {
-                _device.DownloadFile(src, tempFile);
-                _device.UploadFile(tempFile, dst);
-                _device.DeleteFile(src);
+                lock (_deviceLock)
+                {
+                    if (!overwrite && _device.FileExists(dst)) return;
+                    // MTP doesn't expose rename; download + upload + delete original.
+                    _device.DownloadFile(src, tempFile);
+                    _device.UploadFile(tempFile, dst);
+                    _device.DeleteFile(src);
+                }
             }
             finally
             {
@@ -177,14 +193,17 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         Task.Run(() =>
         {
             var p = ToDevice(path);
-            if (_device.DirectoryExists(p))
-                _device.DeleteDirectory(p, recursive);
-            else if (_device.FileExists(p))
-                _device.DeleteFile(p);
+            lock (_deviceLock)
+            {
+                if (_device.DirectoryExists(p))
+                    _device.DeleteDirectory(p, recursive);
+                else if (_device.FileExists(p))
+                    _device.DeleteFile(p);
+            }
         }, ct);
 
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) =>
-        Task.Run(() => _device.CreateDirectory(ToDevice(path)), ct);
+        Task.Run(() => { lock (_deviceLock) _device.CreateDirectory(ToDevice(path)); }, ct);
 
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
         Task.CompletedTask; // MTP doesn't support arbitrary attribute changes
@@ -198,8 +217,8 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             var devicePath = ToDevice(path);
             // MTP doesn't support streaming reads — download to a temp file and return a FileStream
             // that deletes the temp file on close.
-            var tempFile = Path.Combine(Path.GetTempPath(), "cc_mtp_" + Guid.NewGuid().ToString("N"));
-            _device.DownloadFile(devicePath, tempFile);
+            var tempFile = TempFileNaming.InSystemTemp("mtp");
+            lock (_deviceLock) { _device.DownloadFile(devicePath, tempFile); }
             return new MtpTempStream(tempFile);
         }, ct);
 
@@ -208,12 +227,12 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             var devicePath = ToDevice(destinationPath);
             // Upload via a temp file — MTP's UploadFile takes a file path, not a stream.
-            var tempFile = Path.Combine(Path.GetTempPath(), "cc_mtp_upload_" + Guid.NewGuid().ToString("N"));
+            var tempFile = TempFileNaming.InSystemTemp("mtp_upload");
             try
             {
                 using (var fs = File.Create(tempFile))
                     source.CopyTo(fs);
-                _device.UploadFile(tempFile, devicePath);
+                lock (_deviceLock) { _device.UploadFile(tempFile, devicePath); }
             }
             finally
             {
@@ -230,7 +249,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        try { _device.Disconnect(); } catch { /* best-effort on teardown */ }
+        lock (_deviceLock) { try { _device.Disconnect(); } catch { /* best-effort on teardown */ } }
         _device.Dispose();
     }
 

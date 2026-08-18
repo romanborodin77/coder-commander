@@ -89,6 +89,7 @@ public static class NetworkBrowser
                 if (result == ErrorMoreData)
                 {
                     Marshal.FreeHGlobal(buffer);
+                    buffer = IntPtr.Zero; // prevent double-free if AllocHGlobal throws OOM
                     bufSize = (int)size;
                     buffer = Marshal.AllocHGlobal(bufSize);
                     continue;

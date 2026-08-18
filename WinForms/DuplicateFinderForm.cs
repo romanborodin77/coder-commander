@@ -27,6 +27,7 @@ public class DuplicateFinderForm : ThemedForm
     private readonly Label _statusLabel;
     private CancellationTokenSource? _cts;
     private List<(DuplicateGroup Group, int FileIndex)> _allRows = new();
+    private Font? _boldFont;
 
     /// <summary>Raised when "Go to" is clicked — navigates the panel to the file's directory.</summary>
     public event EventHandler<string>? GoToFileRequested;
@@ -116,12 +117,21 @@ public class DuplicateFinderForm : ThemedForm
         CancelButton = _closeBtn;
         _resultList.ItemSelectionChanged += (_, _) => UpdateButtonStates();
         Load += (_, _) => _ = ScanAsync();
+        FormClosing += (_, _) =>
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+            _boldFont?.Dispose();
+            _boldFont = null;
+        };
     }
 
     private async Task ScanAsync()
     {
         var L = LocalizationService.Current;
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
 
@@ -136,7 +146,9 @@ public class DuplicateFinderForm : ThemedForm
         {
             var groups = await Task.Run(() => DuplicateFinder.FindAsync(_fs, _rootPath, ct), ct).ConfigureAwait(true);
 
-            if (ct.IsCancellationRequested) return;
+            if (ct.IsCancellationRequested || IsDisposed) return;
+
+            _boldFont ??= new Font(ThemeService.Current.GridFont, FontStyle.Bold);
 
             foreach (var group in groups)
             {
@@ -145,7 +157,7 @@ public class DuplicateFinderForm : ThemedForm
                 {
                     BackColor = ThemeService.Current.HeaderBackground,
                     ForeColor = ThemeService.Current.HeaderForeground,
-                    Font = new Font(ThemeService.Current.GridFont, FontStyle.Bold)
+                    Font = _boldFont
                 };
                 header.SubItems.Add("");
                 header.SubItems.Add("");
@@ -226,6 +238,7 @@ public class DuplicateFinderForm : ThemedForm
             MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) != MsgBoxResult.Yes) return;
 
         DeleteRequested?.Invoke(this, paths);
-        _ = ScanAsync(); // refresh
+        _ = ScanAsync(); // refresh after delete — deletion runs async via DeleteOperation; scan
+                         // may see files still present, but user can re-scan manually if needed.
     }
 }

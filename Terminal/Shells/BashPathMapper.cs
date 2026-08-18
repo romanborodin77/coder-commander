@@ -68,8 +68,29 @@ internal sealed class BashPathMapper
             }
         }
 
-        // Git-for-Windows flat /c/... form.
-        if (path.Length >= 2 && path[0] == FlatMountRoot[0] && char.IsLetter(path[1]))
+        // Virtual filesystems with no Windows equivalent — checked before the flat mount form
+        // so that /usr, /home, /tmp etc. are rejected rather than misread as drive-letter paths
+        // (e.g. /usr → U:\sr\share, a nonsensical path).
+        if (path.StartsWith("/proc", StringComparison.Ordinal) ||
+            path.StartsWith("/sys", StringComparison.Ordinal) ||
+            path.StartsWith("/dev", StringComparison.Ordinal) ||
+            path.StartsWith("/usr", StringComparison.Ordinal) ||
+            path.StartsWith("/home", StringComparison.Ordinal) ||
+            path.StartsWith("/tmp", StringComparison.Ordinal) ||
+            path.StartsWith("/var", StringComparison.Ordinal) ||
+            path.StartsWith("/etc", StringComparison.Ordinal) ||
+            path.StartsWith("/bin", StringComparison.Ordinal) ||
+            path.StartsWith("/sbin", StringComparison.Ordinal) ||
+            path.StartsWith("/lib", StringComparison.Ordinal) ||
+            path.StartsWith("/opt", StringComparison.Ordinal) ||
+            path.StartsWith("/boot", StringComparison.Ordinal) ||
+            path.StartsWith("/root", StringComparison.Ordinal))
+            return false;
+
+        // Git-for-Windows flat /c/... form. Require the drive letter to be followed by
+        // end-of-string or '/' — /usr/share must NOT match here (u is a letter, but usr is not a drive).
+        if (path.Length >= 2 && path[0] == FlatMountRoot[0] && char.IsLetter(path[1]) &&
+            (path.Length == 2 || path[2] == '/'))
         {
             var rest = path[1..];
             if (TryParseDriveLetter(rest, out var drive, out var tail))
@@ -78,12 +99,6 @@ internal sealed class BashPathMapper
                 return true;
             }
         }
-
-        // Virtual filesystems with no Windows equivalent.
-        if (path.StartsWith("/proc", StringComparison.Ordinal) ||
-            path.StartsWith("/sys", StringComparison.Ordinal) ||
-            path.StartsWith("/dev", StringComparison.Ordinal))
-            return false;
 
         return false;
     }

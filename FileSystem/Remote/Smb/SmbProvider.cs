@@ -40,10 +40,18 @@ public sealed class SmbProvider : IFileSystemProvider
         // drive letter, no persistence in the user's profile — the connection lives exactly as
         // long as this filesystem instance.
         var remoteName = uncRoot.TrimEnd('\\');
+        var nr = new NETRESOURCE
+        {
+            dwType = RESOURCETYPE_DISK,
+            lpRemoteName = remoteName,
+            lpLocalName = null!,
+            lpComment = null!,
+            lpProvider = null!
+        };
         var result = WNetAddConnection2(
-            remoteName,
-            profile.UserName.Length > 0 ? profile.UserName : null,
+            ref nr,
             password,
+            profile.UserName.Length > 0 ? profile.UserName : null,
             ConnectTemporary);
         if (result != 0)
         {
@@ -78,7 +86,7 @@ public sealed class SmbProvider : IFileSystemProvider
     {
         var u = url.Replace('/', '\\').TrimEnd('\\');
         if (!u.StartsWith("\\\\", StringComparison.Ordinal))
-            u = "\\" + u;
+            u = "\\\\" + u;
         return u;
     }
 
@@ -95,12 +103,26 @@ public sealed class SmbProvider : IFileSystemProvider
     private const int ConnectTemporary = 0x00000004;
     private const int ErrorLogonFailure = 1326;
     private const int ErrorBadNetName = 67;
+    private const int RESOURCETYPE_DISK = 1;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct NETRESOURCE
+    {
+        public int dwScope;
+        public int dwType;
+        public int dwDisplayType;
+        public int dwUsage;
+        public string lpLocalName;
+        public string lpRemoteName;
+        public string lpComment;
+        public string lpProvider;
+    }
 
     [DllImport("mpr.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int WNetAddConnection2(
-        string lpRemoteName,
-        string? lpUserName,
+        ref NETRESOURCE lpNetResource,
         string? lpPassword,
+        string? lpUserName,
         int dwFlags);
 
     [DllImport("mpr.dll", CharSet = CharSet.Unicode, SetLastError = true)]

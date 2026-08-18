@@ -53,15 +53,16 @@ public sealed class MtpDeviceCatalog : IDisposable
             return;
         }
 
+        bool changed;
         lock (_lock)
         {
             if (_disposed) return;
-            var changed = snapshot.Count != _current.Count ||
+            changed = snapshot.Count != _current.Count ||
                 !snapshot.SequenceEqual(_current);
             _current = snapshot;
-            if (changed)
-                Changed?.Invoke(this, EventArgs.Empty);
         }
+        if (changed)
+            Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void Dispose()

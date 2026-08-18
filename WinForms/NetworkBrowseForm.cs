@@ -82,6 +82,8 @@ public class NetworkBrowseForm : ThemedForm
 
         var servers = await Task.Run(NetworkBrowser.EnumerateServers).ConfigureAwait(true);
 
+        if (IsDisposed) return;
+
         _tree.Nodes.Clear();
         foreach (var server in servers)
         {
@@ -110,14 +112,24 @@ public class NetworkBrowseForm : ThemedForm
         if (e.Node.Nodes.Count == 1 && e.Node.Nodes[0] is { Tag: null })
         {
             e.Node.Nodes.Clear();
-            var shares = await Task.Run(() => NetworkBrowser.EnumerateShares(server.UncPath)).ConfigureAwait(true);
-            foreach (var share in shares)
+            try
             {
-                var shareNode = new TreeNode(share.Name) { Tag = share };
-                e.Node.Nodes.Add(shareNode);
+                var shares = await Task.Run(() => NetworkBrowser.EnumerateShares(server.UncPath)).ConfigureAwait(true);
+                if (IsDisposed) return;
+                foreach (var share in shares)
+                {
+                    var shareNode = new TreeNode(share.Name) { Tag = share };
+                    e.Node.Nodes.Add(shareNode);
+                }
+                if (shares.Count == 0)
+                    e.Node.Nodes.Add(new TreeNode(LocalizationService.Current.GetString("Network.NoShares")));
             }
-            if (shares.Count == 0)
-                e.Node.Nodes.Add(new TreeNode(LocalizationService.Current.GetString("Network.NoShares")));
+            catch (Exception ex)
+            {
+                LogService.Warning($"Network share enumeration failed for {server.UncPath}: {ex.Message}");
+                if (!IsDisposed)
+                    e.Node.Nodes.Add(new TreeNode(LocalizationService.Current.GetString("Network.NoShares")));
+            }
         }
     }
 
