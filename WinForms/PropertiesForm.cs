@@ -984,4 +984,14 @@ public class PropertiesForm : ThemedForm
         _cts = null;
         base.OnFormClosed(e);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _recursiveCheckbox?.Dispose();
+            _statusLabel?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

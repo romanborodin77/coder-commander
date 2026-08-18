@@ -228,10 +228,10 @@ public class BookmarksForm : ThemedForm
     {
         var L = LocalizationService.Current;
         using var dlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkName"));
-        if (dlg.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
+        if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
         {
             using var pathDlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkPath"), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-            if (pathDlg.ShowDialog() == DialogResult.OK)
+            if (pathDlg.ShowDialog(this) == DialogResult.OK)
             {
                 var path = pathDlg.Value;
                 var name = dlg.Value;

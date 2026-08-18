@@ -185,7 +185,7 @@ public class CopyMoveDialogForm : ThemedForm
         browseBtn.Click += (_, _) =>
         {
             using var dlg = new FolderBrowserDialog { SelectedPath = _destBox.Text };
-            if (dlg.ShowDialog() == DialogResult.OK)
+            if (dlg.ShowDialog(this) == DialogResult.OK)
                 _destBox.Text = dlg.SelectedPath;
         };
         // Dock=Fill must be added before any Dock=Top/Bottom/Left/Right sibling - WinForms

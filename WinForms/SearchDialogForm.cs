@@ -83,7 +83,7 @@ public class SearchDialogForm : ThemedForm
         browseBtn.Click += (_, _) =>
         {
             using var dlg = new FolderBrowserDialog { SelectedPath = _pathBox.Text };
-            if (dlg.ShowDialog() == DialogResult.OK)
+            if (dlg.ShowDialog(this) == DialogResult.OK)
                 _pathBox.Text = dlg.SelectedPath;
         };
         browseWrap.Controls.Add(browseBtn);
