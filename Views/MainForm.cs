@@ -512,6 +512,8 @@ public sealed class MainForm : Form
         panel.RenameRequested += (_, _) => _vm.Commands.Execute(CommandIds.Rename);
         panel.DeleteRequested += (_, _) => _vm.Commands.Execute(CommandIds.Delete);
         panel.PropertiesRequested += (_, _) => _vm.Commands.Execute(CommandIds.ShowProperties);
+        panel.SplitRequested += (_, _) => _vm.Commands.Execute(CommandIds.SplitFile);
+        panel.CombineRequested += (_, _) => _vm.Commands.Execute(CommandIds.CombineFiles);
     }
 
     private void OnItemsDropped(object? sender, PanelDropEventArgs e)
@@ -1945,7 +1947,9 @@ public sealed class MainForm : Form
     private void OnSplitRequested(object? sender, (IReadOnlyList<FileSystemItem> files, string destDir) e)
     {
         var L = LocalizationService.Current;
-        using var dlg = new SplitDialogForm(e.destDir);
+        var settings = SettingsService.Load();
+        using var dlg = new SplitDialogForm(e.destDir, settings.DefaultSplitPartSizeBytes,
+            settings.SplitWriteCrcDefault, settings.DeleteOriginalsAfterSplit);
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
         var partSize = dlg.PartSizeBytes;
@@ -1994,7 +1998,9 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dlg = new CombineDialogForm(suggestedName, e.destDir, partNames);
+        var settings = SettingsService.Load();
+        using var dlg = new CombineDialogForm(suggestedName, e.destDir, partNames,
+            settings.VerifyCrcAfterCombine, settings.DeleteOriginalsAfterCombine);
         if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.DestPath)) return;
 
         // CA2000: ownership transfers to Operations.RunAsync inside ExecuteCombine, which disposes
@@ -2147,7 +2153,7 @@ public sealed class MainForm : Form
     {
         var files = _vm.ActivePanel.GetSelectedOrActive()
             .Where(f => !f.IsDirectory && !f.IsParent)
-            .Select(f => f.FullPath)
+            .Select(f => f.Entry)
             .ToList();
         if (files.Count == 0)
         {
@@ -2157,7 +2163,7 @@ public sealed class MainForm : Form
                 MsgBoxButtons.OK, MsgBoxIcon.Information, this);
             return;
         }
-        using var dlg = new ChecksumForm(files);
+        using var dlg = new ChecksumForm(_vm.ActivePanel.CurrentFileSystem, files);
         dlg.ShowDialog(this);
     }
 

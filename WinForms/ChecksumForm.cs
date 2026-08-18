@@ -1,10 +1,16 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
-using System.Security.Cryptography;
 
 namespace CoderCommander.WinForms;
 
 /// <summary>
-/// Computes MD5, SHA1, SHA256 for selected files.
+/// Computes CRC32, MD5, SHA1, SHA256 for selected files via <see cref="ChecksumService"/>,
+/// and exports results in <c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/<c>.sha256</c> formats.
+///
+/// <para><b>VFS-aware.</b> The form accepts an <see cref="IFileSystem"/> and <see cref="FileEntry"/>
+/// list, so checksums work inside archives and remote connections, not only on local native
+/// paths. The previous implementation used <c>File.OpenRead</c> directly and was blind to any
+/// non-local filesystem.</para>
 /// </summary>
 public class ChecksumForm : ThemedForm
 {
@@ -14,16 +20,27 @@ public class ChecksumForm : ThemedForm
     private readonly Button _calcBtn;
     private readonly Button _closeBtn;
     private readonly Button _copyBtn;
+    private readonly Button _exportBtn;
     private readonly Label _statusLabel;
-    private readonly List<string> _files;
+    private readonly IFileSystem _fs;
+    private readonly List<FileEntry> _files;
+
+    /// <summary>Protocol identifiers consumed by the switch in <see cref="CalculateAsync"/> — must
+    /// stay unlocalised, unlike every other user-facing string in this dialog.</summary>
+    private const string AlgoCrc32 = "CRC32";
+    private const string AlgoMd5 = "MD5";
+    private const string AlgoSha1 = "SHA1";
+    private const string AlgoSha256 = "SHA256";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChecksumForm"/> class for the specified files
     /// and starts calculation automatically on load.
     /// </summary>
-    /// <param name="files">List of absolute file paths to compute checksums for.</param>
-    public ChecksumForm(IReadOnlyList<string> files)
+    /// <param name="fs">Filesystem to read files from — may be local, archive, or remote.</param>
+    /// <param name="files">Files to compute checksums for.</param>
+    public ChecksumForm(IFileSystem fs, IReadOnlyList<FileEntry> files)
     {
+        _fs = fs;
         _files = files.ToList();
 
         var L = LocalizationService.Current;
@@ -55,29 +72,17 @@ public class ChecksumForm : ThemedForm
         _fileList.Dock = DockStyle.Fill;
         foreach (var f in _files)
         {
-            try
-            {
-                var fi = new FileInfo(f);
-                var lvi = new ListViewItem(fi.Name) { Tag = f };
-                lvi.SubItems.Add(UiHelpers.FormatSize(fi.Length));
-                _fileList.Items.Add(lvi);
-            }
-            catch
-            {
-                var lvi = new ListViewItem(f) { Tag = f };
-                lvi.SubItems.Add("—");
-                _fileList.Items.Add(lvi);
-            }
+            var lvi = new ListViewItem(f.Name) { Tag = f.FullPath };
+            lvi.SubItems.Add(UiHelpers.FormatSize(f.Size));
+            _fileList.Items.Add(lvi);
         }
         topPanel.Controls.Add(_fileList, 1, 0);
 
         topPanel.Controls.Add(UiHelpers.CreateLabel(L.GetString("Checksum.Algorithm")), 0, 1);
 
-        // Protocol identifiers consumed by the switch in CalculateAsync() - must stay
-        // unlocalised, unlike every other user-facing string in this dialog.
         _algoCombo = new ThemedComboBox { Width = 120, Dock = DockStyle.Left };
-        _algoCombo.AddItems("MD5", "SHA1", "SHA256");
-        _algoCombo.SelectedIndex = 2; // SHA256 default
+        _algoCombo.AddItems(AlgoCrc32, AlgoMd5, AlgoSha1, AlgoSha256);
+        _algoCombo.SelectedIndex = 3; // SHA256 default
         topPanel.Controls.Add(_algoCombo, 1, 1);
 
         // Results
@@ -105,13 +110,17 @@ public class ChecksumForm : ThemedForm
         _copyBtn.Margin = new Padding(0, 0, 8, 0);
         _copyBtn.Click += (_, _) => CopyHash();
 
+        _exportBtn = ThemedForm.CreateThemedButton(L.GetString("Checksum.Export"));
+        _exportBtn.Margin = new Padding(0, 0, 8, 0);
+        _exportBtn.Click += (_, _) => _ = ExportAsync();
+
         _calcBtn = ThemedForm.CreateThemedButton(L.GetString("Checksum.Calculate"), accent: true);
         _calcBtn.Margin = new Padding(0);
         _calcBtn.Click += (_, _) => _ = CalculateAsync();
 
         // Dock.Right ignores Margin entirely, which had collapsed all three gaps - a
         // right-aligned FlowLayoutPanel (add order = visual left-to-right order, matching the
-        // original Close/Copy/Calc(accent, rightmost) layout) actually renders them.
+        // original Close/Copy/Export/Calc(accent, rightmost) layout) actually renders them.
         var rightGroup = new FlowLayoutPanel
         {
             Dock = DockStyle.Right,
@@ -123,6 +132,7 @@ public class ChecksumForm : ThemedForm
         };
         rightGroup.Controls.Add(_closeBtn);
         rightGroup.Controls.Add(_copyBtn);
+        rightGroup.Controls.Add(_exportBtn);
         rightGroup.Controls.Add(_calcBtn);
 
         var bottomPanel = new Panel
@@ -137,10 +147,7 @@ public class ChecksumForm : ThemedForm
         bottomPanel.Controls.Add(rightGroup);
 
         // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation) - _resultList used to be laid
-        // out under bottomPanel's 50px (invisible only because bottomPanel is opaque and
-        // added-first = frontmost z-order), which would have also thrown off a scrollbar overlay
-        // positioned from its Bounds.
+        // WinForms/DirectoryTreeForm.cs for the full explanation).
         Controls.Add(_resultList);
         Controls.Add(bottomPanel);
         Controls.Add(topPanel);
@@ -153,52 +160,39 @@ public class ChecksumForm : ThemedForm
     {
         var L = LocalizationService.Current;
         _calcBtn.Enabled = false;
+        _exportBtn.Enabled = false;
         _resultList.Items.Clear();
         _statusLabel.Text = L.GetString("Checksum.Calculating");
 
         try
         {
-            var algoName = _algoCombo.SelectedItem?.ToString() ?? "SHA256";
+            var algoName = _algoCombo.SelectedItem?.ToString() ?? AlgoSha256;
 
             foreach (var file in _files)
             {
                 try
                 {
-                    var hash = await Task.Run(() =>
+                    var hash = algoName switch
                     {
-                        using var stream = File.OpenRead(file);
-                        // MD5/SHA1 here are user-selectable file-identity checksums (comparing/
-                        // verifying file contents), never a security boundary - not password
-                        // hashing, signing, or anything an attacker could exploit by finding a
-                        // collision. CA5350/CA5351 assume every use of these algorithms is
-                        // cryptographic; this one isn't, so the warning is suppressed rather than
-                        // the user-facing algorithm choice removed.
-#pragma warning disable CA5350, CA5351
-                        using var algorithm = algoName switch
-                        {
-                            "MD5" => (HashAlgorithm)MD5.Create(),
-                            "SHA1" => SHA1.Create(),
-                            _ => SHA256.Create()
-                        };
-#pragma warning restore CA5350, CA5351
-                        var hashBytes = algorithm.ComputeHash(stream);
-                        return Convert.ToHexString(hashBytes).ToLowerInvariant();
-                    });
+                        AlgoCrc32 => await ChecksumService.ComputeCrc32Async(_fs, file.FullPath).ConfigureAwait(true),
+                        AlgoMd5 => await ChecksumService.ComputeMd5Async(_fs, file.FullPath).ConfigureAwait(true),
+                        AlgoSha1 => await ChecksumService.ComputeSha1Async(_fs, file.FullPath).ConfigureAwait(true),
+                        _ => await ChecksumService.ComputeSha256Async(_fs, file.FullPath).ConfigureAwait(true)
+                    };
 
                     if (IsDisposed || !IsHandleCreated) return;
 
-                    var fi = new FileInfo(file);
-                    var lvi = new ListViewItem(fi.Name) { Tag = file };
+                    var lvi = new ListViewItem(file.Name) { Tag = file.FullPath };
                     lvi.SubItems.Add(algoName);
                     lvi.SubItems.Add(hash);
                     _resultList.Items.Add(lvi);
                 }
                 catch (Exception ex)
                 {
-                    LogService.Warning($"Checksum failed: {file}: {ex.Message}");
+                    LogService.Warning($"Checksum failed: {file.FullPath}: {ex.Message}");
                     if (IsDisposed || !IsHandleCreated) return;
 
-                    var lvi = new ListViewItem(Path.GetFileName(file));
+                    var lvi = new ListViewItem(file.Name);
                     lvi.SubItems.Add(algoName);
                     lvi.SubItems.Add(ex.Message);
                     lvi.ForeColor = ThemeService.Current.Danger;
@@ -207,7 +201,10 @@ public class ChecksumForm : ThemedForm
             }
 
             if (!IsDisposed && IsHandleCreated)
+            {
                 _statusLabel.Text = L.GetString("Checksum.Done", _resultList.Items.Count);
+                _exportBtn.Enabled = _resultList.Items.Count > 0;
+            }
         }
         catch (Exception ex)
         {
@@ -231,5 +228,72 @@ public class ChecksumForm : ThemedForm
             Clipboard.SetText(hash);
             _statusLabel.Text = LocalizationService.Current.GetString("Checksum.Copied");
         }
+    }
+
+    private async Task ExportAsync()
+    {
+        var L = LocalizationService.Current;
+        var algoName = _algoCombo.SelectedItem?.ToString() ?? AlgoSha256;
+
+        var (filter, defaultExt) = algoName switch
+        {
+            AlgoCrc32 => ("SFV files (*.sfv)|*.sfv", ".sfv"),
+            AlgoMd5 => ("MD5 files (*.md5)|*.md5", ".md5"),
+            AlgoSha1 => ("SHA1 files (*.sha1)|*.sha1", ".sha1"),
+            _ => ("SHA256 files (*.sha256)|*.sha256", ".sha256")
+        };
+
+        using var dlg = new SaveFileDialog
+        {
+            Filter = filter,
+            DefaultExt = defaultExt,
+            FileName = "checksums" + defaultExt
+        };
+
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        var entries = new List<(string Name, string Hash)>();
+        foreach (ListViewItem lvi in _resultList.Items)
+        {
+            var name = lvi.Text;
+            var hash = lvi.SubItems[2].Text;
+            // Skip error rows (hash contains an exception message, not a hex string).
+            if (hash.Length > 0 && hash.Length <= 128 && IsHex(hash))
+                entries.Add((name, hash));
+        }
+
+        if (entries.Count == 0)
+        {
+            _statusLabel.Text = L.GetString("Checksum.NothingToExport");
+            return;
+        }
+
+        try
+        {
+            if (algoName == AlgoCrc32)
+                await ChecksumService.ExportSfvAsync(_fs, dlg.FileName, entries).ConfigureAwait(true);
+            else
+                await ChecksumService.ExportHashAsync(_fs, dlg.FileName, algoName, entries).ConfigureAwait(true);
+
+            if (!IsDisposed && IsHandleCreated)
+                _statusLabel.Text = L.GetString("Checksum.ExportDone", dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            LogService.Warning($"Checksum export failed: {ex.Message}");
+            if (!IsDisposed && IsHandleCreated)
+                _statusLabel.Text = L.GetString("Checksum.ExportFailed", ex.Message);
+        }
+    }
+
+    /// <summary>Checks whether <paramref name="s"/> is a non-empty lowercase-or-uppercase hex
+    /// string — used to distinguish real hash rows from error-message rows in the results list.</summary>
+    private static bool IsHex(string s)
+    {
+        foreach (var c in s)
+        {
+            if (!char.IsAsciiHexDigit(c)) return false;
+        }
+        return true;
     }
 }

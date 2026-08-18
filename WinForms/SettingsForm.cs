@@ -40,6 +40,17 @@ public class SettingsForm : ThemedForm
     private readonly ListBox _extensionsListBox;
     private readonly TextBox _extensionAddBox;
     private readonly List<string> _workingExtensions;
+    /// <summary>Same preset bytes as <see cref="SplitDialogForm"/>.PresetSizes, minus its trailing
+    /// "custom size" sentinel (0) - this combo has no free-typed custom option.</summary>
+    private static readonly long[] SplitPartSizePresets =
+    {
+        1_474_560, 100L * 1024 * 1024, 650L * 1024 * 1024, 700L * 1024 * 1024, 4_700_000_000
+    };
+    private readonly ThemedComboBox _splitPartSizeCombo;
+    private readonly ThemedCheckBox _splitWriteCrcCheck;
+    private readonly ThemedCheckBox _deleteOriginalsAfterSplitCheck;
+    private readonly ThemedCheckBox _verifyCrcAfterCombineCheck;
+    private readonly ThemedCheckBox _deleteOriginalsAfterCombineCheck;
     private readonly ThemedCheckBox _confirmDeleteCheck;
     private readonly ThemedCheckBox _confirmOverwriteCheck;
     private readonly ThemedCheckBox _copyAttrsCheck;
@@ -330,6 +341,28 @@ public class SettingsForm : ThemedForm
         archivesLayout.SetColumnSpan(extensionsGroup, 2);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Archives"), archivesLayout, "Settings.Nav.Archives"));
+
+        // ── Split/Combine section ── (same preset list as SplitDialogForm.PresetSizes, minus the
+        // "custom size" sentinel entry - a persisted default only makes sense for a fixed preset).
+        var splitLayout = CreateSectionLayout(rows: 5, columns: 2);
+        splitLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Split.PartSize")), 0, 0);
+        _splitPartSizeCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _splitPartSizeCombo.AddItems(
+            L.GetString("Split.Preset.Floppy"),
+            L.GetString("Split.Preset.100Mb"),
+            L.GetString("Split.Preset.Cd650"),
+            L.GetString("Split.Preset.Cd700"),
+            L.GetString("Split.Preset.Dvd"));
+        var splitPresetIndex = Array.IndexOf(SplitPartSizePresets, s.DefaultSplitPartSizeBytes);
+        _splitPartSizeCombo.SelectedIndex = splitPresetIndex >= 0 ? splitPresetIndex : 1; // 100 MB default
+        splitLayout.Controls.Add(_splitPartSizeCombo, 1, 0);
+
+        _splitWriteCrcCheck = AddFullWidthCheck(splitLayout, 1, "Split.WriteCrc", s.SplitWriteCrcDefault);
+        _deleteOriginalsAfterSplitCheck = AddFullWidthCheck(splitLayout, 2, "Split.DeleteSource", s.DeleteOriginalsAfterSplit);
+        _verifyCrcAfterCombineCheck = AddFullWidthCheck(splitLayout, 3, "Combine.VerifyCrc", s.VerifyCrcAfterCombine);
+        _deleteOriginalsAfterCombineCheck = AddFullWidthCheck(splitLayout, 4, "Combine.DeleteParts", s.DeleteOriginalsAfterCombine);
+
+        _nav.AddPage(new SettingsNavPage(L.GetString("Settings.SplitCombine"), splitLayout, "Settings.Nav.SplitCombine"));
 
         // ── Viewer/Editor section ──
         // Every setting here already existed and was persisted before this section did - only
@@ -925,6 +958,11 @@ public class SettingsForm : ThemedForm
         s.DeleteOriginalsAfterPack = _deleteOriginalsAfterPackCheck.Checked;
         s.AlreadyCompressedExtensions.Clear();
         s.AlreadyCompressedExtensions.AddRange(_workingExtensions);
+        s.DefaultSplitPartSizeBytes = SplitPartSizePresets[Math.Clamp(_splitPartSizeCombo.SelectedIndex, 0, SplitPartSizePresets.Length - 1)];
+        s.SplitWriteCrcDefault = _splitWriteCrcCheck.Checked;
+        s.DeleteOriginalsAfterSplit = _deleteOriginalsAfterSplitCheck.Checked;
+        s.VerifyCrcAfterCombine = _verifyCrcAfterCombineCheck.Checked;
+        s.DeleteOriginalsAfterCombine = _deleteOriginalsAfterCombineCheck.Checked;
         s.ViewerWordWrap = _viewerWordWrapCheck.Checked;
         s.ViewerImageFitToWindow = _viewerImageFitCheck.Checked;
         if (_viewerCsvDelimiterCombo.SelectedIndex >= 0 && _viewerCsvDelimiterCombo.SelectedIndex < CsvDelimiterOptions.Length)

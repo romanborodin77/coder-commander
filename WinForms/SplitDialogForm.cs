@@ -54,7 +54,12 @@ public sealed class SplitDialogForm : ThemedForm
     public bool DeleteSource => _deleteSourceCheck.Checked;
 
     /// <param name="destDir">Suggested destination folder (typically the source file's own folder).</param>
-    public SplitDialogForm(string destDir)
+    /// <param name="defaultPartSizeBytes">Preselected part size (see <c>AppSettings.DefaultSplitPartSizeBytes</c>);
+    /// 0 (or anything not matching a preset exactly) falls back to the 100 MB preset.</param>
+    /// <param name="writeCrcDefault">Initial checked state of "create .crc" (<c>AppSettings.SplitWriteCrcDefault</c>).</param>
+    /// <param name="deleteSourceDefault">Initial checked state of "delete source after splitting"
+    /// (<c>AppSettings.DeleteOriginalsAfterSplit</c>).</param>
+    public SplitDialogForm(string destDir, long defaultPartSizeBytes = 0, bool writeCrcDefault = true, bool deleteSourceDefault = false)
     {
         var L = LocalizationService.Current;
 
@@ -95,7 +100,10 @@ public sealed class SplitDialogForm : ThemedForm
             L.GetString("Split.Preset.Cd700"),
             L.GetString("Split.Preset.Dvd"),
             L.GetString("Split.Preset.Custom"));
-        _presetCombo.SelectedIndex = 1; // 100 MB - a sane default for most files.
+        var presetIndex = Array.IndexOf(PresetSizes, defaultPartSizeBytes);
+        _presetCombo.SelectedIndex = presetIndex >= 0 && presetIndex < PresetSizes.Length - 1
+            ? presetIndex
+            : 1; // 100 MB - a sane default for most files, and for anything not matching a preset exactly.
 
         var customLabel = UiHelpers.CreateLabel(L.GetString("Split.CustomSizeMb"));
         customLabel.Dock = DockStyle.Fill;
@@ -103,15 +111,15 @@ public sealed class SplitDialogForm : ThemedForm
 
         _customSizeBox = UiHelpers.CreateTextBox("10", name: "SplitCustomSizeBox");
         _customSizeBox.Dock = DockStyle.Fill;
-        _customSizeBox.Enabled = false;
+        _customSizeBox.Enabled = _presetCombo.SelectedIndex == PresetSizes.Length - 1;
         _presetCombo.SelectedIndexChanged += (_, _) =>
             _customSizeBox.Enabled = _presetCombo.SelectedIndex == PresetSizes.Length - 1;
 
-        _writeCrcCheck = UiHelpers.CreateCheckBox(L.GetString("Split.WriteCrc"), true, name: "SplitWriteCrcCheck");
+        _writeCrcCheck = UiHelpers.CreateCheckBox(L.GetString("Split.WriteCrc"), writeCrcDefault, name: "SplitWriteCrcCheck");
         _writeCrcCheck.AutoSize = true;
         _writeCrcCheck.Dock = DockStyle.Left;
 
-        _deleteSourceCheck = UiHelpers.CreateCheckBox(L.GetString("Split.DeleteSource"), false, name: "SplitDeleteSourceCheck");
+        _deleteSourceCheck = UiHelpers.CreateCheckBox(L.GetString("Split.DeleteSource"), deleteSourceDefault, name: "SplitDeleteSourceCheck");
         _deleteSourceCheck.AutoSize = true;
         _deleteSourceCheck.Dock = DockStyle.Left;
 

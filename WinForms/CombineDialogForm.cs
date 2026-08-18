@@ -35,7 +35,12 @@ public sealed class CombineDialogForm : ThemedForm
     /// <param name="suggestedName">Output file name, typically the parts' base name.</param>
     /// <param name="destDir">Folder the combined file is written into.</param>
     /// <param name="discoveredParts">Part file names shown for the user's own confirmation.</param>
-    public CombineDialogForm(string suggestedName, string destDir, IReadOnlyList<string> discoveredParts)
+    /// <param name="verifyCrcDefault">Initial checked state of "verify against .crc"
+    /// (<c>AppSettings.VerifyCrcAfterCombine</c>).</param>
+    /// <param name="deleteSourceDefault">Initial checked state of "delete parts after combining"
+    /// (<c>AppSettings.DeleteOriginalsAfterCombine</c>).</param>
+    public CombineDialogForm(string suggestedName, string destDir, IReadOnlyList<string> discoveredParts,
+        bool verifyCrcDefault = true, bool deleteSourceDefault = false)
     {
         _destDir = destDir;
         var L = LocalizationService.Current;
@@ -85,9 +90,9 @@ public sealed class CombineDialogForm : ThemedForm
             partsList.Items.Add(part);
 
         var checksLayout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
-        _verifyCrcCheck = UiHelpers.CreateCheckBox(L.GetString("Combine.VerifyCrc"), true, name: "CombineVerifyCrcCheck");
+        _verifyCrcCheck = UiHelpers.CreateCheckBox(L.GetString("Combine.VerifyCrc"), verifyCrcDefault, name: "CombineVerifyCrcCheck");
         _verifyCrcCheck.AutoSize = true;
-        _deleteSourceCheck = UiHelpers.CreateCheckBox(L.GetString("Combine.DeleteParts"), false, name: "CombineDeletePartsCheck");
+        _deleteSourceCheck = UiHelpers.CreateCheckBox(L.GetString("Combine.DeleteParts"), deleteSourceDefault, name: "CombineDeletePartsCheck");
         _deleteSourceCheck.AutoSize = true;
         checksLayout.Controls.Add(_verifyCrcCheck);
         checksLayout.Controls.Add(_deleteSourceCheck);

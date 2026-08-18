@@ -227,6 +227,7 @@ Settings.Panels=Panels
 Settings.Editor=Viewer & Editor
 Settings.FileOps=File Operations
 Settings.Archives=Archives
+Settings.SplitCombine=Split/Combine
 Settings.Confirmations=Confirmations
 Settings.Theme=Theme:
 Settings.Theme.Dark=Dark
@@ -386,6 +387,8 @@ Ctx.Copy=Copy
 Ctx.Move=Move
 Ctx.Rename=Rename
 Ctx.Delete=Delete
+Ctx.Split=Split into parts...
+Ctx.Combine=Combine from parts...
 Ctx.Properties=Properties
 Ctx.CreateLink=Create Link
 Ctx.CreateSymlink=Symbolic Link…
@@ -680,6 +683,10 @@ Checksum.Calculating=Calculating…
 Checksum.Done=Done — {0} file(s)
 Checksum.Copied=Hash copied to clipboard
 Checksum.SelectFiles=Select files to calculate checksum.
+Checksum.Export=Export…
+Checksum.ExportDone=Exported to {0}
+Checksum.ExportFailed=Export failed: {0}
+Checksum.NothingToExport=Nothing to export — no valid hashes.
 
 # ═══ Differ ═══
 Differ.Title=File Compare

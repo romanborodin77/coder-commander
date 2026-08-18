@@ -164,6 +164,28 @@ public sealed class AppSettings
     /// off by default here too, so an upgraded install behaves identically until the user opts in.</summary>
     public bool DeleteOriginalsAfterPack { get; set; } = false;
 
+    /// <summary>Part size (bytes) <c>SplitDialogForm</c> preselects. 0 means "use the built-in
+    /// default preset" (100 MB, see <c>SplitDialogForm</c>'s own preset list) rather than a
+    /// literal zero-byte part - same sentinel convention as <see cref="UiFontSize"/>.</summary>
+    public long DefaultSplitPartSizeBytes { get; set; } = 0;
+
+    /// <summary>Initial checked state of <c>SplitDialogForm</c>'s "create .crc" checkbox.</summary>
+    public bool SplitWriteCrcDefault { get; set; } = true;
+
+    /// <summary>Initial checked state of <c>SplitDialogForm</c>'s "delete source after splitting"
+    /// checkbox. Off by default - splitting is destination-additive by nature (TC's own default),
+    /// deleting the source is an explicit opt-in.</summary>
+    public bool DeleteOriginalsAfterSplit { get; set; } = false;
+
+    /// <summary>Initial checked state of <c>CombineDialogForm</c>'s "delete parts after combining"
+    /// checkbox.</summary>
+    public bool DeleteOriginalsAfterCombine { get; set; } = false;
+
+    /// <summary>Initial checked state of <c>CombineDialogForm</c>'s "verify against .crc" checkbox.
+    /// On by default - verification is free once a sidecar exists (already computed while writing
+    /// the combined file) and only warns on mismatch, never blocks.</summary>
+    public bool VerifyCrcAfterCombine { get; set; } = true;
+
     // Terminal settings
     public bool TerminalVisible { get; set; } = false;
     public int TerminalHeight { get; set; } = 250;

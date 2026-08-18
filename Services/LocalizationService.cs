@@ -371,6 +371,7 @@ public sealed class LocalizationService
         _strings["Settings.Editor"] = "Viewer & Editor";
         _strings["Settings.FileOps"] = "File Operations";
         _strings["Settings.Archives"] = "Archives";
+        _strings["Settings.SplitCombine"] = "Split/Combine";
         _strings["Settings.Confirmations"] = "Confirmations";
         _strings["Settings.Theme"] = "Theme:";
         _strings["Settings.Theme.Dark"] = "Dark";
@@ -572,6 +573,8 @@ public sealed class LocalizationService
         _strings["Ctx.Move"] = "Move";
         _strings["Ctx.Rename"] = "Rename";
         _strings["Ctx.Delete"] = "Delete";
+        _strings["Ctx.Split"] = "Split into parts...";
+        _strings["Ctx.Combine"] = "Combine from parts...";
         _strings["Ctx.Properties"] = "Properties";
         _strings["Ctx.CreateLink"] = "Create Link";
         _strings["Ctx.CreateSymlink"] = "Symbolic Link…";
@@ -868,6 +871,10 @@ public sealed class LocalizationService
         _strings["Checksum.Done"] = "Done — {0} file(s)";
         _strings["Checksum.Copied"] = "Hash copied to clipboard";
         _strings["Checksum.SelectFiles"] = "Select file(s) to calculate checksum.";
+        _strings["Checksum.Export"] = "Export…";
+        _strings["Checksum.ExportDone"] = "Exported to {0}";
+        _strings["Checksum.ExportFailed"] = "Export failed: {0}";
+        _strings["Checksum.NothingToExport"] = "Nothing to export — no valid hashes.";
         _strings["Menu.Commands.Checksum"] = "Calculate &Checksum…";
 
         // ═══ Differ ═══

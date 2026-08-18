@@ -225,6 +225,7 @@ Settings.Panels=Панели
 Settings.Editor=Просмотр и редактор
 Settings.FileOps=Файловые операции
 Settings.Archives=Архивы
+Settings.SplitCombine=Разбивка/сборка
 Settings.Confirmations=Подтверждения
 Settings.Theme=Тема:
 Settings.Theme.Dark=Тёмная
@@ -408,6 +409,8 @@ Ctx.Copy=Копировать
 Ctx.Move=Переместить
 Ctx.Rename=Переименовать
 Ctx.Delete=Удалить
+Ctx.Split=Разбить на части...
+Ctx.Combine=Собрать из частей...
 Ctx.Properties=Свойства
 Ctx.CreateLink=Создать ссылку
 Ctx.CreateSymlink=Символическая ссылка…
@@ -702,6 +705,10 @@ Checksum.Calculating=Расчёт…
 Checksum.Done=Готово — {0} файл(ов)
 Checksum.Copied=Хеш скопирован в буфер обмена
 Checksum.SelectFiles=Выберите файлы для расчёта контрольной суммы.
+Checksum.Export=Экспорт…
+Checksum.ExportDone=Экспортировано в {0}
+Checksum.ExportFailed=Ошибка экспорта: {0}
+Checksum.NothingToExport=Нечего экспортировать — нет корректных хешей.
 Menu.Commands.Checksum=Рассчитать &контрольную сумму…
 
 # ═══ Сравнение файлов ═══

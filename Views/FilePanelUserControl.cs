@@ -107,6 +107,12 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when Properties is requested from context menu.</summary>
     public event EventHandler? PropertiesRequested;
 
+    /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
+    public event EventHandler? SplitRequested;
+
+    /// <summary>Raised when "Combine from parts..." is requested from the context menu.</summary>
+    public event EventHandler? CombineRequested;
+
     /// <summary>Raised when files are dropped onto this panel via drag &amp; drop.</summary>
     public event EventHandler<PanelDropEventArgs>? ItemsDropped;
 
@@ -898,6 +904,18 @@ public sealed class FilePanelUserControl : UserControl
         CtxItem(menu, "Ctx.Rename", "rename", () => RenameRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Delete", "delete", () => DeleteRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.Split", "split", () => SplitRequested?.Invoke(this, EventArgs.Empty));
+        // "Combine from parts..." only makes sense when the selection actually looks like a split
+        // part - showing it unconditionally would just error out for every other file/folder.
+        // Informational check only (same as MainForm's own preview regex before it opens
+        // CombineDialogForm) - the authoritative missing-part validation stays inside
+        // Operations.CombineOperation, which re-discovers the sequence itself when it runs.
+        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } selected &&
+            SplitPartNameRegex.IsMatch(selected.Name))
+        {
+            CtxItem(menu, "Ctx.Combine", "combine", () => CombineRequested?.Invoke(this, EventArgs.Empty));
+        }
+        menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
 
         // Copy path submenu. cpFull/cpName go into copyPathMenu.DropDownItems below, which goes
@@ -916,6 +934,12 @@ public sealed class FilePanelUserControl : UserControl
 
         return menu;
     }
+
+    /// <summary>Matches a split-part file name (<c>&lt;base&gt;.NNN</c>, 3+ digits) - same pattern
+    /// as <see cref="Operations.CombineOperation"/>'s own, used here only to decide whether to show
+    /// the "Combine from parts..." context menu item.</summary>
+    private static readonly System.Text.RegularExpressions.Regex SplitPartNameRegex =
+        new(@"\.\d{3,}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action)
     {
