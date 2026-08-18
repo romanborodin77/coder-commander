@@ -794,3 +794,5 @@ Network.FoundServers=Найдено серверов: {0}
 Network.Empty=Серверы не найдены. Обзор сети использует протокол master browser, который может быть отключён в некоторых сетях.
 Network.NoShares=Нет общих папок
 Panel.NetworkButton=Обзор сети
+Panel.MtpDevice=MTP-устройство: {0}
+Mtp.DeviceGone=Устройство больше не подключено.

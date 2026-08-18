@@ -128,6 +128,9 @@ public sealed class FilePanelUserControl : UserControl
     /// <see cref="NetworkBrowseForm"/> and handles navigation.</summary>
     public event EventHandler? NetworkBrowseRequested;
 
+    /// <summary>Raised when an MTP device button is clicked. EventArgs = device ID.</summary>
+    public event EventHandler<string>? MtpDeviceActivated;
+
     /// <summary>
     /// Whether what this panel is showing lives at real paths on this machine.
     ///
@@ -1044,6 +1047,7 @@ public sealed class FilePanelUserControl : UserControl
         }
 
         AddNetworkButton(toolbarScale, btnHeight);
+        AddMtpDeviceButtons(toolbarScale, btnHeight);
         AddConnectionButtons(toolbarScale, btnHeight);
         UpdateDriveBarDim();
     }
@@ -1069,6 +1073,41 @@ public sealed class FilePanelUserControl : UserControl
         btn.Click += (_, _) => NetworkBrowseRequested?.Invoke(this, EventArgs.Empty);
         _driveBar.Items.Add(btn);
         _driveButtons.Add(btn);
+    }
+
+    /// <summary>Adds MTP device buttons (Android phones, cameras) discovered by
+    /// <see cref="MtpDeviceCatalog"/>.</summary>
+    private void AddMtpDeviceButtons(float toolbarScale, int btnHeight)
+    {
+        var devices = MtpDeviceCatalog.Instance.Current;
+        if (devices.Count == 0) return;
+
+        var L = LocalizationService.Current;
+        var icon = ToolbarIcons.Get("drive_usb") ?? ToolbarIcons.Get("drive")!;
+
+        foreach (var device in devices)
+        {
+            var btn = new ToolStripButton(device.DisplayName)
+            {
+                Image = icon,
+                Tag = new DriveButtonState(RemotePath.Make("mtp", device.DeviceId)),
+                ToolTipText = L.GetString("Panel.MtpDevice", device.DisplayName),
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextAlign = ContentAlignment.MiddleCenter,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding((int)Math.Round(8 * toolbarScale), 0, (int)Math.Round(8 * toolbarScale), 0),
+                Margin = new Padding((int)Math.Round(3 * toolbarScale), 0, (int)Math.Round(3 * toolbarScale), 0),
+                AutoSize = true,
+                Overflow = ToolStripItemOverflow.AsNeeded
+            };
+            btn.Height = btnHeight;
+
+            var deviceId = device.DeviceId;
+            btn.Click += (_, _) => MtpDeviceActivated?.Invoke(this, deviceId);
+
+            _driveBar.Items.Add(btn);
+            _driveButtons.Add(btn);
+        }
     }
 
     /// <summary>

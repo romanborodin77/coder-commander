@@ -1,6 +1,7 @@
 using CoderCommander.Archives;
 using CoderCommander.Commands;
 using CoderCommander.FileSystem;
+using CoderCommander.FileSystem.Mtp;
 using CoderCommander.Models;
 using CoderCommander.Operations;
 using CoderCommander.Services;
@@ -10,6 +11,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using MediaDevice = MediaDevices.MediaDevice;
 
 namespace CoderCommander.Views;
 
@@ -481,6 +483,8 @@ public sealed class MainForm : Form
         _rightPanel.ConnectionActivated += OnConnectionActivated;
         _leftPanel.NetworkBrowseRequested += OnNetworkBrowse;
         _rightPanel.NetworkBrowseRequested += OnNetworkBrowse;
+        _leftPanel.MtpDeviceActivated += OnMtpDeviceActivated;
+        _rightPanel.MtpDeviceActivated += OnMtpDeviceActivated;
 
         // Wire context menu events from panels to commands
         WirePanelContextMenu(_leftPanel);
@@ -1746,6 +1750,47 @@ public sealed class MainForm : Form
         using var dlg = new NetworkBrowseForm();
         dlg.NavigateRequested += (_, uncPath) => _ = _vm.ActivePanel.NavigateAsync(uncPath);
         dlg.ShowDialog(this);
+    }
+
+    /// <summary>Connects to an MTP device (Android phone, camera) and navigates the active panel
+    /// to its root. MTP devices are plug-and-play — not ConnectionManager-managed — so the
+    /// filesystem is created on demand and registered in <see cref="MtpConnectionRegistry"/>.</summary>
+    private async void OnMtpDeviceActivated(object? sender, string deviceId)
+    {
+        try
+        {
+            // Reuse an already-open connection to the same device.
+            var existing = MtpConnectionRegistry.Get(deviceId);
+            if (existing is not null)
+            {
+                await _vm.ActivePanel.NavigateAsync(RemotePath.Make("mtp", deviceId));
+                return;
+            }
+
+            var device = MediaDevice.GetDevices()
+                .FirstOrDefault(d => d.DeviceId == deviceId);
+            if (device is null)
+            {
+                StyledMessageBox.Show(
+                    LocalizationService.Current.GetString("Mtp.DeviceGone"),
+                    LocalizationService.Current.GetString("Common.Error"),
+                    MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
+                return;
+            }
+
+            device.Connect();
+#pragma warning disable CA2000 // Ownership transfers to MtpConnectionRegistry; disposed on unregister
+            var fs = new MtpFileSystem(device, deviceId);
+#pragma warning restore CA2000
+            MtpConnectionRegistry.Register(deviceId, fs);
+            await _vm.ActivePanel.NavigateAsync(RemotePath.Make("mtp", deviceId));
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"MTP connection to {deviceId} failed", ex);
+            StyledMessageBox.Show(ex.Message, LocalizationService.Current.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
     }
 
     private async Task ActivateConnectionAsync(object? sender, Guid profileId)

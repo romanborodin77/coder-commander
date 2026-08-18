@@ -939,5 +939,7 @@ public sealed class LocalizationService
         _strings["Network.Empty"] = "No servers found. The network browser relies on Windows' master browser protocol, which may be disabled on some networks.";
         _strings["Network.NoShares"] = "No shares";
         _strings["Panel.NetworkButton"] = "Browse network";
+        _strings["Panel.MtpDevice"] = "MTP device: {0}";
+        _strings["Mtp.DeviceGone"] = "The device is no longer connected.";
     }
 }

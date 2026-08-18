@@ -502,6 +502,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     {
         if (FileSystem.RemotePath.IsRemote(path))
         {
+            // MTP devices are plug-and-play, not ConnectionManager-managed — look them up in the
+            // MTP registry instead. Same pattern: find the live filesystem that serves this path.
+            var mtp = Services.MtpConnectionRegistry.GetForPath(path);
+            if (mtp is not null)
+            {
+                if (!ReferenceEquals(mtp, _fs)) _fs = mtp;
+                return true;
+            }
+
             var connection = Services.ConnectionManager.Instance.GetConnectedForPath(path);
             if (connection is null)
             {
@@ -522,8 +531,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         // the first version of this useless: the panel can be holding a connection's filesystem
         // while its path is still the local one from before, and that is exactly the case that
         // needs catching. Asking the manager also leaves archives and the fakes tests use alone,
-        // since neither is ever one of its live connections.
-        if (Services.ConnectionManager.Instance.IsConnectionFileSystem(_fs))
+        // since neither is ever one of its live connections. MTP filesystems get the same treatment.
+        if (Services.ConnectionManager.Instance.IsConnectionFileSystem(_fs) ||
+            Services.MtpConnectionRegistry.IsMtpFileSystem(_fs))
             _fs = new FileSystem.LocalFileSystem();
 
         return true;

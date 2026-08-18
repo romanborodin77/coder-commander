@@ -795,3 +795,5 @@ Network.FoundServers=Found {0} server(s)
 Network.Empty=No servers found. The network browser relies on Windows' master browser protocol, which may be disabled on some networks.
 Network.NoShares=No shares
 Panel.NetworkButton=Browse network
+Panel.MtpDevice=MTP device: {0}
+Mtp.DeviceGone=The device is no longer connected.
