@@ -935,6 +935,9 @@ public sealed class MainForm : Form
         foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
         {
             if (!FileSystem.RemotePath.IsRemote(panel.CurrentPath)) continue;
+            // MTP connections are tracked in MtpConnectionRegistry, not ConnectionManager —
+            // don't evict a live MTP panel just because ConnectionManager doesn't know about it.
+            if (MtpConnectionRegistry.GetForPath(panel.CurrentPath) is not null) continue;
             if (ConnectionManager.Instance.GetConnectedForPath(panel.CurrentPath) is not null) continue;
 
             panel.CurrentFileSystem = new FileSystem.LocalFileSystem();
@@ -1043,6 +1046,7 @@ public sealed class MainForm : Form
         _vm.RightPanel.PropertyChanged += OnFilePanelPropertyChanged;
 
         _deviceWatcher.DevicesChanged += OnDevicesChanged;
+        MtpDeviceCatalog.Instance.Changed += OnMtpDevicesChanged;
 
         Load += OnFormLoad;
         Resize += OnFormResize;
@@ -1781,9 +1785,18 @@ public sealed class MainForm : Form
             }
 
             device.Connect();
-#pragma warning disable CA2000 // Ownership transfers to MtpConnectionRegistry; disposed on unregister
-            var fs = new MtpFileSystem(device, deviceId);
+            MtpFileSystem fs;
+            try
+            {
+#pragma warning disable CA2000 // Ownership transfers to MtpConnectionRegistry; disposed on unregister (OnMtpDevicesChanged)
+                fs = new MtpFileSystem(device, deviceId);
 #pragma warning restore CA2000
+            }
+            catch
+            {
+                device.Dispose();
+                throw;
+            }
             MtpConnectionRegistry.Register(deviceId, fs);
             await _vm.ActivePanel.NavigateAsync(RemotePath.Make("mtp", deviceId));
         }
@@ -2384,6 +2397,38 @@ public sealed class MainForm : Form
         // must not run on the UI thread anyway - DriveCatalog publishes its results back through
         // its own event, which the panels marshal.
         _ = DriveCatalog.Instance.RefreshAsync();
+    }
+
+    /// <summary>Called by <see cref="MtpDeviceCatalog"/> when the set of connected MTP devices
+    /// changes (device plugged in or unplugged). Evicts panels pointing at a now-gone device and
+    /// disposes the orphaned <c>MtpFileSystem</c>+<c>MediaDevice</c>.</summary>
+    private void OnMtpDevicesChanged(object? sender, EventArgs e)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke((Action)(() => OnMtpDevicesChanged(sender, e)));
+            return;
+        }
+
+        var liveDeviceIds = MtpDeviceCatalog.Instance.Current.Select(d => d.DeviceId).ToHashSet();
+        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        {
+            var path = panel.CurrentPath;
+            if (!RemotePath.IsRemote(path)) continue;
+            if (RemotePath.SchemeOf(path) != "mtp") continue;
+            var deviceId = RemotePath.HostOf(path);
+            if (liveDeviceIds.Contains(deviceId)) continue;
+
+            // Device is gone — unregister and evict the panel.
+            var fs = MtpConnectionRegistry.Get(deviceId);
+            if (fs is not null)
+            {
+                MtpConnectionRegistry.Unregister(deviceId);
+                (fs as IDisposable)?.Dispose();
+            }
+            panel.CurrentFileSystem = new FileSystem.LocalFileSystem();
+            _ = panel.NavigateAsync(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        }
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)

@@ -24,6 +24,7 @@ public class ChecksumForm : ThemedForm
     private readonly Label _statusLabel;
     private readonly IFileSystem _fs;
     private readonly List<FileEntry> _files;
+    private CancellationTokenSource? _cts;
 
     /// <summary>Protocol identifiers consumed by the switch in <see cref="CalculateAsync"/> — must
     /// stay unlocalised, unlike every other user-facing string in this dialog.</summary>
@@ -154,11 +155,21 @@ public class ChecksumForm : ThemedForm
 
         CancelButton = _closeBtn;
         Load += (_, _) => _ = CalculateAsync();
+        FormClosing += (_, _) =>
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = null;
+        };
     }
 
     private async Task CalculateAsync()
     {
         var L = LocalizationService.Current;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
         _calcBtn.Enabled = false;
         _exportBtn.Enabled = false;
         _resultList.Items.Clear();
@@ -170,14 +181,15 @@ public class ChecksumForm : ThemedForm
 
             foreach (var file in _files)
             {
+                ct.ThrowIfCancellationRequested();
                 try
                 {
                     var hash = algoName switch
                     {
-                        AlgoCrc32 => await ChecksumService.ComputeCrc32Async(_fs, file.FullPath).ConfigureAwait(true),
-                        AlgoMd5 => await ChecksumService.ComputeMd5Async(_fs, file.FullPath).ConfigureAwait(true),
-                        AlgoSha1 => await ChecksumService.ComputeSha1Async(_fs, file.FullPath).ConfigureAwait(true),
-                        _ => await ChecksumService.ComputeSha256Async(_fs, file.FullPath).ConfigureAwait(true)
+                        AlgoCrc32 => await ChecksumService.ComputeCrc32Async(_fs, file.FullPath, ct).ConfigureAwait(true),
+                        AlgoMd5 => await ChecksumService.ComputeMd5Async(_fs, file.FullPath, ct).ConfigureAwait(true),
+                        AlgoSha1 => await ChecksumService.ComputeSha1Async(_fs, file.FullPath, ct).ConfigureAwait(true),
+                        _ => await ChecksumService.ComputeSha256Async(_fs, file.FullPath, ct).ConfigureAwait(true)
                     };
 
                     if (IsDisposed || !IsHandleCreated) return;
@@ -206,6 +218,7 @@ public class ChecksumForm : ThemedForm
                 _exportBtn.Enabled = _resultList.Items.Count > 0;
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             LogService.Error("Checksum calculation failed", ex);
@@ -270,10 +283,14 @@ public class ChecksumForm : ThemedForm
 
         try
         {
+            // SaveFileDialog returns a local Windows path — always write through LocalFileSystem,
+            // not through the panel's IFileSystem (which may be remote/archive/MTP and can't
+            // resolve a "C:\Users\..." path).
+            var localFs = new FileSystem.LocalFileSystem();
             if (algoName == AlgoCrc32)
-                await ChecksumService.ExportSfvAsync(_fs, dlg.FileName, entries).ConfigureAwait(true);
+                await ChecksumService.ExportSfvAsync(localFs, dlg.FileName, entries).ConfigureAwait(true);
             else
-                await ChecksumService.ExportHashAsync(_fs, dlg.FileName, algoName, entries).ConfigureAwait(true);
+                await ChecksumService.ExportHashAsync(localFs, dlg.FileName, algoName, entries).ConfigureAwait(true);
 
             if (!IsDisposed && IsHandleCreated)
                 _statusLabel.Text = L.GetString("Checksum.ExportDone", dlg.FileName);
