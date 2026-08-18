@@ -26,6 +26,11 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         CloseGlyphBox,
         CloseGlyphBox);
 
+    /// <summary>Radius of the busy/idle indicator dot drawn at the left edge of a tab button.</summary>
+    private const int IndicatorDotRadius = 3;
+    /// <summary>Left inset of the indicator dot's centre from the tab button's left edge.</summary>
+    private const int IndicatorDotLeftInset = 8;
+
     private readonly List<ThemedTabPage> _pages = new();
     private readonly Panel _buttonPanel;
     private readonly Panel _contentPanel;
@@ -205,6 +210,19 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         RebuildButtons();
     }
 
+    /// <summary>Updates only the busy/idle indicator dot on the specified page's tab button,
+    /// without rebuilding the entire button strip. Called frequently (every OSC 133 transition),
+    /// so a full <see cref="RebuildButtons"/> would be wasteful and would also reset hover state.</summary>
+    internal void UpdateTabIndicator(ThemedTabPage page, bool busy)
+    {
+        var idx = _pages.IndexOf(page);
+        if (idx < 0) return;
+        if (_buttonPanel.Controls.Count <= idx) return;
+        if (_buttonPanel.Controls[idx] is not TabButton btn) return;
+        btn.Busy = busy;
+        btn.Invalidate();
+    }
+
     /// <summary>Removes all tab pages and resets the selection.</summary>
     public void ClearPages()
     {
@@ -247,7 +265,9 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
                 DrawShadow = false,
                 ShowClose = ShowCloseButtons,
                 CloseTooltip = CloseButtonTooltip,
-                CloseTooltipHost = _closeButtonTip
+                CloseTooltipHost = _closeButtonTip,
+                Busy = page.Busy,
+                HasShellIntegration = page.HasShellIntegration
             };
             btn.Click += (_, _) => SelectedIndex = index;
             btn.RightClick += (_, _) => TabRightClicked?.Invoke(this, index);
@@ -329,6 +349,16 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         /// <summary>Whether to draw (and hit-test) the close glyph at all.</summary>
         public bool ShowClose { get; init; }
 
+        /// <summary>Whether this tab's shell is busy (command running). Draws a small coloured dot
+        /// at the left edge of the button — green-ish when idle (not drawn), amber when busy. The
+        /// indicator is suppressed entirely when <see cref="HasShellIntegration"/> is false, since
+        /// "busy" has no meaning for a shell that never reports its prompt state.</summary>
+        public bool Busy { get; set; }
+
+        /// <summary>Whether the tab's shell supports shell-integration (OSC 133). When false, the
+        /// busy indicator is never drawn — there's no reliable signal to show.</summary>
+        public bool HasShellIntegration { get; set; }
+
         /// <summary>Tooltip shown while the pointer is over the close glyph specifically - attached
         /// and detached on the fly, since a tooltip set on the whole button would also pop when
         /// hovering the tab's title.</summary>
@@ -349,10 +379,22 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            if (!ShowClose) return;
 
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Busy indicator dot — only for shell-integration-aware tabs (terminal tabs), and only
+            // when a command is actually running. Idle tabs draw nothing (clean look, less noise).
+            if (HasShellIntegration && Busy)
+            {
+                var cx = IndicatorDotLeftInset;
+                var cy = Height / 2;
+                using var dotBrush = new SolidBrush(ThemeService.Current.Warning);
+                g.FillEllipse(dotBrush, cx - IndicatorDotRadius, cy - IndicatorDotRadius,
+                    IndicatorDotRadius * 2, IndicatorDotRadius * 2);
+            }
+
+            if (!ShowClose) return;
             var box = CloseBox;
 
             if (_closeHot && CloseHoverFill != Color.Empty)
@@ -474,6 +516,14 @@ public sealed class ThemedTabPage
     }
     /// <summary>Gets the content control displayed when this tab page is selected.</summary>
     public Control Content { get; }
+
+    /// <summary>Whether the tab's shell is busy (command running). Updated frequently via
+    /// <see cref="ThemedTabControl.UpdateTabIndicator"/> without rebuilding the button strip.</summary>
+    public bool Busy { get; set; }
+
+    /// <summary>Whether the tab's shell supports shell-integration (OSC 133). When false, the busy
+    /// indicator dot is never drawn.</summary>
+    public bool HasShellIntegration { get; set; }
 
     /// <summary>Sets the parent tab control for this page.</summary>
     internal void SetParent(ThemedTabControl? parent) => _parent = parent;

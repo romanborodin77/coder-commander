@@ -97,6 +97,11 @@ internal sealed class TerminalScreen : IVtSink
     /// dropped a blocked push forever.</summary>
     public event Action? BecameIdlePrompt;
 
+    /// <summary>Raised whenever <see cref="IsAtIdlePrompt"/> transitions from true to false - the
+    /// shell started executing a command (OSC 133;C) or re-entered alt-screen. Used by the terminal
+    /// tab indicator to switch from "idle" to "busy".</summary>
+    public event Action? BecameBusy;
+
     /// <summary>Monotonic total (never plateaus once the ring is full, unlike
     /// <see cref="ScrollbackCount"/>) - lets a scrolled-back viewport detect "old rows kept getting
     /// evicted while I was looking at a fixed index" and re-anchor. See
@@ -858,8 +863,12 @@ internal sealed class TerminalScreen : IVtSink
         // Leaving the alt screen can restore IsAtIdlePrompt to true with no fresh OSC 133 mark
         // (a full-screen program quitting back to a shell that was already sitting at 133;B before
         // it launched) - HandlePromptMark can't see this transition, so fire it here too.
+        // Entering the alt screen forces IsAtIdlePrompt false (never type into a running TUI) -
+        // fire BecameBusy so the tab indicator switches immediately rather than on the next mark.
         if (!wasIdle && IsAtIdlePrompt)
             BecameIdlePrompt?.Invoke();
+        else if (wasIdle && !IsAtIdlePrompt)
+            BecameBusy?.Invoke();
     }
 
     // ── OSC ─────────────────────────────────────────────────────────────────────────────────
@@ -929,6 +938,8 @@ internal sealed class TerminalScreen : IVtSink
 
         if (!wasIdle && IsAtIdlePrompt)
             BecameIdlePrompt?.Invoke();
+        else if (wasIdle && !IsAtIdlePrompt)
+            BecameBusy?.Invoke();
     }
 
     /// <summary>OSC 8 (<c>OSC 8 ; params ; URI ST</c>): opens a hyperlink that subsequently

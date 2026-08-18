@@ -92,10 +92,16 @@ internal sealed class TerminalSession : IAsyncDisposable
         int scrollbackLines)
     {
         // WSL's OSC 7 payload is a POSIX path ($(pwd) inside the distro), not a Windows one.
+        // Git-for-Windows Bash also reports a POSIX path via OSC 7, using the /c/... convention.
         Func<string, string?>? posixCwdTranslator = null;
         if (shell.Family == ShellFamily.Wsl)
         {
             var mapper = new WslPathMapper(ShellIds.DistroNameFromShellId(shell.Id));
+            posixCwdTranslator = posixPath => mapper.TryToWindows(posixPath, out var winPath) ? winPath : null;
+        }
+        else if (shell.Family == ShellFamily.Bash)
+        {
+            var mapper = new BashPathMapper();
             posixCwdTranslator = posixPath => mapper.TryToWindows(posixPath, out var winPath) ? winPath : null;
         }
 

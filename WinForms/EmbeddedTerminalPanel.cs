@@ -20,7 +20,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     private readonly Dictionary<Guid, TerminalSession> _sessions = new();
     private readonly Dictionary<Guid, ThemedTabPage> _tabPagesByGuid = new();
     /// <summary>Event handler delegates per tab, for proper unsubscription when closing.</summary>
-    private readonly Dictionary<Guid, (TerminalSession Session, Action<int> Exited, Action<string> CwdReported, Action TitleChanged, Action BecameIdle)> _tabEventHandlers = new();
+    private readonly Dictionary<Guid, (TerminalSession Session, Action<int> Exited, Action<string> CwdReported, Action TitleChanged, Action BecameIdle, Action BecameBusy)> _tabEventHandlers = new();
     private ThemedTabControl? _tabControl;
     private RoundedButton? _newTabButton;
     private readonly ToolTip _newTabTooltip = new();
@@ -233,6 +233,16 @@ public sealed class EmbeddedTerminalPanel : Panel
     {
         if (InvokeRequired) { BeginInvoke(() => OnScreenBecameIdle(tabId)); return; }
         if (IsDisposed) return;
+
+        // Update the busy/idle indicator — the shell just became idle, so the busy dot goes away.
+        if (_tabControl != null && _tabPagesByGuid.TryGetValue(tabId, out var idlePage)
+            && _sessions.TryGetValue(tabId, out var idleSession))
+        {
+            idlePage.HasShellIntegration = idleSession.Screen.HasShellIntegration;
+            idlePage.Busy = false;
+            _tabControl.UpdateTabIndicator(idlePage, false);
+        }
+
         if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
         if (string.IsNullOrEmpty(tab.PendingCwd)) return;
         if (!_sessions.TryGetValue(tabId, out var session)) return;
@@ -240,6 +250,23 @@ public sealed class EmbeddedTerminalPanel : Panel
         var pending = tab.PendingCwd;
         tab.PendingCwd = null;
         TrySendCd(tab, session, pending);
+    }
+
+    /// <summary>Updates the busy/idle indicator on the tab button when the shell transitions to
+    /// busy (command started) or idle (prompt ready). Raised from
+    /// <see cref="Terminal.Screen.TerminalScreen.BecameBusy"/>/<see cref="BecameIdlePrompt"/>,
+    /// which fire on the pty reader thread, so this marshals to the UI thread first.</summary>
+    private void OnScreenBecameBusy(Guid tabId)
+    {
+        if (InvokeRequired) { BeginInvoke(() => OnScreenBecameBusy(tabId)); return; }
+        if (IsDisposed) return;
+        if (_tabControl == null) return;
+        if (!_tabPagesByGuid.TryGetValue(tabId, out var page)) return;
+        if (!_sessions.TryGetValue(tabId, out var session)) return;
+
+        page.HasShellIntegration = session.Screen.HasShellIntegration;
+        page.Busy = !session.Screen.IsAtIdlePrompt;
+        _tabControl.UpdateTabIndicator(page, page.Busy);
     }
 
     /// <summary>Builds and sends the actual <c>cd</c>-equivalent for <paramref name="path"/> on
@@ -260,17 +287,8 @@ public sealed class EmbeddedTerminalPanel : Panel
         }
         else if (session.Shell.Family is ShellFamily.Bash)
         {
-            // Minimal Git-for-Windows mount conversion (C:\Work -> /c/Work) so the push at least
-            // doesn't hand bash a raw Windows path full of backslashes to quote as POSIX - full
-            // bidirectional support (including /mnt/c under a WSL-flavoured bash, UNC, etc.) is
-            // Terminal.Shells.BashPathMapper, added in a later phase; this covers the common case.
-            if (path.Length >= 2 && path[1] == ':' && char.IsAsciiLetter(path[0]))
-            {
-                var rest = path[2..].Replace('\\', '/').TrimStart('/');
-                shellPath = rest.Length == 0
-                    ? $"/{char.ToLowerInvariant(path[0])}"
-                    : $"/{char.ToLowerInvariant(path[0])}/{rest}";
-            }
+            if (!new BashPathMapper().TryToPosix(path, out shellPath))
+                return false; // e.g. a UNC path with no Git-for-Windows mount equivalent
         }
 
         if (!ShellCwdQuoting.TryBuildCd(session.Shell.Family, shellPath, out var command))
@@ -370,12 +388,14 @@ public sealed class EmbeddedTerminalPanel : Panel
             Action<string> cwdHandler = path => OnSessionCwdReported(tabId, path);
             Action titleHandler = () => OnScreenTitleChanged(tabId);
             Action becameIdleHandler = () => OnScreenBecameIdle(tabId);
-            _tabEventHandlers[tabId] = (session, exitedHandler, cwdHandler, titleHandler, becameIdleHandler);
+            Action becameBusyHandler = () => OnScreenBecameBusy(tabId);
+            _tabEventHandlers[tabId] = (session, exitedHandler, cwdHandler, titleHandler, becameIdleHandler, becameBusyHandler);
 
             session.Exited += exitedHandler;
             session.Screen.CwdReported += cwdHandler;
             session.Screen.TitleChanged += titleHandler;
             session.Screen.BecameIdlePrompt += becameIdleHandler;
+            session.Screen.BecameBusy += becameBusyHandler;
         });
         if (tab == null)
         {
@@ -586,6 +606,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             handlers.Session.Screen.CwdReported -= handlers.CwdReported;
             handlers.Session.Screen.TitleChanged -= handlers.TitleChanged;
             handlers.Session.Screen.BecameIdlePrompt -= handlers.BecameIdle;
+            handlers.Session.Screen.BecameBusy -= handlers.BecameBusy;
         }
         _tabEventHandlers.Remove(tabId);
 
