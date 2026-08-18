@@ -20,6 +20,7 @@ public class PropertiesForm : ThemedForm
     };
 
     private readonly IReadOnlyList<FileSystemItem> _items;
+    private readonly IFileSystem _fs;
     private readonly bool _isSingle;
     private readonly bool _isDirectory;
 
@@ -54,8 +55,11 @@ public class PropertiesForm : ThemedForm
     /// Shows read-only info, editable attributes, and (for single items) editable timestamps.
     /// </summary>
     /// <param name="items">Selected filesystem items to display/edit properties for.</param>
-    public PropertiesForm(IReadOnlyList<FileSystemItem> items)
+    /// <param name="fs">The filesystem the items belong to — needed for VFS-aware size calculation
+    /// and attribute changes (archive/remote providers).</param>
+    public PropertiesForm(IFileSystem fs, IReadOnlyList<FileSystemItem> items)
     {
+        _fs = fs ?? throw new ArgumentNullException(nameof(fs));
         _items = items ?? throw new ArgumentNullException(nameof(items));
         _isSingle = items.Count == 1;
         _isDirectory = _isSingle && items[0].IsDirectory;
@@ -167,7 +171,7 @@ public class PropertiesForm : ThemedForm
         if (_isSingle && _isDirectory)
             BuildRecursiveCheckbox(root);
 
-        if (_isSingle)
+        if (_isSingle && _fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             BuildTimestampSection(root);
 
         // Kick off async scan for single-directory case.
@@ -696,24 +700,15 @@ public class PropertiesForm : ThemedForm
             int files = 0, dirs = 0;
             try
             {
-                var di = new DirectoryInfo(path);
-                // ReparsePointGuard.SkipRecursion: without it a junction inside the scanned folder
-                // pulls in the size/count of whatever it points at.
-                var opts = new EnumerationOptions
+                // VFS-aware deep enumeration through IFileSystem — works for archives/remote too.
+                var entries = await _fs.EnumerateDeepAsync(path, includeHidden: true, token)
+                    .ConfigureAwait(false);
+                foreach (var entry in entries)
                 {
-                    IgnoreInaccessible = true,
-                    RecurseSubdirectories = true,
-                    AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
-                };
-                await Task.Run(() =>
-                {
-                    foreach (var entry in di.EnumerateFileSystemInfos("*", opts))
-                    {
-                        token.ThrowIfCancellationRequested();
-                        if (entry is FileInfo f) { totalSize += f.Length; files++; }
-                        else dirs++;
-                    }
-                }, token);
+                    token.ThrowIfCancellationRequested();
+                    if (entry.IsDirectory) dirs++;
+                    else { totalSize += entry.Size; files++; }
+                }
             }
             catch (OperationCanceledException) { return; }
             catch (Exception ex)
@@ -758,28 +753,30 @@ public class PropertiesForm : ThemedForm
 
                 if (_isSingle && _isDirectory && _recursiveCheckbox?.Checked == true)
                 {
-                    // ReparsePointGuard.SkipRecursion: without it, applying attributes recursively
-                    // rewrote the read-only/hidden/system flags of files reachable only through a
-                    // junction inside the selected folder - files the user never selected -
-                    // confirmed with a real junction before this fix.
-                    var opts = new EnumerationOptions
+                    // VFS-aware recursive attribute apply through IFileSystem.
+                    IReadOnlyList<FileEntry> children;
+                    try
                     {
-                        IgnoreInaccessible = true,
-                        RecurseSubdirectories = true,
-                        AttributesToSkip = ReparsePointGuard.SkipRecursion
-                    };
-                    foreach (var entry in new DirectoryInfo(target).EnumerateFileSystemInfos("*", opts))
+                        children = _fs.EnumerateDeepAsync(target, includeHidden: true, CancellationToken.None)
+                            .GetAwaiter().GetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogService.Warning($"Recursive enumerate failed for {target}: {ex.Message}");
+                        children = Array.Empty<FileEntry>();
+                    }
+                    foreach (var entry in children)
                     {
                         try
                         {
                             var childOrig = entry.Attributes;
                             var childNew = BuildAttributeMask(childOrig);
-                            ApplyAttributeToPath(entry.FullName, childNew, childOrig);
+                            ApplyAttributeToPath(entry.FullPath, childNew, childOrig);
                             success++;
                         }
                         catch (Exception ex)
                         {
-                            LogService.Warning($"Recursive attribute failed for {entry.FullName}: {ex.Message}");
+                            LogService.Warning($"Recursive attribute failed for {entry.FullPath}: {ex.Message}");
                             failures++;
                         }
                     }
@@ -845,17 +842,19 @@ public class PropertiesForm : ThemedForm
     }
 
     /// <summary>Applies a computed attribute mask to a filesystem path, preserving non-editable bits.</summary>
-    private static void ApplyAttributeToPath(string path, FileAttributes newAttr, FileAttributes original)
+    private void ApplyAttributeToPath(string path, FileAttributes newAttr, FileAttributes original)
     {
         // Preserve any non-editable bits the OS may not allow changing directly.
         newAttr = (original & ~(FileAttributes.ReadOnly | FileAttributes.Hidden
-                              | FileAttributes.System | FileAttributes.Archive))
+                              | FileAttributes.System | FileAttributes.System | FileAttributes.Archive))
                 | (newAttr & (FileAttributes.ReadOnly | FileAttributes.Hidden
                             | FileAttributes.System | FileAttributes.Archive));
-        File.SetAttributes(path, newAttr);
+        _fs.SetAttributesAsync(path, newAttr, CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    /// <summary>Sets a timestamp (modified/created/accessed) on a file, optionally recursing into directories.</summary>
+    /// <summary>Sets a timestamp (modified/created/accessed) on a file, optionally recursing into directories.
+    /// Only callable for NativePaths filesystems — IFileSystem has no SetLastWriteTimeAsync, so this
+    /// uses System.IO directly. The timestamp section is hidden for non-native providers.</summary>
     private static void ApplyTimestamp(string path, int which, DateTime value, bool recursive)
     {
         switch (which)

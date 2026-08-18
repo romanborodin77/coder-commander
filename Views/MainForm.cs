@@ -1604,7 +1604,7 @@ public sealed class MainForm : Form
 
     private void OnProperties(object? sender, IReadOnlyList<FileSystemItem> items)
     {
-        using var dlg = new PropertiesForm(items);
+        using var dlg = new PropertiesForm(_vm.ActivePanel.CurrentFileSystem, items);
         dlg.ShowDialog(this);
 
         // Attribute/timestamp changes may alter listing ordering & visibility.

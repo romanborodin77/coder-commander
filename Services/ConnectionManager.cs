@@ -45,6 +45,7 @@ public sealed class ConnectionManager : IDisposable
     private readonly Dictionary<Guid, IFileSystem> _live = new();
     private readonly CredentialStore _credentials;
     private readonly CancellationTokenSource _shutdown = new();
+    private bool _disposed;
 
     public static ConnectionManager Instance { get; } = new();
 
@@ -163,6 +164,12 @@ public sealed class ConnectionManager : IDisposable
 
             lock (_lock)
             {
+                // Dispose may have run while we were connecting — don't store a leaked fs.
+                if (_disposed)
+                {
+                    (fs as IDisposable)?.Dispose();
+                    throw new ObjectDisposedException(nameof(ConnectionManager));
+                }
                 _live[profileId] = fs;
                 _states[profileId] = ConnectionState.Connected;
             }
@@ -261,6 +268,7 @@ public sealed class ConnectionManager : IDisposable
         List<IFileSystem> live;
         lock (_lock)
         {
+            _disposed = true;
             live = _live.Values.ToList();
             _live.Clear();
             _states.Clear();
