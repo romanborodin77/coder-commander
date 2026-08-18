@@ -28,6 +28,8 @@ public sealed class EditorTab : IDisposable
     public LanguageId Language { get; set; }
     /// <summary>Defaults to UTF-8 without a BOM for new/unsaved files, matching most editors' convention.</summary>
     public Encoding Encoding { get; set; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+    /// <summary>Gets the filesystem this tab reads/writes through.</summary>
+    public IFileSystem FileSystem => _fs;
     /// <summary>Gets the underlying code editor control bound to this tab.</summary>
     public CodeEditorControl Editor { get; }
     /// <summary>Gets the tab display name, prefixed with <c>*</c> when the file has unsaved

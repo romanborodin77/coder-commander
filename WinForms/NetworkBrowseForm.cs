@@ -89,9 +89,7 @@ public class NetworkBrowseForm : ThemedForm
         {
             var node = new TreeNode(server.Name)
             {
-                Tag = server,
-                ImageKey = "server",
-                SelectedImageKey = "server"
+                Tag = server
             };
             // Add a dummy child so the expand glyph appears; real shares loaded on BeforeExpand.
             if (server.IsServer)

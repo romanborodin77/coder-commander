@@ -2525,10 +2525,15 @@ public sealed class MainForm : Form
         _ = Terminal.Shells.ShellCatalog.DiscoverAsync();
 
         var s = SettingsService.Load();
-        var leftPath = !string.IsNullOrEmpty(s.LeftPath) && Directory.Exists(s.LeftPath)
+        // Accept VFS paths (archive|, scheme://) for session restore — Directory.Exists only
+        // works for local paths; for remote/archive paths, trust the saved value and let
+        // NavigateAsync/AdoptFileSystemFor validate it on access.
+        var leftPath = !string.IsNullOrEmpty(s.LeftPath) &&
+            (FileSystem.VfsPath.IsArchive(s.LeftPath) || FileSystem.RemotePath.IsRemote(s.LeftPath) || Directory.Exists(s.LeftPath))
             ? s.LeftPath
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var rightPath = !string.IsNullOrEmpty(s.RightPath) && Directory.Exists(s.RightPath)
+        var rightPath = !string.IsNullOrEmpty(s.RightPath) &&
+            (FileSystem.VfsPath.IsArchive(s.RightPath) || FileSystem.RemotePath.IsRemote(s.RightPath) || Directory.Exists(s.RightPath))
             ? s.RightPath
             : Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
 

@@ -570,10 +570,25 @@ public class EditorForm : ThemedForm
         var tab = GetCurrentTab();
         if (tab == null) return;
 
-        if (!string.IsNullOrEmpty(tab.FilePath) && File.Exists(tab.FilePath))
+        if (!string.IsNullOrEmpty(tab.FilePath))
         {
-            var size = new FileInfo(tab.FilePath).Length;
-            _lblFileSize.Text = size > 1024 ? $"{size / 1024} {L.GetString("Edit.KB")}" : $"{size} {L.GetString("Edit.Bytes")}";
+            try
+            {
+                var info = tab.FileSystem.GetFileInfoAsync(tab.FilePath, CancellationToken.None).GetAwaiter().GetResult();
+                if (info != null)
+                {
+                    var size = info.Size;
+                    _lblFileSize.Text = size > 1024 ? $"{size / 1024} {L.GetString("Edit.KB")}" : $"{size} {L.GetString("Edit.Bytes")}";
+                }
+                else
+                {
+                    _lblFileSize.Text = "";
+                }
+            }
+            catch
+            {
+                _lblFileSize.Text = "";
+            }
         }
         else
         {

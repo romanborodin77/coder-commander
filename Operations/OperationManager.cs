@@ -85,14 +85,19 @@ public sealed class OperationManager : IDisposable
                 {
                     _ = Task.Delay(OperationRemovalDelayMs, _disposeCts.Token).ContinueWith(t =>
                     {
-                        _operations.TryRemove(id, out var _);
-                        OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
-                        // Audit Phase 6 (DEBUG.md §0.4, CA2000): every operation this
-                        // manager runs is constructed by its caller and handed straight to
-                        // RunAsync - nothing else ever owned disposing it. State is guaranteed
-                        // terminal here (this branch only runs for Completed/Canceled/Failed), so
-                        // nothing will touch the operation again after this.
-                        (operation as IDisposable)?.Dispose();
+                        // Only fire Removed if this thread actually won the TryRemove race —
+                        // RemoveCompleted() may have already removed it, and a duplicate Removed
+                        // event for a non-existent id confuses subscribers.
+                        if (_operations.TryRemove(id, out var _))
+                        {
+                            OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Removed));
+                            // Audit Phase 6 (DEBUG.md §0.4, CA2000): every operation this
+                            // manager runs is constructed by its caller and handed straight to
+                            // RunAsync - nothing else ever owned disposing it. State is guaranteed
+                            // terminal here (this branch only runs for Completed/Canceled/Failed), so
+                            // nothing will touch the operation again after this.
+                            (operation as IDisposable)?.Dispose();
+                        }
                     }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
                 }
                 catch (ObjectDisposedException)

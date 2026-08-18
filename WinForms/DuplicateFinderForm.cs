@@ -133,6 +133,14 @@ public class DuplicateFinderForm : ThemedForm
         };
     }
 
+    protected override void ApplyTheme()
+    {
+        base.ApplyTheme();
+        // Recreate _boldFont so group headers follow the new theme's font family/size.
+        _boldFont?.Dispose();
+        _boldFont = new Font(ThemeService.Current.GridFont, FontStyle.Bold);
+    }
+
     private async Task ScanAsync()
     {
         var L = LocalizationService.Current;
