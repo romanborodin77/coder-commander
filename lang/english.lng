@@ -787,3 +787,11 @@ Find.Progress=Examined {0}, found {1}
 Find.Done=Done. Examined {0}, found {1}
 Find.Stopped=Stopped. Found {0}
 Find.Truncated=Stopped at the {0}-result limit; narrow the search
+
+# ═══ Network browser ═══
+Network.Title=Network
+Network.Scanning=Scanning network…
+Network.FoundServers=Found {0} server(s)
+Network.Empty=No servers found. The network browser relies on Windows' master browser protocol, which may be disabled on some networks.
+Network.NoShares=No shares
+Panel.NetworkButton=Browse network

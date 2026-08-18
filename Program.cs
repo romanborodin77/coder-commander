@@ -3,6 +3,7 @@ using CoderCommander.FileSystem;
 using CoderCommander.FileSystem.Remote;
 using CoderCommander.FileSystem.Remote.Ftp;
 using CoderCommander.FileSystem.Remote.Sftp;
+using CoderCommander.FileSystem.Remote.Smb;
 using CoderCommander.Archives.SharpCompress;
 using CoderCommander.Archives.Tar;
 using CoderCommander.Archives.Zip;
@@ -36,6 +37,7 @@ internal static class Program
         FileSystemProviderRegistry.Register(WebDavProvider.Instance);
         FileSystemProviderRegistry.Register(FtpProvider.Instance);
         FileSystemProviderRegistry.Register(SftpProvider.Instance);
+        FileSystemProviderRegistry.Register(SmbProvider.Instance);
 
         // Universal formats first (registration order = toolbar button order), then matched
         // formats - see ViewerFormatRegistry's own doc comment for the extension/signature

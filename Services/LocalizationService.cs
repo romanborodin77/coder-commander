@@ -931,5 +931,13 @@ public sealed class LocalizationService
         _strings["Settings.Terminal.KeyBindings.ResetAll"] = "Reset All to Defaults";
         _strings["Settings.Terminal.KeyBindings.PressKeys"] = "Press a key combination…";
         _strings["Settings.Terminal.KeyBindings.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
+
+        // ═══ Network browser ═══
+        _strings["Network.Title"] = "Network";
+        _strings["Network.Scanning"] = "Scanning network…";
+        _strings["Network.FoundServers"] = "Found {0} server(s)";
+        _strings["Network.Empty"] = "No servers found. The network browser relies on Windows' master browser protocol, which may be disabled on some networks.";
+        _strings["Network.NoShares"] = "No shares";
+        _strings["Panel.NetworkButton"] = "Browse network";
     }
 }

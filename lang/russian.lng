@@ -786,3 +786,11 @@ Find.Progress=Просмотрено: {0}, найдено: {1}
 Find.Done=Готово. Просмотрено: {0}, найдено: {1}
 Find.Stopped=Остановлено. Найдено: {0}
 Find.Truncated=Остановлено на пределе в {0} результатов, сузьте поиск
+
+# ═══ Обзор сети ═══
+Network.Title=Сеть
+Network.Scanning=Сканирование сети…
+Network.FoundServers=Найдено серверов: {0}
+Network.Empty=Серверы не найдены. Обзор сети использует протокол master browser, который может быть отключён в некоторых сетях.
+Network.NoShares=Нет общих папок
+Panel.NetworkButton=Обзор сети

@@ -479,6 +479,8 @@ public sealed class MainForm : Form
         _rightPanel.ArchiveEntered += OnArchiveEntered;
         _leftPanel.ConnectionActivated += OnConnectionActivated;
         _rightPanel.ConnectionActivated += OnConnectionActivated;
+        _leftPanel.NetworkBrowseRequested += OnNetworkBrowse;
+        _rightPanel.NetworkBrowseRequested += OnNetworkBrowse;
 
         // Wire context menu events from panels to commands
         WirePanelContextMenu(_leftPanel);
@@ -1735,6 +1737,15 @@ public sealed class MainForm : Form
             StyledMessageBox.Show(ex.Message, L.GetString("Conn.Title"),
                 MsgBoxButtons.OK, MsgBoxIcon.Error, this);
         }
+    }
+
+    /// <summary>Opens the network browser dialog; double-clicking a share navigates the panel
+    /// that launched it to the share's UNC path.</summary>
+    private void OnNetworkBrowse(object? sender, EventArgs e)
+    {
+        using var dlg = new NetworkBrowseForm();
+        dlg.NavigateRequested += (_, uncPath) => _ = _vm.ActivePanel.NavigateAsync(uncPath);
+        dlg.ShowDialog(this);
     }
 
     private async Task ActivateConnectionAsync(object? sender, Guid profileId)

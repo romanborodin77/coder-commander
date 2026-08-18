@@ -124,6 +124,10 @@ public sealed class FilePanelUserControl : UserControl
     /// it can swap the panel's file system and show a dialog.</summary>
     public event EventHandler<Guid>? ConnectionActivated;
 
+    /// <summary>Raised when the "Network" button in the drive bar is clicked. MainForm opens
+    /// <see cref="NetworkBrowseForm"/> and handles navigation.</summary>
+    public event EventHandler? NetworkBrowseRequested;
+
     /// <summary>
     /// Whether what this panel is showing lives at real paths on this machine.
     ///
@@ -1039,8 +1043,32 @@ public sealed class FilePanelUserControl : UserControl
             _driveButtons.Add(btn);
         }
 
+        AddNetworkButton(toolbarScale, btnHeight);
         AddConnectionButtons(toolbarScale, btnHeight);
         UpdateDriveBarDim();
+    }
+
+    /// <summary>Adds a "Network" button that opens <see cref="NetworkBrowseForm"/> for browsing
+    /// SMB servers and shares on the local network.</summary>
+    private void AddNetworkButton(float toolbarScale, int btnHeight)
+    {
+        var L = LocalizationService.Current;
+        var icon = ToolbarIcons.Get("drive_network") ?? ToolbarIcons.Get("drive")!;
+        var btn = new ToolStripButton
+        {
+            Image = icon,
+            Text = "",
+            ToolTipText = L.GetString("Panel.NetworkButton"),
+            DisplayStyle = ToolStripItemDisplayStyle.Image,
+            Padding = new Padding((int)Math.Round(4 * toolbarScale), 0, (int)Math.Round(4 * toolbarScale), 0),
+            Margin = new Padding((int)Math.Round(3 * toolbarScale), 0, (int)Math.Round(3 * toolbarScale), 0),
+            AutoSize = false,
+            Overflow = ToolStripItemOverflow.AsNeeded
+        };
+        btn.Size = new Size((int)Math.Round(32 * toolbarScale), btnHeight);
+        btn.Click += (_, _) => NetworkBrowseRequested?.Invoke(this, EventArgs.Empty);
+        _driveBar.Items.Add(btn);
+        _driveButtons.Add(btn);
     }
 
     /// <summary>
