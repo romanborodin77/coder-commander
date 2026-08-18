@@ -1,3 +1,4 @@
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -22,7 +23,7 @@ public sealed class CombineDialogForm : ThemedForm
         get
         {
             var name = _outputNameBox.Text.Trim();
-            return Path.IsPathRooted(name) ? name : Path.Combine(_destDir, name);
+            return Path.IsPathRooted(name) ? name : VfsPath.Combine(_destDir, name);
         }
     }
 

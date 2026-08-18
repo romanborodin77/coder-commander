@@ -105,7 +105,7 @@ public sealed class MainForm : Form
         if (settings.WindowMaximized)
             WindowState = FormWindowState.Maximized;
 
-        LocalizationService.Current.LanguageChanged += (_, _) => Relocalize();
+        LocalizationService.Current.LanguageChanged += OnLanguageChanged;
 
         // MainForm isn't a ThemedForm, so unlike every dialog in the app it doesn't pick up
         // ThemeService.ThemeChanged automatically - it currently only re-themes via the
@@ -125,9 +125,14 @@ public sealed class MainForm : Form
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
             ThemeService.ThemeChanged -= OnGlobalThemeChanged;
+        }
         base.Dispose(disposing);
     }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) => Relocalize();
 
     /// <summary>Applies the dark title bar theme after the native window handle is created.</summary>
     protected override void OnHandleCreated(EventArgs e)
@@ -1964,10 +1969,11 @@ public sealed class MainForm : Form
 
         var archivePath = dlg.ArchivePath;
 
-        if (File.Exists(archivePath))
+        var destFs = _vm.ActivePanel.CurrentFileSystem;
+        if (destFs.ExistsAsync(archivePath, CancellationToken.None).GetAwaiter().GetResult())
         {
             var result = StyledMessageBox.Show(
-                L.GetString("Archive.PackExists", Path.GetFileName(archivePath)),
+                L.GetString("Archive.PackExists", VfsPath.GetName(archivePath)),
                 L.GetString("Archive.PackTitle"),
                 MsgBoxButtons.YesNo, MsgBoxIcon.Question, this);
             if (result != MsgBoxResult.Yes) return;

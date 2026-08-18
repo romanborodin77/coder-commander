@@ -797,7 +797,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         _ = SafeExecuteAsync(async () =>
         {
-            var root = Path.GetPathRoot(ActivePanel.CurrentPath);
+            var path = ActivePanel.CurrentPath;
+            string root;
+            if (RemotePath.IsRemote(path))
+                root = RemotePath.GetRoot(path);
+            else if (VfsPath.IsArchive(path))
+                root = VfsPath.GetArchiveFile(path);
+            else
+                root = Path.GetPathRoot(path) ?? "";
             if (!string.IsNullOrEmpty(root))
                 await ActivePanel.NavigateAsync(root);
         }, "GoToRoot");

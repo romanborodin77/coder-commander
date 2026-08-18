@@ -283,7 +283,7 @@ public class MultiRenameForm : ThemedForm
                     ? SubstringSafe(name, ParseIntSafe(num1Str))
                     : name,
                 'E' => ext,
-                'P' => Path.GetFileName(Path.GetDirectoryName(item.FullPath)) ?? "",
+                'P' => VfsPath.GetName(VfsPath.GetParent(item.FullPath) ?? "") ?? "",
                 'C' => ComputeCounter(num1Str, num2Str, startValue, step, index),
                 'D' => DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 'T' => DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture),

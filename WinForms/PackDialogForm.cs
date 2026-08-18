@@ -1,4 +1,5 @@
 using CoderCommander.Archives;
+using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -46,7 +47,7 @@ public sealed class PackDialogForm : ThemedForm
             var format = SelectedFormat;
             var hasRecognizedExtension = format.Extensions.Any(ext => name.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
             var fileName = hasRecognizedExtension ? name : name + format.DefaultExtension;
-            return Path.IsPathRooted(fileName) ? fileName : Path.Combine(_destDir, fileName);
+            return Path.IsPathRooted(fileName) ? fileName : VfsPath.Combine(_destDir, fileName);
         }
     }
 
