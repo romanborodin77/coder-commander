@@ -942,6 +942,12 @@ public sealed class LocalizationService
         _strings["Panel.MtpDevice"] = "MTP device: {0}";
         _strings["Mtp.DeviceGone"] = "The device is no longer connected.";
 
+        // ═══ SMB ═══
+        _strings["Smb.InvalidUrl"] = "SMB URL must be a UNC path (\\\\server\\share), not \"{0}\".";
+        _strings["Smb.ConnectFailed"] = "SMB connection to \"{0}\" failed (Win32 error {1}).";
+        _strings["Smb.LogonFailure"] = "The user name or password is incorrect.";
+        _strings["Smb.BadNetName"] = "The network name cannot be found.";
+
         // ═══ Duplicate finder ═══
         _strings["Menu.Commands.FindDuplicates"] = "Find &Duplicates…";
         _strings["Dup.Title"] = "Find Duplicates";

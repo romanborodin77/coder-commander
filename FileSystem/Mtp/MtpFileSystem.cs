@@ -84,16 +84,36 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                 foreach (var dir in _device.GetDirectories(devicePath))
                 {
                     var full = devicePath.TrimEnd('\\') + "\\" + dir;
+                    long size = 0;
+                    DateTime writeTime = default;
+                    try
+                    {
+                        var di = _device.GetDirectoryInfo(full);
+                        size = (long)di.Length;
+                        writeTime = di.LastWriteTime?.ToUniversalTime() ?? default;
+                    }
+                    catch { /* best-effort — device may not report metadata */ }
                     entries.Add(new FileEntry(
                         ToMtp(full), isDirectory: true, exists: true,
-                        attributes: FileAttributes.Directory));
+                        size: size, attributes: FileAttributes.Directory,
+                        lastWriteTimeUtc: writeTime));
                 }
                 foreach (var file in _device.GetFiles(devicePath))
                 {
                     var full = devicePath.TrimEnd('\\') + "\\" + file;
+                    long size = 0;
+                    DateTime writeTime = default;
+                    try
+                    {
+                        var fi = _device.GetFileInfo(full);
+                        size = (long)fi.Length;
+                        writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default;
+                    }
+                    catch { /* best-effort — device may not report metadata */ }
                     entries.Add(new FileEntry(
                         ToMtp(full), isDirectory: false, exists: true,
-                        attributes: FileAttributes.Normal));
+                        size: size, attributes: FileAttributes.Normal,
+                        lastWriteTimeUtc: writeTime));
                 }
             }
 
@@ -126,11 +146,21 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             lock (_deviceLock)
             {
                 if (_device.DirectoryExists(devicePath))
+                {
+                    long size = 0;
+                    DateTime writeTime = default;
+                    try { var di = _device.GetDirectoryInfo(devicePath); size = (long)di.Length; writeTime = di.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
                     return new FileEntry(ToMtp(devicePath), isDirectory: true, exists: true,
-                        attributes: FileAttributes.Directory);
+                        size: size, attributes: FileAttributes.Directory, lastWriteTimeUtc: writeTime);
+                }
                 if (_device.FileExists(devicePath))
+                {
+                    long size = 0;
+                    DateTime writeTime = default;
+                    try { var fi = _device.GetFileInfo(devicePath); size = (long)fi.Length; writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
                     return new FileEntry(ToMtp(devicePath), isDirectory: false, exists: true,
-                        attributes: FileAttributes.Normal);
+                        size: size, attributes: FileAttributes.Normal, lastWriteTimeUtc: writeTime);
+                }
                 return null;
             }
         }, ct);

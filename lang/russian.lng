@@ -797,6 +797,12 @@ Panel.NetworkButton=Обзор сети
 Panel.MtpDevice=MTP-устройство: {0}
 Mtp.DeviceGone=Устройство больше не подключено.
 
+# ═══ SMB ═══
+Smb.InvalidUrl=Путь SMB должен быть UNC-путем (\\сервер\шара), а не «{0}».
+Smb.ConnectFailed=Ошибка подключения SMB к «{0}» (Win32 error {1}).
+Smb.LogonFailure=Неверное имя пользователя или пароль.
+Smb.BadNetName=Сетевое имя не найдено.
+
 # ═══ Поиск дубликатов ═══
 Menu.Commands.FindDuplicates=Найти &дубликаты…
 Dup.Title=Поиск дубликатов

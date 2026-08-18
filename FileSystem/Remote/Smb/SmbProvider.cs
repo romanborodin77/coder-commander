@@ -4,6 +4,8 @@ using CoderCommander.Services;
 
 namespace CoderCommander.FileSystem.Remote.Smb;
 
+using Localization = CoderCommander.Services.LocalizationService;
+
 /// <summary>
 /// Builds an SMB connection from a saved profile by calling the Windows Networking API
 /// (<c>WNetAddConnection2</c>) with alternate credentials, then returning an
@@ -31,7 +33,8 @@ public sealed class SmbProvider : IFileSystemProvider
     {
         var uncRoot = NormalizeUnc(profile.Url);
         if (uncRoot.Length < 2 || uncRoot[0] != '\\' || uncRoot[1] != '\\')
-            throw new InvalidOperationException($"SMB URL must be a UNC path (\\\\server\\share), not \"{profile.Url}\"");
+            throw new InvalidOperationException(
+                Localization.Current.GetString("Smb.InvalidUrl", profile.Url));
 
         // Extract host for RemotePath authority. Uri.TryCreate parses UNC as file:// URIs.
         var host = ExtractHost(uncRoot);
@@ -55,9 +58,10 @@ public sealed class SmbProvider : IFileSystemProvider
             ConnectTemporary);
         if (result != 0)
         {
-            var msg = $"SMB connection to \"{remoteName}\" failed (Win32 error {result}).";
-            if (result == ErrorLogonFailure) msg += " The user name or password is incorrect.";
-            else if (result == ErrorBadNetName) msg += " The network name cannot be found.";
+            var L = Localization.Current;
+            var msg = L.GetString("Smb.ConnectFailed", remoteName, result);
+            if (result == ErrorLogonFailure) msg += " " + L.GetString("Smb.LogonFailure");
+            else if (result == ErrorBadNetName) msg += " " + L.GetString("Smb.BadNetName");
             throw new InvalidOperationException(msg);
         }
 

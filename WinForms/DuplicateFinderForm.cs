@@ -116,6 +116,12 @@ public class DuplicateFinderForm : ThemedForm
 
         CancelButton = _closeBtn;
         _resultList.ItemSelectionChanged += (_, _) => UpdateButtonStates();
+        _resultList.ItemChecked += (_, e) =>
+        {
+            // Header rows (Tag == null) must never stay checked — uncheck immediately.
+            if (e.Item.Tag is null && e.Item.Checked)
+                e.Item.Checked = false;
+        };
         Load += (_, _) => _ = ScanAsync();
         FormClosing += (_, _) =>
         {
@@ -168,7 +174,7 @@ public class DuplicateFinderForm : ThemedForm
                     var idx = _allRows.Count;
                     _allRows.Add((group, idx));
 
-                    var dir = Path.GetDirectoryName(file.FullPath) ?? file.FullPath;
+                    var dir = GetParentDirectory(file.FullPath);
                     var lvi = new ListViewItem(file.Name) { Tag = file.FullPath, Checked = false };
                     lvi.SubItems.Add(UiHelpers.FormatSize(file.Size));
                     lvi.SubItems.Add(dir);
@@ -191,6 +197,32 @@ public class DuplicateFinderForm : ThemedForm
             if (!IsDisposed && IsHandleCreated)
                 _scanBtn.Enabled = true;
         }
+    }
+
+    /// <summary>Returns the parent directory of a path, handling local, VFS (<c>|</c>), and
+    /// remote (<c>scheme://host/path</c>) forms without corrupting separators.</summary>
+    private static string GetParentDirectory(string fullPath)
+    {
+        // Remote paths: smb://host/share/file → smb://host/share
+        if (RemotePath.IsRemote(fullPath))
+        {
+            var path = RemotePath.PathOf(fullPath);
+            if (path.Length == 0) return fullPath;
+            var slash = path.LastIndexOf('/');
+            if (slash <= 0) return RemotePath.GetRoot(fullPath);
+            return RemotePath.Combine(RemotePath.GetRoot(fullPath), path[..slash]);
+        }
+        // Archive paths: archive.zip|inner/file → archive.zip|inner
+        if (ArchivePath.IsArchivePath(fullPath))
+        {
+            var (container, inner) = ArchivePath.SplitPath(fullPath);
+            if (inner.Length == 0) return fullPath;
+            var slash = inner.LastIndexOfAny(['/', '\\']);
+            if (slash <= 0) return container;
+            return container + ArchivePath.Separator + inner[..slash];
+        }
+        // Local paths: use Path.GetDirectoryName which handles backslashes correctly.
+        return Path.GetDirectoryName(fullPath) ?? fullPath;
     }
 
     private void UpdateButtonStates()

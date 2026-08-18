@@ -798,6 +798,12 @@ Panel.NetworkButton=Browse network
 Panel.MtpDevice=MTP device: {0}
 Mtp.DeviceGone=The device is no longer connected.
 
+# ═══ SMB ═══
+Smb.InvalidUrl=SMB URL must be a UNC path (\\server\share), not "{0}".
+Smb.ConnectFailed=SMB connection to "{0}" failed (Win32 error {1}).
+Smb.LogonFailure=The user name or password is incorrect.
+Smb.BadNetName=The network name cannot be found.
+
 # ═══ Duplicate finder ═══
 Menu.Commands.FindDuplicates=Find &Duplicates…
 Dup.Title=Find Duplicates
