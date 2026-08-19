@@ -41,6 +41,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Non-empty when one or more background operations are queued.</summary>
     [ObservableProperty] private string _operationQueueText = "";
 
+    /// <summary>Captured on the UI thread at construction time so that
+    /// <see cref="OnOperationChanged"/> — which fires from a thread-pool thread after
+    /// <see cref="Operations.OperationManager"/> completes an operation — can marshal
+    /// <see cref="PanelViewModel.RefreshAsync"/> back to the UI thread. Without this,
+    /// RefreshAsync's ObservableCollection mutations run on a background thread and race
+    /// against the ListView reading them on the UI thread.</summary>
+    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+
     /// <summary>The panel that is <em>not</em> currently focused — used as the transfer destination.</summary>
     public PanelViewModel InactivePanel => ActivePanel == LeftPanel ? RightPanel : LeftPanel;
 
@@ -1207,11 +1215,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (e.Change == OperationChangeType.Started)
             OperationStarted?.Invoke(this, (e.Operation.Operation, e.Operation.DisplayName));
 
-        // Refresh panels when an operation completes
+        // Refresh panels when an operation completes. OperationManager fires this from a
+        // thread-pool thread (FileOperation.ExecuteAsync uses ConfigureAwait(false)), but
+        // PanelViewModel.RefreshAsync mutates ObservableCollection which must stay on the
+        // UI thread — marshal through the captured SynchronizationContext.
         if (e.Change is OperationChangeType.Completed or OperationChangeType.Canceled or OperationChangeType.Failed)
         {
-            _ = LeftPanel.RefreshAsync();
-            _ = RightPanel.RefreshAsync();
+            if (_uiContext is not null)
+            {
+                _uiContext.Post(_ =>
+                {
+                    _ = LeftPanel.RefreshAsync();
+                    _ = RightPanel.RefreshAsync();
+                }, null);
+            }
+            else
+            {
+                _ = LeftPanel.RefreshAsync();
+                _ = RightPanel.RefreshAsync();
+            }
         }
     }
 

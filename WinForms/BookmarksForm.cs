@@ -226,24 +226,33 @@ public class BookmarksForm : ThemedForm
     /// this as fire-and-forget.</summary>
     private async void AddBookmark()
     {
-        var L = LocalizationService.Current;
-        using var dlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkName"));
-        if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
+        try
         {
-            using var pathDlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkPath"), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-            if (pathDlg.ShowDialog(this) == DialogResult.OK)
+            var L = LocalizationService.Current;
+            using var dlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkName"));
+            if (dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(dlg.Value))
             {
-                var path = pathDlg.Value;
-                var name = dlg.Value;
-                // _pathExists (not a bare Directory.Exists) accepts an archive/connection path too -
-                // see the constructor's own doc comment. IsDisposed guards against the dialog having
-                // been closed while this await was in flight.
-                if (await _pathExists(path).ConfigureAwait(true) && !IsDisposed)
+                using var pathDlg = new InputDialogForm(L.GetString("Input.AddBookmark"), L.GetString("Input.BookmarkPath"), Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+                if (pathDlg.ShowDialog(this) == DialogResult.OK)
                 {
-                    BookmarkStore.Instance.Add(name, path);
-                    RefreshList();
+                    var path = pathDlg.Value;
+                    var name = dlg.Value;
+                    // _pathExists (not a bare Directory.Exists) accepts an archive/connection path too -
+                    // see the constructor's own doc comment. IsDisposed guards against the dialog having
+                    // been closed while this await was in flight.
+                    if (await _pathExists(path).ConfigureAwait(true) && !IsDisposed)
+                    {
+                        BookmarkStore.Instance.Add(name, path);
+                        RefreshList();
+                    }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            // async void without try/catch would escalate to WinForms ThreadException,
+            // bypassing Program.cs's top-level handler.
+            LogService.Error($"AddBookmark failed: {ex.Message}");
         }
     }
 
