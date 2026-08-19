@@ -186,7 +186,7 @@ public sealed class LocalFileSystem : IFileSystem
             try
             {
                 if (destIsDirectory) Directory.Move(backupPath, destination);
-                else File.Move(backupPath, destination);
+                else File.Move(backupPath, destination, overwrite: true);
             }
             catch { /* best effort - if even the restore fails, the content is still intact under backupPath */ }
             throw;

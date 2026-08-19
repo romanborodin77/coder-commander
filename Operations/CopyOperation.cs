@@ -295,7 +295,8 @@ public sealed class CopyOperation : FileOperation
     {
         Report(new OperationProgress
         {
-            Percent = _filesTotal > 0 ? _filesProcessed * 100 / _filesTotal : 0,
+            Percent = _bytesTotal > 0 ? (int)Math.Min(100, _bytesProcessed * 100 / _bytesTotal)
+                : _filesTotal > 0 ? _filesProcessed * 100 / _filesTotal : 0,
             CurrentFile = currentFile,
             BytesProcessed = _bytesProcessed,
             BytesTotal = _bytesTotal,

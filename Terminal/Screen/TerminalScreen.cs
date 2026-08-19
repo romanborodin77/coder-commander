@@ -479,21 +479,37 @@ internal sealed class TerminalScreen : IVtSink
     private void LineFeed()
     {
         if (_cursor.Row == _active.ScrollBottom)
+        {
             _active.ScrollRegionUp();
-        else if (_cursor.Row < _active.Rows - 1)
-            _cursor.Row++;
-        _cursor.PendingWrap = false;
-        Dirty.MarkAll();
+            Dirty.MarkAll();
+        }
+        else
+        {
+            var oldRow = _cursor.Row;
+            if (_cursor.Row < _active.Rows - 1)
+                _cursor.Row++;
+            _cursor.PendingWrap = false;
+            Dirty.MarkRow(oldRow);
+            Dirty.MarkRow(_cursor.Row);
+        }
     }
 
     private void ReverseLineFeed()
     {
         if (_cursor.Row == _active.ScrollTop)
+        {
             _active.ScrollRegionDown();
-        else if (_cursor.Row > 0)
-            _cursor.Row--;
-        _cursor.PendingWrap = false;
-        Dirty.MarkAll();
+            Dirty.MarkAll();
+        }
+        else
+        {
+            var oldRow = _cursor.Row;
+            if (_cursor.Row > 0)
+                _cursor.Row--;
+            _cursor.PendingWrap = false;
+            Dirty.MarkRow(oldRow);
+            Dirty.MarkRow(_cursor.Row);
+        }
     }
 
     private void AdvanceToNextTabStop()
@@ -677,6 +693,10 @@ internal sealed class TerminalScreen : IVtSink
         _nextHyperlinkId = 1;
         _hyperlinksById.Clear();
         _hyperlinkIdsByUri.Clear();
+        _lastPrintedRune = -1;
+        _cursorBeforeAlt1049 = _cursor;
+        HasShellIntegration = false;
+        _promptPhase = ShellPromptPhase.Unknown;
         Dirty.MarkAll();
     }
 

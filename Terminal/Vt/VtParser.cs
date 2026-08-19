@@ -49,6 +49,7 @@ internal sealed class VtParser
     // xterm behavior).
     private bool _awaitingStringTerminator;
     private State _stringStateBeforeEscape;
+    private int _dcsLength;
 
     private readonly int[] _params = new int[VtLimits.MaxParams];
     private readonly bool[] _subParamStart = new bool[VtLimits.MaxParams];
@@ -329,6 +330,7 @@ internal sealed class VtParser
         if (c is >= '\x40' and <= '\x7E')
         {
             sink.DcsHook(c, _intermediates.AsSpan(0, _intermediateCount), _privateMarker, _params.AsSpan(0, _paramCount));
+            _dcsLength = 0;
             _state = State.DcsPassthrough;
             return;
         }
@@ -341,7 +343,16 @@ internal sealed class VtParser
         if (c == '\x1B') { _awaitingStringTerminator = true; _stringStateBeforeEscape = State.DcsPassthrough; _state = State.Escape; return; }
         if (c == '\x7F') return;
         if (IsC0Executable(c)) return; // ignored, not executed, while passing through
-        sink.DcsPut(c);
+        if (_dcsLength < VtLimits.MaxDcsLength)
+        {
+            sink.DcsPut(c);
+            _dcsLength++;
+        }
+        else
+        {
+            // Cap exceeded — discard further DCS data until ST, same as DcsIgnore.
+            _state = State.DcsIgnore;
+        }
     }
 
     private void HandleDcsIgnore(char c)

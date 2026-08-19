@@ -47,7 +47,7 @@ public sealed class TarArchiveReader : IArchiveReader
                 entries.Add(ToRecord(entry, index++));
             }
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or EndOfStreamException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogService.Warning($"Archive not accessible: {_archivePath}: {ex.Message}");
             return new ArchiveDirectory(Array.Empty<ArchiveEntryRecord>(), isValid: false);

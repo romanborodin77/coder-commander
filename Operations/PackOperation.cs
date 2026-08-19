@@ -112,6 +112,7 @@ public sealed class PackOperation : FileOperation
 
         var written = 0;
         var writtenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var packFailures = new List<string>();
 
         await using (var writer = format.OpenWrite(localArchivePath, new ArchiveWriteOptions { PlannedEntryNames = plan.Select(i => i.EntryName).ToList() }))
         {
@@ -128,10 +129,18 @@ public sealed class PackOperation : FileOperation
                     continue;
                 }
 
-                if (await WriteFileAsync(writer, item, existing, ct).ConfigureAwait(false))
+                try
                 {
-                    written++;
-                    writtenPaths.Add(item.Source!.FullPath);
+                    if (await WriteFileAsync(writer, item, existing, ct).ConfigureAwait(false))
+                    {
+                        written++;
+                        writtenPaths.Add(item.Source!.FullPath);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Error($"Pack: failed to add {item.Source?.FullPath}: {ex.Message}", ex);
+                    packFailures.Add($"{item.Source?.Name}: {ex.Message}");
                 }
 
                 _filesProcessed++;
@@ -153,6 +162,11 @@ public sealed class PackOperation : FileOperation
 
         if (_removeSource && written > 0)
             await RemoveSourcesAsync(plan, writtenPaths, ct).ConfigureAwait(false);
+
+        if (packFailures.Count > 0)
+            throw new IOException(
+                $"Pack finished, but {packFailures.Count} item(s) had problems: {string.Join(", ", packFailures.Take(5))}" +
+                (packFailures.Count > 5 ? $" and {packFailures.Count - 5} more" : ""));
     }
 
     /// <summary>Expands the selection into a flat, ordered list of archive entries to create.</summary>

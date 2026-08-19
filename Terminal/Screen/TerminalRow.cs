@@ -56,6 +56,15 @@ internal sealed class TerminalRow
         for (var i = copyCount; i < newCols; i++)
             Cells[i] = TerminalCell.Blank(bg);
 
+        // If shrinking truncated a wide-char pair, blank the orphaned WideLead at the last
+        // copied column — without its WideTrail it renders as a 2-cell glyph in 1 cell.
+        if (newCols < old.Length && copyCount > 0)
+        {
+            var last = copyCount - 1;
+            if ((Cells[last].Flags & CellFlags.WideLead) != 0)
+                Cells[last] = TerminalCell.Blank(bg);
+        }
+
         if (Combining != null)
         {
             List<int>? toRemove = null;
