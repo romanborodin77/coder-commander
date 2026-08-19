@@ -29,10 +29,9 @@ public sealed class OperationQueueForm : ThemedForm
         var p = ThemeService.Current;
 
         _listView = UiHelpers.CreateListView(
-            (L.GetString("OpQueue.Col.Type"), 70),
-            (L.GetString("OpQueue.Col.Source"), 250),
-            (L.GetString("OpQueue.Col.Destination"), 250),
-            (L.GetString("OpQueue.Col.Status"), 70));
+            (L.GetString("OpQueue.Col.Type"), 80),
+            (L.GetString("OpQueue.Col.Source"), 350),
+            (L.GetString("OpQueue.Col.Status"), 80));
         _listView.Dock = DockStyle.Fill;
 
         // Button panel
@@ -149,7 +148,6 @@ public sealed class OperationQueueForm : ThemedForm
 
             var lvi = new ListViewItem(typeText);
             lvi.SubItems.Add(op.DisplayName);
-            lvi.SubItems.Add("");
             lvi.SubItems.Add(stateText);
             lvi.Tag = op;
             _listView.Items.Add(lvi);

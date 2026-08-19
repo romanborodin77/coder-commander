@@ -950,6 +950,17 @@ public sealed class SettingsForm : ThemedForm
         if (text.Length == 0) return;
         if (!text.StartsWith('.')) text = "." + text;
 
+        // Reject extensions containing invalid filename characters — they would break
+        // PackOperation's extension matching later.
+        if (text.AsSpan().IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            StyledMessageBox.Show(
+                LocalizationService.Current.GetString("Settings.ExtensionsInvalidChars"),
+                LocalizationService.Current.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
+            return;
+        }
+
         if (!_workingExtensions.Contains(text, StringComparer.OrdinalIgnoreCase))
         {
             _workingExtensions.Add(text);

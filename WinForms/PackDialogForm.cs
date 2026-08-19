@@ -143,6 +143,17 @@ public sealed class PackDialogForm : ThemedForm
 
         AcceptButton = okBtn;
         CancelButton = cancelBtn;
+
+        FormClosing += (_, e) =>
+        {
+            if (e.CloseReason == CloseReason.UserClosing && DialogResult == DialogResult.OK &&
+                string.IsNullOrWhiteSpace(_nameBox.Text))
+            {
+                MessageBox.Show(this, LocalizationService.Current.GetString("Archive.PackNameRequired"),
+                    LocalizationService.Current.GetString("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                e.Cancel = true;
+            }
+        };
     }
 
     private void PopulateCompressionCombo()

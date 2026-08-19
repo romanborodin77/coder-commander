@@ -90,42 +90,49 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             var devicePath = ToDevice(path);
             var entries = new List<FileEntry>();
 
-            lock (_deviceLock)
+            try
             {
-                foreach (var dir in _device.GetDirectories(devicePath))
+                lock (_deviceLock)
                 {
-                    var full = devicePath.TrimEnd('\\') + "\\" + dir;
-                    long size = 0;
-                    DateTime writeTime = default;
-                    try
+                    foreach (var dir in _device.GetDirectories(devicePath))
                     {
-                        var di = _device.GetDirectoryInfo(full);
-                        size = (long)di.Length;
-                        writeTime = di.LastWriteTime?.ToUniversalTime() ?? default;
+                        var full = devicePath.TrimEnd('\\') + "\\" + dir;
+                        long size = 0;
+                        DateTime writeTime = default;
+                        try
+                        {
+                            var di = _device.GetDirectoryInfo(full);
+                            size = (long)di.Length;
+                            writeTime = di.LastWriteTime?.ToUniversalTime() ?? default;
+                        }
+                        catch { /* best-effort — device may not report metadata */ }
+                        entries.Add(new FileEntry(
+                            ToMtp(full), isDirectory: true, exists: true,
+                            size: size, attributes: FileAttributes.Directory,
+                            lastWriteTimeUtc: writeTime));
                     }
-                    catch { /* best-effort — device may not report metadata */ }
-                    entries.Add(new FileEntry(
-                        ToMtp(full), isDirectory: true, exists: true,
-                        size: size, attributes: FileAttributes.Directory,
-                        lastWriteTimeUtc: writeTime));
-                }
-                foreach (var file in _device.GetFiles(devicePath))
-                {
-                    var full = devicePath.TrimEnd('\\') + "\\" + file;
-                    long size = 0;
-                    DateTime writeTime = default;
-                    try
+                    foreach (var file in _device.GetFiles(devicePath))
                     {
-                        var fi = _device.GetFileInfo(full);
-                        size = (long)fi.Length;
-                        writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default;
+                        var full = devicePath.TrimEnd('\\') + "\\" + file;
+                        long size = 0;
+                        DateTime writeTime = default;
+                        try
+                        {
+                            var fi = _device.GetFileInfo(full);
+                            size = (long)fi.Length;
+                            writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default;
+                        }
+                        catch { /* best-effort — device may not report metadata */ }
+                        entries.Add(new FileEntry(
+                            ToMtp(full), isDirectory: false, exists: true,
+                            size: size, attributes: FileAttributes.Normal,
+                            lastWriteTimeUtc: writeTime));
                     }
-                    catch { /* best-effort — device may not report metadata */ }
-                    entries.Add(new FileEntry(
-                        ToMtp(full), isDirectory: false, exists: true,
-                        size: size, attributes: FileAttributes.Normal,
-                        lastWriteTimeUtc: writeTime));
                 }
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                throw new IOException($"MTP: device error enumerating \"{path}\": {ex.Message}", ex);
             }
 
             return (IReadOnlyList<FileEntry>)entries;

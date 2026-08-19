@@ -21,7 +21,7 @@ public sealed class CopyMoveDialogForm : ThemedForm
     private readonly ListView _fileList;
 
     /// <summary>Selected destination path.</summary>
-    public string DestinationPath => _destBox.Text;
+    public string DestinationPath => _destBox.Text.Trim();
 
     /// <summary>Selected overwrite policy (maps to OverwriteAction enum).</summary>
     public int OverwritePolicyIndex => _overwriteCombo.SelectedIndex;

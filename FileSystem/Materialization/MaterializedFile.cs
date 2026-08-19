@@ -64,7 +64,7 @@ public sealed class MaterializedFile : IDisposable
     private readonly string? _ownedFolder;
     private long _originSize;
     private DateTime _originStampUtc;
-    private bool _disposed;
+    private int _disposed; // accessed from multiple threads (editor save vs panel dispose) — guarded via Interlocked
 
     private MaterializedFile(IFileSystem origin, string originPath, string localPath, bool isPassthrough,
         bool isNew, string? ownedFolder, long originSize, DateTime originStampUtc)
@@ -118,21 +118,31 @@ public sealed class MaterializedFile : IDisposable
 
         var copied = 0L;
         var src = await fs.OpenReadAsync(path, ct).ConfigureAwait(false);
-        await using (src.ConfigureAwait(false))
+        try
         {
-            var dst = new FileStream(local, FileMode.Create, FileAccess.Write, FileShare.None);
-            await using (dst.ConfigureAwait(false))
+            await using (src.ConfigureAwait(false))
             {
-                var buffer = new byte[81920];
-                int read;
-                while ((read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+                var dst = new FileStream(local, FileMode.Create, FileAccess.Write, FileShare.None);
+                await using (dst.ConfigureAwait(false))
                 {
-                    copied += read;
-                    if (copied > options.MaxBytes)
-                        throw new MaterializationTooLargeException(path, copied, options.MaxBytes);
-                    await dst.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    var buffer = new byte[81920];
+                    int read;
+                    while ((read = await src.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+                    {
+                        copied += read;
+                        if (copied > options.MaxBytes)
+                            throw new MaterializationTooLargeException(path, copied, options.MaxBytes);
+                        await dst.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    }
                 }
             }
+        }
+        catch
+        {
+            // Clean up the partial temp file and folder if materialization failed mid-stream.
+            try { if (File.Exists(local)) File.Delete(local); } catch { /* best-effort */ }
+            try { if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder); } catch { /* best-effort */ }
+            throw;
         }
 
         return new MaterializedFile(fs, path, local, isPassthrough: false, isNew: false, ownedFolder: folder,
@@ -150,7 +160,7 @@ public sealed class MaterializedFile : IDisposable
     /// happened to break next.</exception>
     public void MarkDirty()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
         IsDirty = true;
     }
 
@@ -168,7 +178,7 @@ public sealed class MaterializedFile : IDisposable
     /// <see cref="MarkDirty"/>'s own note on why this throws rather than silently no-op'ing.</exception>
     public async Task WriteBackAsync(CancellationToken ct)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
         if (IsPassthrough || !IsDirty) return;
 
         if (!IsNew)
@@ -234,8 +244,7 @@ public sealed class MaterializedFile : IDisposable
     /// racing the caller's own cleanup.</summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0) return;
         if (_ownedFolder == null) return;
 
         try

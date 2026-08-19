@@ -380,6 +380,7 @@ public sealed class MultiRenameForm : ThemedForm
             var extPattern = _extBox.Text;
             var startValue = (int)_startIndex.Value;
             var step = (int)_stepIndex.Value;
+            int skipped = 0;
 
             for (int i = 0; i < _items.Count; i++)
             {
@@ -389,8 +390,14 @@ public sealed class MultiRenameForm : ThemedForm
                     ? $"{newName}.{newExt}"
                     : newName;
 
-                if (fullNewName == item.Name || !IsValidFileName(fullNewName))
+                if (fullNewName == item.Name)
                     continue;
+
+                if (!IsValidFileName(fullNewName))
+                {
+                    skipped++;
+                    continue;
+                }
 
                 var dir = VfsPath.GetParent(item.FullPath) ?? "";
                 var newPath = VfsPath.Combine(dir, fullNewName);
@@ -403,7 +410,9 @@ public sealed class MultiRenameForm : ThemedForm
                 return;
             }
 
-            // Check for conflicts
+            var L = LocalizationService.Current;
+
+            // Check for conflicts: duplicates in newPath (two items resolve to the same name).
             var duplicates = Results
                 .GroupBy(r => r.newPath, StringComparer.OrdinalIgnoreCase)
                 .Where(g => g.Count() > 1)
@@ -411,13 +420,39 @@ public sealed class MultiRenameForm : ThemedForm
 
             if (duplicates.Count > 0)
             {
-                var L = LocalizationService.Current;
                 StyledMessageBox.Show(
                     L.GetString("MultiRename.ErrDuplicate"),
                     L.GetString("MultiRename.Title"),
                     MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
                 e.Cancel = true;
                 return;
+            }
+
+            // Check for rename chains: a newPath that matches another item's oldPath.
+            var oldPaths = new HashSet<string>(_items.Select(i => i.FullPath), StringComparer.OrdinalIgnoreCase);
+            var chains = Results.Where(r => oldPaths.Contains(r.newPath)).ToList();
+            if (chains.Count > 0)
+            {
+                StyledMessageBox.Show(
+                    L.GetString("MultiRename.ErrChain"),
+                    L.GetString("MultiRename.Title"),
+                    MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
+                e.Cancel = true;
+                return;
+            }
+
+            // Warn about skipped items with invalid names.
+            if (skipped > 0)
+            {
+                var result = StyledMessageBox.Show(
+                    L.GetString("MultiRename.WarnSkipped", skipped),
+                    L.GetString("MultiRename.Title"),
+                    MsgBoxButtons.OKCancel, MsgBoxIcon.Warning, this);
+                if (result == MsgBoxResult.Cancel)
+                {
+                    e.Cancel = true;
+                    return;
+                }
             }
         }
 

@@ -41,6 +41,13 @@ public sealed class TextViewerLoader : IViewerLoader
         var raw = await source.ReadAllBytesAsync(ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
 
+        // Some providers (FTP in particular) report an unreliable or absent size, so the up-front
+        // check above may pass even for a large file. Guard against OOM by checking the actual size.
+        if (raw.Length > ViewerLimits.TextSizeLimit)
+            return new ViewerErrorPayload(
+                L.GetString("View.TooBigForText", FormatUtils.FormatSize(raw.Length), FormatUtils.FormatSize(ViewerLimits.TextSizeLimit)),
+                Modal: false);
+
         Encoding encoding;
         int preambleLength;
         var overrideEncoding = EncodingCatalog.TryResolve(SettingsService.Load().ViewerEncodingOverride);

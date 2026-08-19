@@ -89,8 +89,13 @@ public static class RemotePath
         return slash < 0 ? "" : Normalize(body[(slash + 1)..]);
     }
 
-    /// <summary>Root of a remote path: <c>scheme://host</c>.</summary>
-    public static string GetRoot(string path) => $"{SchemeOf(path)}{SchemeSeparator}{HostOf(path)}";
+    /// <summary>Root of a remote path: <c>scheme://host</c>. Returns the input unchanged if it is
+    /// not a remote path.</summary>
+    public static string GetRoot(string path)
+    {
+        var scheme = SchemeOf(path);
+        return scheme is null ? path : $"{scheme}{SchemeSeparator}{HostOf(path)}";
+    }
 
     /// <summary>Builds <c>scheme://host/path</c> from parts.</summary>
     public static string Make(string scheme, string host, string path = "")

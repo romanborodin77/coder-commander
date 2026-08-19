@@ -421,6 +421,7 @@ public sealed class LocalizationService
         _strings["Settings.ExternalToolArgs"] = "Arguments:";
         _strings["Settings.ExternalToolBrowse"] = "Browse…";
         _strings["Settings.ExternalToolBrowseFilter"] = "Executable files (*.exe)|*.exe|All files (*.*)|*.*";
+        _strings["Settings.ExtensionsInvalidChars"] = "The extension contains invalid characters.";
         _strings["Settings.Hotkeys"] = "Hotkeys";
         _strings["Settings.Hotkeys.SectionHint"] = "Rebind any of the application's ~30 default keyboard shortcuts (F5 Copy, Ctrl+A Select All, and so on).";
         _strings["Settings.Hotkeys.Customize"] = "Customize Hotkeys…";
@@ -509,6 +510,7 @@ public sealed class LocalizationService
         _strings["Conn.PasswordStored"] = "A password is saved. Leave empty to keep it.";
         _strings["Conn.Invalid.Name"] = "Enter a name for the connection.";
         _strings["Conn.Invalid.Url"] = "Enter a full address, for example https://example.com/dav or ftp://example.com";
+        _strings["Conn.Invalid.SchemeMismatch"] = "The URL scheme does not match the selected connection type.";
         _strings["Conn.AutoConnectNeedsPassword"] = "Connect on startup needs a saved password, or an empty user name.";
         _strings["Settings.Connections"] = "Connections";
         _strings["Bookmark.Title"] = "Bookmarks";
@@ -615,6 +617,8 @@ public sealed class LocalizationService
         _strings["MultiRename.NewName"] = "New Name";
         _strings["MultiRename.Status"] = "Status";
         _strings["MultiRename.ErrDuplicate"] = "Duplicate target names detected. Please adjust the pattern.";
+        _strings["MultiRename.ErrChain"] = "A new name matches an existing file being renamed. This would cause a chain conflict. Please adjust the pattern.";
+        _strings["MultiRename.WarnSkipped"] = "{0} item(s) have invalid names and will be skipped. Continue?";
 
         // ═══ Viewer ═══
         _strings["View.Title"] = "Viewer";
@@ -779,6 +783,7 @@ public sealed class LocalizationService
         _strings["Archive.UnsupportedFormat"] = "\"{0}\" is not a supported archive.";
         _strings["Archive.PackTitle"] = "Pack Files";
         _strings["Archive.PackPrompt"] = "Archive name:";
+        _strings["Archive.PackNameRequired"] = "Archive name cannot be empty.";
         _strings["Archive.PackFormat"] = "Format:";
         _strings["Archive.PackCompression"] = "Compression:";
         _strings["Archive.PackMoveOriginals"] = "Delete originals after packing (move)";

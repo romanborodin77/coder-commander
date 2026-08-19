@@ -183,6 +183,7 @@ public sealed class ConnectionManager : IDisposable
             var message = ex is OperationCanceledException ? "timed out" : ex.Message;
             lock (_lock)
             {
+                if (_disposed) return null;
                 _states[profileId] = ConnectionState.Failed;
                 _errors[profileId] = message;
             }

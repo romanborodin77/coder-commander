@@ -221,8 +221,9 @@ internal sealed class ImageViewerContent : IViewerContent
         // this, ViewerImageFitToWindow could only ever be written true (from the Fit button), so
         // the setting's documented "vs. last manual zoom" half never actually happened: every new
         // image snapped back to fit-to-window regardless of how the previous one was left.
+        // Persisted via _settings.ViewerImageFitToWindow but not saved here on every wheel notch
+        // to avoid disk thrash — saved on SetFitToWindow/SetActualSize/form close instead.
         _settings.ViewerImageFitToWindow = false;
-        SettingsService.Save(_settings);
         _zoom = Math.Clamp(_zoom + delta, 0.1f, 5.0f);
         ApplyFitOrZoom();
     }

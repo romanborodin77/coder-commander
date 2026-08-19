@@ -22,7 +22,7 @@ namespace CoderCommander.Terminal;
 /// </summary>
 internal sealed class TerminalSession : IAsyncDisposable
 {
-    private PtySession? _pty;
+    private volatile PtySession? _pty;
     private readonly Utf8ChunkDecoder _decoder = new();
     private readonly char[] _decodeScratch = new char[4096];
     private readonly VtParser _parser = new();
@@ -205,8 +205,11 @@ internal sealed class TerminalSession : IAsyncDisposable
         Exited?.Invoke(exitCode);
     }
 
+    private int _disposed;
+
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         Screen.CwdReported -= OnCwdReported;
         if (_pty != null)
         {

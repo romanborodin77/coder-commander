@@ -172,9 +172,27 @@ public sealed class ConnectionEditForm : ThemedForm
         // Absolute, not merely non-empty. "example.com/dav" looks like an address and is not one:
         // every provider parses it with Uri.TryCreate(..., UriKind.Absolute) and would refuse it at
         // connect time, by which point the dialog is closed and the message has lost its field.
-        if (url.Length == 0 || !Uri.TryCreate(url, UriKind.Absolute, out _))
+        if (url.Length == 0 || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
             Reject(L.GetString("Conn.Invalid.Url"), _urlBox);
+            return;
+        }
+
+        // The URL scheme must match the selected provider scheme. A mismatch (e.g. "dav" selected
+        // with an "ftp://" URL) would save a profile that fails at connect time with a confusing
+        // provider-side error.
+        var selectedScheme = _schemeBox.SelectedItem?.ToString() ?? _draft.Scheme;
+        var expectedSchemes = selectedScheme switch
+        {
+            "dav" => new[] { "HTTP", "HTTPS" },
+            "smb" => new[] { "FILE" },
+            "ftp" or "ftps" => new[] { "FTP" },
+            "sftp" => new[] { "SFTP", "SSH" },
+            _ => new[] { selectedScheme }
+        };
+        if (Array.IndexOf(expectedSchemes, uri.Scheme.ToUpperInvariant()) < 0)
+        {
+            Reject(L.GetString("Conn.Invalid.SchemeMismatch"), _urlBox);
             return;
         }
 

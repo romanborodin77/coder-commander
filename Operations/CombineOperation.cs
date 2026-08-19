@@ -141,14 +141,15 @@ public sealed partial class CombineOperation : FileOperation
         if (numbered.Count == 0)
             throw new IOException($"No part files found for \"{baseName}\".");
 
-        var startNum = int.Parse(match.Groups["num"].Value, NumberStyles.None, CultureInfo.InvariantCulture);
+        if (!int.TryParse(match.Groups["num"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var startNum))
+            throw new IOException($"Part number \"{match.Groups["num"].Value}\" is too large or invalid for \"{baseName}\".");
         var parts = new List<string>();
         var expected = startNum;
         foreach (var (num, path) in numbered)
         {
             if (num < startNum) continue; // parts before the selected first one are not this file's
             if (num != expected)
-                throw new IOException($"Part .{expected:D3} is missing - cannot combine \"{baseName}\" reliably.");
+                throw new IOException($"Part .{expected} is missing - cannot combine \"{baseName}\" reliably.");
             parts.Add(path);
             expected++;
         }

@@ -45,8 +45,8 @@ public sealed class InputDialogForm : ThemedForm
         _textBox.Dock = DockStyle.Fill;
         _textBox.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Enter) { DialogResult = DialogResult.OK; Close(); }
-            if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); }
+            if (e.KeyCode == Keys.Enter) { DialogResult = DialogResult.OK; Close(); e.Handled = true; }
+            if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); e.Handled = true; }
         };
 
         _okBtn = ThemedForm.CreateThemedButton(LocalizationService.Current.GetString("Common.OK"), accent: true);

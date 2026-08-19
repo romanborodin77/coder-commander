@@ -69,11 +69,16 @@ public sealed class SmbProvider : IFileSystemProvider
         // success for a connection that still can't be enumerated (e.g. permission issues at the
         // share level). This matches what every other provider does (WebDavProvider enumerates the
         // root before returning).
+        // The root path for enumeration must include the share name (e.g. smb://host/share), not
+        // just the host (smb://host) — otherwise EnumerateAsync lists the server's shares instead
+        // of the share's contents.
+        var stripped = remoteName[2..]; // drop leading \\
+        var rootPath = RemotePath.Make(Scheme, host, stripped.Replace('\\', '/'));
         SmbFileSystem fs;
         try
         {
             fs = new SmbFileSystem(host, remoteName);
-            await fs.EnumerateAsync(RemotePath.Make(Scheme, host), includeHidden: true, ct)
+            await fs.EnumerateAsync(rootPath, includeHidden: true, ct)
                 .ConfigureAwait(false);
         }
         catch

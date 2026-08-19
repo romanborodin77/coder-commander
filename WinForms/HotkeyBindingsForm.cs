@@ -182,8 +182,9 @@ public sealed class HotkeyBindingsForm : ThemedForm
     private void BeginCapture(string id)
     {
         _capturingId = id;
-        var idx = _list.Items.IndexOf(_list.Items.Cast<ListViewItem>().First(i => (string)i.Tag! == id));
-        _list.Items[idx].SubItems[1].Text = LocalizationService.Current.GetString("Settings.Hotkeys.PressKeys");
+        var item = _list.Items.Cast<ListViewItem>().FirstOrDefault(i => (string)i.Tag! == id);
+        if (item == null) return;
+        item.SubItems[1].Text = LocalizationService.Current.GetString("Settings.Hotkeys.PressKeys");
         _list.Focus();
     }
 
