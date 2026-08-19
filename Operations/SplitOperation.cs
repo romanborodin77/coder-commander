@@ -111,7 +111,10 @@ public sealed class SplitOperation : FileOperation
 
     private async Task SplitFileAsync(FileEntry file, CancellationToken ct)
     {
-        var partCount = (int)Math.Max(1, (file.Size + _partSizeBytes - 1) / _partSizeBytes);
+        var partCountLong = Math.Max(1, (file.Size + _partSizeBytes - 1) / _partSizeBytes);
+        if (partCountLong > int.MaxValue)
+            throw new IOException("Too many parts for this file/part-size combination.");
+        var partCount = (int)partCountLong;
         var digits = Math.Max(3, partCount.ToString(CultureInfo.InvariantCulture).Length);
         var crc = _writeCrc ? new Crc32() : null;
 

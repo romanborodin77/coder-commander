@@ -163,8 +163,6 @@ public sealed class EditorForm : ThemedForm
         var fullKey = $"Edit.Toolbar.{textKey}";
         var displayText = L.GetString(fullKey);
         
-        LogService.Info($"CreateToolButton: key={fullKey}, text={displayText}");
-        
         var btn = new ToolStripButton(displayText, ToolbarIcons.Get(iconKey))
         {
             DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,

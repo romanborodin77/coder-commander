@@ -11,7 +11,10 @@ namespace CoderCommander.WinForms;
 internal sealed class CodeEditorGutter : Control
 {
     private readonly CodeEditorCanvas _canvas;
+    // CA2213: _font is shared from ThemeService — not owned, not disposed here.
+#pragma warning disable CA2213
     private Font _font = null!;
+#pragma warning restore CA2213
 
     private const int HorizontalPadding = 10;
 
@@ -63,7 +66,7 @@ internal sealed class CodeEditorGutter : Control
     {
         if (disposing)
         {
-            _font?.Dispose();
+            // _font is shared from ThemeService — not owned, must not be disposed here.
         }
         base.Dispose(disposing);
     }

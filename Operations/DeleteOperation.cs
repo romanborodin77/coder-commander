@@ -271,6 +271,16 @@ public sealed class WipeOperation : FileOperation
             if (!fi.Exists)
                 return true;
 
+            // A reparse point (symlink/hardlink) opens the TARGET when FileStream follows it —
+            // wiping would destroy the linked file's content, not the link itself. The same
+            // class of bug already fixed for WipeDirectory (via ReparsePointGuard.SkipRecursion
+            // in enumeration), but individual file selections bypass that guard.
+            if ((fi.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                LogService.Warning($"Wipe: refusing reparse point {path} — target would be destroyed");
+                return false;
+            }
+
             if ((fi.Attributes & FileAttributes.ReadOnly) != 0)
                 fi.Attributes = FileAttributes.Normal;
 

@@ -18,6 +18,8 @@ internal sealed class CodeEditorCanvas : Control
     private int _scrollY;
     private int _scrollX;
 
+    // CA2213: _font is shared (zoom 1.0) or same as _ownedFont (zoom ≠ 1.0). Not disposed here.
+#pragma warning disable CA2213
     private Font _font = null!;
     private float _charWidth;
     private int _lineHeight;
@@ -44,6 +46,7 @@ internal sealed class CodeEditorCanvas : Control
 
     private float _zoomFactor = 1f;
     private Font? _ownedFont;
+#pragma warning restore CA2213
     private const float MinZoom = 0.5f;
     private const float MaxZoom = 3f;
 
@@ -183,7 +186,6 @@ internal sealed class CodeEditorCanvas : Control
             _highlightCts?.Cancel();
             _highlightCts?.Dispose();
             _ownedFont?.Dispose();
-            _font?.Dispose();
         }
         base.Dispose(disposing);
     }

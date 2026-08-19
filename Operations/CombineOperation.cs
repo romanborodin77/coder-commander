@@ -56,6 +56,7 @@ public sealed partial class CombineOperation : FileOperation
         foreach (var part in parts)
             _bytesTotal += (await _fs.GetFileInfoAsync(part, ct).ConfigureAwait(false))?.Size ?? 0;
 
+        var destExistedBefore = await _fs.ExistsAsync(_destPath, ct).ConfigureAwait(false);
         var crc = _verifyCrc ? new Crc32() : null;
         try
         {
@@ -72,8 +73,15 @@ public sealed partial class CombineOperation : FileOperation
         catch (OperationCanceledException) { throw; }
         catch
         {
-            try { await _fs.DeleteAsync(_destPath, false, ct).ConfigureAwait(false); }
-            catch { /* best-effort cleanup of partial output */ }
+            // Only delete the destination if WE created it — if it already existed before the
+            // combine, CopyFromStreamAsync wrote to a temp file and failed before the atomic
+            // Move, so the original is untouched. Deleting it here would destroy the user's
+            // pre-existing file for a combine they didn't intend to overwrite.
+            if (!destExistedBefore)
+            {
+                try { await _fs.DeleteAsync(_destPath, false, ct).ConfigureAwait(false); }
+                catch { /* best-effort cleanup of partial output */ }
+            }
             throw;
         }
 

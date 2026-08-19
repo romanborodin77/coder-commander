@@ -220,6 +220,8 @@ public sealed class CredentialStore
         // Temp file then atomic replace, matching SettingsService.Save: a crash mid-write must not
         // leave a truncated store, which would read back as "no saved passwords at all".
         var tmp = _path + ".tmp";
+        // Clean up any stale .tmp from a previous crash — DPAPI-encrypted, but still clutter.
+        try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best-effort */ }
         File.WriteAllText(tmp, JsonSerializer.Serialize(entries, JsonOpts), Encoding.UTF8);
         File.Move(tmp, _path, overwrite: true);
     }

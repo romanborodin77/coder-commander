@@ -166,20 +166,28 @@ public sealed class SearchEngine
         using var slots = new SemaphoreSlim(workers, workers);
         var running = new List<Task>(candidates.Count);
 
-        foreach (var entry in candidates)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            if (_hits >= MaxResults)
+            foreach (var entry in candidates)
             {
-                WasTruncated = true;
-                break;
+                ct.ThrowIfCancellationRequested();
+                if (_hits >= MaxResults)
+                {
+                    WasTruncated = true;
+                    break;
+                }
+
+                await slots.WaitAsync(ct).ConfigureAwait(false);
+                running.Add(ScanOneAsync(entry, slots, onHit, ct));
             }
-
-            await slots.WaitAsync(ct).ConfigureAwait(false);
-            running.Add(ScanOneAsync(entry, slots, onHit, ct));
         }
-
-        await Task.WhenAll(running).ConfigureAwait(false);
+        finally
+        {
+            // Ensure all in-flight scans are awaited even if the foreach threw (cancellation,
+            // exception) — otherwise they become unobserved tasks that may fault after the
+            // semaphore is disposed.
+            await Task.WhenAll(running).ConfigureAwait(false);
+        }
     }
 
     private async Task ScanOneAsync(FileEntry entry, SemaphoreSlim slots, Action<SearchHit> onHit, CancellationToken ct)

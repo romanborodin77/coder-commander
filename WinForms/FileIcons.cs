@@ -41,8 +41,9 @@ public static class FileIcons
     {
         try
         {
-            using var bmp = new Bitmap(1, 1);
-            using var g = Graphics.FromImage(bmp);
+            // Graphics.FromHwnd(IntPtr.Zero) reads the screen DPI, unlike Graphics.FromImage
+            // which always returns 96 (bitmap metadata DPI, not display DPI).
+            using var g = Graphics.FromHwnd(IntPtr.Zero);
             return (int)g.DpiX;
         }
         catch
