@@ -75,6 +75,7 @@ public static class WebDavPropfindParser
         }
 
         var selfKey = NormalizeForComparison(requestPath);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var response in doc.Descendants(Dav + "response"))
         {
@@ -100,6 +101,11 @@ public static class WebDavPropfindParser
 
             var name = ExtractName(hrefPath);
             if (name.Length == 0) continue;
+
+            // Some servers return the same href multiple times (e.g. Nextcloud with special
+            // permissions) — deduplicate to avoid phantom entries in the panel.
+            if (!seen.Add(NormalizeForComparison(Uri.UnescapeDataString(hrefPath))))
+                continue;
 
             // The server names the entry; that name goes on to build local paths during a
             // download, so it is checked exactly like an archive entry name.

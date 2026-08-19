@@ -83,9 +83,9 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
         var inner = RemotePath.PathOf(path);
         var entries = new List<FileEntry>();
 
-        await RunAsync(async () =>
+        await RunAsync(async token =>
         {
-            await foreach (var file in _client.ListDirectoryAsync(serverPath, ct).ConfigureAwait(false))
+            await foreach (var file in _client.ListDirectoryAsync(serverPath, token).ConfigureAwait(false))
             {
                 if (entries.Count >= RemoteLimits.MaxEntriesPerDirectory)
                 {
@@ -174,9 +174,9 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
 
         try
         {
-            return await RunAsync(async () =>
+            return await RunAsync(async token =>
             {
-                var file = await _client.GetAsync(serverPath, ct).ConfigureAwait(false);
+                var file = await _client.GetAsync(serverPath, token).ConfigureAwait(false);
                 return ToEntry(file, parentInner);
             }, "stat", RemotePath.PathOf(path), ct).ConfigureAwait(false);
         }
@@ -195,7 +195,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
         try
         {
             var serverPath = ToServerPath(path);
-            return await RunAsync(() => _client.ExistsAsync(serverPath, ct), "exists", RemotePath.PathOf(path), ct)
+            return await RunAsync(token => _client.ExistsAsync(serverPath, token), "exists", RemotePath.PathOf(path), ct)
                 .ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -210,8 +210,8 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default)
     {
         var serverPath = ToServerPath(path);
-        return RunAsync<Stream>(async () =>
-            await _client.OpenAsync(serverPath, FileMode.Open, FileAccess.Read, ct).ConfigureAwait(false),
+        return RunAsync<Stream>(async token =>
+            await _client.OpenAsync(serverPath, FileMode.Open, FileAccess.Read, token).ConfigureAwait(false),
             "open", RemotePath.PathOf(path), ct);
     }
 
@@ -221,7 +221,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     {
         var serverPath = ToServerPath(destinationPath);
         return RunAsync(
-            () => _client.UploadFileAsync(source, serverPath, canOverride: true, uploadProgress: null, ct),
+            token => _client.UploadFileAsync(source, serverPath, canOverride: true, uploadProgress: null, token),
             "upload", RemotePath.PathOf(destinationPath), ct);
     }
 
@@ -253,7 +253,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
             var serverPath = ToServerPath(ToAppPath(built));
             if (await ExistsAsync(ToAppPath(built), ct).ConfigureAwait(false)) continue;
 
-            await RunAsync(() => _client.CreateDirectoryAsync(serverPath, ct), "mkdir", built, ct)
+            await RunAsync(token => _client.CreateDirectoryAsync(serverPath, token), "mkdir", built, ct)
                 .ConfigureAwait(false);
         }
 
@@ -267,17 +267,22 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     /// directory only, so the walk is done here, depth first.</summary>
     public async Task DeleteAsync(string path, bool recursive, CancellationToken ct = default)
     {
-        var info = await GetFileInfoAsync(path, ct).ConfigureAwait(false);
         var serverPath = ToServerPath(path);
 
-        // Unlike FTP, asking what this is costs one round trip rather than a listing of the whole
-        // parent directory, so there is no reason to guess first.
-        if (info is { IsDirectory: false } or null)
+        // Try file delete first — this removes symlinks without following them. SSH.NET's GetAsync
+        // (used by GetFileInfoAsync) follows symlinks via SSH_FXP_STAT, so a symlink to a directory
+        // would be reported as IsDirectory=true, and the directory branch below would recurse into
+        // the TARGET directory, deleting its contents — data loss. DeleteFileAsync uses
+        // SSH_FXP_REMOVE which operates on the link itself, not the target.
+        try
         {
-            await RunAsync(() => _client.DeleteFileAsync(serverPath, ct), "delete", RemotePath.GetName(path), ct)
+            await RunAsync(token => _client.DeleteFileAsync(serverPath, token), "delete", RemotePath.GetName(path), ct)
                 .ConfigureAwait(false);
             return;
         }
+        catch (Renci.SshNet.Common.SftpPermissionDeniedException) { throw; }
+        catch (Renci.SshNet.Common.SftpPathNotFoundException) { throw; }
+        catch (Renci.SshNet.Common.SshException) { /* not a file (or a directory) — fall through to directory path */ }
 
         if (recursive)
         {
@@ -288,7 +293,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
             }
         }
 
-        await RunAsync(() => _client.DeleteDirectoryAsync(serverPath, ct), "rmdir", RemotePath.GetName(path), ct)
+        await RunAsync(token => _client.DeleteDirectoryAsync(serverPath, token), "rmdir", RemotePath.GetName(path), ct)
             .ConfigureAwait(false);
     }
 
@@ -310,7 +315,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
             await DeleteAsync(destination, recursive: false, ct).ConfigureAwait(false);
         }
 
-        await RunAsync(() => _client.RenameFileAsync(ToServerPath(source), ToServerPath(destination), ct),
+        await RunAsync(token => _client.RenameFileAsync(ToServerPath(source), ToServerPath(destination), token),
             "rename", RemotePath.GetName(source), ct).ConfigureAwait(false);
     }
 
@@ -358,8 +363,8 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     /// same destination once per file. Guarded by its own lock: two panels can copy at once.</summary>
     private readonly HashSet<string> _knownDirectories = new(StringComparer.Ordinal);
 
-    private Task RunAsync(Func<Task> body, string operation, string subject, CancellationToken ct) =>
-        RunAsync(async () => { await body().ConfigureAwait(false); return true; }, operation, subject, ct);
+    private Task RunAsync(Func<CancellationToken, Task> body, string operation, string subject, CancellationToken ct) =>
+        RunAsync(async token => { await body(token).ConfigureAwait(false); return true; }, operation, subject, ct);
 
     /// <summary>
     /// Runs one SSH.NET call, bounding it and translating whatever it throws.
@@ -378,14 +383,14 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     /// disconnects and reconnects. One reconnection attempt is made here; if it succeeds the
     /// operation is retried once. If reconnection fails the original exception propagates.</para>
     /// </summary>
-    private async Task<T> RunAsync<T>(Func<Task<T>> body, string operation, string subject, CancellationToken ct)
+    private async Task<T> RunAsync<T>(Func<CancellationToken, Task<T>> body, string operation, string subject, CancellationToken ct)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(RemoteLimits.RequestTimeout);
 
         try
         {
-            return await body().ConfigureAwait(false);
+            return await body(timeoutCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -407,8 +412,10 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
                     _client.Connect();
                 using var retryCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 retryCts.CancelAfter(RemoteLimits.RequestTimeout);
-                return await body().ConfigureAwait(false);
+                return await body(retryCts.Token).ConfigureAwait(false);
             }
+            catch (SftpPathNotFoundException) { throw; }
+            catch (SftpPermissionDeniedException) { throw; }
             catch
             {
                 throw new IOException($"SFTP: the connection was lost during {operation}: {ex.Message}");

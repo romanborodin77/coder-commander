@@ -62,7 +62,10 @@ internal sealed class TerminalRow
         {
             var last = copyCount - 1;
             if ((Cells[last].Flags & CellFlags.WideLead) != 0)
+            {
                 Cells[last] = TerminalCell.Blank(bg);
+                Combining?.Remove(last);
+            }
         }
 
         if (Combining != null)

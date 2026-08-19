@@ -81,6 +81,7 @@ internal sealed class FtpDataStream : Stream
     ~FtpDataStream()
     {
         try { Released?.Invoke(); } catch { /* best effort — finalizer must not throw */ }
+        try { _inner?.Dispose(); } catch { /* best effort */ }
     }
 
     protected override void Dispose(bool disposing)

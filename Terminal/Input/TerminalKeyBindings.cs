@@ -168,6 +168,11 @@ internal sealed class TerminalKeyBindings
         if (!haveKeyCode)
             return false;
 
+        // Reject chords without at least one modifier — a bare letter key binding would hijack
+        // normal typing (e.g. binding "T" to CloseTab makes it impossible to type the letter T).
+        if ((result & Keys.Modifiers) == Keys.None)
+            return false;
+
         chord = result;
         return true;
     }

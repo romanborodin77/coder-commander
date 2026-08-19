@@ -228,6 +228,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     /// <summary>Removes all tab pages and resets the selection.</summary>
     public void ClearPages()
     {
+        foreach (var p in _pages) p.SetParent(null);
         _pages.Clear();
         _selectedIndex = -1;
         RebuildButtons();

@@ -468,7 +468,13 @@ internal sealed class VtParser
         if (_paramCount >= VtLimits.MaxParams)
             return; // extra params beyond the cap are parsed-and-dropped, not stored
 
-        _paramCount++;
+        // A separator before any digit means the current param is empty (default). If _paramCount
+        // is 0, we need to account for that implicit empty param: increment to 1 for the empty one,
+        // then to 2 for the new slot. Otherwise just open a new slot.
+        if (_paramCount == 0)
+            _paramCount = 2;
+        else
+            _paramCount++;
         _subParamStart[_paramCount - 1] = !subParam;
     }
 

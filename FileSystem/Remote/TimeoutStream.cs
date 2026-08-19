@@ -46,8 +46,21 @@ internal sealed class TimeoutStream : Stream
         }
     }
 
-    public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
-    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => _inner.WriteAsync(buffer, cancellationToken);
+    public override void Write(byte[] buffer, int offset, int count) => WriteAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_externalCt, cancellationToken);
+        cts.CancelAfter(_timeout);
+        try
+        {
+            await _inner.WriteAsync(buffer, cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!_externalCt.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new IOException($"Remote: write timed out after {_timeout.TotalSeconds:0} s");
+        }
+    }
     public override void Flush() => _inner.Flush();
     public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
     public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);

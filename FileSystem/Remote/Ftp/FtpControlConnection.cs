@@ -518,12 +518,20 @@ internal sealed class FtpControlConnection : IDisposable
         try
         {
             // Best-effort courtesy: a server that is told QUIT frees the session immediately instead
-            // of waiting for its idle timeout. Failure here is uninteresting by definition.
+            // of waiting for its idle timeout. Run on a background thread with a short timeout so a
+            // slow/unresponsive server cannot block app shutdown for the full SendTimeout (10s).
             if (IsUsable)
             {
                 var bytes = _encoding.GetBytes("QUIT\r\n");
-                _stream!.Write(bytes, 0, bytes.Length);
-                _stream.Flush();
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        _stream!.Write(bytes, 0, bytes.Length);
+                        _stream.Flush();
+                    }
+                    catch { /* connection is going away regardless */ }
+                }).Wait(TimeSpan.FromSeconds(2));
             }
         }
         catch

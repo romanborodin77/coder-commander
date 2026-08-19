@@ -209,6 +209,7 @@ internal sealed class TerminalScreen : IVtSink
             // in place renders as a garbled/split glyph.
             BlankOrphanedWideHalf(row, limit - 1);
             BlankOrphanedWideHalf(row, _cursor.Col + width);
+            BlankOrphanedWideHalf(row, _cursor.Col - 1);
         }
 
         WriteCell(row, _cursor.Col, rune, width);
@@ -590,6 +591,10 @@ internal sealed class TerminalScreen : IVtSink
         for (var c = limit - 1; c >= _cursor.Col + n; c--)
             row.Cells[c] = row.Cells[c - n];
         row.ClearRange(_cursor.Col, _cursor.Col + n, _cursor.Bg);
+        // Fix wide-char pairs broken by the shift.
+        BlankOrphanedWideHalf(row, _cursor.Col);
+        BlankOrphanedWideHalf(row, _cursor.Col + n);
+        BlankOrphanedWideHalf(row, limit - 1);
         MarkRowDirty(_cursor.Row);
     }
 
@@ -602,6 +607,10 @@ internal sealed class TerminalScreen : IVtSink
         for (var c = _cursor.Col; c < limit - n; c++)
             row.Cells[c] = row.Cells[c + n];
         row.ClearRange(limit - n, limit, _cursor.Bg);
+        // Fix wide-char pairs broken by the shift.
+        BlankOrphanedWideHalf(row, _cursor.Col);
+        BlankOrphanedWideHalf(row, limit - n - 1);
+        BlankOrphanedWideHalf(row, limit - 1);
         MarkRowDirty(_cursor.Row);
     }
 
@@ -623,10 +632,16 @@ internal sealed class TerminalScreen : IVtSink
         var top = parameters.Length > 0 && parameters[0] > 0 ? parameters[0] - 1 : 0;
         var bottom = parameters.Length > 1 && parameters[1] > 0 ? parameters[1] - 1 : _active.Rows - 1;
         bottom = Math.Min(bottom, _active.Rows - 1);
-        if (top < bottom)
+        if (top <= bottom)
         {
             _active.ScrollTop = top;
             _active.ScrollBottom = bottom;
+        }
+        else
+        {
+            // Invalid region (top >= bottom) — reset to full screen per xterm behavior.
+            _active.ScrollTop = 0;
+            _active.ScrollBottom = _active.Rows - 1;
         }
         _cursor.Row = Modes.OriginMode ? _active.ScrollTop : 0;
         _cursor.Col = 0;
