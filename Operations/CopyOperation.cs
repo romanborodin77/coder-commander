@@ -86,7 +86,7 @@ public sealed class CopyOperation : FileOperation
     private int _filesTotal;
     private long _bytesProcessed;
     private long _bytesTotal;
-    private readonly HashSet<string> _writtenPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _writtenPaths;
 
     /// <summary>Source paths that were actually written to the destination - i.e. NOT skipped via
     /// a conflict resolution. <see cref="OperationState.Completed"/> alone doesn't mean every
@@ -111,6 +111,15 @@ public sealed class CopyOperation : FileOperation
         _sourceBasePath = sourceBasePath;
         _destPath = destPath;
         _options = options ?? new TransferOptions();
+
+        // Case sensitivity follows the source: Windows local FS is case-insensitive, but ZIP
+        // archives and remote providers distinguish Foo.txt from foo.txt — using OrdinalIgnoreCase
+        // for those silently drops the second file from _writtenPaths, causing MoveOperation to
+        // not delete it from the source (data remains in both places after a move).
+        var sourceCmp = sourceFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+        _writtenPaths = new HashSet<string>(sourceCmp);
     }
 
     /// <inheritdoc/>
@@ -305,9 +314,10 @@ public sealed class CopyOperation : FileOperation
 
         try
         {
-            if (source.CreatedTimeUtc != default) File.SetCreationTimeUtc(path, source.CreatedTimeUtc);
-            if (source.LastWriteTimeUtc != default) File.SetLastWriteTimeUtc(path, source.LastWriteTimeUtc);
-            if (source.LastAccessTimeUtc != default) File.SetLastAccessTimeUtc(path, source.LastAccessTimeUtc);
+            var accessible = FileSystem.LongPath.EnsureAccessible(path);
+            if (source.CreatedTimeUtc != default) File.SetCreationTimeUtc(accessible, source.CreatedTimeUtc);
+            if (source.LastWriteTimeUtc != default) File.SetLastWriteTimeUtc(accessible, source.LastWriteTimeUtc);
+            if (source.LastAccessTimeUtc != default) File.SetLastAccessTimeUtc(accessible, source.LastAccessTimeUtc);
         }
         catch (Exception ex)
         {

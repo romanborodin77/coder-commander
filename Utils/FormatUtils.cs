@@ -13,7 +13,7 @@ public static class FormatUtils
     {
         if (bytes < 0) return "—";
         if (bytes == 0) return "0 B";
-        string[] units = ["B", "KB", "MB", "GB", "TB", "PB"];
+        string[] units = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
         double size = bytes;
         var i = 0;
         while (size >= 1024 && i < units.Length - 1) { size /= 1024; i++; }

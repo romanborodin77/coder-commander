@@ -470,44 +470,50 @@ public sealed class FilePanelUserControl : UserControl
         _updatingItems = true;
         _suppressSelectionEvent = true;
 
+        var selItem = _vm.SelectedItem;
+
         _fileList.BeginUpdate();
-        _fileList.Items.Clear();
-
-        var selName = _vm.SelectedItem?.Name;
-
-        foreach (var item in _vm.Items)
+        try
         {
-            var displayName = item.IsParent
-                ? (item.DisplayName ?? item.Name)
-                : (_showExtensionInName ? (item.DisplayName ?? item.Name) : (item.DisplayName ?? item.NameWithoutExtension));
+            _fileList.Items.Clear();
 
-            var lvi = new ListViewItem(displayName)
+            foreach (var item in _vm.Items)
             {
-                Tag = item,
-                UseItemStyleForSubItems = false,
-                ImageKey = GetFileIconKey(item)
-            };
+                var displayName = item.IsParent
+                    ? (item.DisplayName ?? item.Name)
+                    : (_showExtensionInName ? (item.DisplayName ?? item.Name) : (item.DisplayName ?? item.NameWithoutExtension));
 
-            lvi.SubItems.Add(item.TypeDisplay);
-            lvi.SubItems.Add(item.SizeDisplay);
-            lvi.SubItems.Add(item.ModifiedDisplay);
-            lvi.SubItems.Add(item.AttributesDisplay);
+                var lvi = new ListViewItem(displayName)
+                {
+                    Tag = item,
+                    UseItemStyleForSubItems = false,
+                    ImageKey = GetFileIconKey(item)
+                };
 
-            // Restore selection state from model
-            if (item.IsSelected)
-                lvi.Selected = true;
+                lvi.SubItems.Add(item.TypeDisplay);
+                lvi.SubItems.Add(item.SizeDisplay);
+                lvi.SubItems.Add(item.ModifiedDisplay);
+                lvi.SubItems.Add(item.AttributesDisplay);
 
-            _fileList.Items.Add(lvi);
+                // Restore selection state from model
+                if (item.IsSelected)
+                    lvi.Selected = true;
 
-            // Restore focus
-            if (selName != null && item.Name == selName)
-            {
-                lvi.Selected = true;
-                lvi.Focused = true;
+                _fileList.Items.Add(lvi);
+
+                // Restore focus — use ReferenceEquals instead of Name comparison to handle
+                // FlatView where items from different directories can share the same name.
+                if (selItem != null && ReferenceEquals(item, selItem))
+                {
+                    lvi.Selected = true;
+                    lvi.Focused = true;
+                }
             }
         }
-
-        _fileList.EndUpdate();
+        finally
+        {
+            _fileList.EndUpdate();
+        }
         _suppressSelectionEvent = false;
         _updatingItems = false;
         UpdateStatus();
@@ -585,6 +591,10 @@ public sealed class FilePanelUserControl : UserControl
             {
                 _vm.SelectedItem = item;
             }
+        }
+        else if (_fileList.SelectedItems.Count == 0 && _fileList.FocusedItem == null)
+        {
+            _vm.SelectedItem = null;
         }
 
         UpdateStatus();
@@ -974,7 +984,7 @@ public sealed class FilePanelUserControl : UserControl
     private static void CopyToClipboard(string text)
     {
         if (!string.IsNullOrEmpty(text))
-            Clipboard.SetText(text);
+            ClipboardHelper.TrySetClipboard(text);
     }
 
     // -- Re-localization --

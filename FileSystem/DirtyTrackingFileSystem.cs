@@ -96,10 +96,31 @@ public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSy
     public async Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default)
     {
         if (_inner is IBatchDeletableFileSystem batch)
+        {
             await batch.DeleteBatchAsync(paths, recursive, ct).ConfigureAwait(false);
+            _markDirty();
+        }
         else
+        {
+            // Fallback per-entry loop: if one entry throws, earlier deletions already modified
+            // the underlying FS. Mark dirty for each successful deletion so writeback is offered.
+            var anyDeleted = false;
+            var errors = new List<Exception>();
             foreach (var path in paths)
-                await _inner.DeleteAsync(path, recursive, ct).ConfigureAwait(false);
-        _markDirty();
+            {
+                try
+                {
+                    await _inner.DeleteAsync(path, recursive, ct).ConfigureAwait(false);
+                    anyDeleted = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    errors.Add(ex);
+                }
+            }
+            if (anyDeleted) _markDirty();
+            if (errors.Count > 0)
+                throw new AggregateException("One or more deletions failed", errors);
+        }
     }
 }

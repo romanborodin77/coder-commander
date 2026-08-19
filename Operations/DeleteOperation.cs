@@ -79,10 +79,19 @@ public sealed class DeleteOperation : FileOperation
                     }
                 }
 
+                var failures = new List<string>();
                 foreach (var file in remaining)
                 {
                     ct.ThrowIfCancellationRequested();
-                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                    try
+                    {
+                        await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        LogService.Warning($"Delete: cannot remove {file.FullPath}: {ex.Message}");
+                        failures.Add(file.FullPath);
+                    }
                     _filesProcessed++;
                     Report(new OperationProgress
                     {
@@ -92,6 +101,9 @@ public sealed class DeleteOperation : FileOperation
                         FilesTotal = _filesTotal
                     });
                 }
+
+                if (failures.Count > 0)
+                    throw new IOException($"Failed to delete {failures.Count} item(s): {string.Join(", ", failures.Take(5))}");
             }
             else
             {

@@ -301,9 +301,9 @@ public sealed class UnpackOperation : FileOperation
         // entries don't - the format compresses the whole stream, not per entry) - nothing to
         // compute a ratio from, so this check is skipped rather than guessed at, the same
         // "can't determine" philosophy the free-space check below already follows.
-        if (compressed > 0 && uncompressed / compressed > UnpackLimits.MaxRatio)
+        if (compressed > 0 && uncompressed > compressed * UnpackLimits.MaxRatio)
             throw new IOException(
-                $"This archive would expand {uncompressed / compressed:N0}x, more than the {UnpackLimits.MaxRatio}x this app will extract - it has the shape of a decompression bomb.");
+                $"This archive would expand {(double)uncompressed / compressed:N0}x, more than the {UnpackLimits.MaxRatio}x this app will extract - it has the shape of a decompression bomb.");
 
         foreach (var record in selected)
         {

@@ -152,12 +152,13 @@ public sealed class SplitOperation : FileOperation
 
             ReportProgress(file.Name);
         }
-        catch (OperationCanceledException) { throw; }
-        catch
+        catch (Exception)
         {
+            // Clean up partial parts on any failure (including cancellation). Use
+            // CancellationToken.None for cleanup so deletion proceeds even after cancel.
             foreach (var p in writtenParts)
             {
-                try { await _fs.DeleteAsync(p, false, ct).ConfigureAwait(false); }
+                try { await _fs.DeleteAsync(p, false, CancellationToken.None).ConfigureAwait(false); }
                 catch { /* best-effort cleanup of partial parts */ }
             }
             throw;

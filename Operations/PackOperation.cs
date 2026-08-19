@@ -214,6 +214,13 @@ public sealed class PackOperation : FileOperation
 
                 if (child.IsDirectory)
                 {
+                    // Skip junctions/symlinks — their contents would be silently absent from the
+                    // archive if archived as a plain directory entry.
+                    if ((child.Attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        LogService.Warning($"Pack: skipping junction/symlink {child.FullPath}");
+                        continue;
+                    }
                     if (seen.Add(childName + "/"))
                         plan.Add(new PackItem { EntryName = childName + "/", IsDirectory = true });
                 }

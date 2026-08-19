@@ -277,7 +277,7 @@ public sealed class LocalFileSystem : IFileSystem
             {
                 IgnoreInaccessible = true,
                 RecurseSubdirectories = true,
-                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+                AttributesToSkip = ReparsePointGuard.SkipRecursion
             };
             foreach (var file in Directory.EnumerateFiles(root, "*", options))
                 ClearReadOnlyIfSet(file);

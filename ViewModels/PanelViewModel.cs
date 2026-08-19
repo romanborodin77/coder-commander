@@ -440,7 +440,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         bool isVirtualPath = FileSystem.ArchivePath.IsArchivePath(path)
             || FileSystem.RemotePath.IsRemote(path);
         if (!isVirtualPath)
-            path = path.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            path = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
         if (!AdoptFileSystemFor(path)) return;
 
@@ -479,7 +479,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (!string.IsNullOrEmpty(CurrentPath))
             {
                 _back.Push((_fs, CurrentPath));
-                while (_back.Count > MaxHistoryDepth) _back.TrimExcess();
+                while (_back.Count > MaxHistoryDepth) _back.Pop();
             }
             _fwd.Clear();
             OnPropertyChanged(nameof(CanGoBack));
@@ -632,14 +632,27 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var ct = BeginNavigation();
         var (fs, path) = _back.Pop();
         _fwd.Push((_fs, CurrentPath));
-        // Release archive lease if leaving an archive for a non-archive destination.
-        if (_archiveLease != null &&
-            (!FileSystem.VfsPath.IsArchive(path) ||
-             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
-            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+        // Release archive lease only after the destination is confirmed reachable.
+        var prevFs = _fs;
+        var prevPath = CurrentPath;
         _fs = fs;
         CurrentPath = path;
-        await RefreshAsync(ct);
+        try
+        {
+            await RefreshAsync(ct);
+        }
+        catch
+        {
+            // Refresh failed — restore previous state so the user isn't left in a broken panel.
+            _fs = prevFs;
+            CurrentPath = prevPath;
+            throw;
+        }
+        // Refresh succeeded — now safe to release the old archive lease.
+        if (_archiveLease != null &&
+            (!FileSystem.VfsPath.IsArchive(path) ||
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(prevPath), StringComparison.OrdinalIgnoreCase)))
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
     }
@@ -652,14 +665,25 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var ct = BeginNavigation();
         var (fs, path) = _fwd.Pop();
         _back.Push((_fs, CurrentPath));
-        // Release archive lease if leaving an archive for a non-archive destination.
-        if (_archiveLease != null &&
-            (!FileSystem.VfsPath.IsArchive(path) ||
-             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
-            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+        // Release archive lease only after the destination is confirmed reachable.
+        var prevFs = _fs;
+        var prevPath = CurrentPath;
         _fs = fs;
         CurrentPath = path;
-        await RefreshAsync(ct);
+        try
+        {
+            await RefreshAsync(ct);
+        }
+        catch
+        {
+            _fs = prevFs;
+            CurrentPath = prevPath;
+            throw;
+        }
+        if (_archiveLease != null &&
+            (!FileSystem.VfsPath.IsArchive(path) ||
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(prevPath), StringComparison.OrdinalIgnoreCase)))
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
     }
@@ -1021,8 +1045,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void OnDebounceTick(object? sender, EventArgs e)
     {
         _refreshDebounce?.Stop();
-        if (!string.IsNullOrEmpty(CurrentPath))
-            _ = RefreshAsync();
+        if (!string.IsNullOrEmpty(CurrentPath) && _refreshDebounce != null)
+            _ = RefreshAsync(_navCts?.Token ?? default);
     }
 
     /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.
