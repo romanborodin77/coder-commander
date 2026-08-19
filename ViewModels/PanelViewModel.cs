@@ -50,6 +50,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private CancellationTokenSource? _navCts;
     private readonly object _navLock = new();
+
+    /// <summary>Captured on the UI thread at construction time so that FileSystemWatcher callbacks
+    /// (which fire on thread-pool threads) can marshal timer Start/Stop calls back to the UI thread
+    /// — System.Windows.Forms.Timer is not thread-safe.</summary>
+    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
     // Bumped at the start of every NavigateAsync/GoBackAsync/GoForwardAsync call, before any
     // await - lets NavigateAsync tell, after its own ExistsAsync await resumes, whether a newer
     // navigation call has since started (see NavigateAsync's own comment for the race this
@@ -993,9 +998,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private void ScheduleRefresh()
     {
+        // FileSystemWatcher fires on a thread-pool thread, but System.Windows.Forms.Timer is not
+        // thread-safe — marshal Start/Stop to the UI thread via the captured SynchronizationContext.
         if (_refreshDebounce == null) return;
-        _refreshDebounce.Stop();
-        _refreshDebounce.Start();
+        _uiContext?.Post(_ =>
+        {
+            if (_refreshDebounce != null)
+            {
+                _refreshDebounce.Stop();
+                _refreshDebounce.Start();
+            }
+        }, null);
     }
 
     private void OnDebounceTick(object? sender, EventArgs e)

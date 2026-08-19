@@ -112,38 +112,53 @@ public sealed class SplitOperation : FileOperation
     private async Task SplitFileAsync(FileEntry file, CancellationToken ct)
     {
         var partCount = (int)Math.Max(1, (file.Size + _partSizeBytes - 1) / _partSizeBytes);
-        // TC convention: 3-digit minimum, widening automatically past 999 parts.
         var digits = Math.Max(3, partCount.ToString(CultureInfo.InvariantCulture).Length);
         var crc = _writeCrc ? new Crc32() : null;
 
         using var source = await _fs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false);
 
-        for (var partNum = 1; partNum <= partCount; partNum++)
+        var writtenParts = new List<string>();
+
+        try
         {
-            ct.ThrowIfCancellationRequested();
-
-            var thisPartSize = Math.Min(_partSizeBytes, file.Size - (long)(partNum - 1) * _partSizeBytes);
-            var partName = $"{file.Name}.{partNum.ToString(CultureInfo.InvariantCulture).PadLeft(digits, '0')}";
-            var destPath = VfsPath.Combine(_destDir, partName);
-
-            var resolution = await ConflictResolver.ResolveAsync(_fs, file.FullPath, destPath, file, _options, ct).ConfigureAwait(false);
-            if (!resolution.Proceed)
-                throw new IOException($"Part \"{partName}\" was skipped - split aborted (a partial split has no value).");
-
-            using var bounded = new BoundedReadStream(source, thisPartSize);
-            using var tracking = new TrackingReadStream(bounded, crc, chunk =>
+            for (var partNum = 1; partNum <= partCount; partNum++)
             {
-                _bytesProcessed += chunk;
-                ReportThrottled(() => ReportProgress(file.Name));
-            });
+                ct.ThrowIfCancellationRequested();
 
-            await _fs.CopyFromStreamAsync(resolution.TargetPath, tracking, ct).ConfigureAwait(false);
+                var thisPartSize = Math.Min(_partSizeBytes, file.Size - (long)(partNum - 1) * _partSizeBytes);
+                var partName = $"{file.Name}.{partNum.ToString(CultureInfo.InvariantCulture).PadLeft(digits, '0')}";
+                var destPath = VfsPath.Combine(_destDir, partName);
+
+                var resolution = await ConflictResolver.ResolveAsync(_fs, file.FullPath, destPath, file, _options, ct).ConfigureAwait(false);
+                if (!resolution.Proceed)
+                    throw new IOException($"Part \"{partName}\" was skipped - split aborted (a partial split has no value).");
+
+                using var bounded = new BoundedReadStream(source, thisPartSize);
+                using var tracking = new TrackingReadStream(bounded, crc, chunk =>
+                {
+                    _bytesProcessed += chunk;
+                    ReportThrottled(() => ReportProgress(file.Name));
+                });
+
+                await _fs.CopyFromStreamAsync(resolution.TargetPath, tracking, ct).ConfigureAwait(false);
+                writtenParts.Add(resolution.TargetPath);
+            }
+
+            if (crc != null)
+                await WriteCrcFileAsync(file, crc.GetCurrentHash(), ct).ConfigureAwait(false);
+
+            ReportProgress(file.Name);
         }
-
-        if (crc != null)
-            await WriteCrcFileAsync(file, crc.GetCurrentHash(), ct).ConfigureAwait(false);
-
-        ReportProgress(file.Name);
+        catch (OperationCanceledException) { throw; }
+        catch
+        {
+            foreach (var p in writtenParts)
+            {
+                try { await _fs.DeleteAsync(p, false, ct).ConfigureAwait(false); }
+                catch { /* best-effort cleanup of partial parts */ }
+            }
+            throw;
+        }
     }
 
     private async Task WriteCrcFileAsync(FileEntry file, byte[] hash, CancellationToken ct)

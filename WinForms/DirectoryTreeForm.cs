@@ -74,12 +74,19 @@ public class DirectoryTreeForm : ThemedForm
     /// <summary>Populates the tree with the root node and its immediate children.</summary>
     private async Task PopulateRootAsync(string rootPath)
     {
-        _tree.Nodes.Clear();
-        var root = await CreateNodeAsync(rootPath).ConfigureAwait(true);
-        if (root != null)
+        try
         {
-            _tree.Nodes.Add(root);
-            root.Expand();
+            _tree.Nodes.Clear();
+            var root = await CreateNodeAsync(rootPath).ConfigureAwait(true);
+            if (root != null)
+            {
+                _tree.Nodes.Add(root);
+                root.Expand();
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"PopulateRootAsync failed: {ex.Message}", ex);
         }
     }
 
@@ -156,7 +163,8 @@ public class DirectoryTreeForm : ThemedForm
     {
         if (e.Node?.Tag is string path)
         {
-            await LoadChildDirsAsync(e.Node, path).ConfigureAwait(true);
+            try { await LoadChildDirsAsync(e.Node, path).ConfigureAwait(true); }
+            catch (Exception ex) { LogService.Error($"Tree expand failed: {ex.Message}", ex); }
         }
     }
 

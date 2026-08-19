@@ -1480,7 +1480,7 @@ public sealed class MainForm : Form
 
             if (chosen == OverwriteAction.Rename)
             {
-                newName = GenerateUniqueName(destination, destFs);
+                newName = GenerateUniqueNameAsync(destination, destFs, CancellationToken.None).GetAwaiter().GetResult();
                 return OverwriteAction.Rename;
             }
 
@@ -1490,7 +1490,7 @@ public sealed class MainForm : Form
         return Resolve;
     }
 
-    private static string GenerateUniqueName(string destPath, IFileSystem destFs)
+    private static async Task<string> GenerateUniqueNameAsync(string destPath, IFileSystem destFs, CancellationToken ct)
     {
         var dir = VfsPath.GetParent(destPath) ?? "";
         var ext = FileSystem.FileEntry.GetExtension(destPath);
@@ -1503,7 +1503,7 @@ public sealed class MainForm : Form
             candidate = VfsPath.Combine(dir, $"{name} ({counter.ToString(CultureInfo.InvariantCulture)}){ext}");
             counter++;
         }
-        while (destFs.ExistsAsync(candidate, CancellationToken.None).GetAwaiter().GetResult());
+        while (await destFs.ExistsAsync(candidate, ct).ConfigureAwait(false));
         return VfsPath.GetName(candidate);
     }
 
@@ -1632,37 +1632,41 @@ public sealed class MainForm : Form
         _ = _vm.RightPanel.RefreshAsync();
     }
 
-    private void OnMultiRename(object? sender, (IReadOnlyList<FileSystemItem> files, string sourcePath) e)
+    private async void OnMultiRename(object? sender, (IReadOnlyList<FileSystemItem> files, string sourcePath) e)
     {
-        using var dlg = new MultiRenameForm(e.files, e.sourcePath);
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-
-        var fs = _vm.ActivePanel.CurrentFileSystem;
-        var failures = new List<string>();
-
-        foreach (var (oldPath, newPath) in dlg.Results)
+        try
         {
-            try
+            using var dlg = new MultiRenameForm(e.files, e.sourcePath);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            var fs = _vm.ActivePanel.CurrentFileSystem;
+            var failures = new List<string>();
+
+            foreach (var (oldPath, newPath) in dlg.Results)
             {
-                fs.MoveAsync(oldPath, newPath, overwrite: false, CancellationToken.None).GetAwaiter().GetResult();
+                try
+                {
+                    await fs.MoveAsync(oldPath, newPath, overwrite: false, CancellationToken.None).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    LogService.Error($"Multi-rename failed: {oldPath} -> {newPath}: {ex.Message}", ex);
+                    failures.Add($"{VfsPath.GetName(oldPath)}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            _ = _vm.ActivePanel.RefreshAsync();
+
+            if (failures.Count > 0)
             {
-                LogService.Error($"Multi-rename failed: {oldPath} -> {newPath}: {ex.Message}", ex);
-                failures.Add($"{VfsPath.GetName(oldPath)}: {ex.Message}");
+                var L = LocalizationService.Current;
+                StyledMessageBox.Show(string.Join("\n", failures), L.GetString("Common.Error"),
+                    MsgBoxButtons.OK, MsgBoxIcon.Error, this);
             }
         }
-
-        _ = _vm.ActivePanel.RefreshAsync();
-
-        // Unlike single Rename (OnRename below), a batch has multiple independent outcomes - a
-        // silent per-file catch here would leave the user with no indication that some renames
-        // never applied (e.g. a pattern collision with a file outside the selection).
-        if (failures.Count > 0)
+        catch (Exception ex)
         {
-            var L = LocalizationService.Current;
-            StyledMessageBox.Show(string.Join("\n", failures), L.GetString("Common.Error"),
-                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            LogService.Error($"MultiRename failed: {ex.Message}", ex);
         }
     }
 
@@ -1882,7 +1886,8 @@ public sealed class MainForm : Form
     private async void OnArchiveEntered(object? sender, FileSystemItem item)
     {
         if (sender is not FilePanelUserControl panel) return;
-        await EnterArchiveAsync(panel, item);
+        try { await EnterArchiveAsync(panel, item); }
+        catch (Exception ex) { LogService.Error($"EnterArchive failed: {ex.Message}", ex); }
     }
 
     /// <summary>

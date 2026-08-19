@@ -112,10 +112,17 @@ internal sealed class OfficeViewerContent : IViewerContent
 
     private async Task GoToPageAsync(int index)
     {
-        if (_folder == null || index < 0 || index >= _pages.Count || index == _currentPage) return;
-        _currentPage = index;
-        UpdatePageNav();
-        await _ctx.WebViewHost.NavigateAndWaitAsync($"https://{WebViewHost.VirtualHostName}/{PageFileName(index)}", CancellationToken.None);
+        try
+        {
+            if (_folder == null || index < 0 || index >= _pages.Count || index == _currentPage) return;
+            _currentPage = index;
+            UpdatePageNav();
+            await _ctx.WebViewHost.NavigateAndWaitAsync($"https://{WebViewHost.VirtualHostName}/{PageFileName(index)}", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"GoToPageAsync failed: {ex.Message}", ex);
+        }
     }
 
     private static string PageFileName(int index) => $"page{index}.html";

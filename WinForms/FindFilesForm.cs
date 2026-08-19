@@ -43,6 +43,7 @@ public sealed class FindFilesForm : ThemedForm
 
     private CancellationTokenSource? _cancellation;
     private SearchEngine.SearchProgress _progress;
+    private readonly object _progressLock = new();
     private bool _running;
 
     /// <summary>The file the user chose, valid after <see cref="DialogResult.OK"/>.</summary>
@@ -249,7 +250,7 @@ public sealed class FindFilesForm : ThemedForm
             await Task.Run(() => engine.RunAsync(
                 _rootPath,
                 hit => { lock (_pendingLock) _pending.Add(hit); },
-                progress => _progress = progress,
+                progress => { lock (_progressLock) _progress = progress; },
                 _cancellation.Token), _cancellation.Token);
 
             // The engine's own counters, not the last progress report: progress is reported when a
@@ -321,8 +322,10 @@ public sealed class FindFilesForm : ThemedForm
     private void UpdateRunningStatus()
     {
         if (!_running) return;
+        SearchEngine.SearchProgress snapshot;
+        lock (_progressLock) snapshot = _progress;
         _status.Text = LocalizationService.Current.GetString(
-            "Find.Progress", _progress.FilesExamined, _results.Items.Count);
+            "Find.Progress", snapshot.FilesExamined, _results.Items.Count);
     }
 
     private void GoToSelected()

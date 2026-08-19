@@ -107,11 +107,18 @@ internal sealed class MarkdownViewerContent : IViewerContent
 
     private async Task ToggleSourceAsync()
     {
-        if (_folder == null) return;
-        _showingSource = !_showingSource;
-        _sourceToggleBtn.Checked = _showingSource;
-        var file = _showingSource ? SourceFileName : RenderedFileName;
-        await _ctx.WebViewHost.NavigateAndWaitAsync($"https://{WebViewHost.VirtualHostName}/{file}", CancellationToken.None);
+        try
+        {
+            if (_folder == null) return;
+            _showingSource = !_showingSource;
+            _sourceToggleBtn.Checked = _showingSource;
+            var file = _showingSource ? SourceFileName : RenderedFileName;
+            await _ctx.WebViewHost.NavigateAndWaitAsync($"https://{WebViewHost.VirtualHostName}/{file}", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"ToggleSourceAsync failed: {ex.Message}", ex);
+        }
     }
 
     private static string BuildSourceHtml(string source) =>

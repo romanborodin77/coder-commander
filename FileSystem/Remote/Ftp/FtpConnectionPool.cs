@@ -117,7 +117,10 @@ internal sealed class FtpConnectionPool : IDisposable
     {
         _disposed = true;
         while (_idle.TryTake(out var connection))
-            connection.Dispose();
+        {
+            try { connection.Dispose(); }
+            catch { /* best-effort — one failing connection must not leak the rest */ }
+        }
         _slots.Dispose();
     }
 }

@@ -403,11 +403,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task RunPackAndSyncLeaseAsync(IFileOperation op, string displayName, string destArchive)
     {
-        await Operations.RunAsync(op, displayName).ConfigureAwait(true);
-        if (op.State != OperationState.Completed) return;
+        try
+        {
+            await Operations.RunAsync(op, displayName).ConfigureAwait(true);
+            if (op.State != OperationState.Completed) return;
 
-        LeftPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
-        RightPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
+            LeftPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
+            RightPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"RunPackAndSyncLeaseAsync failed: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -1177,21 +1184,28 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private static async Task RefreshGitStatusAsync(PanelViewModel panel)
     {
-        if (!panel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.GitStatus))
-            return;
+        try
+        {
+            if (!panel.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.GitStatus))
+                return;
 
-        var path = panel.CurrentPath;
-        var snapshot = await Task.Run(() => GitStatusService.GetStatus(path));
+            var path = panel.CurrentPath;
+            var snapshot = await Task.Run(() => GitStatusService.GetStatus(path));
 
-        if (panel.CurrentPath != path)
-            return; // navigated away while this was computing
+            if (panel.CurrentPath != path)
+                return; // navigated away while this was computing
 
-        foreach (var item in panel.Items)
-            item.GitStatus = item.IsParent || snapshot == null
-                ? GitFileStatus.None
-                : snapshot.Resolve(item.FullPath, item.IsDirectory);
+            foreach (var item in panel.Items)
+                item.GitStatus = item.IsParent || snapshot == null
+                    ? GitFileStatus.None
+                    : snapshot.Resolve(item.FullPath, item.IsDirectory);
 
-        panel.RefreshDisplay();
+            panel.RefreshDisplay();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"RefreshGitStatusAsync failed: {ex.Message}", ex);
+        }
     }
 
     private void OnPanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1208,6 +1222,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnOperationChanged(object? sender, OperationManagerEventArgs e)
     {
+        // OperationManager fires this from a thread-pool thread (FileOperation.ExecuteAsync uses
+        // ConfigureAwait(false)). The entire handler touches ObservableProperty setters (which raise
+        // PropertyChanged for WinForms bindings), reads panel state, and invokes OperationStarted
+        // (whose subscriber creates and shows dialogs) — all of which must run on the UI thread.
+        if (_uiContext is not null)
+        {
+            _uiContext.Post(_ => OnOperationChangedCore(e), null);
+        }
+        else
+        {
+            OnOperationChangedCore(e);
+        }
+    }
+
+    private void OnOperationChangedCore(OperationManagerEventArgs e)
+    {
         var active = Operations.Operations.Count;
         OperationQueueText = active > 0 ? Services.LocalizationService.Current.GetString("Main.OperationsActive", active) : "";
         UpdateStatus();
@@ -1215,25 +1245,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (e.Change == OperationChangeType.Started)
             OperationStarted?.Invoke(this, (e.Operation.Operation, e.Operation.DisplayName));
 
-        // Refresh panels when an operation completes. OperationManager fires this from a
-        // thread-pool thread (FileOperation.ExecuteAsync uses ConfigureAwait(false)), but
-        // PanelViewModel.RefreshAsync mutates ObservableCollection which must stay on the
-        // UI thread — marshal through the captured SynchronizationContext.
+        // Refresh panels when an operation completes.
         if (e.Change is OperationChangeType.Completed or OperationChangeType.Canceled or OperationChangeType.Failed)
         {
-            if (_uiContext is not null)
-            {
-                _uiContext.Post(_ =>
-                {
-                    _ = LeftPanel.RefreshAsync();
-                    _ = RightPanel.RefreshAsync();
-                }, null);
-            }
-            else
-            {
-                _ = LeftPanel.RefreshAsync();
-                _ = RightPanel.RefreshAsync();
-            }
+            _ = LeftPanel.RefreshAsync();
+            _ = RightPanel.RefreshAsync();
         }
     }
 

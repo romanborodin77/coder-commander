@@ -406,46 +406,63 @@ public class EditorForm : ThemedForm
     /// old <c>File.Exists</c> check silently failing into a blank untitled tab.</summary>
     private async Task OpenFileCoreAsync(IFileSystem fs, string path)
     {
-        var L = LocalizationService.Current;
-
-        if (!await fs.ExistsAsync(path).ConfigureAwait(true))
+        try
         {
-            StyledMessageBox.Show(L.GetString("Err.PathNotFound", path),
-                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
-            if (_tabs.Count == 0)
-                NewTab();
-            return;
-        }
+            var L = LocalizationService.Current;
 
-        var info = await fs.GetFileInfoAsync(path).ConfigureAwait(true);
-        var fileSize = info?.Size ?? 0;
-        if (fileSize > LargeFileConfirmBytes)
-        {
-            var confirmed = StyledMessageBox.Show(
-                L.GetString("Edit.ConfirmLargeFile", FormatUtils.FormatSize(fileSize), FormatUtils.FormatSize(LargeFileConfirmBytes)),
-                L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
-            if (!confirmed)
+            if (!await fs.ExistsAsync(path).ConfigureAwait(true))
             {
-                if (_tabs.Count == 0) NewTab();
+                StyledMessageBox.Show(L.GetString("Err.PathNotFound", path),
+                    L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
+                if (_tabs.Count == 0)
+                    NewTab();
                 return;
             }
+
+            var info = await fs.GetFileInfoAsync(path).ConfigureAwait(true);
+            var fileSize = info?.Size ?? 0;
+            if (fileSize > LargeFileConfirmBytes)
+            {
+                var confirmed = StyledMessageBox.Show(
+                    L.GetString("Edit.ConfirmLargeFile", FormatUtils.FormatSize(fileSize), FormatUtils.FormatSize(LargeFileConfirmBytes)),
+                    L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
+                if (!confirmed)
+                {
+                    if (_tabs.Count == 0) NewTab();
+                    return;
+                }
+            }
+
+            EditorTab? tab = null;
+            try
+            {
+                tab = new EditorTab(fs, path);
+                await tab.LoadFileAsync(path).ConfigureAwait(true);
+                _tabs.Add(tab);
+
+                var tabPage = new ThemedTabPage(tab.DisplayName, tab.Editor);
+                _tabPages.Add(tabPage);
+                _tabControl.AddPage(tabPage);
+                _tabControl.SelectedIndex = _tabControl.Pages.Count - 1;
+
+                var editorTab = tab;
+                tab = null;
+                editorTab.Editor.TextChanged += (_, _) => OnTabContentChanged(editorTab);
+                editorTab.Editor.SelectionChanged += (_, _) => UpdateStatusBar();
+            }
+            finally
+            {
+                tab?.Dispose();
+            }
+
+            UpdateTitle();
+            UpdateStatusBar();
+            UpdateFileSizeLabel();
         }
-
-        var tab = new EditorTab(fs, path);
-        await tab.LoadFileAsync(path).ConfigureAwait(true);
-        _tabs.Add(tab);
-
-        var tabPage = new ThemedTabPage(tab.DisplayName, tab.Editor);
-        _tabPages.Add(tabPage);
-        _tabControl.AddPage(tabPage);
-        _tabControl.SelectedIndex = _tabControl.Pages.Count - 1;
-
-        tab.Editor.TextChanged += (_, _) => OnTabContentChanged(tab);
-        tab.Editor.SelectionChanged += (_, _) => UpdateStatusBar();
-
-        UpdateTitle();
-        UpdateStatusBar();
-        UpdateFileSizeLabel();
+        catch (Exception ex)
+        {
+            LogService.Error($"OpenFileCoreAsync failed: {ex.Message}", ex);
+        }
     }
 
     private void SaveCurrentFile()
@@ -471,11 +488,18 @@ public class EditorForm : ThemedForm
 
     private async Task SaveTabAsync(EditorTab tab)
     {
-        await tab.SaveFileAsync().ConfigureAwait(true);
-        UpdateTabTitle(tab);
-        UpdateTitle();
-        UpdateStatusBar();
-        UpdateFileSizeLabel();
+        try
+        {
+            await tab.SaveFileAsync().ConfigureAwait(true);
+            UpdateTabTitle(tab);
+            UpdateTitle();
+            UpdateStatusBar();
+            UpdateFileSizeLabel();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"SaveTabAsync failed: {ex.Message}", ex);
+        }
     }
 
     private void SaveAllFiles()
@@ -485,26 +509,33 @@ public class EditorForm : ThemedForm
 
     private async Task SaveAllFilesAsync()
     {
-        foreach (var tab in _tabs.Where(t => t.IsModified))
+        try
         {
-            if (string.IsNullOrEmpty(tab.FilePath))
+            foreach (var tab in _tabs.Where(t => t.IsModified))
             {
-                using var dlg = new SaveFileDialog
+                if (string.IsNullOrEmpty(tab.FilePath))
                 {
-                    Filter = "All files (*.*)|*.*|Text files (*.txt)|*.txt"
-                };
+                    using var dlg = new SaveFileDialog
+                    {
+                        Filter = "All files (*.*)|*.*|Text files (*.txt)|*.txt"
+                    };
 
-                if (dlg.ShowDialog(this) != DialogResult.OK)
-                    continue;
+                    if (dlg.ShowDialog(this) != DialogResult.OK)
+                        continue;
 
-                tab.FilePath = dlg.FileName;
+                    tab.FilePath = dlg.FileName;
+                }
+
+                await tab.SaveFileAsync().ConfigureAwait(true);
+                UpdateTabTitle(tab);
             }
 
-            await tab.SaveFileAsync().ConfigureAwait(true);
-            UpdateTabTitle(tab);
+            UpdateTitle();
         }
-
-        UpdateTitle();
+        catch (Exception ex)
+        {
+            LogService.Error($"SaveAllFilesAsync failed: {ex.Message}", ex);
+        }
     }
 
     private void OnTabContentChanged(EditorTab tab)
@@ -686,46 +717,45 @@ public class EditorForm : ThemedForm
     /// </summary>
     private async void CloseCurrentTab()
     {
-        var L = LocalizationService.Current;
-        var tab = GetCurrentTab();
-        if (tab == null) return;
-
-        if (tab.IsModified)
+        try
         {
-            var result = StyledMessageBox.Show(
-                L.GetString("Edit.UnsavedChanges", tab.FileName),
-                L.GetString("Common.Confirm"),
-                MsgBoxButtons.YesNoCancel,
-                MsgBoxIcon.Question);
+            var L = LocalizationService.Current;
+            var tab = GetCurrentTab();
+            if (tab == null) return;
 
-            if (result == MsgBoxResult.Cancel)
-                return;
-            // A failed save (network drop, auth expiry, disk full - SaveFileAsync already showed
-            // the error dialog) must not still close the tab: that would discard the buffer the
-            // user explicitly asked to keep. Leave the tab open exactly as if Cancel had been
-            // pressed, so nothing is lost.
-            if (result == MsgBoxResult.Yes && !await tab.SaveFileAsync())
-                return;
+            if (tab.IsModified)
+            {
+                var result = StyledMessageBox.Show(
+                    L.GetString("Edit.UnsavedChanges", tab.FileName),
+                    L.GetString("Common.Confirm"),
+                    MsgBoxButtons.YesNoCancel,
+                    MsgBoxIcon.Question);
+
+                if (result == MsgBoxResult.Cancel)
+                    return;
+                if (result == MsgBoxResult.Yes && !await tab.SaveFileAsync())
+                    return;
+            }
+
+            var idx = _tabs.IndexOf(tab);
+            if (idx < 0) return;
+
+            _tabs.RemoveAt(idx);
+            _tabControl.RemovePage(_tabPages[idx]);
+            _tabPages.RemoveAt(idx);
+            tab.Dispose();
+
+            if (_tabs.Count == 0)
+                NewTab();
+
+            UpdateTitle();
+            UpdateStatusBar();
+            UpdateFileSizeLabel();
         }
-
-        // Re-resolve the tab's own index after the await above, not _tabControl.SelectedIndex: the
-        // save can take seconds on a slow connection, during which the user can switch tabs, and
-        // removing "whichever tab happens to be selected now" would close/dispose the wrong one
-        // (losing ITS unsaved buffer with no prompt) while leaving this one open.
-        var idx = _tabs.IndexOf(tab);
-        if (idx < 0) return; // already closed by a re-entrant call while this one was awaiting
-
-        _tabs.RemoveAt(idx);
-        _tabControl.RemovePage(_tabPages[idx]);
-        _tabPages.RemoveAt(idx);
-        tab.Dispose();
-
-        if (_tabs.Count == 0)
-            NewTab();
-
-        UpdateTitle();
-        UpdateStatusBar();
-        UpdateFileSizeLabel();
+        catch (Exception ex)
+        {
+            LogService.Error($"CloseCurrentTab failed: {ex.Message}", ex);
+        }
     }
 
     /// <summary>Set once <see cref="ConfirmAndCloseAsync"/> has resolved every unsaved tab (saved
@@ -774,6 +804,10 @@ public class EditorForm : ThemedForm
         try
         {
             await ConfirmAndCloseAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"ConfirmAndCloseGuardedAsync failed: {ex.Message}", ex);
         }
         finally
         {

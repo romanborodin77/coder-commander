@@ -57,14 +57,24 @@ public sealed partial class CombineOperation : FileOperation
             _bytesTotal += (await _fs.GetFileInfoAsync(part, ct).ConfigureAwait(false))?.Size ?? 0;
 
         var crc = _verifyCrc ? new Crc32() : null;
-        using (var combined = new ConcatenatingReadStream(_fs, parts, chunk =>
+        try
         {
-            crc?.Append(chunk.Span);
-            _bytesProcessed += chunk.Length;
-            ReportThrottled(() => ReportProgress(baseName));
-        }, ct))
+            using (var combined = new ConcatenatingReadStream(_fs, parts, chunk =>
+            {
+                crc?.Append(chunk.Span);
+                _bytesProcessed += chunk.Length;
+                ReportThrottled(() => ReportProgress(baseName));
+            }, ct))
+            {
+                await _fs.CopyFromStreamAsync(_destPath, combined, ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch
         {
-            await _fs.CopyFromStreamAsync(_destPath, combined, ct).ConfigureAwait(false);
+            try { await _fs.DeleteAsync(_destPath, false, ct).ConfigureAwait(false); }
+            catch { /* best-effort cleanup of partial output */ }
+            throw;
         }
 
         ReportProgress(baseName);

@@ -77,31 +77,38 @@ public class NetworkBrowseForm : ThemedForm
 
     private async Task PopulateRootAsync()
     {
-        _statusLabel.Text = LocalizationService.Current.GetString("Network.Scanning");
-        _tree.Enabled = false;
-
-        var servers = await Task.Run(NetworkBrowser.EnumerateServers).ConfigureAwait(true);
-
-        if (IsDisposed) return;
-
-        _tree.Nodes.Clear();
-        foreach (var server in servers)
+        try
         {
-            var node = new TreeNode(server.Name)
-            {
-                Tag = server
-            };
-            // Add a dummy child so the expand glyph appears; real shares loaded on BeforeExpand.
-            if (server.IsServer)
-                node.Nodes.Add(new TreeNode());
-            _tree.Nodes.Add(node);
-        }
+            _statusLabel.Text = LocalizationService.Current.GetString("Network.Scanning");
+            _tree.Enabled = false;
 
-        _tree.Enabled = true;
-        var L = LocalizationService.Current;
-        _statusLabel.Text = servers.Count > 0
-            ? L.GetString("Network.FoundServers", servers.Count)
-            : L.GetString("Network.Empty");
+            var servers = await Task.Run(NetworkBrowser.EnumerateServers).ConfigureAwait(true);
+
+            if (IsDisposed) return;
+
+            _tree.Nodes.Clear();
+            foreach (var server in servers)
+            {
+                var node = new TreeNode(server.Name)
+                {
+                    Tag = server
+                };
+                // Add a dummy child so the expand glyph appears; real shares loaded on BeforeExpand.
+                if (server.IsServer)
+                    node.Nodes.Add(new TreeNode());
+                _tree.Nodes.Add(node);
+            }
+
+            _tree.Enabled = true;
+            var L = LocalizationService.Current;
+            _statusLabel.Text = servers.Count > 0
+                ? L.GetString("Network.FoundServers", servers.Count)
+                : L.GetString("Network.Empty");
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"PopulateRootAsync failed: {ex.Message}", ex);
+        }
     }
 
     private async void OnBeforeExpand(object? sender, TreeViewCancelEventArgs e)
