@@ -213,8 +213,17 @@ internal static class ShellCatalog
         }
         catch (Exception ex)
         {
-            LogService.Warning($"ShellCatalog: \"wsl.exe --list\" failed: {ex.Message}");
-            return Array.Empty<ShellDescriptor>();
+            // Older Windows 10 builds don't support --quiet; retry without it. WslListParser
+            // handles both quiet and non-quiet output (including "(Default)" suffix).
+            try
+            {
+                rawOutput = await RunCaptureStdoutAsync(wslExe, "--list", TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+            }
+            catch (Exception ex2)
+            {
+                LogService.Warning($"ShellCatalog: \"wsl.exe --list\" failed: {ex.Message}; fallback also failed: {ex2.Message}");
+                return Array.Empty<ShellDescriptor>();
+            }
         }
 
         var distros = WslListParser.Parse(rawOutput);

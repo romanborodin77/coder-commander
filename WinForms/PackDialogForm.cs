@@ -149,8 +149,8 @@ public sealed class PackDialogForm : ThemedForm
             if (e.CloseReason == CloseReason.UserClosing && DialogResult == DialogResult.OK &&
                 string.IsNullOrWhiteSpace(_nameBox.Text))
             {
-                MessageBox.Show(this, LocalizationService.Current.GetString("Archive.PackNameRequired"),
-                    LocalizationService.Current.GetString("Common.Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                StyledMessageBox.Show(LocalizationService.Current.GetString("Archive.PackNameRequired"),
+                    LocalizationService.Current.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
                 e.Cancel = true;
             }
         };

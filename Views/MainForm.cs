@@ -48,6 +48,12 @@ public sealed class MainForm : Form
     /// <summary>Guards the "OnOpen" <c>TerminalFollowPanelCwd</c> setting - reset to false each
     /// time the terminal panel becomes visible; see <see cref="PushActivePathToTerminal"/>.</summary>
     private bool _terminalFollowedOnceSinceOpen;
+
+    /// <summary>Reentrancy guard for <see cref="EnterArchiveAsync"/> — two rapid double-clicks
+    /// on an archive would start two parallel enter operations, each materializing the file and
+    /// swapping the panel's filesystem. The lease semaphore serializes attach/release, but the
+    /// first IFileSystem (and DirtyTrackingFileSystem wrapper) would be orphaned — not disposed.</summary>
+    private bool _enteringArchive;
     /// <summary>Cached value of <see cref="AppSettings.TerminalFollowPanelCwd"/> to avoid a
     /// <see cref="SettingsService.Load"/> call on every panel navigation.</summary>
     private string _cachedTerminalFollow = "OnOpen";
@@ -1923,8 +1929,11 @@ public sealed class MainForm : Form
     private async void OnArchiveEntered(object? sender, FileSystemItem item)
     {
         if (sender is not FilePanelUserControl panel) return;
+        if (_enteringArchive) return;
+        _enteringArchive = true;
         try { await EnterArchiveAsync(panel, item); }
         catch (Exception ex) { LogService.Error($"EnterArchive failed: {ex.Message}", ex); }
+        finally { _enteringArchive = false; }
     }
 
     /// <summary>
@@ -2010,6 +2019,11 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            // NavigateAsync failed — roll back the filesystem and lease so the panel isn't left
+            // with an archive FS pointing at a stale path. Without this, the next navigation
+            // would go through the archive FS for a non-archive path.
+            panel.ViewModel.CurrentFileSystem = originFs;
+            await panel.ViewModel.ReleaseArchiveLeaseAsync().ConfigureAwait(true);
             LogService.Error($"Failed to enter archive: {item.FullPath}", ex);
             StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
         }
@@ -2513,7 +2527,8 @@ public sealed class MainForm : Form
             s.WindowWidth = Width;
             s.WindowHeight = Height;
         }
-        s.WindowMaximized = WindowState == FormWindowState.Maximized;
+        if (WindowState != FormWindowState.Minimized)
+            s.WindowMaximized = WindowState == FormWindowState.Maximized;
         s.LeftPath = _vm.LeftPanel.CurrentPath;
         s.RightPath = _vm.RightPanel.CurrentPath;
         s.ShowHidden = _vm.ActivePanel.ShowHidden;

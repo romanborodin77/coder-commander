@@ -123,6 +123,10 @@ internal sealed class TerminalSession : IAsyncDisposable
     public void StartPty(int cols, int rows)
     {
         if (_pty != null) return; // already started — guard against double-call
+        // DisposeAsync may have already run (closing the tab before BeginInvoke fired).
+        // Without this check, we'd create a ConPTY that nobody will ever dispose — a leaked
+        // process that survives until the app exits.
+        if (Interlocked.CompareExchange(ref _disposed, 0, 0) != 0) return;
 
         var loadProfile = SettingsService.Load().TerminalLoadShellProfile;
         var arguments = _shell.Arguments.Concat(ShellBootstrap.BuildExtraArguments(_shell.Family, loadProfile)).ToList();

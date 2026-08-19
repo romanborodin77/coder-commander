@@ -95,12 +95,13 @@ public static class ContentSearcher
             var keep = Math.Min(overlap, window.Length);
             var dropped = window.Length - keep;
             lineOffset += CountLines(window.AsSpan(0, dropped));
-            // If dropped ends with \r and carry starts with \n, CountLines already counted the \r
-            // as a line break — the \n at the start of carry would be double-counted in the next
-            // block. Strip the leading \n from carry to prevent this.
+            // Assign the new carry first, then check for CRLF double-count: if the dropped
+            // portion ends with \r and the new carry starts with \n, CountLines already
+            // counted the \r as a line break — the \n would be double-counted in the next
+            // block. Strip the leading \n from the new carry to prevent this.
+            carry = window[dropped..];
             if (dropped > 0 && window[dropped - 1] == '\r' && carry.Length > 0 && carry[0] == '\n')
                 carry = carry[1..];
-            carry = window[dropped..];
 
             var read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);
             if (read == 0) return ContentHit.None;
@@ -159,7 +160,16 @@ public static class ContentSearcher
         {
             var beforeOk = index == 0 || !IsWordCharacter(haystack[index - 1]);
             var afterIndex = index + needle.Length;
-            var afterOk = afterIndex >= haystack.Length || !IsWordCharacter(haystack[afterIndex]);
+            // When the match ends exactly at the window boundary, we can't verify the "after"
+            // char (it's in the next block). Defer to the next iteration where carry includes
+            // the match and the "after" char is available — otherwise a word like "foox" split
+            // across blocks gives a false-positive whole-word match on "foo".
+            if (wholeWord && afterIndex >= haystack.Length)
+            {
+                index = haystack.IndexOf(needle, index + 1, comparison);
+                continue;
+            }
+            var afterOk = !IsWordCharacter(haystack[afterIndex]);
 
             if (beforeOk && afterOk) return index;
 

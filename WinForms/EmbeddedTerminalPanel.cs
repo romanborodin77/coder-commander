@@ -580,7 +580,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         // stale-sized buffer and pushed to scrollback on the first resize.
         view.Canvas.BeginInvoke(() =>
         {
-            if (IsDisposed || session.IsExited) return;
+            if (IsDisposed || session.IsExited || view.Canvas.IsDisposed) return;
             var (cols, rows) = view.Canvas.GetTerminalSize();
             session.StartPty(cols, rows);
         });

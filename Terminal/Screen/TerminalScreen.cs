@@ -851,6 +851,7 @@ internal sealed class TerminalScreen : IVtSink
                 Modes.OriginMode = enable;
                 _cursor.Row = Modes.OriginMode ? _active.ScrollTop : 0;
                 _cursor.Col = 0;
+                _cursor.PendingWrap = false;
                 break;
             case 7: Modes.AutoWrap = enable; break;
             case 9: Modes.MouseX10 = enable; break;

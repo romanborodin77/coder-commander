@@ -31,7 +31,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     private readonly MediaDevice _device;
     private readonly string _deviceId;
     private readonly object _deviceLock = new();
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public string Name => "MTP";
     public FileSystemCapabilities Capabilities =>
@@ -162,25 +162,32 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             EnsureConnected();
             var devicePath = ToDevice(path);
-            lock (_deviceLock)
+            try
             {
-                if (_device.DirectoryExists(devicePath))
+                lock (_deviceLock)
                 {
-                    long size = 0;
-                    DateTime writeTime = default;
-                    try { var di = _device.GetDirectoryInfo(devicePath); size = (long)di.Length; writeTime = di.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
-                    return new FileEntry(ToMtp(devicePath), isDirectory: true, exists: true,
-                        size: size, attributes: FileAttributes.Directory, lastWriteTimeUtc: writeTime);
+                    if (_device.DirectoryExists(devicePath))
+                    {
+                        long size = 0;
+                        DateTime writeTime = default;
+                        try { var di = _device.GetDirectoryInfo(devicePath); size = (long)di.Length; writeTime = di.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
+                        return new FileEntry(ToMtp(devicePath), isDirectory: true, exists: true,
+                            size: size, attributes: FileAttributes.Directory, lastWriteTimeUtc: writeTime);
+                    }
+                    if (_device.FileExists(devicePath))
+                    {
+                        long size = 0;
+                        DateTime writeTime = default;
+                        try { var fi = _device.GetFileInfo(devicePath); size = (long)fi.Length; writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
+                        return new FileEntry(ToMtp(devicePath), isDirectory: false, exists: true,
+                            size: size, attributes: FileAttributes.Normal, lastWriteTimeUtc: writeTime);
+                    }
+                    return null;
                 }
-                if (_device.FileExists(devicePath))
-                {
-                    long size = 0;
-                    DateTime writeTime = default;
-                    try { var fi = _device.GetFileInfo(devicePath); size = (long)fi.Length; writeTime = fi.LastWriteTime?.ToUniversalTime() ?? default; } catch { /* best-effort */ }
-                    return new FileEntry(ToMtp(devicePath), isDirectory: false, exists: true,
-                        size: size, attributes: FileAttributes.Normal, lastWriteTimeUtc: writeTime);
-                }
-                return null;
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                throw new IOException($"MTP: device error getting info for \"{path}\": {ex.Message}", ex);
             }
         }, ct);
 
@@ -189,9 +196,16 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             EnsureConnected();
             var p = ToDevice(path);
-            lock (_deviceLock)
+            try
             {
-                return _device.FileExists(p) || _device.DirectoryExists(p);
+                lock (_deviceLock)
+                {
+                    return _device.FileExists(p) || _device.DirectoryExists(p);
+                }
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                throw new IOException($"MTP: device error checking \"{path}\": {ex.Message}", ex);
             }
         }, ct);
 
@@ -256,17 +270,35 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         {
             EnsureConnected();
             var p = ToDevice(path);
-            lock (_deviceLock)
+            try
             {
-                if (_device.DirectoryExists(p))
-                    _device.DeleteDirectory(p, recursive);
-                else if (_device.FileExists(p))
-                    _device.DeleteFile(p);
+                lock (_deviceLock)
+                {
+                    if (_device.DirectoryExists(p))
+                        _device.DeleteDirectory(p, recursive);
+                    else if (_device.FileExists(p))
+                        _device.DeleteFile(p);
+                }
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                throw new IOException($"MTP: device error deleting \"{path}\": {ex.Message}", ex);
             }
         }, ct);
 
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) =>
-        Task.Run(() => { EnsureConnected(); lock (_deviceLock) _device.CreateDirectory(ToDevice(path)); }, ct);
+        Task.Run(() =>
+        {
+            EnsureConnected();
+            try
+            {
+                lock (_deviceLock) _device.CreateDirectory(ToDevice(path));
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                throw new IOException($"MTP: device error creating directory \"{path}\": {ex.Message}", ex);
+            }
+        }, ct);
 
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
         Task.CompletedTask; // MTP doesn't support arbitrary attribute changes
@@ -285,6 +317,11 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             try
             {
                 lock (_deviceLock) { _device.DownloadFile(devicePath, tempFile); }
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                try { File.Delete(tempFile); } catch { /* best-effort */ }
+                throw new IOException($"MTP: device error reading \"{path}\": {ex.Message}", ex);
             }
             catch
             {
@@ -308,6 +345,10 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                 using (var fs = File.Create(tempFile))
                     source.CopyTo(fs);
                 lock (_deviceLock) { _device.UploadFile(tempFile, devicePath); }
+            }
+            catch (Exception ex) when (ex is COMException or ObjectDisposedException)
+            {
+                throw new IOException($"MTP: device error writing \"{destinationPath}\": {ex.Message}", ex);
             }
             finally
             {
