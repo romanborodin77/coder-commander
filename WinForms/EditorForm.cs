@@ -572,9 +572,26 @@ public class EditorForm : ThemedForm
 
         if (!string.IsNullOrEmpty(tab.FilePath))
         {
-            try
+            // Fire-and-forget: the UI must not block on a remote (SFTP/FTP/WebDAV) round-trip
+            // just to update a size label. The result is marshaled back to the UI thread.
+            _ = UpdateFileSizeLabelAsync(tab, L);
+        }
+        else
+        {
+            _lblFileSize.Text = $"{tab.Editor.TextLength} {L.GetString("Edit.Bytes")}";
+        }
+    }
+
+    /// <summary>Async counterpart of <see cref="UpdateFileSizeLabel"/> — queries the file size
+    /// without blocking the UI thread, then marshals the result back via BeginInvoke.</summary>
+    private async Task UpdateFileSizeLabelAsync(EditorTab tab, LocalizationService L)
+    {
+        try
+        {
+            var info = await tab.FileSystem.GetFileInfoAsync(tab.FilePath, CancellationToken.None).ConfigureAwait(false);
+            if (IsDisposed) return;
+            BeginInvoke(() =>
             {
-                var info = tab.FileSystem.GetFileInfoAsync(tab.FilePath, CancellationToken.None).GetAwaiter().GetResult();
                 if (info != null)
                 {
                     var size = info.Size;
@@ -584,15 +601,12 @@ public class EditorForm : ThemedForm
                 {
                     _lblFileSize.Text = "";
                 }
-            }
-            catch
-            {
-                _lblFileSize.Text = "";
-            }
+            });
         }
-        else
+        catch
         {
-            _lblFileSize.Text = $"{tab.Editor.TextLength} {L.GetString("Edit.Bytes")}";
+            if (IsDisposed) return;
+            BeginInvoke(() => _lblFileSize.Text = "");
         }
     }
 

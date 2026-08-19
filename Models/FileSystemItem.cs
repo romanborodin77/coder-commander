@@ -182,6 +182,22 @@ public sealed class FileSystemItem : INotifyPropertyChanged
                 parent = ArchivePath.MakePath(archivePath, parentInner);
             }
         }
+        else if (RemotePath.IsRemote(currentDir))
+        {
+            // Path.GetFullPath on "smb://host/share/dir\.." resolves against the process's
+            // current directory and produces a garbage local path. Remote paths need their
+            // own parent arithmetic — same logic as PanelViewModel.GoToParentAsync.
+            var remoteParent = VfsPath.GetParent(currentDir);
+            if (string.IsNullOrEmpty(remoteParent))
+            {
+                // At the connection's root — parent is the user's home directory (exits the connection)
+                parent = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+            else
+            {
+                parent = remoteParent;
+            }
+        }
         else
         {
             parent = Path.GetFullPath(Path.Combine(currentDir, ".."));

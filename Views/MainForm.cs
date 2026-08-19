@@ -1960,7 +1960,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private void OnPackRequested(object? sender, (IReadOnlyList<FileSystemItem> files, string sourcePath, string destPath) e)
+    private async void OnPackRequested(object? sender, (IReadOnlyList<FileSystemItem> files, string sourcePath, string destPath) e)
     {
         var L = LocalizationService.Current;
         var settings = SettingsService.Load();
@@ -1972,7 +1972,7 @@ public sealed class MainForm : Form
         var archivePath = dlg.ArchivePath;
 
         var destFs = _vm.ActivePanel.CurrentFileSystem;
-        if (destFs.ExistsAsync(archivePath, CancellationToken.None).GetAwaiter().GetResult())
+        if (await destFs.ExistsAsync(archivePath, CancellationToken.None).ConfigureAwait(true))
         {
             var result = StyledMessageBox.Show(
                 L.GetString("Archive.PackExists", VfsPath.GetName(archivePath)),

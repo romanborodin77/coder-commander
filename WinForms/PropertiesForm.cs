@@ -733,7 +733,7 @@ public class PropertiesForm : ThemedForm
     // ── Apply / Reset ──────────────────────────────────────────────────
 
     /// <summary>Applies the edited attributes and timestamps to all selected items.</summary>
-    private void ApplyChanges()
+    private async void ApplyChanges()
     {
         var L = LocalizationService.Current;
         int failures = 0;
@@ -748,7 +748,7 @@ public class PropertiesForm : ThemedForm
             var newAttr = BuildAttributeMask(original);
             try
             {
-                ApplyAttributeToPath(target, newAttr, original);
+                await ApplyAttributeToPathAsync(target, newAttr, original).ConfigureAwait(true);
                 success++;
 
                 if (_isSingle && _isDirectory && _recursiveCheckbox?.Checked == true)
@@ -757,8 +757,7 @@ public class PropertiesForm : ThemedForm
                     IReadOnlyList<FileEntry> children;
                     try
                     {
-                        children = _fs.EnumerateDeepAsync(target, includeHidden: true, CancellationToken.None)
-                            .GetAwaiter().GetResult();
+                        children = await _fs.EnumerateDeepAsync(target, includeHidden: true, CancellationToken.None).ConfigureAwait(true);
                     }
                     catch (Exception ex)
                     {
@@ -771,7 +770,7 @@ public class PropertiesForm : ThemedForm
                         {
                             var childOrig = entry.Attributes;
                             var childNew = BuildAttributeMask(childOrig);
-                            ApplyAttributeToPath(entry.FullPath, childNew, childOrig);
+                            await ApplyAttributeToPathAsync(entry.FullPath, childNew, childOrig).ConfigureAwait(true);
                             success++;
                         }
                         catch (Exception ex)
@@ -842,14 +841,14 @@ public class PropertiesForm : ThemedForm
     }
 
     /// <summary>Applies a computed attribute mask to a filesystem path, preserving non-editable bits.</summary>
-    private void ApplyAttributeToPath(string path, FileAttributes newAttr, FileAttributes original)
+    private async Task ApplyAttributeToPathAsync(string path, FileAttributes newAttr, FileAttributes original)
     {
         // Preserve any non-editable bits the OS may not allow changing directly.
         newAttr = (original & ~(FileAttributes.ReadOnly | FileAttributes.Hidden
-                              | FileAttributes.System | FileAttributes.System | FileAttributes.Archive))
+                              | FileAttributes.System | FileAttributes.Archive))
                 | (newAttr & (FileAttributes.ReadOnly | FileAttributes.Hidden
                             | FileAttributes.System | FileAttributes.Archive));
-        _fs.SetAttributesAsync(path, newAttr, CancellationToken.None).GetAwaiter().GetResult();
+        await _fs.SetAttributesAsync(path, newAttr, CancellationToken.None).ConfigureAwait(true);
     }
 
     /// <summary>Sets a timestamp (modified/created/accessed) on a file, optionally recursing into directories.
