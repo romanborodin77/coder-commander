@@ -471,6 +471,8 @@ public sealed class FilePanelUserControl : UserControl
         _suppressSelectionEvent = true;
 
         var selItem = _vm.SelectedItem;
+        var topIndex = _fileList.TopItem?.Index ?? 0;
+        ListViewItem? focusLvi = null;
 
         _fileList.BeginUpdate();
         try
@@ -507,13 +509,22 @@ public sealed class FilePanelUserControl : UserControl
                 {
                     lvi.Selected = true;
                     lvi.Focused = true;
+                    focusLvi = lvi;
                 }
             }
+
+            // Restore scroll position so a FileSystemWatcher-triggered refresh doesn't jump to top.
+            if (topIndex > 0 && topIndex < _fileList.Items.Count)
+                _fileList.TopItem = _fileList.Items[topIndex];
         }
         finally
         {
             _fileList.EndUpdate();
         }
+
+        // Ensure the focused item is visible after the list rebuild.
+        focusLvi?.EnsureVisible();
+
         _suppressSelectionEvent = false;
         _updatingItems = false;
         UpdateStatus();

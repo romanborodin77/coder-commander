@@ -11,18 +11,24 @@ namespace CoderCommander.WinForms;
 /// </summary>
 internal static class ClipboardHelper
 {
-    /// <summary>Best-effort clipboard write. Logs and returns false on failure instead of throwing.</summary>
+    /// <summary>Best-effort clipboard write with retry. Logs and returns false on failure
+    /// instead of throwing. Antivirus scanners and clipboard managers frequently hold the
+    /// clipboard open briefly — retrying with a short delay handles the common case.</summary>
     public static bool TrySetClipboard(string text)
     {
-        try
+        for (var i = 0; i < 10; i++)
         {
-            Clipboard.SetText(text);
-            return true;
+            try
+            {
+                Clipboard.SetText(text);
+                return true;
+            }
+            catch (ExternalException)
+            {
+                System.Threading.Thread.Sleep(50);
+            }
         }
-        catch (Exception ex)
-        {
-            LogService.Error($"Clipboard copy failed: {ex.Message}");
-            return false;
-        }
+        LogService.Error("Clipboard copy failed after 10 retries");
+        return false;
     }
 }

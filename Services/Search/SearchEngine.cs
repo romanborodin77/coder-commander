@@ -124,7 +124,9 @@ public sealed class SearchEngine
             {
                 if (entry.IsDirectory)
                 {
-                    if (_query.SearchSubdirectories) queue.Enqueue(entry.FullPath);
+                    // Skip junctions/symlinks to prevent infinite loops on circular reparse points.
+                    if (_query.SearchSubdirectories && (entry.Attributes & FileAttributes.ReparsePoint) == 0)
+                        queue.Enqueue(entry.FullPath);
                     continue;
                 }
 
@@ -139,11 +141,13 @@ public sealed class SearchEngine
                 foreach (var entry in candidates)
                 {
                     Interlocked.Increment(ref _filesExamined);
-                    if (Interlocked.Increment(ref _hits) > MaxResults)
+                    // Check BEFORE increment to avoid inflating _hits past MaxResults.
+                    if (Volatile.Read(ref _hits) >= MaxResults)
                     {
                         WasTruncated = true;
                         return;
                     }
+                    Interlocked.Increment(ref _hits);
                     onHit(new SearchHit(entry, 0, ""));
                 }
                 continue;

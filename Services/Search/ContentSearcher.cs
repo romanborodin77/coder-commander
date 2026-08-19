@@ -95,6 +95,11 @@ public static class ContentSearcher
             var keep = Math.Min(overlap, window.Length);
             var dropped = window.Length - keep;
             lineOffset += CountLines(window.AsSpan(0, dropped));
+            // If dropped ends with \r and carry starts with \n, CountLines already counted the \r
+            // as a line break — the \n at the start of carry would be double-counted in the next
+            // block. Strip the leading \n from carry to prevent this.
+            if (dropped > 0 && window[dropped - 1] == '\r' && carry.Length > 0 && carry[0] == '\n')
+                carry = carry[1..];
             carry = window[dropped..];
 
             var read = await stream.ReadAsync(buffer, ct).ConfigureAwait(false);

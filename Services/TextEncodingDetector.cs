@@ -17,6 +17,18 @@ public static class TextEncodingDetector
             preambleLength = 3;
             return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
         }
+        // UTF-32 LE BOM (FF FE 00 00) must be checked before UTF-16 LE (FF FE) — the first two
+        // bytes are identical, so without this check a UTF-32 file is misdetected as UTF-16.
+        if (data.Length >= 4 && data[0] == 0xFF && data[1] == 0xFE && data[2] == 0 && data[3] == 0)
+        {
+            preambleLength = 4;
+            return new UTF32Encoding(bigEndian: false, byteOrderMark: true);
+        }
+        if (data.Length >= 4 && data[0] == 0 && data[1] == 0 && data[2] == 0xFE && data[3] == 0xFF)
+        {
+            preambleLength = 4;
+            return new UTF32Encoding(bigEndian: true, byteOrderMark: true);
+        }
         if (data.Length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
         {
             preambleLength = 2;

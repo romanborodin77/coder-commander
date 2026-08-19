@@ -815,6 +815,12 @@ public sealed class MainForm : Form
             _terminalFollowedOnceSinceOpen = false;
             PushActivePathToTerminal();
         }
+        else
+        {
+            // Restore focus to the active file panel so keyboard shortcuts work immediately.
+            var target = _vm.ActivePanel == _vm.LeftPanel ? _leftPanel : _rightPanel;
+            target.FocusFileList();
+        }
     }
 
     private void CreateTerminalTabWithDefaults()
@@ -2505,9 +2511,9 @@ public sealed class MainForm : Form
         s.WindowMaximized = WindowState == FormWindowState.Maximized;
         s.LeftPath = _vm.LeftPanel.CurrentPath;
         s.RightPath = _vm.RightPanel.CurrentPath;
-        s.ShowHidden = _vm.LeftPanel.ShowHidden;
-        s.ShowSystem = _vm.LeftPanel.ShowSystem;
-        s.FlatView = _vm.LeftPanel.IsFlatView;
+        s.ShowHidden = _vm.ActivePanel.ShowHidden;
+        s.ShowSystem = _vm.ActivePanel.ShowSystem;
+        s.FlatView = _vm.ActivePanel.IsFlatView;
 
         s.TerminalVisible = _terminalVisible;
         // Read the live control height, not the _terminalHeight field - it's never updated

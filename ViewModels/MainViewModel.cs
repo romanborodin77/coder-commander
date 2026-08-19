@@ -1236,8 +1236,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private volatile bool _disposed;
+
     private void OnOperationChangedCore(OperationManagerEventArgs e)
     {
+        if (_disposed) return;
         var active = Operations.Operations.Count;
         OperationQueueText = active > 0 ? Services.LocalizationService.Current.GetString("Main.OperationsActive", active) : "";
         UpdateStatus();
@@ -1272,6 +1275,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>
     public void Dispose()
     {
+        _disposed = true;
         Operations.OperationChanged -= OnOperationChanged;
         LeftPanel.PathChanged -= OnPanelPathChanged;
         RightPanel.PathChanged -= OnPanelPathChanged;
