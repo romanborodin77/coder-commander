@@ -75,13 +75,15 @@ internal sealed class FtpDataStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
 
     /// <summary>If the caller forgot to dispose, the pool slot would leak forever. This finalizer
-    /// is a safety net — best-effort release of the rental so the pool can reclaim the slot. The
-    /// connection itself will be disposed by the pool (it won't be usable after a missing
-    /// proper close).</summary>
+    /// is a safety net — best-effort cleanup. The data stream is closed first, then the control
+    /// connection is disposed (not returned to pool) because its state is unknown after a leaked
+    /// transfer — the server may have a pending 226/426 reply that would desync the next renter.
+    /// Finally the pool slot is released so the semaphore doesn't stay permanently reduced.</summary>
     ~FtpDataStream()
     {
-        try { Released?.Invoke(); } catch { /* best effort — finalizer must not throw */ }
         try { _inner?.Dispose(); } catch { /* best effort */ }
+        try { _control?.Dispose(); } catch { /* best effort — never reuse after leaked transfer */ }
+        try { Released?.Invoke(); } catch { /* best effort — finalizer must not throw */ }
     }
 
     protected override void Dispose(bool disposing)

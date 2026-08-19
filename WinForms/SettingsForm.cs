@@ -326,7 +326,7 @@ public sealed class SettingsForm : ThemedForm
         // Already-compressed extensions editor - list + add/remove + restore built-in defaults.
         // Working copy so Cancel discards edits, same pattern as _workingCompression above.
         _workingExtensions = s.AlreadyCompressedExtensions.Count > 0
-            ? new List<string>(s.AlreadyCompressedExtensions)
+            ? new List<string>(new HashSet<string>(s.AlreadyCompressedExtensions, StringComparer.OrdinalIgnoreCase))
             : new List<string>(Operations.PackOperation.DefaultAlreadyCompressedExtensions);
 
         // F141: the list used to be a Percent(100) row, greedily claiming every pixel

@@ -1820,8 +1820,13 @@ public sealed class MainForm : Form
                 return;
             }
 
-            var device = MediaDevice.GetDevices()
-                .FirstOrDefault(d => d.DeviceId == deviceId);
+            var allDevices = MediaDevice.GetDevices();
+            MediaDevice? device = null;
+            foreach (var d in allDevices)
+            {
+                if (d.DeviceId == deviceId) { device = d; continue; }
+                d.Dispose(); // dispose non-matching devices to avoid COM leak
+            }
             if (device is null)
             {
                 StyledMessageBox.Show(

@@ -43,9 +43,19 @@ public sealed class MtpDeviceCatalog : IDisposable
         IReadOnlyList<MtpDeviceInfo> snapshot;
         try
         {
-            snapshot = MediaDevice.GetDevices()
-                .Select(d => new MtpDeviceInfo(d.DeviceId, d.FriendlyName))
-                .ToList();
+            var devices = MediaDevice.GetDevices();
+            try
+            {
+                snapshot = devices
+                    .Select(d => new MtpDeviceInfo(d.DeviceId, d.FriendlyName))
+                    .ToList();
+            }
+            finally
+            {
+                // MediaDevice implements IDisposable (WPD COM objects) — must dispose after
+                // reading DeviceId/FriendlyName to avoid COM object leak on every 3s poll.
+                foreach (var d in devices) d.Dispose();
+            }
         }
         catch (Exception ex)
         {

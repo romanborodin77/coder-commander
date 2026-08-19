@@ -126,21 +126,25 @@ internal static class Program
 
     private static void LogCrash(string msg)
     {
-        try
+        lock (_crashLogLock)
         {
-            RotateCrashLogIfTooLarge();
+            try
+            {
+                RotateCrashLogIfTooLarge();
 
-            // Full date, not just time-of-day: even with rotation, one generation can still span
-            // more than a day, so a bare HH:mm:ss.fff timestamp would make entries from different
-            // days indistinguishable when merged with app.log by time.
-            File.AppendAllText(CrashLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\r\n");
-        }
-        catch (Exception ex)
-        {
-            // Log write failure — cannot do anything
-            System.Diagnostics.Debug.WriteLine($"LogCrash failed: {ex}");
+                // Full date, not just time-of-day: even with rotation, one generation can still span
+                // more than a day, so a bare HH:mm:ss.fff timestamp would make entries from different
+                // days indistinguishable when merged with app.log by time.
+                File.AppendAllText(CrashLogPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\r\n");
+            }
+            catch (Exception ex)
+            {
+                // Log write failure — cannot do anything
+                System.Diagnostics.Debug.WriteLine($"LogCrash failed: {ex}");
+            }
         }
     }
+    private static readonly object _crashLogLock = new();
 
     /// <summary>Best-effort, deliberately as simple as <see cref="LogCrash"/> itself has to be:
     /// this runs on the crash path, potentially before the app has reached any themed or otherwise
@@ -178,6 +182,9 @@ internal static class Program
                 if (_firstChanceLastLogged.TryGetValue(key, out var last) && now - last < _firstChanceThrottleWindow)
                     return;
                 _firstChanceLastLogged[key] = now;
+                // Cap the dictionary to prevent unbounded growth from diverse exception sources.
+                if (_firstChanceLastLogged.Count > 256)
+                    _firstChanceLastLogged.Clear();
             }
             LogService.Debug($"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}", "FirstChance");
         }

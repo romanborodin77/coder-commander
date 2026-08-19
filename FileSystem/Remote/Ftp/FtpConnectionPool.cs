@@ -68,7 +68,7 @@ internal sealed class FtpConnectionPool : IDisposable
         {
             // The slot must come back on every failure path, or a run of failed connections
             // permanently shrinks the pool to nothing.
-            _slots.Release();
+            try { _slots.Release(); } catch (ObjectDisposedException) { /* pool disposed during shutdown */ }
             throw;
         }
     }

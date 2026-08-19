@@ -399,6 +399,13 @@ public sealed class ThemedCheckBox : Control
         var textRect = new Rectangle(boxRect.Right + 8, 0, Math.Max(0, rect.Width - boxRect.Right - 10), rect.Height);
         TextRenderer.DrawText(g, Text, Font, textRect, p.Foreground,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
+        // Focus indicator — keyboard users need to see which checkbox is active.
+        if (Focused && ShowFocusCues)
+        {
+            using var focusPen = new Pen(p.Accent, 1f) { DashStyle = DashStyle.Dot };
+            g.DrawRectangle(focusPen, 0, 0, rect.Width - 1, rect.Height - 1);
+        }
     }
 
 }

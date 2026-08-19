@@ -147,11 +147,13 @@ public static class FtpListParser
         if (fields.Length < 8) return null;
 
         // Walk forward to the month name; the two fields after it are the day and the
-        // year-or-time, and the name starts after those.
+        // year-or-time, and the name starts after those. Validate that the field after the
+        // month is a valid day number (1-31) to avoid colliding with owner/group names that
+        // happen to match a month abbreviation (e.g. user "May").
         var monthIndex = -1;
-        for (var i = 3; i < fields.Length - 2 && i < 8; i++)
+        for (var i = 3; i < fields.Length - 2; i++)
         {
-            if (MonthNumber(fields[i]) > 0) { monthIndex = i; break; }
+            if (MonthNumber(fields[i]) > 0 && IsValidDay(fields[i + 1])) { monthIndex = i; break; }
         }
         if (monthIndex < 0) return null;
 
@@ -296,5 +298,12 @@ public static class FtpListParser
             if (string.Equals(months[i], text, StringComparison.OrdinalIgnoreCase)) return i + 1;
         }
         return 0;
+    }
+
+    /// <summary>Checks whether a field is a valid day-of-month number (1-31), used to disambiguate
+    /// the month field from owner/group names that coincide with a month abbreviation.</summary>
+    private static bool IsValidDay(string? text)
+    {
+        return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var day) && day >= 1 && day <= 31;
     }
 }

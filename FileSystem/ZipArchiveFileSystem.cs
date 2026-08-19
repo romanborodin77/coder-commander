@@ -55,7 +55,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// textual escape such as <c>%U0306</c>. Such sequences must be turned back into real characters.
     /// </summary>
     private static readonly Regex EscapedCodePointPattern =
-        new(@"%[Uu]([0-9A-Fa-f]{4})", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        new(@"%[Uu]([0-9A-Fa-f]{4,6})", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>Decoded central-directory record. <see cref="Index"/> matches the ordinal
     /// position used by <see cref="System.IO.Compression.ZipArchive.Entries"/>, which lets callers
@@ -507,7 +507,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             return text;
 
         return EscapedCodePointPattern.Replace(text, m =>
-            ((char)Convert.ToInt32(m.Groups[1].Value, 16)).ToString());
+            char.ConvertFromUtf32(Convert.ToInt32(m.Groups[1].Value, 16)));
     }
 
     private static string Compose(string text)

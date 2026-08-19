@@ -39,7 +39,8 @@ public static class LongPath
     public static string EnsureAccessible(string path)
     {
         if (string.IsNullOrEmpty(path)) return path;
-        if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) return path;
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            return path.Replace('/', '\\'); // Win32 \\?\ paths require backslashes
         if (path.Length < SafeLength) return path;
 
         var full = Path.GetFullPath(path);
