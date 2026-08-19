@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Shows two files side-by-side with line-by-line highlighting of differences.
 /// </summary>
-public class DifferForm : ThemedForm
+public sealed class DifferForm : ThemedForm
 {
     /// <summary>Above this (per file), reading the whole file into memory to diff it line-by-line
     /// is large enough to freeze the UI thread for seconds or throw

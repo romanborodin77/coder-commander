@@ -18,7 +18,7 @@ namespace CoderCommander.WinForms;
 /// reads through the panel's own <see cref="IFileSystem"/>, so F3 works on a file inside an
 /// archive or on a remote connection, not just a real disk path.
 /// </summary>
-public class ViewerForm : ThemedForm
+public sealed class ViewerForm : ThemedForm
 {
     private readonly IFileSystem _fileSystem;
     private string _path;

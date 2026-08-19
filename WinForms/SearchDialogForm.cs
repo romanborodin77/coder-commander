@@ -21,7 +21,7 @@ namespace CoderCommander.WinForms;
 /// match has no bounded length - is a decision for its own change, not a side effect of removing a
 /// duplicated menu entry.</para>
 /// </remarks>
-public class SearchDialogForm : ThemedForm
+public sealed class SearchDialogForm : ThemedForm
 {
     private readonly TextBox _pathBox;
     private readonly TextBox _patternBox;

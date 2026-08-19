@@ -230,6 +230,7 @@ Settings.Confirmations=Подтверждения
 Settings.Theme=Тема:
 Settings.Theme.Dark=Тёмная
 Settings.Theme.Light=Светлая
+Settings.Theme.System=Системная
 Settings.Language=Язык:
 Settings.ShowHidden=Показывать скрытые файлы
 Settings.ShowSystem=Показывать системные файлы

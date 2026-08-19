@@ -11,7 +11,7 @@ namespace CoderCommander.WinForms;
 /// actually needs when reporting a problem (runtime, OS, architecture, memory, settings folder),
 /// all copyable to the clipboard in one click.
 /// </summary>
-public class AboutForm : ThemedForm
+public sealed class AboutForm : ThemedForm
 {
     private readonly System.Windows.Forms.Timer _fadeTimer;
     private readonly LogoBanner _banner;

@@ -12,7 +12,7 @@ namespace CoderCommander.WinForms;
 /// [N-5] last N chars, [C] counter, [C10] counter starting at 10, [C2:10] counter step 2 start 10,
 /// [D] date (yyyy-MM-dd), [T] time (HHmmss), [P] parent directory name.
 /// </summary>
-public class MultiRenameForm : ThemedForm
+public sealed class MultiRenameForm : ThemedForm
 {
     private readonly IReadOnlyList<FileSystemItem> _items;
     private readonly string _sourcePath;

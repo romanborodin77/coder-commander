@@ -5,7 +5,7 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Simple text-input dialog with a prompt and default value.
 /// </summary>
-public class InputDialogForm : ThemedForm
+public sealed class InputDialogForm : ThemedForm
 {
     private readonly TextBox _textBox;
     private readonly Button _okBtn;

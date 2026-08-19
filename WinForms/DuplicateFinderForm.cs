@@ -15,7 +15,7 @@ using DuplicateGroup = CoderCommander.Services.Search.DuplicateFinder.DuplicateG
 /// <para><b>VFS-aware.</b> Works through <see cref="IFileSystem"/> + <see cref="DuplicateFinder"/>,
 /// so duplicates can be found inside archives and remote connections, not only on local paths.</para>
 /// </summary>
-public class DuplicateFinderForm : ThemedForm
+public sealed class DuplicateFinderForm : ThemedForm
 {
     private readonly IFileSystem _fs;
     private readonly string _rootPath;

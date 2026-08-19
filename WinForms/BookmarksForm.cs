@@ -106,7 +106,7 @@ public sealed class BookmarkStore
 /// <summary>
 /// Bookmark management form: add, remove, and navigate to folder bookmarks.
 /// </summary>
-public class BookmarksForm : ThemedForm
+public sealed class BookmarksForm : ThemedForm
 {
     private readonly ListView _listView;
     private readonly Button _addBtn;

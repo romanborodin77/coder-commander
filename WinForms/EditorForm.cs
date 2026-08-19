@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Professional tabbed code editor with syntax highlighting, toolbar, and status bar.
 /// </summary>
-public class EditorForm : ThemedForm
+public sealed class EditorForm : ThemedForm
 {
     /// <summary>Above this, opening a file means loading the whole thing into memory via
     /// <see cref="EditorTab.LoadFile"/> (<c>File.ReadAllBytes</c>, no streaming) - large enough to

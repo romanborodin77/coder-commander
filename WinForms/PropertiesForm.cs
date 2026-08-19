@@ -9,7 +9,7 @@ namespace CoderCommander.WinForms;
 /// File/directory properties dialog. Read-only summary plus an editable
 /// Supports single item and multi-selection.
 /// </summary>
-public class PropertiesForm : ThemedForm
+public sealed class PropertiesForm : ThemedForm
 {
     private static readonly FileAttributes[] EditableFlags =
     {

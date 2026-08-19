@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// Modern file-operation progress dialog with dual progress bars, speed/ETA display,
 /// current file preview, and control buttons.
 /// </summary>
-public class OperationDialogForm : ThemedForm
+public sealed class OperationDialogForm : ThemedForm
 {
     private readonly IFileOperation _operation;
     private readonly Label _titleLabel;

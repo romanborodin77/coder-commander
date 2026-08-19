@@ -13,7 +13,7 @@ namespace CoderCommander.WinForms;
 /// <see cref="OnFormClosing"/> regardless of Save vs Cancel - window size is a UI preference, not
 /// part of the settings the dialog edits).
 /// </summary>
-public class SettingsForm : ThemedForm
+public sealed class SettingsForm : ThemedForm
 {
     protected override void Dispose(bool disposing)
     {
@@ -174,7 +174,8 @@ public class SettingsForm : ThemedForm
         _themeCombo = new ThemedComboBox { Dock = DockStyle.Fill };
         _themeCombo.AddItem(L.GetString("Settings.Theme.Dark"));
         _themeCombo.AddItem(L.GetString("Settings.Theme.Light"));
-        _themeCombo.SelectedIndex = s.Theme == "Light" ? 1 : 0;
+        _themeCombo.AddItem(L.GetString("Settings.Theme.System"));
+        _themeCombo.SelectedIndex = s.Theme == "Light" ? 1 : s.Theme == "System" ? 2 : 0;
         appearLayout.Controls.Add(_themeCombo, 1, row);
         row++;
 
@@ -808,7 +809,7 @@ public class SettingsForm : ThemedForm
     /// that opens a native <see cref="OpenFileDialog"/> scoped to executables. Native picker, not a
     /// themed one - same reasoning as <c>DifferForm.Browse</c>'s own file picker: a real Windows
     /// file dialog is the right tool for "pick a file from the real local disk", themed or not.</summary>
-    private static Control BuildPathPickerRow(TextBox pathBox)
+    private Control BuildPathPickerRow(TextBox pathBox)
     {
         var L = LocalizationService.Current;
         var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = ThemeService.Current.Background };
@@ -824,7 +825,7 @@ public class SettingsForm : ThemedForm
         browseBtn.Click += (_, _) =>
         {
             using var dlg = new OpenFileDialog { Filter = L.GetString("Settings.ExternalToolBrowseFilter") };
-            if (dlg.ShowDialog() == DialogResult.OK)
+            if (dlg.ShowDialog(this) == DialogResult.OK)
                 pathBox.Text = dlg.FileName;
         };
         row.Controls.Add(browseBtn, 1, 0);
@@ -897,7 +898,7 @@ public class SettingsForm : ThemedForm
     /// <paramref name="size"/> plus the display label on OK. A field passed by <c>ref</c> from
     /// inside a button-click lambda is legal here (fields aren't "captured" the way local variables
     /// are - the lambda reaches them through <c>this</c>), unlike trying to ref a captured local.</summary>
-    private static void PickFont(ref string family, ref float size, string defaultFamily, float defaultSize, Label displayLabel)
+    private void PickFont(ref string family, ref float size, string defaultFamily, float defaultSize, Label displayLabel)
     {
         var currentFamily = string.IsNullOrWhiteSpace(family) ? defaultFamily : family;
         var currentSize = size > 0 ? size : defaultSize;
@@ -912,7 +913,7 @@ public class SettingsForm : ThemedForm
             MinSize = 6,
             MaxSize = 36
         };
-        if (dlg.ShowDialog() != DialogResult.OK) return;
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
         family = dlg.Font.Name;
         size = dlg.Font.Size;
@@ -978,7 +979,7 @@ public class SettingsForm : ThemedForm
     {
         CommitSelectedPreset();
         var s = SettingsService.Load();
-        s.Theme = _themeCombo.SelectedIndex == 1 ? "Light" : "Dark";
+        s.Theme = _themeCombo.SelectedIndex switch { 1 => "Light", 2 => "System", _ => "Dark" };
         var langText = _languageCombo.SelectedItem ?? "";
         var langCode = "en";
         var openParen = langText.LastIndexOf('(');

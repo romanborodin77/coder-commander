@@ -11,7 +11,7 @@ namespace CoderCommander.WinForms;
 /// protocol is disabled, the list may be empty even though Explorer shows some hosts; this is a
 /// Windows networking limitation, not an app bug (documented in AGENTS.md).</para>
 /// </summary>
-public class NetworkBrowseForm : ThemedForm
+public sealed class NetworkBrowseForm : ThemedForm
 {
     private readonly TreeView _tree;
     private readonly Button _closeBtn;

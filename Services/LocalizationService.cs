@@ -376,6 +376,7 @@ public sealed class LocalizationService
         _strings["Settings.Theme"] = "Theme:";
         _strings["Settings.Theme.Dark"] = "Dark";
         _strings["Settings.Theme.Light"] = "Light";
+        _strings["Settings.Theme.System"] = "System";
         _strings["Settings.Language"] = "Language:";
         _strings["Settings.ShowHidden"] = "Show hidden files";
         _strings["Settings.ShowSystem"] = "Show system files";

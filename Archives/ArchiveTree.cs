@@ -26,7 +26,7 @@ public static class ArchiveTree
                 continue;
 
             var rest = trimmedName[prefix.Length..];
-            if (rest.Length == 0)
+            if (rest.Length == 0 || rest == ".")
                 continue;
 
             var slashIdx = rest.IndexOf('/', StringComparison.Ordinal);

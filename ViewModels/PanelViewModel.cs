@@ -764,30 +764,29 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void ApplyFilter()
     {
         Items.Clear();
-        var visible = new HashSet<FileSystemItem>();
+        // Single pass: add visible items to Items, clear IsSelected on hidden items.
+        // The previous two-pass + HashSet approach allocated a HashSet on every keystroke.
+        FileSystemItem? selectedAfterFilter = null;
         foreach (var item in _allItems)
         {
-            if (string.IsNullOrEmpty(Filter) || item.IsParent ||
-                item.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase))
+            var isVisible = string.IsNullOrEmpty(Filter) || item.IsParent ||
+                item.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase);
+            if (isVisible)
             {
                 Items.Add(item);
-                visible.Add(item);
+                if (ReferenceEquals(item, SelectedItem))
+                    selectedAfterFilter = item;
+            }
+            else
+            {
+                item.IsSelected = false;
             }
         }
 
-        // A filter must never leave something checkbox-selected, or the cursor item, hidden from
-        // view: GetSelectedOrActive falls back to SelectedItem when nothing is checkbox-selected
-        // (an operation could then silently target a file the filter is hiding), and the bulk
-        // Select All/Deselect All/Invert commands only ever touch the currently-visible Items -
-        // so a checkbox-selected item that becomes hidden here would otherwise survive untouched
-        // by those commands and resurface, still selected, the moment the filter is cleared or
-        // widened, with the selection count shown while filtered not even including it.
-        foreach (var item in _allItems)
-        {
-            if (!visible.Contains(item))
-                item.IsSelected = false;
-        }
-        if (SelectedItem != null && !visible.Contains(SelectedItem))
+        // A filter must never leave the cursor item hidden: GetSelectedOrActive falls back to
+        // SelectedItem when nothing is checkbox-selected (an operation could then silently target
+        // a file the filter is hiding).
+        if (SelectedItem != null && selectedAfterFilter == null)
             SelectedItem = null;
 
         RecomputeSelectionStats();
@@ -877,10 +876,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <param name="pattern">Wildcard pattern matched against item names.</param>
     public void SelectByPattern(string pattern)
     {
+        var mask = new Services.Search.FileMask(pattern);
         foreach (var i in Items)
         {
             if (i.IsParent) continue;
-            i.IsSelected = MatchesPattern(i.Name, pattern);
+            i.IsSelected = mask.Matches(i.Name);
         }
         NotifySelectionChanged();
     }
@@ -889,10 +889,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <param name="pattern">Wildcard pattern matched against item names.</param>
     public void DeselectByPattern(string pattern)
     {
+        var mask = new Services.Search.FileMask(pattern);
         foreach (var i in Items)
         {
             if (i.IsParent) continue;
-            if (MatchesPattern(i.Name, pattern))
+            if (mask.Matches(i.Name))
                 i.IsSelected = false;
         }
         NotifySelectionChanged();
@@ -907,27 +908,6 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (selected.Count > 0) return selected;
         if (SelectedItem != null && !SelectedItem.IsParent) return [SelectedItem];
         return [];
-    }
-
-    /// <summary>Backstop against catastrophic backtracking: see <c>FileMask.MatchTimeout</c> for why
-    /// a user-typed wildcard mask with several <c>*</c>/<c>?</c> needs a bound here too.</summary>
-    private static readonly TimeSpan PatternMatchTimeout = TimeSpan.FromSeconds(1);
-
-    private static bool MatchesPattern(string name, string pattern)
-    {
-        if (string.IsNullOrEmpty(pattern)) return true;
-        // Convert wildcard to regex
-        var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
-            .Replace("\\*", ".*", StringComparison.Ordinal).Replace("\\?", ".", StringComparison.Ordinal) + "$";
-        try
-        {
-            return System.Text.RegularExpressions.Regex.IsMatch(name, regex,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase, PatternMatchTimeout);
-        }
-        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-        {
-            return false;
-        }
     }
 
     // ── FileSystemWatcher ──

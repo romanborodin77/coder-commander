@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// and offers six overwrite policies (Overwrite, Skip, Rename, OverwriteAll,
 /// SkipAll, OverwriteOlder).
 /// </summary>
-public class OverwriteDialogForm : ThemedForm
+public sealed class OverwriteDialogForm : ThemedForm
 {
     /// <summary>The selected <see cref="Operations.OverwriteAction"/> value after the dialog closes.</summary>
     public int Result { get; private set; } = 2;

@@ -12,7 +12,7 @@ namespace CoderCommander.WinForms;
 /// don't understand an archive's <c>archive.zip|inner/dir</c> syntax or a connection's
 /// <c>sftp://host/dir</c> syntax at all.
 /// </summary>
-public class DirectoryTreeForm : ThemedForm
+public sealed class DirectoryTreeForm : ThemedForm
 {
     private readonly TreeView _tree;
     private readonly Button _closeBtn;

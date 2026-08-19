@@ -437,11 +437,17 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 var fieldEnd = dataStart + dataSize;
                 if (needUncompressed && fieldPos + 8 <= fieldEnd)
                 {
-                    uncompressedSize = (long)BitConverter.ToUInt64(extra, fieldPos);
+                    var raw = BitConverter.ToUInt64(extra, fieldPos);
+                    if (raw > (ulong)long.MaxValue) throw new InvalidDataException("ZIP64 uncompressed size exceeds long.MaxValue");
+                    uncompressedSize = (long)raw;
                     fieldPos += 8;
                 }
                 if (needCompressed && fieldPos + 8 <= fieldEnd)
-                    compressedSize = (long)BitConverter.ToUInt64(extra, fieldPos);
+                {
+                    var raw = BitConverter.ToUInt64(extra, fieldPos);
+                    if (raw > (ulong)long.MaxValue) throw new InvalidDataException("ZIP64 compressed size exceeds long.MaxValue");
+                    compressedSize = (long)raw;
+                }
                 return;
             }
 

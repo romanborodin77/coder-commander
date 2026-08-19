@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// Modern copy/move confirmation dialog with file list preview, destination picker,
 /// overwrite policy, and attribute options.
 /// </summary>
-public class CopyMoveDialogForm : ThemedForm
+public sealed class CopyMoveDialogForm : ThemedForm
 {
     private readonly TextBox _destBox;
     private readonly ThemedComboBox _overwriteCombo;

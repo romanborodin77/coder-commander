@@ -12,7 +12,7 @@ namespace CoderCommander.WinForms;
 /// paths. The previous implementation used <c>File.OpenRead</c> directly and was blind to any
 /// non-local filesystem.</para>
 /// </summary>
-public class ChecksumForm : ThemedForm
+public sealed class ChecksumForm : ThemedForm
 {
     private readonly ListView _fileList;
     private readonly ListView _resultList;

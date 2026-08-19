@@ -7,7 +7,7 @@ namespace CoderCommander.WinForms;
 /// Compares two directories by relative path + size + timestamp, lets the user
 /// queue copy operations to bring them in line.
 /// </summary>
-public class SyncDirsForm : ThemedForm
+public sealed class SyncDirsForm : ThemedForm
 {
     private readonly TextBox _leftBox;
     private readonly TextBox _rightBox;

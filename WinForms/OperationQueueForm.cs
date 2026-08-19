@@ -6,7 +6,7 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Operation queue manager: lists running/completed operations with cancel/clear.
 /// </summary>
-public class OperationQueueForm : ThemedForm
+public sealed class OperationQueueForm : ThemedForm
 {
     private readonly OperationManager _manager;
     private readonly ListView _listView;

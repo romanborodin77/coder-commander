@@ -557,12 +557,23 @@ public sealed class FilePanelUserControl : UserControl
     {
         if (_suppressSelectionEvent || _updatingItems) return;
 
-        // Sync ListView.SelectedItems back to model IsSelected
+        // Sync ListView selection state back to model. WinForms fires this event multiple
+        // times during a Shift+Click range select — each call iterates all items, but we only
+        // update IsSelected on items whose state actually changed (avoids spurious PropertyChanged
+        // notifications that trigger O(n) RecomputeSelectionStats each time).
+        var selectedKeys = new HashSet<FileSystemItem>();
+        foreach (ListViewItem lvi in _fileList.SelectedItems)
+        {
+            if (lvi.Tag is FileSystemItem sel)
+                selectedKeys.Add(sel);
+        }
         foreach (ListViewItem lvi in _fileList.Items)
         {
             if (lvi.Tag is FileSystemItem item)
             {
-                item.IsSelected = lvi.Selected;
+                var shouldSelect = selectedKeys.Contains(item);
+                if (item.IsSelected != shouldSelect)
+                    item.IsSelected = shouldSelect;
             }
         }
         _vm.NotifySelectionChanged();
