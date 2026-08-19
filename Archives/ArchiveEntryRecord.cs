@@ -41,9 +41,30 @@ public sealed class ArchiveDirectory
     /// distinguish this from a genuinely empty archive.</summary>
     public bool IsValid { get; }
 
+    /// <summary>Pre-computed normalized names (backslash→forward, trimmed, "./" stripped) paired
+    /// with their source records, so <see cref="ArchiveTree"/> doesn't re-normalize every entry on
+    /// every listing, search, or existence check — critical for archives with 50k+ entries.</summary>
+    public IReadOnlyList<(ArchiveEntryRecord Entry, string NormalizedName)> NormalizedEntries { get; }
+
     public ArchiveDirectory(IReadOnlyList<ArchiveEntryRecord> entries, bool isValid)
     {
         Entries = entries;
         IsValid = isValid;
+        NormalizedEntries = BuildNormalized(entries);
+    }
+
+    private static (ArchiveEntryRecord, string)[] BuildNormalized(IReadOnlyList<ArchiveEntryRecord> entries)
+    {
+        var result = new (ArchiveEntryRecord, string)[entries.Count];
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var e = entries[i];
+            var t = e.FullName.Contains('\\', StringComparison.Ordinal) ? e.FullName.Replace('\\', '/') : e.FullName;
+            t = t.Trim('/');
+            while (t.StartsWith("./", StringComparison.Ordinal))
+                t = t[2..];
+            result[i] = (e, t);
+        }
+        return result;
     }
 }

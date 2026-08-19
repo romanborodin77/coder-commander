@@ -73,6 +73,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private System.Windows.Forms.Timer? _settingsSaveDebounce;
     private const int SettingsSaveDebounceMs = 400;
 
+    private System.Windows.Forms.Timer? _filterDebounce;
+    private const int FilterDebounceMs = 200;
+
     [ObservableProperty] private string _currentPath = "";
     [ObservableProperty] private FileSystemItem? _selectedItem;
     [ObservableProperty] private bool _isActive;
@@ -320,7 +323,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     partial void OnFilterChanged(string value)
     {
-        ApplyFilter();
+        _filterDebounce ??= CreateFilterDebounceTimer();
+        _filterDebounce.Stop();
+        _filterDebounce.Start();
     }
 
     partial void OnShowHiddenChanged(bool value)
@@ -389,6 +394,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         {
             timer.Stop();
             SaveSortSettingsNow();
+        };
+        return timer;
+    }
+
+    private System.Windows.Forms.Timer CreateFilterDebounceTimer()
+    {
+        var timer = new System.Windows.Forms.Timer { Interval = FilterDebounceMs };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            ApplyFilter();
         };
         return timer;
     }
@@ -479,7 +495,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (!string.IsNullOrEmpty(CurrentPath))
             {
                 _back.Push((_fs, CurrentPath));
-                while (_back.Count > MaxHistoryDepth) _back.Pop();
+                TrimBackHistory();
             }
             _fwd.Clear();
             OnPropertyChanged(nameof(CanGoBack));
@@ -628,7 +644,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task GoBackAsync()
     {
         if (_back.Count == 0) return;
-        Interlocked.Increment(ref _navSeq);
+        var mySeq = Interlocked.Increment(ref _navSeq);
         var ct = BeginNavigation();
         var (fs, path) = _back.Pop();
         _fwd.Push((_fs, CurrentPath));
@@ -644,8 +660,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         catch
         {
             // Refresh failed — restore previous state so the user isn't left in a broken panel.
-            _fs = prevFs;
-            CurrentPath = prevPath;
+            // But only if no newer navigation has since claimed _fs/CurrentPath — a concurrent
+            // NavigateAsync could have already switched to a different filesystem/path, and
+            // blindly restoring the old values would clobber that.
+            if (Interlocked.Read(ref _navSeq) == mySeq)
+            {
+                _fs = prevFs;
+                CurrentPath = prevPath;
+            }
             throw;
         }
         // Refresh succeeded — now safe to release the old archive lease.
@@ -661,10 +683,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task GoForwardAsync()
     {
         if (_fwd.Count == 0) return;
-        Interlocked.Increment(ref _navSeq);
+        var mySeq = Interlocked.Increment(ref _navSeq);
         var ct = BeginNavigation();
         var (fs, path) = _fwd.Pop();
         _back.Push((_fs, CurrentPath));
+        TrimBackHistory();
         // Release archive lease only after the destination is confirmed reachable.
         var prevFs = _fs;
         var prevPath = CurrentPath;
@@ -676,8 +699,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         }
         catch
         {
-            _fs = prevFs;
-            CurrentPath = prevPath;
+            if (Interlocked.Read(ref _navSeq) == mySeq)
+            {
+                _fs = prevFs;
+                CurrentPath = prevPath;
+            }
             throw;
         }
         if (_archiveLease != null &&
@@ -701,7 +727,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
 
         // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything
-        // from _allItems.Clear() down through ApplyFilter()'s ObservableCollection mutation must
+        // from _allItems assignment down through ApplyFilter()'s ObservableCollection mutation must
         // stay on the UI thread this method was called from.
         await _refreshLock.WaitAsync(ct);
         try
@@ -720,8 +746,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 StringComparer.OrdinalIgnoreCase);
             var selectedItemPath = SelectedItem is { IsParent: false } si ? si.FullPath : null;
 
-            _allItems.Clear();
-
+            // Capture all state that can change on the UI thread while Task.Run is executing.
+            var isFlatView = IsFlatView;
+            var showSystem = ShowSystem;
+            var directoriesFirst = DirectoriesFirst;
+            var sortColumn = SortColumn;
+            var sortDescending = SortDescending;
             var root = _fs.GetRootPath(path);
             var isAtRoot = string.Equals(path.TrimEnd(Path.DirectorySeparatorChar, '/'),
                 root.TrimEnd(Path.DirectorySeparatorChar, '/'), StringComparison.OrdinalIgnoreCase);
@@ -731,34 +761,41 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             var showParent = !isAtRoot
                 || FileSystem.ArchivePath.IsArchivePath(path)
                 || FileSystem.RemotePath.IsRemote(path);
-            if (showParent)
-                _allItems.Add(FileSystemItem.CreateParent(path));
 
-            foreach (var e in entries)
+            // Build FileSystemItem list + sort on a background thread — for archives with 50k+
+            // entries this is the dominant cost (500k+ string allocations), and it was freezing
+            // the UI thread for hundreds of milliseconds on every refresh.
+            var newItems = await Task.Run(() =>
             {
-                // AppSettings.ShowSystem was, until this fix, persisted and read back but never
-                // actually consulted anywhere - the same "declared, never enforced" defect class as
-                // the old VtLimits.MaxPasteBytes finding. IFileSystem.EnumerateAsync only takes an
-                // includeHidden flag (System is a separate, independent FileAttributes bit a file
-                // can carry with or without Hidden - e.g. desktop.ini is System but not Hidden), so
-                // System filtering happens client-side here rather than by widening the interface
-                // every provider implements. Directories are never filtered by this flag even when
-                // marked System - unlike Hidden, a System directory (e.g. a mount point placeholder)
-                // is still something the user may need to navigate into.
-                if (!ShowSystem && e.IsSystem && !e.IsDirectory) continue;
+                var list = new List<FileSystemItem>();
+                if (showParent)
+                    list.Add(FileSystemItem.CreateParent(path));
 
-                var item = IsFlatView
-                    // VfsPath, not Path: in flat view over an archive or a connection, the two
-                    // paths are not Windows paths and GetRelativePath would resolve them against
-                    // the process's current directory.
-                    ? new FileSystemItem(e) { DisplayName = FileSystem.VfsPath.GetRelative(path, e.FullPath) }
-                    : new FileSystemItem(e);
-                if (selectedPaths.Contains(item.FullPath))
-                    item.IsSelected = true;
-                _allItems.Add(item);
-            }
+                foreach (var e in entries)
+                {
+                    // AppSettings.ShowSystem was, until this fix, persisted and read back but never
+                    // actually consulted anywhere. IFileSystem.EnumerateAsync only takes an
+                    // includeHidden flag (System is a separate, independent FileAttributes bit), so
+                    // System filtering happens client-side here. Directories are never filtered by
+                    // this flag even when marked System.
+                    if (!showSystem && e.IsSystem && !e.IsDirectory) continue;
 
-            SortAllItems();
+                    var item = isFlatView
+                        // VfsPath, not Path: in flat view over an archive or a connection, the two
+                        // paths are not Windows paths and GetRelativePath would resolve them against
+                        // the process's current directory.
+                        ? new FileSystemItem(e) { DisplayName = FileSystem.VfsPath.GetRelative(path, e.FullPath) }
+                        : new FileSystemItem(e);
+                    if (selectedPaths.Contains(item.FullPath))
+                        item.IsSelected = true;
+                    list.Add(item);
+                }
+
+                list.Sort(new FileComparer(directoriesFirst, sortColumn, sortDescending));
+                return list;
+            }, ct);
+
+            _allItems = newItems;
             ApplyFilter();
 
             // Restored after ApplyFilter (which nulls SelectedItem if its old, now-stale object
@@ -788,6 +825,21 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void SortAllItems()
     {
         _allItems.Sort(new FileComparer(DirectoriesFirst, SortColumn, SortDescending));
+    }
+
+    /// <summary>Removes the oldest entries from the back-history stack when it exceeds
+    /// <see cref="MaxHistoryDepth"/>. Stack.Pop() removes the newest (top) entry, not the oldest,
+    /// so a plain "while count &gt; max: Pop()" loop was discarding the most recent navigation
+    /// target — the one the user is most likely to want — instead of the least recent.</summary>
+    private void TrimBackHistory()
+    {
+        while (_back.Count > MaxHistoryDepth)
+        {
+            var arr = _back.ToArray();
+            _back.Clear();
+            for (var i = arr.Length - 2; i >= 0; i--)
+                _back.Push(arr[i]);
+        }
     }
 
     private void RecomputeSelectionStats()
@@ -1070,6 +1122,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         }
         _settingsSaveDebounce?.Dispose();
         _settingsSaveDebounce = null;
+
+        _filterDebounce?.Dispose();
+        _filterDebounce = null;
 
         var cts = _navCts;
         _navCts = null;

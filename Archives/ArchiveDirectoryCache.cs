@@ -69,7 +69,7 @@ public sealed class ArchiveDirectoryCache
             }
         }
 
-        var directory = await read(ct).ConfigureAwait(false);
+        var directory = await Task.Run(() => read(ct), ct).ConfigureAwait(false);
 
         lock (_lock)
         {

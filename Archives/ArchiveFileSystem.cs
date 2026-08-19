@@ -81,7 +81,7 @@ public sealed class ArchiveFileSystem : IFileSystem
     public async Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default)
     {
         var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        return ArchiveTree.ListChildren(dir.Entries, _archivePath, ArchivePath.SplitPath(path).innerPath);
+        return ArchiveTree.ListChildren(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public sealed class ArchiveFileSystem : IFileSystem
     public async Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default)
     {
         var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        return ArchiveTree.ListDescendants(dir.Entries, _archivePath, ArchivePath.SplitPath(path).innerPath);
+        return ArchiveTree.ListDescendants(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
     }
 
     /// <summary>Returns a <see cref="FileEntry"/> for <paramref name="path"/>, or <c>null</c> if not found.</summary>
@@ -101,11 +101,11 @@ public sealed class ArchiveFileSystem : IFileSystem
             return new FileEntry(ArchivePath.MakePath(_archivePath, ""), true);
 
         var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        var entry = ArchiveTree.FindEntry(dir.Entries, innerPath);
+        var entry = ArchiveTree.FindEntry(dir, innerPath);
         if (entry != null)
             return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
 
-        if (ArchiveTree.HasDescendants(dir.Entries, innerPath))
+        if (ArchiveTree.HasDescendants(dir, innerPath))
             return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), true);
 
         return null;
@@ -124,7 +124,7 @@ public sealed class ArchiveFileSystem : IFileSystem
     {
         var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
         var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        var target = ArchiveTree.FindEntry(dir.Entries, innerPath)
+        var target = ArchiveTree.FindEntry(dir, innerPath)
             ?? throw new FileNotFoundException($"Entry not found in archive: {innerPath}");
 
         if (target.IsEncrypted)
@@ -293,7 +293,7 @@ public sealed class ArchiveFileSystem : IFileSystem
             throw new IOException("Cannot write to the archive root without an entry name.");
 
         var existing = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        var clash = ArchiveTree.FindEntry(existing.Entries, innerPath);
+        var clash = ArchiveTree.FindEntry(existing, innerPath);
 
         // A directory occupying this exact name - explicitly (a real directory-marker entry) or
         // implicitly (child entries like "name/file.txt" with no marker of their own, which many
@@ -304,7 +304,7 @@ public sealed class ArchiveFileSystem : IFileSystem
         // directory's own children - the same path ends up used as both a file and a directory
         // at once, a structurally inconsistent archive with no error shown to the user.
         if ((clash != null && clash.IsDirectory) ||
-            (clash == null && ArchiveTree.HasDescendants(existing.Entries, innerPath)))
+            (clash == null && ArchiveTree.HasDescendants(existing, innerPath)))
             throw new IOException($"Cannot overwrite \"{innerPath}\": a directory with that name already exists in the archive.");
 
         var tempFile = TempFileNaming.NextTo(_archivePath, "stage");
