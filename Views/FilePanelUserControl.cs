@@ -175,6 +175,10 @@ public sealed class FilePanelUserControl : UserControl
         // Connections share the same strip, so they share its refresh path - one handler,
         // one rebuild, no second mechanism to keep in step.
         ConnectionManager.Instance.Changed += OnDrivesChanged;
+        // MTP devices appear in the drive bar too, but MtpDeviceCatalog has its own change event
+        // (not routed through DriveCatalog or ConnectionManager). Without this, a newly connected
+        // MTP device's button only appeared after restarting the app.
+        MtpDeviceCatalog.Instance.Changed += OnDrivesChanged;
         _ = DriveCatalog.Instance.RefreshAsync();
     }
 
@@ -1651,6 +1655,7 @@ public sealed class FilePanelUserControl : UserControl
             LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
             DriveCatalog.Instance.Changed -= OnDrivesChanged;
             ConnectionManager.Instance.Changed -= OnDrivesChanged;
+            MtpDeviceCatalog.Instance.Changed -= OnDrivesChanged;
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
             _scrollOverlay?.Dispose();
