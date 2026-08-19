@@ -105,7 +105,12 @@ public sealed class UnpackOperation : FileOperation
                 return;
 
             _filesTotal = selected.Count;
-            _bytesTotal = selected.Where(r => !r.IsDirectory).Sum(r => r.Size);
+            _bytesTotal = 0;
+            foreach (var r in selected.Where(r => !r.IsDirectory))
+            {
+                try { _bytesTotal = checked(_bytesTotal + r.Size); }
+                catch (OverflowException) { _bytesTotal = long.MaxValue; break; }
+            }
 
             RejectIfBombLike(selected);
             await RejectIfWouldExhaustDisk(ct).ConfigureAwait(false);
@@ -294,8 +299,17 @@ public sealed class UnpackOperation : FileOperation
         foreach (var record in selected)
         {
             if (record.IsDirectory || record.PackedSize <= 0) continue;
-            uncompressed += record.Size;
-            compressed += record.PackedSize;
+            try
+            {
+                uncompressed = checked(uncompressed + record.Size);
+                compressed = checked(compressed + record.PackedSize);
+            }
+            catch (OverflowException)
+            {
+                // Overflow means the total uncompressed size exceeds long — definitely a bomb.
+                throw new IOException(
+                    $"This archive's total uncompressed size overflows 64-bit arithmetic - it has the shape of a decompression bomb.");
+            }
         }
         // compressed == 0 means no selected entry reports a packed size at all (TAR and TAR.GZ
         // entries don't - the format compresses the whole stream, not per entry) - nothing to

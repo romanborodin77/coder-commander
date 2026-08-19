@@ -222,13 +222,14 @@ public sealed class MultiRenameForm : ThemedForm
         var extPattern = _extBox.Text;
         var startValue = (int)_startIndex.Value;
         var step = (int)_stepIndex.Value;
+        var now = DateTime.Now;
 
         const int MaxPreviewItems = 200;
 
         for (int i = 0; i < _items.Count; i++)
         {
             var item = _items[i];
-            var (newName, newExt) = ApplyPattern(pattern, extPattern, item, i, startValue, step);
+            var (newName, newExt) = ApplyPattern(pattern, extPattern, item, i, startValue, step, now);
             var fullNewName = newExt.Length > 0 && !item.IsDirectory
                 ? $"{newName}.{newExt}"
                 : newName;
@@ -264,13 +265,13 @@ public sealed class MultiRenameForm : ThemedForm
     /// <summary>Applies the name and extension patterns to a single item, returning the new name components.</summary>
     private (string name, string ext) ApplyPattern(
         string pattern, string extPattern, FileSystemItem item,
-        int index, int startValue, int step)
+        int index, int startValue, int step, DateTime now)
     {
         var baseName = item.IsDirectory ? item.Name : item.NameWithoutExtension;
         var baseExt = item.IsDirectory ? "" : item.Extension.TrimStart('.');
 
-        var name = ReplacePlaceholders(pattern, baseName, baseExt, item, index, startValue, step);
-        var ext = ReplacePlaceholders(extPattern, baseName, baseExt, item, index, startValue, step);
+        var name = ReplacePlaceholders(pattern, baseName, baseExt, item, index, startValue, step, now);
+        var ext = ReplacePlaceholders(extPattern, baseName, baseExt, item, index, startValue, step, now);
 
         return (name, ext);
     }
@@ -278,7 +279,7 @@ public sealed class MultiRenameForm : ThemedForm
     /// <summary>Replaces all recognized placeholders in a pattern string with their computed values.</summary>
     private static string ReplacePlaceholders(
         string pattern, string name, string ext, FileSystemItem item,
-        int index, int startValue, int step)
+        int index, int startValue, int step, DateTime now)
     {
         if (string.IsNullOrEmpty(pattern)) return "";
 
@@ -296,8 +297,8 @@ public sealed class MultiRenameForm : ThemedForm
                 'E' => ext,
                 'P' => VfsPath.GetName(VfsPath.GetParent(item.FullPath) ?? "") ?? "",
                 'C' => ComputeCounter(num1Str, num2Str, startValue, step, index),
-                'D' => DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                'T' => DateTime.Now.ToString("HHmmss", CultureInfo.InvariantCulture),
+                'D' => now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                'T' => now.ToString("HHmmss", CultureInfo.InvariantCulture),
                 _ => m.Value
             };
         });
@@ -339,7 +340,7 @@ public sealed class MultiRenameForm : ThemedForm
             start = ParseIntSafe(num1);
         }
 
-        var value = start + index * step;
+        var value = (long)start + (long)index * step;
 
         return width > 0
             ? value.ToString($"D{width}", CultureInfo.InvariantCulture)
@@ -380,12 +381,13 @@ public sealed class MultiRenameForm : ThemedForm
             var extPattern = _extBox.Text;
             var startValue = (int)_startIndex.Value;
             var step = (int)_stepIndex.Value;
+            var now = DateTime.Now;
             int skipped = 0;
 
             for (int i = 0; i < _items.Count; i++)
             {
                 var item = _items[i];
-                var (newName, newExt) = ApplyPattern(pattern, extPattern, item, i, startValue, step);
+                var (newName, newExt) = ApplyPattern(pattern, extPattern, item, i, startValue, step, now);
                 var fullNewName = newExt.Length > 0 && !item.IsDirectory
                     ? $"{newName}.{newExt}"
                     : newName;

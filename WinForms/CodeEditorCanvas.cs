@@ -1,3 +1,4 @@
+using System.Text;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -42,6 +43,7 @@ internal sealed class CodeEditorCanvas : Control
     private bool _skipLiveHighlight;
 
     private IReadOnlyList<FindMatch>? _findMatches;
+    private Dictionary<int, List<int>>? _findIndexByLine;
     private int _findCurrentIndex = -1;
 
     private float _zoomFactor = 1f;
@@ -510,12 +512,11 @@ internal sealed class CodeEditorCanvas : Control
                 g.FillRectangle(selBrush, x1, y, Math.Max(2f, x2 - x1), _lineHeight);
             }
 
-            if (_findMatches != null)
+            if (_findIndexByLine != null && _findMatches != null && _findIndexByLine.TryGetValue(line, out var lineMatches))
             {
-                for (var mi = 0; mi < _findMatches.Count; mi++)
+                foreach (var mi in lineMatches)
                 {
                     var m = _findMatches[mi];
-                    if (line < m.Start.Line || line > m.End.Line) continue;
                     var startCol = line == m.Start.Line ? m.Start.Column : 0;
                     var endCol = line == m.End.Line ? m.End.Column : _buffer.LineLength(line);
                     var mx1 = startCol * _charWidth - _scrollX;
@@ -972,6 +973,7 @@ internal sealed class CodeEditorCanvas : Control
         {
             var sel = SelectionRange!.Value;
             var caretBefore = _caret;
+            var deletedText = new StringBuilder();
             for (var line = sel.End.Line; line >= sel.Start.Line; line--)
             {
                 var lineText = _buffer.GetLine(line);
@@ -983,11 +985,32 @@ internal sealed class CodeEditorCanvas : Control
                     var delStart = new TextPosition(line, 0);
                     var delEnd = new TextPosition(line, removeLen);
                     _buffer.DeleteRange(delStart, delEnd);
+                    deletedText.Insert(0, lineText[..removeLen] + (line > sel.Start.Line ? "\n" : ""));
                 }
             }
             SetCaret(_buffer.ClampPosition(caretBefore));
-            _undoStack.Record(sel.Start, "", "", caretBefore, _caret, coalesceWithPrevious: false);
+            // Record the actual deleted text so Undo restores the outdented whitespace.
+            _undoStack.Record(sel.Start, deletedText.ToString(), "", caretBefore, _caret, coalesceWithPrevious: false);
             ContentChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        if (shift)
+        {
+            // Shift+Tab without selection: outdent the current line.
+            var caretBefore = _caret;
+            var lineText = _buffer.GetLine(_caret.Line);
+            var removeLen = 0;
+            if (lineText.Length > 0 && lineText[0] == '\t') removeLen = 1;
+            else { for (var j = 0; j < lineText.Length && j < 4 && lineText[j] == ' '; j++) removeLen = j + 1; }
+            if (removeLen > 0)
+            {
+                var delStart = new TextPosition(_caret.Line, 0);
+                var delEnd = new TextPosition(_caret.Line, removeLen);
+                _buffer.DeleteRange(delStart, delEnd);
+                SetCaret(_buffer.ClampPosition(caretBefore with { Column = Math.Max(0, caretBefore.Column - removeLen) }));
+                _undoStack.Record(delStart, lineText[..removeLen], "", caretBefore, _caret, coalesceWithPrevious: false);
+                ContentChanged?.Invoke(this, EventArgs.Empty);
+            }
             return;
         }
         InsertTextAtCaret("\t");
@@ -1112,6 +1135,25 @@ internal sealed class CodeEditorCanvas : Control
     {
         _findMatches = matches;
         _findCurrentIndex = currentIndex;
+        // Build a line→match-index lookup for O(1) per-line access during paint.
+        _findIndexByLine = null;
+        if (matches != null && matches.Count > 0)
+        {
+            _findIndexByLine = new Dictionary<int, List<int>>();
+            for (var mi = 0; mi < matches.Count; mi++)
+            {
+                var m = matches[mi];
+                for (var line = m.Start.Line; line <= m.End.Line; line++)
+                {
+                    if (!_findIndexByLine.TryGetValue(line, out var list))
+                    {
+                        list = new List<int>();
+                        _findIndexByLine[line] = list;
+                    }
+                    list.Add(mi);
+                }
+            }
+        }
         Invalidate();
     }
 

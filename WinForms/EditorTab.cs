@@ -77,7 +77,7 @@ public sealed class EditorTab : IDisposable
     /// Reads the file at <paramref name="path"/> into the editor, auto-detecting encoding and language.
     /// </summary>
     /// <param name="path">Path to the file to load, on this tab's own <see cref="IFileSystem"/>.</param>
-    public async Task LoadFileAsync(string path, CancellationToken ct = default)
+    public async Task<bool> LoadFileAsync(string path, CancellationToken ct = default)
     {
         try
         {
@@ -105,6 +105,7 @@ public sealed class EditorTab : IDisposable
 
             Editor.LoadText(text);
             Editor.Language = Language;
+            return true;
         }
         catch (Exception ex)
         {
@@ -112,6 +113,7 @@ public sealed class EditorTab : IDisposable
             StyledMessageBox.Show(L.GetString("Edit.ErrorLoading", ex.Message),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
             LogService.Error($"Error loading file {path}: {ex.Message}");
+            return false;
         }
     }
 

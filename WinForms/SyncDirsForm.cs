@@ -350,7 +350,7 @@ public sealed class SyncDirsForm : ThemedForm
             // an entry missing entirely from the source - LeftOnly for RightToLeft, RightOnly for
             // LeftToRight - would have a null source here, and ShouldInclude already excludes it).
             var source = dir == SyncDirection.LeftToRight ? entry.Left : entry.Right;
-            if (source != null) queue.Add(source);
+            if (source is { IsDirectory: false }) queue.Add(source);
         }
 
         if (queue.Count == 0)

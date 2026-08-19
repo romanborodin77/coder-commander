@@ -435,7 +435,13 @@ public sealed class EditorForm : ThemedForm
             try
             {
                 tab = new EditorTab(fs, path);
-                await tab.LoadFileAsync(path).ConfigureAwait(true);
+                var loaded = await tab.LoadFileAsync(path).ConfigureAwait(true);
+                if (!loaded)
+                {
+                    tab.Dispose();
+                    tab = null;
+                    return;
+                }
                 _tabs.Add(tab);
 
                 var tabPage = new ThemedTabPage(tab.DisplayName, tab.Editor);
@@ -661,6 +667,9 @@ public sealed class EditorForm : ThemedForm
     {
         if (disposing)
         {
+            ThemeService.ThemeChanged -= OnThemeChanged;
+            foreach (var tab in _tabs) tab.Dispose();
+            _tabs.Clear();
             _toolStrip?.Dispose();
             _tabControl?.Dispose();
             _statusStrip?.Dispose();

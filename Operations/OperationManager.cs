@@ -151,7 +151,8 @@ public sealed class OperationManager : IDisposable
         }
         finally
         {
-            _queueLock.Release();
+            try { _queueLock.Release(); }
+            catch (ObjectDisposedException) { /* Dispose already ran — expected during shutdown */ }
             lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
         }
     }
@@ -225,12 +226,12 @@ public sealed class OperationManager : IDisposable
             (queued.Operation as IDisposable)?.Dispose();
         }
 
-        // Wait for queue lock with timeout (don't use async in Dispose). Only dispose the semaphore
-        // if we actually acquired it here: if the wait times out, some operation is still running and
-        // holds the lock, and it will call _queueLock.Release() from its own finally block once it
-        // eventually finishes/cancels - disposing the semaphore now would turn that into an
-        // unhandled ObjectDisposedException on a background thread.
-        if (_queueLock.Wait(TimeSpan.FromSeconds(5)))
+        // Don't wait for queue lock synchronously — that blocks the UI thread for up to 5 seconds
+        // if an operation is still running. Instead, mark disposed and let RunAsync's finally
+        // block release and dispose the semaphore when the operation completes.
+        _disposed = true;
+        _disposeCts.Cancel();
+        if (_queueLock.Wait(0))
         {
             _queueLock.Release();
             _queueLock.Dispose();

@@ -137,8 +137,18 @@ public sealed class DuplicateFinderForm : ThemedForm
     {
         base.ApplyTheme();
         // Recreate _boldFont so group headers follow the new theme's font family/size.
-        _boldFont?.Dispose();
+        // Update existing items' Font to avoid using a disposed font during a theme change mid-scan.
+        var oldFont = _boldFont;
         _boldFont = new Font(ThemeService.Current.GridFont, FontStyle.Bold);
+        if (oldFont != null)
+        {
+            foreach (ListViewItem lvi in _resultList.Items)
+            {
+                if (ReferenceEquals(lvi.Font, oldFont))
+                    lvi.Font = _boldFont;
+            }
+            oldFont.Dispose();
+        }
     }
 
     private async Task ScanAsync()

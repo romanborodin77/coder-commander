@@ -253,6 +253,9 @@ public sealed class PackOperation : FileOperation
             {
                 var slash = entryName.LastIndexOf('/');
                 entryName = slash < 0 ? newName : entryName[..(slash + 1)] + newName;
+                // Re-check: the renamed entry may collide with another existing entry.
+                if (existing.TryGetValue(entryName.Trim('/'), out var clash2))
+                    writer.TryDeleteEntry(clash2);
             }
             else
             {
