@@ -11,28 +11,66 @@ internal static class CsvParser
     private static readonly char[] DelimiterCandidates = [',', ';', '\t', '|'];
 
     /// <summary>
-    /// Picks the delimiter whose per-line occurrence count is both non-zero and most consistent
-    /// across the sample's first lines - consistency (low variance) is what actually indicates a
-    /// real column structure, not just raw frequency (a semicolon inside prose text would win on
-    /// frequency alone but vary wildly line to line).
+    /// Picks the delimiter whose per-line occurrence count (outside quoted fields) is both non-zero
+    /// and most consistent across the sample's first lines - consistency (low variance) is what
+    /// actually indicates a real column structure, not just raw frequency (a semicolon inside prose
+    /// text would win on frequency alone but vary wildly line to line).
+    ///
+    /// <para>Quote-aware: delimiters inside quoted fields are not counted, and newlines inside
+    /// quoted fields do not split lines — both are legal under RFC 4180 and would otherwise skew
+    /// the per-line counts and variance.</para>
     /// </summary>
     public static char DetectDelimiter(string sample)
     {
-        var lines = sample.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length > 20) Array.Resize(ref lines, 20);
-        if (lines.Length == 0) return ',';
+        // Split into logical lines respecting quoted newlines (RFC 4180 allows embedded \n in
+        // quoted fields). A naive Split('\n') breaks a multi-line quoted field into separate
+        // "lines" with wildly inconsistent delimiter counts, throwing off the variance score.
+        var lines = new List<string>();
+        var inQuotes = false;
+        var current = new System.Text.StringBuilder();
+        for (var i = 0; i < sample.Length && lines.Count < 20; i++)
+        {
+            var c = sample[i];
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+                current.Append(c);
+            }
+            else if ((c == '\n' || c == '\r') && !inQuotes)
+            {
+                if (current.Length > 0)
+                {
+                    lines.Add(current.ToString());
+                    current.Clear();
+                }
+                if (c == '\r' && i + 1 < sample.Length && sample[i + 1] == '\n') i++;
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+        if (current.Length > 0 && lines.Count < 20)
+            lines.Add(current.ToString());
+        if (lines.Count == 0) return ',';
 
         var best = ',';
         var bestScore = -1.0;
 
         foreach (var candidate in DelimiterCandidates)
         {
-            var counts = new int[lines.Length];
-            for (var i = 0; i < lines.Length; i++)
+            var counts = new int[lines.Count];
+            for (var i = 0; i < lines.Count; i++)
             {
                 var count = 0;
+                var lineInQuotes = false;
                 foreach (var ch in lines[i])
-                    if (ch == candidate) count++;
+                {
+                    if (ch == '"')
+                        lineInQuotes = !lineInQuotes;
+                    else if (ch == candidate && !lineInQuotes)
+                        count++;
+                }
                 counts[i] = count;
             }
 

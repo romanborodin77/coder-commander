@@ -1026,7 +1026,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         innerPath = innerPath.Replace('\\', '/').Trim('/');
 
         if (string.IsNullOrEmpty(innerPath))
-            return;
+            throw new InvalidOperationException("Cannot delete the archive root.");
 
         using var session = OpenForUpdate(_archivePath);
         var zip = session.Archive;

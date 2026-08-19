@@ -119,7 +119,9 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
     {
         var result = new List<FileEntry>();
         var queue = new Queue<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         queue.Enqueue(path);
+        visited.Add(path);
 
         while (queue.Count > 0)
         {
@@ -143,7 +145,8 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
             foreach (var child in children)
             {
                 result.Add(child);
-                if (child.IsDirectory) queue.Enqueue(child.FullPath);
+                if (child.IsDirectory && visited.Add(child.FullPath))
+                    queue.Enqueue(child.FullPath);
             }
         }
 

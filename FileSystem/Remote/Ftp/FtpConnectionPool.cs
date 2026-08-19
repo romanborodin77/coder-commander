@@ -76,7 +76,10 @@ internal sealed class FtpConnectionPool : IDisposable
     public void Return(FtpControlConnection connection)
     {
         if (_disposed || !connection.IsUsable)
-            connection.Dispose();
+        {
+            try { connection.Dispose(); }
+            catch { /* best-effort — one failing disposal must not leak the slot */ }
+        }
         else
         {
             connection.ResetReadBuffer();

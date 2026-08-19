@@ -237,12 +237,10 @@ public static class RemotePath
                 if (!IsSafeEntryName(segment)) return true;
             }
 
-            var normalizedRoot = Normalize(PathOf(root));
-            var combined = normalizedRoot.Length == 0
-                ? normalizedRelative
-                : $"{normalizedRoot}/{normalizedRelative}";
-
-            return !combined.StartsWith(normalizedRoot, StringComparison.Ordinal);
+            // IsSafeEntryName already rejects ".." per segment, so a relative path that passes
+            // the loop above cannot escape the root. No further prefix check is needed — a
+            // string constructed as root + "/" + relative always starts with root by definition.
+            return false;
         }
         catch
         {

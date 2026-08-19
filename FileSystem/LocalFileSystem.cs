@@ -374,6 +374,7 @@ public sealed class LocalFileSystem : IFileSystem
                 try { File.SetAttributes(tempPath, FileAttributes.Hidden); } catch { /* cosmetic only */ }
                 await source.CopyToAsync(fs, bufferSize, ct).ConfigureAwait(false);
             }
+            try { File.SetAttributes(tempPath, FileAttributes.Normal); } catch { /* cosmetic only */ }
             File.Move(tempPath, destinationPath, overwrite: true);
         }
         catch

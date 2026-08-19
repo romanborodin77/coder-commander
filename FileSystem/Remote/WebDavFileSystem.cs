@@ -127,7 +127,9 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
     {
         var result = new List<FileEntry>();
         var queue = new Queue<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         queue.Enqueue(path);
+        visited.Add(path);
 
         while (queue.Count > 0)
         {
@@ -151,7 +153,8 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
             foreach (var child in children)
             {
                 result.Add(child);
-                if (child.IsDirectory) queue.Enqueue(child.FullPath);
+                if (child.IsDirectory && visited.Add(child.FullPath))
+                    queue.Enqueue(child.FullPath);
             }
         }
 
@@ -207,7 +210,11 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
         try
         {
             EnsureSuccess(response, "GET", path);
-            return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            // HttpClient.Timeout covers only up to headers with ResponseHeadersRead; a server
+            // that trickles one byte per minute would hang the body read indefinitely. The
+            // TimeoutStream applies RemoteLimits.RequestTimeout per individual read.
+            return new TimeoutStream(stream, RemoteLimits.RequestTimeout, ct);
         }
         catch
         {

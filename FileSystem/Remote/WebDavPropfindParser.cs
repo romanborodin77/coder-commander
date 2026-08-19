@@ -191,10 +191,12 @@ public static class WebDavPropfindParser
         }
     }
 
-    /// <summary>Trailing slash and case are not meaningful when deciding whether two hrefs name
-    /// the same resource.</summary>
+    /// <summary>Trailing slash is not meaningful when deciding whether two hrefs name the same
+    /// resource. Case is preserved — WebDAV hrefs are case-sensitive on most servers (Linux), and
+    /// folding case would cause a directory containing both <c>Foo</c> and <c>foo</c> to wrongly
+    /// skip one as the "self" entry.</summary>
     private static string NormalizeForComparison(string path) =>
-        path.TrimEnd('/').ToUpperInvariant();
+        path.TrimEnd('/');
 
     private static long ParseLong(string? value) =>
         long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0

@@ -185,7 +185,8 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             {
                 lock (_deviceLock)
                 {
-                    if (!overwrite && _device.FileExists(dst)) return;
+                    if (!overwrite && _device.FileExists(dst))
+                        throw new IOException($"MTP: \"{destination}\" already exists.");
                     _device.DownloadFile(src, tempFile);
                     _device.UploadFile(tempFile, dst);
                 }
@@ -206,7 +207,8 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             {
                 lock (_deviceLock)
                 {
-                    if (!overwrite && _device.FileExists(dst)) return;
+                    if (!overwrite && _device.FileExists(dst))
+                        throw new IOException($"MTP: \"{destination}\" already exists.");
                     // MTP doesn't expose rename; download + upload + delete original.
                     _device.DownloadFile(src, tempFile);
                     _device.UploadFile(tempFile, dst);

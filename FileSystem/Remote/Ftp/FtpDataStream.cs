@@ -74,6 +74,15 @@ internal sealed class FtpDataStream : Stream
     public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
     public override void SetLength(long value) => throw new NotSupportedException();
 
+    /// <summary>If the caller forgot to dispose, the pool slot would leak forever. This finalizer
+    /// is a safety net — best-effort release of the rental so the pool can reclaim the slot. The
+    /// connection itself will be disposed by the pool (it won't be usable after a missing
+    /// proper close).</summary>
+    ~FtpDataStream()
+    {
+        try { Released?.Invoke(); } catch { /* best effort — finalizer must not throw */ }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -87,7 +96,11 @@ internal sealed class FtpDataStream : Stream
     // FinishAsync() call return an already-completed task, which is a fragile thing to depend on
     // for correctness rather than a reason to add the call.
 #pragma warning disable CA2215
-    public override async ValueTask DisposeAsync() => await FinishAsync().ConfigureAwait(false);
+    public override async ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        await FinishAsync().ConfigureAwait(false);
+    }
 #pragma warning restore CA2215
 
     /// <summary>

@@ -243,7 +243,7 @@ public sealed class WipeOperation : FileOperation
         {
             IgnoreInaccessible = true,
             RecurseSubdirectories = true,
-            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | ReparsePointGuard.SkipRecursion
+            AttributesToSkip = ReparsePointGuard.SkipRecursion
         };
 
         var allOk = true;

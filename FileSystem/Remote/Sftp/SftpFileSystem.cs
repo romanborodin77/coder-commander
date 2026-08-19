@@ -131,7 +131,9 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     {
         var result = new List<FileEntry>();
         var queue = new Queue<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         queue.Enqueue(path);
+        visited.Add(path);
 
         while (queue.Count > 0)
         {
@@ -155,7 +157,8 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
             foreach (var child in children)
             {
                 result.Add(child);
-                if (child.IsDirectory) queue.Enqueue(child.FullPath);
+                if (child.IsDirectory && visited.Add(child.FullPath))
+                    queue.Enqueue(child.FullPath);
             }
         }
 
@@ -368,8 +371,14 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     /// <para>The timeout matters as much as the translation: SSH.NET's own <c>OperationTimeout</c>
     /// defaults to infinite, so a server that stops answering mid-request would otherwise block the
     /// caller forever.</para>
+    ///
+    /// <para><b>Auto-reconnect.</b> A <see cref="SshConnectionException"/> means the SSH transport
+    /// is gone — a network blip, a server restart, a keepalive that missed. Without reconnection the
+    /// client stays disconnected and every subsequent operation fails until the user manually
+    /// disconnects and reconnects. One reconnection attempt is made here; if it succeeds the
+    /// operation is retried once. If reconnection fails the original exception propagates.</para>
     /// </summary>
-    private static async Task<T> RunAsync<T>(Func<Task<T>> body, string operation, string subject, CancellationToken ct)
+    private async Task<T> RunAsync<T>(Func<Task<T>> body, string operation, string subject, CancellationToken ct)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(RemoteLimits.RequestTimeout);
@@ -392,7 +401,18 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
         }
         catch (SshConnectionException ex)
         {
-            throw new IOException($"SFTP: the connection was lost during {operation}: {ex.Message}");
+            try
+            {
+                if (!_client.IsConnected)
+                    _client.Connect();
+                using var retryCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                retryCts.CancelAfter(RemoteLimits.RequestTimeout);
+                return await body().ConfigureAwait(false);
+            }
+            catch
+            {
+                throw new IOException($"SFTP: the connection was lost during {operation}: {ex.Message}");
+            }
         }
         catch (SshException ex)
         {

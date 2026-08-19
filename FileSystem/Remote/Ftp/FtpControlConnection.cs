@@ -42,6 +42,7 @@ internal sealed class FtpControlConnection : IDisposable
     private Encoding _encoding = Latin1;
     private readonly HashSet<string> _features = new(StringComparer.OrdinalIgnoreCase);
     private bool _protectData;
+    private bool _poisoned;
 
     private readonly byte[] _readBuffer = new byte[4096];
     private int _readOffset;
@@ -64,7 +65,7 @@ internal sealed class FtpControlConnection : IDisposable
     public bool SupportsMlst => _features.Any(f => f.StartsWith("MLST", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>A connection that has been torn down by an error is not put back in the pool.</summary>
-    public bool IsUsable => _client is { Connected: true } && _stream is not null;
+    public bool IsUsable => !_poisoned && _client is { Connected: true } && _stream is not null;
 
     /// <summary>When this connection last carried a command. The pool uses it to decide whether an
     /// idle connection is worth pinging before it is handed out again - see
@@ -279,7 +280,7 @@ internal sealed class FtpControlConnection : IDisposable
     /// because the caller's own token was not cancelled and treating it as "the user cancelled"
     /// would make the operation disappear without a word.</para>
     /// </summary>
-    private static async Task<T> WithTimeoutAsync<T>(Func<CancellationToken, Task<T>> body, CancellationToken ct)
+    private async Task<T> WithTimeoutAsync<T>(Func<CancellationToken, Task<T>> body, CancellationToken ct)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(RemoteLimits.RequestTimeout);
@@ -290,6 +291,7 @@ internal sealed class FtpControlConnection : IDisposable
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
+            _poisoned = true;
             throw new IOException($"FTP: the server stopped responding (no reply within {RemoteLimits.RequestTimeout.TotalSeconds:0} s)");
         }
     }

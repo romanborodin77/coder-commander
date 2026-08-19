@@ -117,7 +117,7 @@ public sealed class CopyOperation : FileOperation
     protected override async Task ExecuteCoreAsync(CancellationToken ct)
     {
         var enumerationFailures = new List<string>();
-        var plan = await FlattenAsync(_sourceFs, _files, _sourceBasePath, _destPath, ct, enumerationFailures).ConfigureAwait(false);
+        var plan = await FlattenAsync(_sourceFs, _destFs, _files, _sourceBasePath, _destPath, ct, enumerationFailures).ConfigureAwait(false);
 
         _filesTotal = plan.Count(p => !p.Entry.IsDirectory);
         _bytesTotal = plan.Where(p => !p.Entry.IsDirectory).Sum(p => p.Entry.Size);
@@ -138,6 +138,10 @@ public sealed class CopyOperation : FileOperation
             if (entry.IsDirectory)
             {
                 await _destFs.CreateDirectoryAsync(destFullPath, ct).ConfigureAwait(false);
+                if (_options.CopyAttributes && entry.Attributes != default)
+                    await TryApplyAttributes(destFullPath, entry.Attributes, ct).ConfigureAwait(false);
+                if (_options.CopyTimestamps)
+                    ApplyTimestamps(_destFs, destFullPath, entry);
                 continue;
             }
 
@@ -177,6 +181,7 @@ public sealed class CopyOperation : FileOperation
     /// </summary>
     internal static async Task<List<(FileEntry Entry, string Destination)>> FlattenAsync(
         IFileSystem sourceFs,
+        IFileSystem? destFs,
         IReadOnlyList<FileEntry> roots,
         string sourceBasePath,
         string destPath,
@@ -191,7 +196,13 @@ public sealed class CopyOperation : FileOperation
         // then collides with the one the first write just made, tripping a spurious "already
         // exists" conflict and inflating the reported file/byte totals. Mirrors
         // PackOperation.BuildPlanAsync's identical `seen` dedup.
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Case sensitivity follows the destination: Windows local FS is case-insensitive, but
+        // ZIP archives and remote providers distinguish Foo.txt from foo.txt — using
+        // OrdinalIgnoreCase for those silently drops the second file from the plan.
+        var cmp = destFs is not null && destFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+        var seen = new HashSet<string>(cmp);
 
         foreach (var root in roots)
         {
@@ -227,6 +238,16 @@ public sealed class CopyOperation : FileOperation
             foreach (var child in children.OrderBy(c => c.FullPath, StringComparer.OrdinalIgnoreCase))
             {
                 ct.ThrowIfCancellationRequested();
+                // A junction/symlink inside the tree is listed by EnumerateDeepAsync (with
+                // ReparsePointGuard.SkipRecursion preventing descent) but must not be turned
+                // into an empty placeholder directory at the destination — that looks like a
+                // successful copy of a folder whose contents are silently absent. Report it
+                // alongside enumeration failures so the user is told what was skipped.
+                if (child.IsDirectory && (child.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    enumerationFailures?.Add($"{child.FullPath} (junction/symlink — not followed)");
+                    continue;
+                }
                 var childDest = VfsPath.Combine(rootDest, VfsPath.GetRelative(root.FullPath, child.FullPath));
                 if (seen.Add(childDest))
                     plan.Add((child, childDest));
@@ -244,7 +265,10 @@ public sealed class CopyOperation : FileOperation
 
         var resolution = await ConflictResolver.ResolveAsync(_destFs, file.FullPath, destPath, file, _options, ct).ConfigureAwait(false);
         if (!resolution.Proceed)
+        {
+            Interlocked.Add(ref _bytesProcessed, file.Size);
             return;
+        }
         var actualDestPath = resolution.TargetPath;
 
         using (var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false))
