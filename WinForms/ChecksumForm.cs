@@ -25,6 +25,7 @@ public sealed class ChecksumForm : ThemedForm
     private readonly IFileSystem _fs;
     private readonly List<FileEntry> _files;
     private CancellationTokenSource? _cts;
+    private string _currentAlgo = AlgoSha256;
 
     /// <summary>Protocol identifiers consumed by the switch in <see cref="CalculateAsync"/> — must
     /// stay unlocalised, unlike every other user-facing string in this dialog.</summary>
@@ -178,6 +179,7 @@ public sealed class ChecksumForm : ThemedForm
         try
         {
             var algoName = _algoCombo.SelectedItem?.ToString() ?? AlgoSha256;
+            _currentAlgo = algoName;
 
             foreach (var file in _files)
             {
@@ -192,7 +194,7 @@ public sealed class ChecksumForm : ThemedForm
                         _ => await ChecksumService.ComputeSha256Async(_fs, file.FullPath, ct).ConfigureAwait(true)
                     };
 
-                    if (IsDisposed || !IsHandleCreated) return;
+                    if (IsDisposed || !IsHandleCreated || ct.IsCancellationRequested) return;
 
                     var lvi = new ListViewItem(file.Name) { Tag = file.FullPath };
                     lvi.SubItems.Add(algoName);
@@ -202,7 +204,7 @@ public sealed class ChecksumForm : ThemedForm
                 catch (Exception ex)
                 {
                     LogService.Warning($"Checksum failed: {file.FullPath}: {ex.Message}");
-                    if (IsDisposed || !IsHandleCreated) return;
+                    if (IsDisposed || !IsHandleCreated || ct.IsCancellationRequested) return;
 
                     var lvi = new ListViewItem(file.Name);
                     lvi.SubItems.Add(algoName);
@@ -246,7 +248,7 @@ public sealed class ChecksumForm : ThemedForm
     private async Task ExportAsync()
     {
         var L = LocalizationService.Current;
-        var algoName = _algoCombo.SelectedItem?.ToString() ?? AlgoSha256;
+        var algoName = _currentAlgo;
 
         var (filter, defaultExt) = algoName switch
         {

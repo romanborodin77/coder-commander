@@ -684,6 +684,7 @@ public sealed class PropertiesForm : ThemedForm
     /// <summary>Updates the bottom status label text.</summary>
     private void SetStatus(string text)
     {
+        if (IsDisposed || !IsHandleCreated) return;
         if (_statusLabel != null) _statusLabel.Text = text;
     }
 

@@ -19,7 +19,7 @@ public class BookmarkEntry
 
 /// <summary>
 /// Singleton persistence store for <see cref="BookmarkEntry"/> items,
-/// backed by a pipe-delimited text file in AppData.
+/// backed by a tab-delimited text file in <see cref="DataDirectory.Root"/>.
 /// </summary>
 public sealed class BookmarkStore
 {
@@ -35,18 +35,17 @@ public sealed class BookmarkStore
     public void Add(string name, string path)
     {
         if (Items.Any(b => b.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) return;
-        Items.Add(new BookmarkEntry { Name = SanitizeName(name), Path = path, Created = DateTime.Now });
+        Items.Add(new BookmarkEntry { Name = SanitizeField(name), Path = SanitizeField(path), Created = DateTime.Now });
         Save();
     }
 
-    /// <summary>Strips characters that would corrupt the pipe-delimited persistence format
-    /// (<c>Save</c>/<c>Load</c> below) - an embedded <c>|</c> shifts <c>Load</c>'s
-    /// <c>Split('|', 2)</c> so the tail of the name is read back as part of the path, and an
-    /// embedded newline fragments one bookmark into multiple malformed lines in the file.
-    /// <see cref="BookmarkEntry.Path"/> needs no equivalent sanitizing: it's only ever set to a
-    /// real, <c>Directory.Exists</c>-validated filesystem path, which can't contain either
-    /// character on Windows.</summary>
-    private static string SanitizeName(string name) => name.Replace('|', '_').Replace('\r', ' ').Replace('\n', ' ');
+    /// <summary>Strips characters that would corrupt the tab-delimited persistence format
+    /// (<c>Save</c>/<c>Load</c> below) - an embedded TAB/newline shifts <c>Load</c>'s
+    /// <c>Split</c> or fragments one bookmark into multiple malformed lines in the file.
+    /// Both <see cref="BookmarkEntry.Name"/> and <see cref="BookmarkEntry.Path"/> are sanitized:
+    /// VFS paths (archive entries like <c>archive.zip|inner/path</c>, remote URLs) can contain
+    /// <c>|</c> and other characters that were unsafe with the old pipe-delimited format.</summary>
+    private static string SanitizeField(string value) => value.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
 
     /// <summary>Removes the given bookmark entry and persists the change.</summary>
     public void Remove(BookmarkEntry entry)
@@ -55,10 +54,8 @@ public sealed class BookmarkStore
         Save();
     }
 
-    /// <summary>Full path to the bookmarks persistence file in AppData.</summary>
-    private static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "CoderCommander", "bookmarks.txt");
+    /// <summary>Full path to the bookmarks persistence file in DataDirectory.Root.</summary>
+    private static string FilePath => Path.Combine(DataDirectory.Root, "bookmarks.txt");
 
     /// <summary>Persists all bookmarks to the text file.</summary>
     public void Save()
@@ -71,7 +68,7 @@ public sealed class BookmarkStore
             // Write-then-replace, same pattern as SettingsService.Save - a crash mid-write must
             // not leave bookmarks.txt truncated.
             var tempPath = FilePath + ".tmp";
-            File.WriteAllLines(tempPath, Items.Select(b => $"{b.Name}|{b.Path}"));
+            File.WriteAllLines(tempPath, Items.Select(b => $"{b.Name}\t{b.Path}"));
             File.Move(tempPath, FilePath, overwrite: true);
         }
         catch (Exception ex)
@@ -90,7 +87,14 @@ public sealed class BookmarkStore
             {
                 foreach (var line in File.ReadAllLines(FilePath))
                 {
-                    var parts = line.Split('|', 2);
+                    // Try tab delimiter first (current format), fall back to pipe (legacy).
+                    var parts = line.Split('\t', 2);
+                    if (parts.Length == 2)
+                    {
+                        Items.Add(new BookmarkEntry { Name = parts[0], Path = parts[1] });
+                        continue;
+                    }
+                    parts = line.Split('|', 2);
                     if (parts.Length == 2)
                         Items.Add(new BookmarkEntry { Name = parts[0], Path = parts[1] });
                 }

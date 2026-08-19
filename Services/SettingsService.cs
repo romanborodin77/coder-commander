@@ -321,7 +321,7 @@ public static class SettingsService
         try
         {
             if (!File.Exists(path)) return;
-            var backupPath = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+            var backupPath = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss.fff}";
             File.Copy(path, backupPath, overwrite: true);
             LogService.Warning($"Corrupt settings file preserved at {backupPath}");
         }

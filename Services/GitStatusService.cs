@@ -123,7 +123,7 @@ public static class GitStatusService
             var arrow = pathPart.IndexOf(" -> ", StringComparison.Ordinal);
             if (arrow >= 0)
                 pathPart = pathPart[(arrow + 4)..];
-            pathPart = pathPart.Trim('"');
+            pathPart = UnescapeGitPath(pathPart);
 
             map[pathPart] = Classify(indexState, workState);
         }
@@ -139,6 +139,40 @@ public static class GitStatusService
         if (index == 'D' || work == 'D') return GitFileStatus.Deleted;
         if (index == 'R') return GitFileStatus.Renamed;
         return GitFileStatus.Modified;
+    }
+
+    /// <summary>Unescapes a git porcelain v1 path. Git C-quotes paths containing special
+    /// characters (spaces, unicode, etc.) wrapping them in double quotes and using backslash
+    /// escapes (e.g. <c>\"</c> for a literal quote, <c>\\</c> for a backslash, <c>\NNN</c> for
+    /// octal byte values). Unquoted paths are returned as-is.</summary>
+    private static string UnescapeGitPath(string pathPart)
+    {
+        if (pathPart.Length < 2 || pathPart[0] != '"')
+            return pathPart;
+
+        // Strip surrounding quotes.
+        var inner = pathPart.Substring(1, pathPart.Length - 2);
+        var sb = new StringBuilder(inner.Length);
+        for (int i = 0; i < inner.Length; i++)
+        {
+            if (inner[i] != '\\' || i + 1 >= inner.Length)
+            {
+                sb.Append(inner[i]);
+                continue;
+            }
+
+            var next = inner[i + 1];
+            switch (next)
+            {
+                case '"': sb.Append('"'); i++; break;
+                case '\\': sb.Append('\\'); i++; break;
+                case 't': sb.Append('\t'); i++; break;
+                case 'b': sb.Append('\b'); i++; break;
+                case 'n': sb.Append('\n'); i++; break;
+                default: sb.Append('\\'); break;
+            }
+        }
+        return sb.ToString();
     }
 
     /// <summary>Walks upward from <paramref name="startDir"/> looking for a <c>.git</c> entry

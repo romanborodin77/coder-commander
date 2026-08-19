@@ -80,7 +80,16 @@ public sealed class LocalizationService
             _strings.Clear();
             LoadDefaults();
             if (File.Exists(path))
-                LoadFromFile(path);
+            {
+                try
+                {
+                    LoadFromFile(path);
+                }
+                catch (Exception ex)
+                {
+                    LogService.Warning($"Failed to load language file '{path}', using defaults: {ex.Message}");
+                }
+            }
         }
 
         LanguageChanged?.Invoke(this, EventArgs.Empty);

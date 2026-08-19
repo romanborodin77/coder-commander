@@ -207,6 +207,7 @@ public sealed class CredentialStore
             // A corrupt store must not take the app down or block the connections UI; the user
             // re-enters the passwords, which is recoverable, unlike a crash at startup.
             LogService.Warning($"Credential store unreadable, treating as empty: {ex.GetType().Name}");
+            SettingsService.BackUpCorruptFile(_path);
             return new Dictionary<string, string>(StringComparer.Ordinal);
         }
     }

@@ -118,8 +118,7 @@ public sealed class AboutForm : ThemedForm
         yield return ("About.ConfigFolder", SettingsFolder());
     }
 
-    private static string SettingsFolder() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander");
+    private static string SettingsFolder() => DataDirectory.Root;
 
     private Control BuildInfoGrid()
     {

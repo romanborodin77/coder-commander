@@ -253,6 +253,8 @@ public sealed class FindFilesForm : ThemedForm
                 progress => { lock (_progressLock) _progress = progress; },
                 _cancellation.Token), _cancellation.Token);
 
+            if (IsDisposed || !IsHandleCreated) return;
+
             // The engine's own counters, not the last progress report: progress is reported when a
             // directory is opened, before its files are scanned, so the last report is always short
             // by the contents of the last directory.
@@ -262,21 +264,26 @@ public sealed class FindFilesForm : ThemedForm
         }
         catch (OperationCanceledException)
         {
+            if (IsDisposed || !IsHandleCreated) return;
             _status.Text = L.GetString("Find.Stopped", engine.Hits);
         }
         catch (Exception ex)
         {
             LogService.Error("Search failed", ex);
+            if (IsDisposed || !IsHandleCreated) return;
             _status.Text = ex.Message;
         }
         finally
         {
             _running = false;
-            _flushTimer.Stop();
-            FlushPending();          // whatever arrived since the last tick
+            if (!IsDisposed && IsHandleCreated)
+            {
+                _flushTimer.Stop();
+                FlushPending();          // whatever arrived since the last tick
+                UpdateButtonState();
+            }
             _cancellation?.Dispose();
             _cancellation = null;
-            UpdateButtonState();
         }
     }
 
@@ -285,6 +292,7 @@ public sealed class FindFilesForm : ThemedForm
     /// repaints per row, which is what makes a results list crawl.</summary>
     private void FlushPending()
     {
+        if (IsDisposed || !IsHandleCreated) return;
         List<SearchHit> batch;
         lock (_pendingLock)
         {
@@ -321,7 +329,7 @@ public sealed class FindFilesForm : ThemedForm
 
     private void UpdateRunningStatus()
     {
-        if (!_running) return;
+        if (!_running || IsDisposed || !IsHandleCreated) return;
         SearchEngine.SearchProgress snapshot;
         lock (_progressLock) snapshot = _progress;
         _status.Text = LocalizationService.Current.GetString(
