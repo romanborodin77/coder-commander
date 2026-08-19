@@ -33,6 +33,8 @@ public sealed class DifferForm : ThemedForm
     private IFileSystem _leftFs;
     private IFileSystem _rightFs;
 
+    private CancellationTokenSource? _compareCts;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="DifferForm"/> class, optionally pre-filling both file paths.
     /// </summary>
@@ -236,8 +238,12 @@ public sealed class DifferForm : ThemedForm
 
         try
         {
-            var leftLines = await ReadAllLinesAsync(leftFs, left).ConfigureAwait(true);
-            var rightLines = await ReadAllLinesAsync(rightFs, right).ConfigureAwait(true);
+            _compareCts?.Cancel();
+            _compareCts = new CancellationTokenSource();
+            var ct = _compareCts.Token;
+
+            var leftLines = await ReadAllLinesAsync(leftFs, left, ct).ConfigureAwait(true);
+            var rightLines = await ReadAllLinesAsync(rightFs, right, ct).ConfigureAwait(true);
             if (IsDisposed || !IsHandleCreated) return;
             var maxLines = Math.Max(leftLines.Count, rightLines.Count);
 
@@ -284,13 +290,34 @@ public sealed class DifferForm : ThemedForm
     /// remote connection the same way it does for a local one. Bounded by the same
     /// <see cref="LargeFileConfirmBytes"/> confirmation the caller already gates on, so this never
     /// buffers more than what the user explicitly agreed to load.</summary>
-    private static async Task<List<string>> ReadAllLinesAsync(IFileSystem fs, string path)
+    private static async Task<List<string>> ReadAllLinesAsync(IFileSystem fs, string path, CancellationToken ct)
     {
+        using var stream = await fs.OpenReadAsync(path, ct).ConfigureAwait(true);
+        // Binary detection: a null byte in the first 8 KB means this is not a text file —
+        // feeding it to StreamReader produces garbage (null chars, invalid UTF-8 replacements)
+        // and the diff output is meaningless.
+        var probeBuffer = new byte[8192];
+        var probeRead = 0;
+        while (probeRead < probeBuffer.Length)
+        {
+            var n = await stream.ReadAsync(probeBuffer.AsMemory(probeRead, probeBuffer.Length - probeRead), ct).ConfigureAwait(true);
+            if (n == 0) break;
+            probeRead += n;
+        }
+        for (var i = 0; i < probeRead; i++)
+        {
+            if (probeBuffer[i] == 0)
+                throw new IOException($"\"{VfsPath.GetName(path)}\" appears to be a binary file — text diff is not applicable.");
+        }
+        stream.Position = 0;
+
         var lines = new List<string>();
-        using var stream = await fs.OpenReadAsync(path).ConfigureAwait(true);
         using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
-        while (await reader.ReadLineAsync().ConfigureAwait(true) is { } line)
+        while (await reader.ReadLineAsync(ct).ConfigureAwait(true) is { } line)
+        {
             lines.Add(line);
+            ct.ThrowIfCancellationRequested();
+        }
         return lines;
     }
 
@@ -298,6 +325,8 @@ public sealed class DifferForm : ThemedForm
     {
         if (disposing)
         {
+            _compareCts?.Cancel();
+            _compareCts?.Dispose();
             _leftPathBox?.Dispose();
             _rightPathBox?.Dispose();
             _leftBrowseBtn?.Dispose();

@@ -131,10 +131,23 @@ public sealed class DeleteOperation : FileOperation
         }
         else
         {
+            // Remote filesystems (FTP/SFTP/WebDAV) and others without batch delete or recycle bin
+            // go through this path. A single locked/permission-denied file used to abort the ENTIRE
+            // delete — collected here (same pattern as CopyOperation/WipeOperation) so the remaining
+            // files are still deleted and the failures are reported together.
+            var failures = new List<string>();
             foreach (var file in _files)
             {
                 ct.ThrowIfCancellationRequested();
-                await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                try
+                {
+                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Warning($"Delete: failed for {file.FullPath}: {ex.Message}");
+                    failures.Add(file.Name);
+                }
                 _filesProcessed++;
                 Report(new OperationProgress
                 {
@@ -144,6 +157,11 @@ public sealed class DeleteOperation : FileOperation
                     FilesTotal = _filesTotal
                 });
             }
+            if (failures.Count > 0)
+                throw new IOException(
+                    $"Deleted {_filesProcessed - failures.Count} of {_filesTotal} items, but {failures.Count} could not be deleted: " +
+                    $"{string.Join(", ", failures.Take(5))}" +
+                    (failures.Count > 5 ? $" and {failures.Count - 5} more" : ""));
         }
     }
 }
@@ -293,6 +311,17 @@ public sealed class WipeOperation : FileOperation
                 return false;
             }
 
+            // Hardlinks: multiple directory entries point to the same data on disk. Wiping one
+            // link's data destroys the content for ALL other links — the user expects "securely
+            // delete this one file", not "destroy data behind every name that shares this inode".
+            // FileInfo.LinkTarget is null for hardlinks (only symlinks populate it), so we detect
+            // them by checking the link count via GetFileInformationByHandle.
+            if (HasMultipleHardLinks(path))
+            {
+                LogService.Warning($"Wipe: refusing hardlinked file {path} — all links share the same data");
+                return false;
+            }
+
             if ((fi.Attributes & FileAttributes.ReadOnly) != 0)
                 fi.Attributes = FileAttributes.Normal;
 
@@ -320,5 +349,37 @@ public sealed class WipeOperation : FileOperation
             LogService.Warning($"Wipe: overwrite failed for {path}: {ex.Message}", "FileOp");
             return false;
         }
+    }
+
+    /// <summary>Returns true if the file has more than one hard link (multiple directory entries
+    /// pointing to the same data). Wiping such a file destroys the content for every link.</summary>
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(System.IntPtr hFile, out BY_HANDLE_FILE_INFORMATION lpFileInformation);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct BY_HANDLE_FILE_INFORMATION
+    {
+        public uint dwFileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME ftCreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME ftLastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME ftLastWriteTime;
+        public uint dwVolumeSerialNumber;
+        public uint nFileSizeHigh;
+        public uint nFileSizeLow;
+        public uint nNumberOfLinks;
+        public uint nFileIndexHigh;
+        public uint nFileIndexLow;
+    }
+
+    private static bool HasMultipleHardLinks(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (GetFileInformationByHandle(fs.SafeFileHandle.DangerousGetHandle(), out var info))
+                return info.nNumberOfLinks > 1;
+        }
+        catch { /* best-effort — if we can't tell, don't block the wipe */ }
+        return false;
     }
 }

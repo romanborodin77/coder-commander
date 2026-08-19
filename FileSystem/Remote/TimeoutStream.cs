@@ -15,13 +15,15 @@ internal sealed class TimeoutStream : Stream
     private readonly Stream _inner;
     private readonly TimeSpan _timeout;
     private readonly CancellationToken _externalCt;
+    private readonly IDisposable? _extraDispose;
     private bool _disposed;
 
-    public TimeoutStream(Stream inner, TimeSpan timeout, CancellationToken externalCt = default)
+    public TimeoutStream(Stream inner, TimeSpan timeout, CancellationToken externalCt = default, IDisposable? extraDispose = null)
     {
         _inner = inner;
         _timeout = timeout;
         _externalCt = externalCt;
+        _extraDispose = extraDispose;
     }
 
     public override bool CanRead => _inner.CanRead;
@@ -72,7 +74,10 @@ internal sealed class TimeoutStream : Stream
         {
             _disposed = true;
             if (disposing)
+            {
                 _inner.Dispose();
+                _extraDispose?.Dispose();
+            }
         }
         base.Dispose(disposing);
     }
@@ -83,6 +88,7 @@ internal sealed class TimeoutStream : Stream
         {
             _disposed = true;
             await _inner.DisposeAsync().ConfigureAwait(false);
+            _extraDispose?.Dispose();
         }
         await base.DisposeAsync().ConfigureAwait(false);
     }

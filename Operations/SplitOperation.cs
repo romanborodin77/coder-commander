@@ -3,6 +3,7 @@ using System.IO.Hashing;
 using System.Text;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 #pragma warning disable CA1308 // CRC hash hex string is written to .crc file in conventional lowercase
 namespace CoderCommander.Operations;
@@ -63,7 +64,22 @@ public sealed class SplitOperation : FileOperation
             return;
 
         _filesTotal = targets.Count;
-        _bytesTotal = targets.Sum(f => f.Size);
+        // checked arithmetic: Sum can silently overflow long for very large multi-select
+        _bytesTotal = 0;
+        foreach (var f in targets)
+        {
+            checked { _bytesTotal += f.Size; }
+        }
+
+        // Pre-flight: splitting writes parts to the same filesystem — verify free space first.
+        try
+        {
+            var (freeBytes, _) = await _fs.GetDriveSpaceAsync(_destDir, ct).ConfigureAwait(false);
+            if (freeBytes > 0 && _bytesTotal > freeBytes)
+                throw new IOException($"Not enough free space: need {FormatUtils.FormatSize(_bytesTotal)}, {FormatUtils.FormatSize(freeBytes)} available.");
+        }
+        catch (IOException) { throw; }
+        catch (Exception) { /* GetDriveSpaceAsync not supported — skip */ }
 
         // Collected, not thrown-per-file, so one bad file doesn't abort the rest of a multi-select
         // split - same idiom as PackOperation.RemoveSourcesAsync / CopyOperation's failure list.

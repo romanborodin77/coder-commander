@@ -88,6 +88,11 @@ public sealed class ImageViewerLoader : IViewerLoader
                     Modal: true);
             }
 
+            // Apply EXIF orientation: modern phones/cameras store portrait images right-side-up
+            // only via the EXIF orientation tag (0x0112), expecting the viewer to rotate. Without
+            // this, JPEGs from phones appear sideways or upside-down.
+            var oriented = ApplyExifOrientation(decoded);
+
             // Detach from the MemoryStream (which is about to be disposed) by cloning into a
             // fresh Bitmap - GDI+ decode can be lazy, and Image.FromStream keeps a reference to
             // its source stream for the image's lifetime otherwise.
@@ -99,7 +104,7 @@ public sealed class ImageViewerLoader : IViewerLoader
             // no longer needed. Same class of false positive already documented at
             // MainForm.OpenDirectoryTree() for a different escape shape (an event subscription).
 #pragma warning disable CA2000
-            var detached = new Bitmap(decoded);
+            var detached = new Bitmap(oriented);
 #pragma warning restore CA2000
             return new ImagePayload(detached);
         }
@@ -113,6 +118,44 @@ public sealed class ImageViewerLoader : IViewerLoader
             // WebP support varies by Windows version/WIC codec availability - a decode failure
             // here is a real "this system can't preview this format" case, not a bug.
             return new ViewerErrorPayload(L.GetString("View.PreviewNotAvailable"), Modal: true);
+        }
+    }
+
+    /// <summary>Applies the EXIF orientation tag (0x0112) to the decoded image so photos from
+    /// phones/cameras display right-side-up. Returns the original image unchanged if no EXIF
+    /// orientation is present or the property cannot be read.</summary>
+    private static Image ApplyExifOrientation(Image img)
+    {
+        try
+        {
+            const int PropertyTagOrientation = 0x0112;
+            if (img.PropertyIdList?.Contains(PropertyTagOrientation) != true)
+                return img;
+
+            var val = img.GetPropertyItem(PropertyTagOrientation);
+            if (val?.Value is null || val.Value.Length < 2)
+                return img;
+
+            var orientation = (ushort)(val.Value[0] | (val.Value[1] << 8));
+            var flipType = orientation switch
+            {
+                2 => RotateFlipType.RotateNoneFlipX,
+                3 => RotateFlipType.Rotate180FlipNone,
+                4 => RotateFlipType.Rotate180FlipX,
+                5 => RotateFlipType.Rotate90FlipX,
+                6 => RotateFlipType.Rotate90FlipNone,
+                7 => RotateFlipType.Rotate270FlipX,
+                8 => RotateFlipType.Rotate270FlipNone,
+                _ => RotateFlipType.RotateNoneFlipNone
+            };
+
+            if (flipType != RotateFlipType.RotateNoneFlipNone)
+                img.RotateFlip(flipType);
+            return img;
+        }
+        catch
+        {
+            return img;
         }
     }
 }

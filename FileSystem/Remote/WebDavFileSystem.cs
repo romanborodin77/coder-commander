@@ -214,7 +214,9 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
             // HttpClient.Timeout covers only up to headers with ResponseHeadersRead; a server
             // that trickles one byte per minute would hang the body read indefinitely. The
             // TimeoutStream applies RemoteLimits.RequestTimeout per individual read.
-            return new TimeoutStream(stream, RemoteLimits.RequestTimeout, ct);
+            // The response is disposed when the stream is closed, so the underlying connection
+            // is returned to the pool — without this, HttpResponseMessage stays live until GC.
+            return new TimeoutStream(stream, RemoteLimits.RequestTimeout, ct, response);
         }
         catch
         {

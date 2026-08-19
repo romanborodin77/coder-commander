@@ -249,7 +249,6 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
     private static ZipDirectory ParseCentralDirectory(string archivePath)
     {
-        var records = new List<ZipEntryRecord>();
         var legacyNames = false;
 
         using var fs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -313,6 +312,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         // Read Central Directory
         fs.Position = cdOffset;
+        var records = new List<ZipEntryRecord>((int)Math.Min(totalEntries, 1 << 20));
         int entryIndex = 0;
         for (long i = 0; i < totalEntries; i++)
         {
@@ -348,7 +348,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
             var filenameBytes = reader.ReadBytes(filenameLen);
             var extraBytes = reader.ReadBytes(extraLen);
-            reader.ReadBytes(commentLen);
+            if (commentLen > 0)
+                fs.Seek(commentLen, SeekOrigin.Current);
 
             if (compressedSize == 0xFFFFFFFF || uncompressedSize == 0xFFFFFFFF)
                 ReadZip64Sizes(extraBytes, ref uncompressedSize, ref compressedSize);

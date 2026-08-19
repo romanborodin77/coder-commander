@@ -79,7 +79,7 @@ public sealed partial class CombineOperation : FileOperation
             // pre-existing file for a combine they didn't intend to overwrite.
             if (!destExistedBefore)
             {
-                try { await _fs.DeleteAsync(_destPath, false, ct).ConfigureAwait(false); }
+                try { await _fs.DeleteAsync(_destPath, false, CancellationToken.None).ConfigureAwait(false); }
                 catch { /* best-effort cleanup of partial output */ }
             }
             throw;
@@ -89,6 +89,14 @@ public sealed partial class CombineOperation : FileOperation
 
         if (crc != null)
             CrcVerified = await VerifyCrcAsync(baseName, crc.GetCurrentHash(), ct).ConfigureAwait(false);
+
+        // CRC verification failed: the combined output is corrupt. Deleting the original parts
+        // would make the data loss irreversible — the user has no way back. Abort with a clear
+        // error instead, leaving both the (corrupt) output and the (intact) parts in place.
+        if (CrcVerified == false)
+            throw new IOException(
+                $"CRC verification failed for \"{baseName}\" — the combined file may be corrupt. " +
+                "Source parts were not deleted.");
 
         if (_deleteSourceAfter)
         {

@@ -154,6 +154,14 @@ public sealed class OperationManager : IDisposable
             try { _queueLock.Release(); }
             catch (ObjectDisposedException) { /* Dispose already ran — expected during shutdown */ }
             lock (queued.CtsLock) { queued.QueueWaitCts.Dispose(); }
+            // If Dispose() was called while this operation was still running, it couldn't
+            // dispose _queueLock (Wait(0) returned false). Dispose it here now that we've
+            // released it — otherwise the SemaphoreSlim leaks.
+            if (_disposed)
+            {
+                try { _queueLock.Dispose(); }
+                catch (ObjectDisposedException) { /* already disposed by another finally */ }
+            }
         }
     }
 

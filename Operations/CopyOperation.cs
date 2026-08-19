@@ -1,6 +1,7 @@
 using CoderCommander.Archives;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Operations;
 
@@ -130,6 +131,18 @@ public sealed class CopyOperation : FileOperation
 
         _filesTotal = plan.Count(p => !p.Entry.IsDirectory);
         _bytesTotal = plan.Where(p => !p.Entry.IsDirectory).Sum(p => p.Entry.Size);
+
+        // Pre-flight: check that the destination has enough free space before writing anything.
+        // Without this, a copy to a near-full disk fails mid-way, leaving a partial file and
+        // wasted I/O — UnpackOperation already does the same check.
+        try
+        {
+            var (freeBytes, _) = await _destFs.GetDriveSpaceAsync(_destPath, ct).ConfigureAwait(false);
+            if (freeBytes > 0 && _bytesTotal > freeBytes)
+                throw new IOException($"Not enough free space: need {FormatUtils.FormatSize(_bytesTotal)}, {FormatUtils.FormatSize(freeBytes)} available.");
+        }
+        catch (IOException) { throw; }
+        catch (Exception) { /* GetDriveSpaceAsync not supported — skip the check */ }
 
         await _destFs.CreateDirectoryAsync(_destPath, ct).ConfigureAwait(false);
 
@@ -268,6 +281,12 @@ public sealed class CopyOperation : FileOperation
 
     private async Task CopyFileWithProgress(FileEntry file, string destPath, CancellationToken ct)
     {
+        // Source == destination: copying a file onto itself. Without this guard,
+        // CopyFromStreamAsync opens the dest for writing (truncating it to 0), then
+        // OpenReadAsync reads from the now-empty source — silent data loss.
+        if (string.Equals(file.FullPath, destPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
         var destDir = VfsPath.GetParent(destPath);
         if (!string.IsNullOrEmpty(destDir))
             await _destFs.CreateDirectoryAsync(destDir, ct).ConfigureAwait(false);

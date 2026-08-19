@@ -347,7 +347,9 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     {
         try
         {
-            var status = await _client.GetStatusAsync(ToServerPath(path), ct).ConfigureAwait(false);
+            var status = await RunAsync(
+                token => _client.GetStatusAsync(ToServerPath(path), token),
+                "statvfs", RemotePath.PathOf(path), ct).ConfigureAwait(false);
             return ((long)(status.AvailableBlocks * status.BlockSize), (long)(status.TotalBlocks * status.BlockSize));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -362,6 +364,11 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
     /// <summary>Directories this connection has already created, so a copy does not recreate the
     /// same destination once per file. Guarded by its own lock: two panels can copy at once.</summary>
     private readonly HashSet<string> _knownDirectories = new(StringComparer.Ordinal);
+
+    /// <summary>Serializes reconnection attempts — without it, two concurrent operations
+    /// hitting SshConnectionException simultaneously would both call _client.Connect(),
+    /// and SSH.NET doesn't document Connect() as thread-safe.</summary>
+    private readonly SemaphoreSlim _reconnectLock = new(1, 1);
 
     private Task RunAsync(Func<CancellationToken, Task> body, string operation, string subject, CancellationToken ct) =>
         RunAsync(async token => { await body(token).ConfigureAwait(false); return true; }, operation, subject, ct);
@@ -406,6 +413,7 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
         }
         catch (SshConnectionException ex)
         {
+            await _reconnectLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 if (!_client.IsConnected)
@@ -419,6 +427,10 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
             catch
             {
                 throw new IOException($"SFTP: the connection was lost during {operation}: {ex.Message}");
+            }
+            finally
+            {
+                _reconnectLock.Release();
             }
         }
         catch (SshException ex)
@@ -441,5 +453,6 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
         }
 
         _client.Dispose();
+        _reconnectLock.Dispose();
     }
 }

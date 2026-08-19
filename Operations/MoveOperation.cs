@@ -126,12 +126,20 @@ public sealed class MoveOperation : FileOperation
 
         if (copy.State != OperationState.Completed)
         {
-            // Partial copy: some files landed at the destination, others failed. For a directory
-            // move, deleting only what WrittenPaths confirms made it across completes as much of
-            // the move as possible — rather than rethrowing and leaving both source and a partial
-            // destination populated with no visibility. For a single-file move with a failure,
-            // nothing was written (or the write itself threw before WrittenPaths was populated),
-            // so rethrowing preserves the source untouched.
+            // Cancellation: don't delete source files. The user pressed Cancel expecting the
+            // source to be preserved — deleting already-copied files from the source turns a
+            // cancellation into a partial move, which is surprising and destructive.
+            if (ct.IsCancellationRequested)
+            {
+                if (copy.LastError != null)
+                    throw copy.LastError;
+                ct.ThrowIfCancellationRequested();
+            }
+
+            // Partial copy (non-cancellation failure): some files landed at the destination,
+            // others failed. For a directory move, deleting only what WrittenPaths confirms
+            // made it across completes as much of the move as possible. For a single-file move
+            // with a failure, nothing was written, so rethrowing preserves the source untouched.
             if (file.IsDirectory && copy.WrittenPaths.Count > 0)
             {
                 foreach (var writtenPath in copy.WrittenPaths)
