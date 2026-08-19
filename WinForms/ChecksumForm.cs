@@ -313,4 +313,21 @@ public class ChecksumForm : ThemedForm
         }
         return true;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _algoCombo?.Dispose();
+            _calcBtn?.Dispose();
+            _closeBtn?.Dispose();
+            _copyBtn?.Dispose();
+            _exportBtn?.Dispose();
+            _fileList?.Dispose();
+            _resultList?.Dispose();
+            _statusLabel?.Dispose();
+            _cts?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

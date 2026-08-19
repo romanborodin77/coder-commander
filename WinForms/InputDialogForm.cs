@@ -70,4 +70,15 @@ public class InputDialogForm : ThemedForm
         AcceptButton = _okBtn;
         CancelButton = _cancelBtn;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _textBox?.Dispose();
+            _okBtn?.Dispose();
+            _cancelBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

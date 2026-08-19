@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CoderCommander.FileSystem;
 
+#pragma warning disable CA1308 // Checksum hex strings are returned lowercase per documented API contract
 namespace CoderCommander.Services;
 
 /// <summary>

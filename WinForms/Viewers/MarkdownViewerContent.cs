@@ -145,6 +145,10 @@ internal sealed class MarkdownViewerContent : IViewerContent
         if (_disposed) return;
         _disposed = true;
         CleanupFolder();
+        _wrapper.Dispose();
+        _errorLabel.Dispose();
+        _sourceToggleBtn.Dispose();
+        _printBtn.Dispose();
         GC.SuppressFinalize(this);
     }
 }

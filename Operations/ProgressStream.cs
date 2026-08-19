@@ -1,3 +1,7 @@
+// CA2213: _inner is intentionally not disposed — this is a pass-through stream;
+// the caller owns the underlying stream's lifetime.
+#pragma warning disable CA2213
+
 namespace CoderCommander.Operations;
 
 /// <summary>Read-only pass-through stream that reports how many bytes flowed through it.</summary>

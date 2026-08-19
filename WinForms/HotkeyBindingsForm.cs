@@ -231,4 +231,13 @@ public sealed class HotkeyBindingsForm : ThemedForm
         _list.ForeColor = p.Foreground;
         NativeControlThemer.ApplyDarkScrollbars(_list);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _list?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

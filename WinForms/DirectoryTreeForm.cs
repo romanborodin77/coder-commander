@@ -159,4 +159,14 @@ public class DirectoryTreeForm : ThemedForm
             await LoadChildDirsAsync(e.Node, path).ConfigureAwait(true);
         }
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _tree?.Dispose();
+            _closeBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

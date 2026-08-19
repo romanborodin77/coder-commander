@@ -186,7 +186,12 @@ internal sealed class TerminalFindBar : Panel
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             ThemeService.ThemeChanged -= OnThemeChanged;
+            _findBox?.Dispose();
+            _matchCaseCheck?.Dispose();
+            _matchCountLabel?.Dispose();
+        }
         base.Dispose(disposing);
     }
 }

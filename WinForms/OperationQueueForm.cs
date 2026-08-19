@@ -157,4 +157,17 @@ public class OperationQueueForm : ThemedForm
 
         _listView.EndUpdate();
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _listView?.Dispose();
+            _cancelAllBtn?.Dispose();
+            _clearBtn?.Dispose();
+            _closeBtn?.Dispose();
+            _statusLabel?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

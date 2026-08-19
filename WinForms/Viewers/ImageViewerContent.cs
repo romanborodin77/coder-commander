@@ -270,6 +270,8 @@ internal sealed class ImageViewerContent : IViewerContent
         _originalImage?.Dispose();
         if (_displayImage != null && !ReferenceEquals(_displayImage, _originalImage))
             _displayImage.Dispose();
+        _scrollPanel.Dispose();
+        _pictureBox.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -293,4 +293,20 @@ public class DifferForm : ThemedForm
             lines.Add(line);
         return lines;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _leftPathBox?.Dispose();
+            _rightPathBox?.Dispose();
+            _leftBrowseBtn?.Dispose();
+            _rightBrowseBtn?.Dispose();
+            _leftBox?.Dispose();
+            _rightBox?.Dispose();
+            _statusLabel?.Dispose();
+            _closeBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

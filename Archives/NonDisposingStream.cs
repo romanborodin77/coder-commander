@@ -1,3 +1,7 @@
+// CA2213: _inner is intentionally not disposed — the owning reader (TarReader/SharpCompress)
+// manages its lifetime. See class doc comment.
+#pragma warning disable CA2213
+
 namespace CoderCommander.Archives;
 
 /// <summary>

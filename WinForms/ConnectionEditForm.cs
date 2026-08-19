@@ -221,4 +221,20 @@ public sealed class ConnectionEditForm : ThemedForm
         StyledMessageBox.Show(message, Text, MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
         focus.Focus();
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _nameBox?.Dispose();
+            _schemeBox?.Dispose();
+            _urlBox?.Dispose();
+            _userBox?.Dispose();
+            _passwordBox?.Dispose();
+            _fingerprintBox?.Dispose();
+            _savePasswordCheck?.Dispose();
+            _autoConnectCheck?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

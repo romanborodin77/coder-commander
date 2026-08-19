@@ -281,4 +281,20 @@ public class DuplicateFinderForm : ThemedForm
         _ = ScanAsync(); // refresh after delete — deletion runs async via DeleteOperation; scan
                          // may see files still present, but user can re-scan manually if needed.
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _boldFont?.Dispose();
+            _resultList?.Dispose();
+            _scanBtn?.Dispose();
+            _gotoBtn?.Dispose();
+            _deleteBtn?.Dispose();
+            _closeBtn?.Dispose();
+            _statusLabel?.Dispose();
+            _cts?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

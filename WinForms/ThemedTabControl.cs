@@ -87,6 +87,8 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
             _closeButtonTip.Dispose();
             foreach (var page in _pages)
                 page.Content.Dispose();
+            _buttonPanel?.Dispose();
+            _contentPanel?.Dispose();
         }
         base.Dispose(disposing);
     }

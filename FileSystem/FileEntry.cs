@@ -1,5 +1,6 @@
 namespace CoderCommander.FileSystem;
 
+#pragma warning disable CA1308 // Lowercase extension is an API contract: callers rely on dot-prefixed lowercase
 /// <summary>
 //// Immutable metadata record — no UI dependencies.
 /// </summary>

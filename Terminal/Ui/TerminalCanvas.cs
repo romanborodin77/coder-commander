@@ -170,6 +170,7 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             foreach (var font in _styledFontCache.Values) font.Dispose();
             _styledFontCache.Clear();
             _ownedFont?.Dispose();
+            _font?.Dispose();
         }
         base.Dispose(disposing);
     }

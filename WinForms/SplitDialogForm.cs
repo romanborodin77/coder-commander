@@ -149,4 +149,17 @@ public sealed class SplitDialogForm : ThemedForm
         AcceptButton = okBtn;
         CancelButton = cancelBtn;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _presetCombo?.Dispose();
+            _customSizeBox?.Dispose();
+            _deleteSourceCheck?.Dispose();
+            _writeCrcCheck?.Dispose();
+            _destDirBox?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

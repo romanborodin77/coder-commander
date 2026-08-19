@@ -128,6 +128,19 @@ public sealed class MainForm : Form
         {
             LocalizationService.Current.LanguageChanged -= OnLanguageChanged;
             ThemeService.ThemeChanged -= OnGlobalThemeChanged;
+            _toolStrip?.Dispose();
+            _menuStrip?.Dispose();
+            _statusStrip?.Dispose();
+            _mainSplit?.Dispose();
+            _leftPanel?.Dispose();
+            _rightPanel?.Dispose();
+            _terminalPanel?.Dispose();
+            _terminalSplitter?.Dispose();
+            _functionBar?.Dispose();
+            _lblStatus?.Dispose();
+            _lblQueue?.Dispose();
+            _splitterOverlay?.Dispose();
+            _deviceWatcher?.Dispose();
         }
         base.Dispose(disposing);
     }

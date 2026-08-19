@@ -4,6 +4,7 @@ using System.Text;
 using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
+#pragma warning disable CA1308 // CRC hash hex string is written to .crc file in conventional lowercase
 namespace CoderCommander.Operations;
 
 /// <summary>
@@ -173,6 +174,9 @@ public sealed class SplitOperation : FileOperation
     /// original file, spanning every part - not reset per part) and reports byte counts, without
     /// disposing the inner <see cref="BoundedReadStream"/> slice itself (that's the caller's job,
     /// same non-ownership contract <see cref="BoundedReadStream"/> has over its own inner stream).</summary>
+    // CA2213: _inner is intentionally not disposed — the caller owns the BoundedReadStream
+    // slice, same non-ownership contract BoundedReadStream has over its own inner stream.
+#pragma warning disable CA2213
     private sealed class TrackingReadStream : Stream
     {
         private readonly Stream _inner;

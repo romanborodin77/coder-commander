@@ -412,4 +412,21 @@ public class MultiRenameForm : ThemedForm
 
         base.OnFormClosing(e);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _patternBox?.Dispose();
+            _extBox?.Dispose();
+            _startIndex?.Dispose();
+            _stepIndex?.Dispose();
+            _previewList?.Dispose();
+            _hintLabel?.Dispose();
+            _okBtn?.Dispose();
+            _cancelBtn?.Dispose();
+            _resetBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

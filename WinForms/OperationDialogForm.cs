@@ -395,4 +395,24 @@ public class OperationDialogForm : ThemedForm
                 break;
         }
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _titleLabel?.Dispose();
+            _stateLabel?.Dispose();
+            _currentFileLabel?.Dispose();
+            _filesLabel?.Dispose();
+            _speedLabel?.Dispose();
+            _etaLabel?.Dispose();
+            _iconLabel?.Dispose();
+            _fileProgress?.Dispose();
+            _overallProgress?.Dispose();
+            _pauseBtn?.Dispose();
+            _skipBtn?.Dispose();
+            _cancelBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

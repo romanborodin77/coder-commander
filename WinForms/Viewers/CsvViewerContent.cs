@@ -212,6 +212,10 @@ internal sealed class CsvViewerContent : IViewerContent
     public void Dispose()
     {
         _overlay?.Dispose();
+        _listView.Dispose();
+        _autosizeBtn.Dispose();
+        _hasHeaderBtn.Dispose();
+        _delimiterBtn.Dispose();
         GC.SuppressFinalize(this);
     }
 }

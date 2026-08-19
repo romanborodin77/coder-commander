@@ -29,13 +29,14 @@ public sealed class FtpProvider : IFileSystemProvider
         if (!Uri.TryCreate(profile.Url, UriKind.Absolute, out var uri))
             throw new InvalidOperationException($"Invalid FTP address: \"{profile.Url}\"");
 
-        var scheme = uri.Scheme.ToLowerInvariant();
-        if (scheme is not ("ftp" or "ftps"))
+        var scheme = uri.Scheme;
+        if (!string.Equals(scheme, "ftp", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(scheme, "ftps", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"FTP needs an ftp or ftps address, not \"{uri.Scheme}\"");
 
         // Uri knows ftp's default port but not ftps', where it reports -1.
         var port = uri.Port > 0 ? uri.Port : DefaultPort;
-        var requireTls = scheme == "ftps";
+        var requireTls = string.Equals(scheme, "ftps", StringComparison.OrdinalIgnoreCase);
 
         // The authority is what app paths are addressed by, so it is built the same way for both
         // spellings - a connection is not a different place because it is encrypted.

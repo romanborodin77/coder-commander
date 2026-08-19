@@ -88,6 +88,17 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
         _forwardBtn.Enabled = core.CanGoForward;
     }
 
+    public override void Dispose()
+    {
+        _backBtn.Dispose();
+        _forwardBtn.Dispose();
+        _refreshBtn.Dispose();
+        _stopBtn.Dispose();
+        _scriptsBtn.Dispose();
+        _printBtn.Dispose();
+        base.Dispose();
+    }
+
     public override void ApplyTheme()
     {
         base.ApplyTheme();

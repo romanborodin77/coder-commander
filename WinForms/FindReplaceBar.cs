@@ -288,4 +288,17 @@ internal sealed class FindReplaceBar : Panel
         if (count > 0)
             ContentChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _findBox?.Dispose();
+            _replaceBox?.Dispose();
+            _matchCaseCheck?.Dispose();
+            _matchCountLabel?.Dispose();
+            _replaceRow?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

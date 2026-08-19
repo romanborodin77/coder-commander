@@ -265,4 +265,16 @@ public class BookmarksForm : ThemedForm
             RefreshList();
         }
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _listView?.Dispose();
+            _addBtn?.Dispose();
+            _removeBtn?.Dispose();
+            _closeBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

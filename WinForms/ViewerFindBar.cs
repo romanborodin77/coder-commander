@@ -237,7 +237,13 @@ internal sealed class ViewerFindBar : Panel
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _debounceTimer.Dispose();
+        if (disposing)
+        {
+            _debounceTimer.Dispose();
+            _findBox?.Dispose();
+            _matchCaseCheck?.Dispose();
+            _matchCountLabel?.Dispose();
+        }
         base.Dispose(disposing);
     }
 

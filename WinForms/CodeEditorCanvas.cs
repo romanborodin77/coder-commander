@@ -183,6 +183,7 @@ internal sealed class CodeEditorCanvas : Control
             _highlightCts?.Cancel();
             _highlightCts?.Dispose();
             _ownedFont?.Dispose();
+            _font?.Dispose();
         }
         base.Dispose(disposing);
     }

@@ -137,4 +137,15 @@ public class NetworkBrowseForm : ThemedForm
         NavigateRequested?.Invoke(this, share.UncPath);
         Close();
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _tree?.Dispose();
+            _closeBtn?.Dispose();
+            _statusLabel?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

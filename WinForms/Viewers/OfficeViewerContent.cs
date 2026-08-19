@@ -164,6 +164,12 @@ internal sealed class OfficeViewerContent : IViewerContent
         if (_disposed) return;
         _disposed = true;
         CleanupFolder();
+        _wrapper.Dispose();
+        _errorLabel.Dispose();
+        _prevBtn.Dispose();
+        _nextBtn.Dispose();
+        _pageLabel.Dispose();
+        _printBtn.Dispose();
         GC.SuppressFinalize(this);
     }
 }

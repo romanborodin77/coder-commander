@@ -590,6 +590,19 @@ public class ViewerForm : ThemedForm
             // directory delete (best-effort, but still) has a better chance of succeeding.
             if (_webViewHost.IsValueCreated) _webViewHost.Value.Dispose();
             if (_tempSession.IsValueCreated) _tempSession.Value.Dispose();
+            _toolStrip?.Dispose();
+            _prevBtn?.Dispose();
+            _nextBtn?.Dispose();
+            _firstUniversalButton?.Dispose();
+            _contentPanel?.Dispose();
+            _contentHost?.Dispose();
+            _beforeClose?.Dispose();
+            _statusStrip?.Dispose();
+            _lblFileInfo?.Dispose();
+            _lblExtension?.Dispose();
+            _lblMode?.Dispose();
+            _loadingBar?.Dispose();
+            _findBar?.Dispose();
         }
         base.Dispose(disposing);
     }

@@ -46,7 +46,10 @@ internal sealed class UnsupportedOsPanel : Panel
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             ThemeService.ThemeChanged -= OnThemeChanged;
+            _messageLabel?.Dispose();
+        }
         base.Dispose(disposing);
     }
 }

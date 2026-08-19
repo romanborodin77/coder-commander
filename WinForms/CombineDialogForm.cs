@@ -121,4 +121,15 @@ public sealed class CombineDialogForm : ThemedForm
         AcceptButton = okBtn;
         CancelButton = cancelBtn;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _outputNameBox?.Dispose();
+            _deleteSourceCheck?.Dispose();
+            _verifyCrcCheck?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

@@ -627,6 +627,22 @@ public class EditorForm : ThemedForm
     /// focus (the canvas, the gutter, or a textbox inside the find bar) — the previous approach
     /// (a KeyDown handler never actually wired to any control's event) never fired at all.
     /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _toolStrip?.Dispose();
+            _tabControl?.Dispose();
+            _statusStrip?.Dispose();
+            _lblEncoding?.Dispose();
+            _lblFileSize?.Dispose();
+            _lblLanguage?.Dispose();
+            _lblModified?.Dispose();
+            _lblPosition?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         if ((keyData & Keys.Control) == Keys.Control && (keyData & Keys.Alt) == 0)

@@ -110,6 +110,19 @@ public sealed class CodeEditorControl : Panel
         BackColor = ThemeService.Current.PanelBackground;
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _canvas?.Dispose();
+            _findBar?.Dispose();
+            _gutter?.Dispose();
+            _hScroll?.Dispose();
+            _vScroll?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         if (keyData == Keys.Escape && _findBar.Visible)

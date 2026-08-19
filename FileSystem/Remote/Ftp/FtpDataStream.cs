@@ -1,6 +1,10 @@
 using System.Net.Sockets;
 using CoderCommander.Services;
 
+// CA2213: _control is intentionally not disposed — the connection pool owns its lifetime.
+// On error, FinishAsync disposes it to prevent poisoning the pool; on success it's returned.
+#pragma warning disable CA2213
+
 namespace CoderCommander.FileSystem.Remote.Ftp;
 
 /// <summary>

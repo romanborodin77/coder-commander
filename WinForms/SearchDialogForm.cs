@@ -341,4 +341,24 @@ public class SearchDialogForm : ThemedForm
         }
         catch { return false; }
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _pathBox?.Dispose();
+            _patternBox?.Dispose();
+            _contentBox?.Dispose();
+            _caseCheck?.Dispose();
+            _regexCheck?.Dispose();
+            _subdirsCheck?.Dispose();
+            _searchBtn?.Dispose();
+            _closeBtn?.Dispose();
+            _resultsList?.Dispose();
+            _statusLabel?.Dispose();
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

@@ -183,4 +183,16 @@ public sealed class PackDialogForm : ThemedForm
         }
         return -1;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _nameBox?.Dispose();
+            _formatCombo?.Dispose();
+            _compressionCombo?.Dispose();
+            _moveCheck?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

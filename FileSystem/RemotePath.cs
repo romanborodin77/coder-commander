@@ -1,5 +1,6 @@
 namespace CoderCommander.FileSystem;
 
+#pragma warning disable CA1308 // Lowercase URL scheme per RFC 3986 normalization, stored in constructed remote paths
 /// <summary>
 /// Path arithmetic and safety checks for remote providers, whose paths look like
 /// <c>dav://host/dir/name</c>.

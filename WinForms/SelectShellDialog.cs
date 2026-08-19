@@ -105,4 +105,15 @@ public sealed class SelectShellDialog : ThemedForm
         shell.DisplayNameArg != null
             ? l.GetString(shell.DisplayNameKey, shell.DisplayNameArg)
             : l.GetString(shell.DisplayNameKey);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _shellComboBox?.Dispose();
+            _okButton?.Dispose();
+            _cancelButton?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

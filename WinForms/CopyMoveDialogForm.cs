@@ -303,4 +303,21 @@ public class CopyMoveDialogForm : ThemedForm
             g.DrawRectangle(pen, 10, 10, 16, 16);
         }
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _okBtn?.Dispose();
+            _cancelBtn?.Dispose();
+            _destBox?.Dispose();
+            _fileList?.Dispose();
+            _overwriteCombo?.Dispose();
+            _copyAttrsCheck?.Dispose();
+            _copyTsCheck?.Dispose();
+            _fileCountLabel?.Dispose();
+            _totalSizeLabel?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

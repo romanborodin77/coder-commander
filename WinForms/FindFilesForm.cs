@@ -363,6 +363,15 @@ public sealed class FindFilesForm : ThemedForm
             _cancellation?.Cancel();
             _cancellation?.Dispose();
             _flushTimer.Dispose();
+            _maskBox?.Dispose();
+            _textBox?.Dispose();
+            _results?.Dispose();
+            _matchCaseCheck?.Dispose();
+            _wholeWordCheck?.Dispose();
+            _subdirectoriesCheck?.Dispose();
+            _startBtn?.Dispose();
+            _goToBtn?.Dispose();
+            _status?.Dispose();
         }
         base.Dispose(disposing);
     }

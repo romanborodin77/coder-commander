@@ -75,6 +75,8 @@ public sealed class SettingsNavControl : UserControl, ISelfThemedControl
             ThemeService.ThemeChanged -= OnThemeChanged;
             foreach (var page in _pages)
                 page.Content.Dispose();
+            _navPanel?.Dispose();
+            _contentPanel?.Dispose();
         }
         base.Dispose(disposing);
     }

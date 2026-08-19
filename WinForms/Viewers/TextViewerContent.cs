@@ -151,5 +151,12 @@ internal sealed class TextViewerContent : IViewerContent, IViewerSearchTarget
     // same already-accepted CA2213 ownership pattern documented in CoderCommander.csproj (a
     // control owned by a parent collection doesn't need a second, redundant Dispose() call here).
     // Nothing else in this class owns an unmanaged or GDI+ resource.
-    public void Dispose() => GC.SuppressFinalize(this);
+    public void Dispose()
+    {
+        _textView.Dispose();
+        _findBtn.Dispose();
+        _wordWrapBtn.Dispose();
+        _encodingBtn?.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

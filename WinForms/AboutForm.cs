@@ -332,6 +332,8 @@ public class AboutForm : ThemedForm
         {
             _fadeTimer?.Dispose();
             _toolTip.Dispose();
+            _banner?.Dispose();
+            _btnPanel?.Dispose();
         }
         base.Dispose(disposing);
     }

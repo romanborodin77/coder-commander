@@ -159,7 +159,7 @@ public sealed partial class CombineOperation : FileOperation
             return null;
 
         var expectedHex = tokens[^1];
-        var actualHex = Convert.ToHexString(actualHash).ToLowerInvariant();
+        var actualHex = Convert.ToHexString(actualHash);
         return string.Equals(expectedHex, actualHex, StringComparison.OrdinalIgnoreCase);
     }
 

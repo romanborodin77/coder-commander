@@ -15,6 +15,58 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public class SettingsForm : ThemedForm
 {
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _nav?.Dispose();
+            _themeCombo?.Dispose();
+            _languageCombo?.Dispose();
+            _showHiddenCheck?.Dispose();
+            _showSystemCheck?.Dispose();
+            _showToolbarCheck?.Dispose();
+            _showStatusBarCheck?.Dispose();
+            _showFnButtonsCheck?.Dispose();
+            _dirsFirstCheck?.Dispose();
+            _uiFontDisplayLabel?.Dispose();
+            _monoFontDisplayLabel?.Dispose();
+            _compressionFormatCombo?.Dispose();
+            _compressionPresetCombo?.Dispose();
+            _defaultArchiveFormatCombo?.Dispose();
+            _skipCompressionCheck?.Dispose();
+            _deleteOriginalsAfterPackCheck?.Dispose();
+            _extensionsListBox?.Dispose();
+            _extensionAddBox?.Dispose();
+            _splitPartSizeCombo?.Dispose();
+            _splitWriteCrcCheck?.Dispose();
+            _deleteOriginalsAfterSplitCheck?.Dispose();
+            _verifyCrcAfterCombineCheck?.Dispose();
+            _deleteOriginalsAfterCombineCheck?.Dispose();
+            _confirmDeleteCheck?.Dispose();
+            _confirmOverwriteCheck?.Dispose();
+            _copyAttrsCheck?.Dispose();
+            _copyTsCheck?.Dispose();
+            _showExtInNameCheck?.Dispose();
+            _viewerWordWrapCheck?.Dispose();
+            _viewerImageFitCheck?.Dispose();
+            _viewerCsvDelimiterCombo?.Dispose();
+            _viewerCsvHasHeaderCheck?.Dispose();
+            _viewerEncodingCombo?.Dispose();
+            _viewerHtmlAllowScriptsCheck?.Dispose();
+            _externalViewerEnabledCheck?.Dispose();
+            _externalViewerPathBox?.Dispose();
+            _externalViewerArgsBox?.Dispose();
+            _externalEditorEnabledCheck?.Dispose();
+            _externalEditorPathBox?.Dispose();
+            _externalEditorArgsBox?.Dispose();
+            _defaultShellCombo?.Dispose();
+            _followPanelCwdCombo?.Dispose();
+            _keyBindingPresetCombo?.Dispose();
+            _loadShellProfileCheck?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
     private readonly SettingsNavControl _nav;
     private readonly ThemedComboBox _themeCombo;
     private readonly ThemedComboBox _languageCombo;

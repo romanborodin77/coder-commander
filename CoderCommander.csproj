@@ -66,7 +66,10 @@
          ToUpperInvariant; leaving them as ordinary (non-fatal) warnings keeps them visible on
          every build without blocking one over a diagnosis already on record.-->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA2213;CA1308</WarningsNotAsErrors>
+    <!-- MSB3277: WebView2.Wpf transitively references WindowsBase 5.0.0.0 while .NET 8 provides
+         4.0.0.0. The runtime resolves this through assembly unification — the conflict is benign
+         and only produces build-time noise. -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
     <!-- F095: CLAUDE.md claimed "pinned exact version" for SSH.NET/SharpCompress/WebView2/Markdig,
          but every PackageReference below is a bare version number - a NuGet minimum, not a pin.
          A lock file is the softer, more accurate fix: it locks the FULL resolved graph (including

@@ -1,3 +1,7 @@
+// CA2213: _inner is intentionally not disposed — the caller owns the underlying stream
+// and may read further slices from it after this wrapper reports EOF.
+#pragma warning disable CA2213
+
 namespace CoderCommander.Operations;
 
 /// <summary>

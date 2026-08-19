@@ -1666,6 +1666,15 @@ public sealed class FilePanelUserControl : UserControl
             // dispose if the panel closes while a menu happens to be open; it just finishes
             // closing and self-disposing normally, independent of this panel's own teardown.
             _fileImageList?.Dispose();
+            _borderPanel?.Dispose();
+            _driveBar?.Dispose();
+            _fileList?.Dispose();
+            _pathBar?.Dispose();
+            _breadcrumbBar?.Dispose();
+            _statusStrip?.Dispose();
+            _lblCursor?.Dispose();
+            _lblSelected?.Dispose();
+            _lblFree?.Dispose();
         }
         base.Dispose(disposing);
     }

@@ -131,6 +131,7 @@ internal abstract class WebFileViewerContentBase : IViewerContent
         _disposed = true;
         CleanupOwnTempFolder();
         _wrapper.Dispose();
+        _errorLabel.Dispose();
         GC.SuppressFinalize(this);
     }
 }

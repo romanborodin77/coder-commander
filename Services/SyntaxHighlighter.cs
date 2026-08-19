@@ -96,42 +96,42 @@ public static class LanguageDetector
     {
         if (string.IsNullOrEmpty(filePath)) return LanguageId.PlainText;
 
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        var fileName = Path.GetFileName(filePath).ToLowerInvariant();
+        var ext = Path.GetExtension(filePath).ToUpperInvariant();
+        var fileName = Path.GetFileName(filePath).ToUpperInvariant();
 
-        if (fileName is "dockerfile" || fileName.StartsWith("dockerfile.", StringComparison.Ordinal))
+        if (fileName is "DOCKERFILE" || fileName.StartsWith("DOCKERFILE.", StringComparison.Ordinal))
             return LanguageId.Dockerfile;
-        if (fileName is "makefile" or "gnumakefile")
+        if (fileName is "MAKEFILE" or "GNUMAKEFILE")
             return LanguageId.Makefile;
 
         return ext switch
         {
-            ".cs" => LanguageId.CSharp,
-            ".c" => LanguageId.C,
-            ".cpp" or ".cc" or ".cxx" or ".h" or ".hpp" => LanguageId.Cpp,
-            ".java" => LanguageId.Java,
-            ".js" or ".mjs" or ".cjs" => LanguageId.JavaScript,
-            ".ts" or ".tsx" => LanguageId.TypeScript,
-            ".jsx" => LanguageId.JavaScript,
-            ".py" or ".pyw" => LanguageId.Python,
-            ".html" or ".htm" => LanguageId.Html,
-            ".xml" or ".xsl" or ".xslt" or ".svg" => LanguageId.Xml,
-            ".css" or ".scss" or ".less" => LanguageId.Css,
-            ".json" => LanguageId.Json,
-            ".sql" => LanguageId.Sql,
-            ".md" or ".markdown" => LanguageId.Markdown,
-            ".php" => LanguageId.Php,
-            ".rb" => LanguageId.Ruby,
-            ".go" => LanguageId.Go,
-            ".rs" => LanguageId.Rust,
-            ".swift" => LanguageId.Swift,
-            ".kt" or ".kts" => LanguageId.Kotlin,
-            ".sh" or ".bash" or ".zsh" => LanguageId.Shell,
-            ".ps1" or ".psm1" or ".psd1" => LanguageId.PowerShell,
-            ".yaml" or ".yml" => LanguageId.Yaml,
-            ".ini" or ".cfg" or ".conf" => LanguageId.Ini,
-            ".dockerfile" => LanguageId.Dockerfile,
-            ".mak" or ".mk" => LanguageId.Makefile,
+            ".CS" => LanguageId.CSharp,
+            ".C" => LanguageId.C,
+            ".CPP" or ".CC" or ".CXX" or ".H" or ".HPP" => LanguageId.Cpp,
+            ".JAVA" => LanguageId.Java,
+            ".JS" or ".MJS" or ".CJS" => LanguageId.JavaScript,
+            ".TS" or ".TSX" => LanguageId.TypeScript,
+            ".JSX" => LanguageId.JavaScript,
+            ".PY" or ".PYW" => LanguageId.Python,
+            ".HTML" or ".HTM" => LanguageId.Html,
+            ".XML" or ".XSL" or ".XSLT" or ".SVG" => LanguageId.Xml,
+            ".CSS" or ".SCSS" or ".LESS" => LanguageId.Css,
+            ".JSON" => LanguageId.Json,
+            ".SQL" => LanguageId.Sql,
+            ".MD" or ".MARKDOWN" => LanguageId.Markdown,
+            ".PHP" => LanguageId.Php,
+            ".RB" => LanguageId.Ruby,
+            ".GO" => LanguageId.Go,
+            ".RS" => LanguageId.Rust,
+            ".SWIFT" => LanguageId.Swift,
+            ".KT" or ".KTS" => LanguageId.Kotlin,
+            ".SH" or ".BASH" or ".ZSH" => LanguageId.Shell,
+            ".PS1" or ".PSM1" or ".PSD1" => LanguageId.PowerShell,
+            ".YAML" or ".YML" => LanguageId.Yaml,
+            ".INI" or ".CFG" or ".CONF" => LanguageId.Ini,
+            ".DOCKERFILE" => LanguageId.Dockerfile,
+            ".MAK" or ".MK" => LanguageId.Makefile,
             _ => LanguageId.PlainText
         };
     }

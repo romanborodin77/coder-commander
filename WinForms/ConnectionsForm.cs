@@ -208,4 +208,16 @@ public sealed class ConnectionsForm : ThemedForm
         RefreshList();
         ConnectionsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _list?.Dispose();
+            _addBtn?.Dispose();
+            _editBtn?.Dispose();
+            _removeBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }

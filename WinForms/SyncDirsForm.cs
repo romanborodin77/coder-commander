@@ -427,6 +427,24 @@ public class SyncDirsForm : ThemedForm
 
         return map;
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _leftBox?.Dispose();
+            _rightBox?.Dispose();
+            _diffList?.Dispose();
+            _compareBtn?.Dispose();
+            _copyLeftBtn?.Dispose();
+            _copyRightBtn?.Dispose();
+            _subdirsCheck?.Dispose();
+            _ignoreTimeCheck?.Dispose();
+            _statusLabel?.Dispose();
+            _closeBtn?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }
 
 /// <summary>Represents the comparison status of a single file or directory between left and right.</summary>

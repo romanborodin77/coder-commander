@@ -59,6 +59,15 @@ internal sealed class CodeEditorGutter : Control
         if (Width != newWidth) Width = newWidth;
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _font?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;

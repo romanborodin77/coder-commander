@@ -761,4 +761,13 @@ internal sealed class StyledMessageBoxForm : ThemedForm
             _ => p.DimForeground
         };
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _iconLabel?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 }
