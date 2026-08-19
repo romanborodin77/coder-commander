@@ -989,6 +989,7 @@ public class PropertiesForm : ThemedForm
     {
         if (disposing)
         {
+            _cts?.Dispose();
             _recursiveCheckbox?.Dispose();
             _statusLabel?.Dispose();
         }
