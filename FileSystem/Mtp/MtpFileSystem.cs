@@ -1,4 +1,5 @@
 using MediaDevices;
+using System.Runtime.InteropServices;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 
@@ -71,11 +72,21 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         return idx >= 0 ? clean[(idx + 1)..] : clean;
     }
 
+    /// <summary>Checks the device is still usable before a MediaDevice call. Throws a clean
+    /// IOException if the device has been disposed or unplugged, rather than letting a raw
+    /// COMException surface.</summary>
+    private void EnsureConnected()
+    {
+        if (_disposed)
+            throw new IOException("MTP: device has been disconnected.");
+    }
+
     // ── IFileSystem ──
 
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var devicePath = ToDevice(path);
             var entries = new List<FileEntry>();
 
@@ -142,6 +153,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
         Task.Run<FileEntry?>(() =>
         {
+            EnsureConnected();
             var devicePath = ToDevice(path);
             lock (_deviceLock)
             {
@@ -168,6 +180,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task<bool> ExistsAsync(string path, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var p = ToDevice(path);
             lock (_deviceLock)
             {
@@ -178,6 +191,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task CopyFileAsync(string source, string destination, bool overwrite, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var src = ToDevice(source);
             var dst = ToDevice(destination);
             var tempFile = TempFileNaming.InSystemTemp("mtp");
@@ -191,6 +205,10 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                     _device.UploadFile(tempFile, dst);
                 }
             }
+            catch (COMException ex)
+            {
+                throw new IOException($"MTP: device error during copy: {ex.Message}", ex);
+            }
             finally
             {
                 try { File.Delete(tempFile); } catch { /* best-effort */ }
@@ -200,6 +218,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var src = ToDevice(source);
             var dst = ToDevice(destination);
             var tempFile = TempFileNaming.InSystemTemp("mtp_move");
@@ -215,6 +234,10 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                     _device.DeleteFile(src);
                 }
             }
+            catch (COMException ex)
+            {
+                throw new IOException($"MTP: device error during move: {ex.Message}", ex);
+            }
             finally
             {
                 try { File.Delete(tempFile); } catch { /* best-effort */ }
@@ -224,6 +247,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task DeleteAsync(string path, bool recursive, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var p = ToDevice(path);
             lock (_deviceLock)
             {
@@ -235,7 +259,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
         }, ct);
 
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) =>
-        Task.Run(() => { lock (_deviceLock) _device.CreateDirectory(ToDevice(path)); }, ct);
+        Task.Run(() => { EnsureConnected(); lock (_deviceLock) _device.CreateDirectory(ToDevice(path)); }, ct);
 
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
         Task.CompletedTask; // MTP doesn't support arbitrary attribute changes
@@ -246,6 +270,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default) =>
         Task.Run<Stream>(() =>
         {
+            EnsureConnected();
             var devicePath = ToDevice(path);
             // MTP doesn't support streaming reads — download to a temp file and return a FileStream
             // that deletes the temp file on close.
@@ -267,6 +292,7 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task CopyFromStreamAsync(string destinationPath, Stream source, CancellationToken ct = default) =>
         Task.Run(() =>
         {
+            EnsureConnected();
             var devicePath = ToDevice(destinationPath);
             // Upload via a temp file — MTP's UploadFile takes a file path, not a stream.
             var tempFile = TempFileNaming.InSystemTemp("mtp_upload");

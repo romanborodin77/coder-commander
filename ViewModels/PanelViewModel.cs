@@ -64,6 +64,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private readonly Stack<(IFileSystem fs, string path)> _back = new();
     private readonly Stack<(IFileSystem fs, string path)> _fwd = new();
+    private const int MaxHistoryDepth = 50;
 
     private FileSystemWatcher? _watcher;
     private System.Windows.Forms.Timer? _refreshDebounce;
@@ -425,12 +426,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         // correctly does nothing here - only actually leaving it releases anything. A harmless
         // no-op when GoToParentAsync already released it moments earlier (ReleaseArchiveLeaseAsync
         // is itself a no-op once _archiveLease is null).
-        if (_archiveLease != null &&
+        // Lease release is deferred until after path validation succeeds (below), so a failed
+        // navigation to a non-existent path doesn't destroy the archive lease and leave the
+        // panel in a broken state — temp copy deleted but _fs still pointing at the archive VFS.
+        bool needsLeaseRelease = _archiveLease != null &&
             (!FileSystem.VfsPath.IsArchive(path) ||
-             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
-        {
-            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
-        }
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase));
 
         // The trailing separator is a Windows-path convention (it is what makes "C:" mean the root
         // of C: rather than the process's current directory on C:). Neither virtual flavour uses
@@ -462,6 +463,10 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Path validated — now safe to release the archive lease from the previous location.
+        if (needsLeaseRelease)
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+
         // A newer NavigateAsync/GoBackAsync/GoForwardAsync call may have already started (and
         // possibly finished) while we were awaiting ExistsAsync above - if so, committing our own
         // (now stale) path would clobber whatever that newer call already settled on.
@@ -472,7 +477,10 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase))
         {
             if (!string.IsNullOrEmpty(CurrentPath))
+            {
                 _back.Push((_fs, CurrentPath));
+                while (_back.Count > MaxHistoryDepth) _back.TrimExcess();
+            }
             _fwd.Clear();
             OnPropertyChanged(nameof(CanGoBack));
             OnPropertyChanged(nameof(CanGoForward));
@@ -538,7 +546,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         // needs catching. Asking the manager also leaves archives and the fakes tests use alone,
         // since neither is ever one of its live connections. MTP filesystems get the same treatment.
         if (Services.ConnectionManager.Instance.IsConnectionFileSystem(_fs) ||
-            Services.MtpConnectionRegistry.IsMtpFileSystem(_fs))
+            Services.MtpConnectionRegistry.IsMtpFileSystem(_fs) ||
+            !_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             _fs = new FileSystem.LocalFileSystem();
 
         return true;
@@ -623,6 +632,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var ct = BeginNavigation();
         var (fs, path) = _back.Pop();
         _fwd.Push((_fs, CurrentPath));
+        // Release archive lease if leaving an archive for a non-archive destination.
+        if (_archiveLease != null &&
+            (!FileSystem.VfsPath.IsArchive(path) ||
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
         _fs = fs;
         CurrentPath = path;
         await RefreshAsync(ct);
@@ -638,6 +652,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var ct = BeginNavigation();
         var (fs, path) = _fwd.Pop();
         _back.Push((_fs, CurrentPath));
+        // Release archive lease if leaving an archive for a non-archive destination.
+        if (_archiveLease != null &&
+            (!FileSystem.VfsPath.IsArchive(path) ||
+             !string.Equals(FileSystem.VfsPath.GetArchiveFile(path), FileSystem.VfsPath.GetArchiveFile(CurrentPath), StringComparison.OrdinalIgnoreCase)))
+            await ReleaseArchiveLeaseAsync().ConfigureAwait(true);
         _fs = fs;
         CurrentPath = path;
         await RefreshAsync(ct);
@@ -731,6 +750,10 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             LogService.Error($"Refresh failed for {path}: {ex.Message}", ex);
+            // Clear stale items so the panel doesn't show files from a previous directory
+            // when the current path is inaccessible (deleted, disconnected remote, etc.).
+            _allItems.Clear();
+            ApplyFilter();
         }
         finally
         {
@@ -807,6 +830,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         {
             // No ConfigureAwait(false): OnPropertyChanged below is observed by UI-bound controls.
             var (free, total) = await _fs.GetDriveSpaceAsync(path);
+            // Stale-guard: if the user navigated away while we were awaiting, the result
+            // belongs to a different path/filesystem — discard it rather than show wrong free space.
+            if (!string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase)) return;
             FreeSpaceDisplay = total > 0 ? $"{FormatUtils.FormatSize(free)} / {FormatUtils.FormatSize(total)}" : "";
         }
         catch (Exception ex)

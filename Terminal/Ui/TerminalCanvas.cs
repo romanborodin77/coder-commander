@@ -61,8 +61,13 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
     private readonly TerminalKeyBindings _keyBindings;
     private TerminalColorCache _colors;
 
+    // CA2213: _font is either a shared cached Font (zoom 1.0, owned by FontCache/ThemeService)
+    //         or the same reference as _ownedFont (zoom ≠ 1.0). Either way it must not be
+    //         disposed here — _ownedFont?.Dispose() covers the owned case.
+#pragma warning disable CA2213
     private Font _font = null!;
     private Font? _ownedFont;
+#pragma warning restore CA2213
     private int _charWidth;
     private int _lineHeight;
     private float _zoomFactor = 1f;
@@ -170,7 +175,6 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             foreach (var font in _styledFontCache.Values) font.Dispose();
             _styledFontCache.Clear();
             _ownedFont?.Dispose();
-            _font?.Dispose();
         }
         base.Dispose(disposing);
     }

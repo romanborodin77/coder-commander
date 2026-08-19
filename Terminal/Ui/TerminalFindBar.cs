@@ -127,7 +127,18 @@ internal sealed class TerminalFindBar : Panel
             var lineCount = _canvas.CombinedLineCount();
             for (var line = 0; line < lineCount; line++)
             {
-                var text = _canvas.GetCombinedLineText(line);
+                string text;
+                try
+                {
+                    text = _canvas.GetCombinedLineText(line);
+                }
+                catch
+                {
+                    // The screen buffer was mutated (scrollback cleared, terminal resized)
+                    // between CombinedLineCount() and this line access — the line index is
+                    // no longer valid. Bail out of the scan with whatever matches we have.
+                    break;
+                }
                 var searchFrom = 0;
                 while (searchFrom <= text.Length - pattern.Length)
                 {

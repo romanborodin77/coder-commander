@@ -315,6 +315,8 @@ internal sealed class TerminalScreen : IVtSink
         {
             case '\b':
                 if (_cursor.Col > 0) _cursor.Col--;
+                if (_cursor.Col > 0 && CurrentRow().Cells[_cursor.Col].Flags.HasFlag(CellFlags.WideTrail))
+                    _cursor.Col--;
                 _cursor.PendingWrap = false;
                 break;
             case '\t':
@@ -620,7 +622,8 @@ internal sealed class TerminalScreen : IVtSink
     {
         var top = parameters.Length > 0 && parameters[0] > 0 ? parameters[0] - 1 : 0;
         var bottom = parameters.Length > 1 && parameters[1] > 0 ? parameters[1] - 1 : _active.Rows - 1;
-        if (top < bottom && bottom < _active.Rows)
+        bottom = Math.Min(bottom, _active.Rows - 1);
+        if (top < bottom)
         {
             _active.ScrollTop = top;
             _active.ScrollBottom = bottom;
@@ -677,6 +680,7 @@ internal sealed class TerminalScreen : IVtSink
     {
         _usingAlt = false;
         _active = _main;
+        _main.Scrollback?.Clear();
         for (var r = 0; r < _main.Rows; r++) _main[r].ClearAll(CellColor.Default);
         for (var r = 0; r < _alt.Rows; r++) _alt[r].ClearAll(CellColor.Default);
         _main.ScrollTop = 0; _main.ScrollBottom = _main.Rows - 1;

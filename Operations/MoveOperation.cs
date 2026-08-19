@@ -126,6 +126,25 @@ public sealed class MoveOperation : FileOperation
 
         if (copy.State != OperationState.Completed)
         {
+            // Partial copy: some files landed at the destination, others failed. For a directory
+            // move, deleting only what WrittenPaths confirms made it across completes as much of
+            // the move as possible — rather than rethrowing and leaving both source and a partial
+            // destination populated with no visibility. For a single-file move with a failure,
+            // nothing was written (or the write itself threw before WrittenPaths was populated),
+            // so rethrowing preserves the source untouched.
+            if (file.IsDirectory && copy.WrittenPaths.Count > 0)
+            {
+                foreach (var writtenPath in copy.WrittenPaths)
+                {
+                    try { await _sourceFs.DeleteAsync(writtenPath, recursive: false, ct).ConfigureAwait(false); }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        LogService.Warning($"Move: cannot remove source {writtenPath}: {ex.Message}");
+                    }
+                }
+                await CleanupEmptyDirectoriesAsync(file.FullPath, ct).ConfigureAwait(false);
+            }
+
             if (copy.LastError != null)
                 throw copy.LastError;
             ct.ThrowIfCancellationRequested();

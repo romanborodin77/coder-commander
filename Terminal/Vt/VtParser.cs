@@ -294,6 +294,7 @@ internal sealed class VtParser
         if (c is >= '\x40' and <= '\x7E')
         {
             sink.DcsHook(c, _intermediates.AsSpan(0, _intermediateCount), _privateMarker, _params.AsSpan(0, _paramCount));
+            _dcsLength = 0;
             _state = State.DcsPassthrough;
             return;
         }
@@ -314,6 +315,7 @@ internal sealed class VtParser
         if (c is >= '\x40' and <= '\x7E')
         {
             sink.DcsHook(c, _intermediates.AsSpan(0, _intermediateCount), _privateMarker, _params.AsSpan(0, _paramCount));
+            _dcsLength = 0;
             _state = State.DcsPassthrough;
             return;
         }
@@ -351,6 +353,8 @@ internal sealed class VtParser
         else
         {
             // Cap exceeded — discard further DCS data until ST, same as DcsIgnore.
+            sink.DcsUnhook();
+            _dcsLength = 0;
             _state = State.DcsIgnore;
         }
     }
