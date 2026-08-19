@@ -1852,6 +1852,18 @@ public sealed class MainForm : Form
 
         if (fs is null)
         {
+            // Warn before sending credentials over an unencrypted FTP connection.
+            var profile = SettingsService.Load().Connections.FirstOrDefault(p => p.Id == profileId);
+            if (profile is not null && string.Equals(profile.Scheme, "ftp", StringComparison.OrdinalIgnoreCase))
+            {
+                var L0 = LocalizationService.Current;
+                var warn = StyledMessageBox.Show(
+                    L0.GetString("Conn.FtpPlaintextWarning"),
+                    L0.GetString("Conn.Title"),
+                    MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this);
+                if (warn != MsgBoxResult.Yes) return;
+            }
+
             // Connecting talks to a server, so it must not run on the UI thread; the manager
             // enforces that and reports progress through its own event, which rebuilds the bar.
             fs = await manager.ConnectAsync(profileId);

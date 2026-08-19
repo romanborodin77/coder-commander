@@ -313,6 +313,7 @@ Conn.ConnectFailed=Не удалось подключиться к «{0}».
 
 {1}
 Conn.Title=Подключения
+Conn.FtpPlaintextWarning=Этот сервер использует обычный FTP без шифрования. Пароль и все файлы будут передаваться в открытом виде. Продолжить?
 Conn.Col.Name=Имя
 Conn.Col.Address=Адрес
 Conn.Col.Auto=Автоподключение
@@ -480,6 +481,7 @@ View.Encoding.Latin1=ISO-8859-1 (Latin-1)
 View.Encoding.Ascii=ASCII
 View.TooBigForText=Файл слишком большой для текстового режима ({0}). Лимит: {1}.
 View.HexTruncated=Показано первые {0} из {1}.
+View.HexMore=... ({0} ещё)
 View.Error=Ошибка
 View.FileNotFound=Файл не найден.
 View.Toolbar.Previous=Предыдущий

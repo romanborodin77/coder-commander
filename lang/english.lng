@@ -315,6 +315,7 @@ Conn.ConnectFailed=Could not connect to "{0}".
 
 {1}
 Conn.Title=Connections
+Conn.FtpPlaintextWarning=This server uses plain FTP without encryption. Your password and all files will be sent unencrypted. Continue?
 Conn.Col.Name=Name
 Conn.Col.Address=Address
 Conn.Col.Auto=Auto-connect
@@ -510,6 +511,7 @@ View.Encoding.Latin1=ISO-8859-1 (Latin-1)
 View.Encoding.Ascii=ASCII
 View.TooBigForText=File too large for text mode ({0}). Limit: {1}.
 View.HexTruncated=Showing first {0} of {1}.
+View.HexMore=... ({0} more)
 View.Error=Error
 View.FileNotFound=File not found.
 View.Toolbar.Previous=Previous

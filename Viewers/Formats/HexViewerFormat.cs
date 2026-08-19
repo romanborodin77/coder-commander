@@ -67,7 +67,7 @@ public sealed class HexViewerLoader : IViewerLoader
         }
 
         if (size > ViewerLimits.HexMaxBytes)
-            sb.AppendLine(CultureInfo.InvariantCulture, $"... ({FormatUtils.FormatSize(size - ViewerLimits.HexMaxBytes)} more)");
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, L.GetString("View.HexMore"), FormatUtils.FormatSize(size - ViewerLimits.HexMaxBytes)));
 
         return new TextPayload(sb.ToString(), L.GetString("View.HexMode", FormatUtils.FormatSize(size)));
     }

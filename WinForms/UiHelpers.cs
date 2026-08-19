@@ -133,7 +133,7 @@ public class RoundedButton : Button
         var bottomColor = GradientBottomColor != Color.Empty ? GradientBottomColor : ControlPaint.Dark(baseColor, 0.04f);
 
         // Background
-        var path = GraphicsHelpers.GetRoundedRect(rect, radius);
+        using var path = GraphicsHelpers.GetRoundedRect(rect, radius);
         if (UseGradient)
         {
             using var gradBrush = new LinearGradientBrush(rect, topColor, bottomColor, 90f);
@@ -159,9 +159,8 @@ public class RoundedButton : Button
         {
             var highlightRect = new Rectangle(rect.X + radius / 2, rect.Y + 1, rect.Width - radius, rect.Height / 2 - 1);
             using var highlightBrush = new SolidBrush(ThemeService.Current.GlossOverlay);
-            var highlightPath = GraphicsHelpers.GetRoundedRect(highlightRect, Math.Max(0, radius - 1));
+            using var highlightPath = GraphicsHelpers.GetRoundedRect(highlightRect, Math.Max(0, radius - 1));
             g.FillPath(highlightBrush, highlightPath);
-            highlightPath.Dispose();
         }
 
         // Focus ring
@@ -169,12 +168,9 @@ public class RoundedButton : Button
         {
             using var focusPen = new Pen(ThemeService.Current.Accent, 1f);
             var focusRect = new Rectangle(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
-            var focusPath = GraphicsHelpers.GetRoundedRect(focusRect, Math.Max(0, radius - 2));
+            using var focusPath = GraphicsHelpers.GetRoundedRect(focusRect, Math.Max(0, radius - 2));
             g.DrawPath(focusPen, focusPath);
-            focusPath.Dispose();
         }
-
-        path.Dispose();
 
         // Grey text is the conventional disabled cue, and the only one available here -
         // the background stays the button's own colour so the shape doesn't jump.

@@ -114,17 +114,12 @@ public class AboutForm : ThemedForm
         var formats = string.Join(", ", ArchiveFormatRegistry.Registered.Select(f => f.Id));
         yield return ("About.Formats",
             formats.Length > 0 ? formats : L.GetString("About.NotAvailable"));
-        yield return ("About.Memory", FormatBytes(GC.GetTotalMemory(forceFullCollection: false)));
+        yield return ("About.Memory", FormatUtils.FormatSize(GC.GetTotalMemory(forceFullCollection: false)));
         yield return ("About.ConfigFolder", SettingsFolder());
     }
 
     private static string SettingsFolder() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CoderCommander");
-
-    private static string FormatBytes(long bytes) =>
-        bytes >= 1024L * 1024 * 1024 ? $"{bytes / 1024.0 / 1024 / 1024:0.0} GB"
-        : bytes >= 1024L * 1024 ? $"{bytes / 1024.0 / 1024:0.0} MB"
-        : $"{bytes / 1024.0:0.0} KB";
 
     private Control BuildInfoGrid()
     {

@@ -332,7 +332,7 @@ public class EditorForm : ThemedForm
 
         _lblFileSize = new ToolStripStatusLabel
         {
-            Text = "0 bytes",
+            Text = $"0 {LocalizationService.Current.GetString("Edit.Bytes")}",
             ForeColor = p.DimForeground,
             Margin = new Padding(4, 0, 8, 0)
         };

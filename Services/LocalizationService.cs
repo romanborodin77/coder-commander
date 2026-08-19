@@ -477,6 +477,7 @@ public sealed class LocalizationService
         _strings["Conn.Tooltip"] = "{0} — {1}";
         _strings["Conn.ConnectFailed"] = "Could not connect to \"{0}\".\n\n{1}";
         _strings["Conn.Title"] = "Connections";
+        _strings["Conn.FtpPlaintextWarning"] = "This server uses plain FTP without encryption. Your password and all files will be sent unencrypted. Continue?";
         _strings["Conn.Col.Name"] = "Name";
         _strings["Conn.Col.Address"] = "Address";
         _strings["Conn.Col.Auto"] = "Auto-connect";

@@ -94,7 +94,7 @@ public sealed class FileSystemItem : INotifyPropertyChanged
             if (IsParent) return "";
             if (!IsDirectory) return FormatUtils.FormatSize(Entry.Size);
             if (IsCalculatingSize) return "…";
-            return CalculatedSize is { } sz ? FormatUtils.FormatSize(sz) : "<DIR>";
+            return CalculatedSize is { } sz ? FormatUtils.FormatSize(sz) : LocalizationService.Current.GetString("Panel.Dir");
         }
     }
 

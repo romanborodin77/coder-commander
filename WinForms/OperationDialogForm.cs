@@ -177,7 +177,7 @@ public class OperationDialogForm : ThemedForm
         infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
         infoPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        _speedLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.Speed", "0 B/s"));
+        _speedLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.Speed", "0 B"));
         _speedLabel.Dock = DockStyle.Fill;
         _speedLabel.TextAlign = ContentAlignment.MiddleLeft;
         _etaLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.ETA", "0:00"));
@@ -334,7 +334,7 @@ public class OperationDialogForm : ThemedForm
             _currentFileLabel.Text = p.CurrentFile;
             _overallProgress.Value = Math.Min(p.Percent, 100);
             _fileProgress.Value = Math.Min(p.Percent, 100);
-            _speedLabel.Text = L.GetString("OpDlg.Speed", UiHelpers.FormatSize(p.Speed) + "/s");
+            _speedLabel.Text = L.GetString("OpDlg.Speed", UiHelpers.FormatSize(p.Speed));
             _etaLabel.Text = L.GetString("OpDlg.ETA", p.Remaining);
             _filesLabel.Text = L.GetString("OpDlg.Files", p.FilesProcessed, p.FilesTotal);
         });

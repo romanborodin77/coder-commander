@@ -1765,7 +1765,7 @@ internal sealed class DriveBarRenderer : ToolStripProfessionalRenderer
         var bottomColor = ControlPaint.Dark(baseColor, 0.04f);
 
         int radius = 5;
-        var path = GraphicsHelpers.GetRoundedRect(rect, radius);
+        using var path = GraphicsHelpers.GetRoundedRect(rect, radius);
 
         using (var gradBrush = new System.Drawing.Drawing2D.LinearGradientBrush(rect, topColor, bottomColor, 90f))
             g.FillPath(gradBrush, path);
@@ -1783,8 +1783,6 @@ internal sealed class DriveBarRenderer : ToolStripProfessionalRenderer
             using var hlPath = GraphicsHelpers.GetRoundedRect(hlRect, Math.Max(0, radius - 1));
             g.FillPath(hlBrush, hlPath);
         }
-
-        path.Dispose();
 
         var textRect = new Rectangle(
             item.Padding.Left + 2,

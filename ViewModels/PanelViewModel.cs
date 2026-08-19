@@ -820,10 +820,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private void UpdateCursorInfo()
     {
+        var L = LocalizationService.Current;
         CursorInfo = SelectedItem switch
         {
-            null or { IsParent: true } => $"{TotalCount} items",
-            { IsDirectory: true } => $"[DIR] {SelectedItem.Name}",
+            null or { IsParent: true } => L.GetString("Panel.Items", TotalCount),
+            { IsDirectory: true } => L.GetString("Panel.DirInfo", SelectedItem.Name),
             _ => $"{SelectedItem.Name}  {SelectedItem.SizeDisplay}  {SelectedItem.ModifiedDisplay}"
         };
         OnPropertyChanged(nameof(CursorInfo));
