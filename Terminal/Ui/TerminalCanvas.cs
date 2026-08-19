@@ -955,12 +955,17 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             var path = paths[i];
             if (string.IsNullOrWhiteSpace(path)) continue;
 
-            // WSL shells expect POSIX paths
+            // WSL and Git Bash shells expect POSIX paths
             var insertPath = path;
             if (family is ShellFamily.Wsl)
             {
                 var distro = Shells.ShellIds.DistroNameFromShellId(_session.Shell.Id);
                 if (new Shells.WslPathMapper(distro).TryToWsl(path, out var posix))
+                    insertPath = posix;
+            }
+            else if (family is ShellFamily.Bash)
+            {
+                if (new Shells.BashPathMapper().TryToPosix(path, out var posix))
                     insertPath = posix;
             }
 

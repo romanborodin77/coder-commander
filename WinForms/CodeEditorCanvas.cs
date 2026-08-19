@@ -918,7 +918,7 @@ internal sealed class CodeEditorCanvas : Control
             case Keys.Back: HandleBackspace(); break;
             case Keys.Delete: HandleDelete(); break;
             case Keys.Enter: InsertTextAtCaret("\n"); break;
-            case Keys.Tab: InsertTextAtCaret("\t"); break;
+            case Keys.Tab: HandleTab(e.Shift); break;
             default: handled = false; break;
         }
 
@@ -963,6 +963,34 @@ internal sealed class CodeEditorCanvas : Control
         _undoStack.Record(insertPos, oldText, text, caretBefore, _caret, coalesce);
 
         ContentChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Inserts a tab, or outdents the selection when Shift is held (Shift+Tab).</summary>
+    private void HandleTab(bool shift)
+    {
+        if (shift && HasSelection)
+        {
+            var sel = SelectionRange!.Value;
+            var caretBefore = _caret;
+            for (var line = sel.End.Line; line >= sel.Start.Line; line--)
+            {
+                var lineText = _buffer.GetLine(line);
+                var removeLen = 0;
+                if (lineText.Length > 0 && lineText[0] == '\t') removeLen = 1;
+                else { for (var j = 0; j < lineText.Length && j < 4 && lineText[j] == ' '; j++) removeLen = j + 1; }
+                if (removeLen > 0)
+                {
+                    var delStart = new TextPosition(line, 0);
+                    var delEnd = new TextPosition(line, removeLen);
+                    _buffer.DeleteRange(delStart, delEnd);
+                }
+            }
+            SetCaret(_buffer.ClampPosition(caretBefore));
+            _undoStack.Record(sel.Start, "", "", caretBefore, _caret, coalesceWithPrevious: false);
+            ContentChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        InsertTextAtCaret("\t");
     }
 
     private void HandleBackspace()

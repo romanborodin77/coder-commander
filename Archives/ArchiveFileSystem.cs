@@ -135,17 +135,36 @@ public sealed class ArchiveFileSystem : IFileSystem
         {
             using (var archiveReader = _format.OpenRead(_archivePath))
             {
-                Stream? content = archiveReader.SupportsRandomAccess
-                    ? archiveReader.OpenEntry(target)
-                    : await FindContentSequentiallyAsync(archiveReader, target.Index, ct).ConfigureAwait(false);
-
-                if (content == null)
-                    throw new FileNotFoundException($"Entry not found in archive: {innerPath}");
-
-                using (content)
-                using (var fs = File.Create(tempFile))
+                if (archiveReader.SupportsRandomAccess)
                 {
+                    using var content = archiveReader.OpenEntry(target)
+                        ?? throw new FileNotFoundException($"Entry not found in archive: {innerPath}");
+                    using var fs = File.Create(tempFile);
                     await content.CopyToAsync(fs, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Sequential formats (TAR/7z/RAR): ScanAsync's finally block disposes the
+                    // reader and its underlying stream when the enumerator is disposed — which
+                    // happens on return/break from `await foreach`. Returning the content stream
+                    // and copying AFTER the enumerator is disposed reads from a dead stream.
+                    // Copy to temp INSIDE the loop while the reader is still alive.
+                    var found = false;
+                    await foreach (var item in archiveReader.ScanAsync(ct).ConfigureAwait(false))
+                    {
+                        if (item.Entry.Index != target.Index)
+                        {
+                            item.Content.Dispose();
+                            continue;
+                        }
+                        using (item.Content)
+                        using (var fs = File.Create(tempFile))
+                            await item.Content.CopyToAsync(fs, ct).ConfigureAwait(false);
+                        found = true;
+                        break;
+                    }
+                    if (!found)
+                        throw new FileNotFoundException($"Entry not found in archive: {innerPath}");
                 }
             }
 
@@ -156,21 +175,6 @@ public sealed class ArchiveFileSystem : IFileSystem
             try { File.Delete(tempFile); } catch { /* best effort */ }
             throw;
         }
-    }
-
-    /// <summary>
-    /// Scans the archive sequentially until the entry at <paramref name="wantedIndex"/> is found,
-    /// returning its content stream or <c>null</c> if not found.
-    /// </summary>
-    private static async Task<Stream?> FindContentSequentiallyAsync(IArchiveReader reader, int wantedIndex, CancellationToken ct)
-    {
-        await foreach (var item in reader.ScanAsync(ct).ConfigureAwait(false))
-        {
-            if (item.Entry.Index == wantedIndex)
-                return item.Content;
-            item.Content.Dispose();
-        }
-        return null;
     }
 
     /// <summary>

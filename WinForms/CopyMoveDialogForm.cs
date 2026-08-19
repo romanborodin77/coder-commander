@@ -286,6 +286,18 @@ public sealed class CopyMoveDialogForm : ThemedForm
         CancelButton = _cancelBtn;
     }
 
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        // Prevent OK from closing with an empty destination — the caller silently returns
+        // without feedback, leaving the user wondering why nothing happened.
+        if (DialogResult == DialogResult.OK && string.IsNullOrWhiteSpace(_destBox.Text))
+        {
+            e.Cancel = true;
+            _destBox.Focus();
+        }
+        base.OnFormClosing(e);
+    }
+
     private static void DrawTransferIcon(Graphics g, bool isMove, Color accent)
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;

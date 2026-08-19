@@ -293,6 +293,7 @@ internal sealed class FindReplaceBar : Panel
     {
         if (disposing)
         {
+            _buffer.Changed -= OnBufferChanged;
             _findBox?.Dispose();
             _replaceBox?.Dispose();
             _matchCaseCheck?.Dispose();

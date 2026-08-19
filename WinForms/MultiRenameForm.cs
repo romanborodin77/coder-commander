@@ -223,6 +223,8 @@ public sealed class MultiRenameForm : ThemedForm
         var startValue = (int)_startIndex.Value;
         var step = (int)_stepIndex.Value;
 
+        const int MaxPreviewItems = 200;
+
         for (int i = 0; i < _items.Count; i++)
         {
             var item = _items[i];
@@ -245,6 +247,15 @@ public sealed class MultiRenameForm : ThemedForm
                 lvi.ForeColor = ThemeService.Current.Accent;
 
             _previewList.Items.Add(lvi);
+
+            if (i + 1 >= MaxPreviewItems && _items.Count > MaxPreviewItems)
+            {
+                var moreLvi = new ListViewItem($"… {_items.Count - MaxPreviewItems} more") { ForeColor = ThemeService.Current.DimForeground };
+                moreLvi.SubItems.Add("");
+                moreLvi.SubItems.Add("");
+                _previewList.Items.Add(moreLvi);
+                break;
+            }
         }
 
         _previewList.EndUpdate();

@@ -540,8 +540,9 @@ public sealed class EditorForm : ThemedForm
     {
         UpdateTabTitle(tab);
         UpdateTitle();
-        if (tab == GetCurrentTab())
-            UpdateFileSizeLabel();
+        // UpdateFileSizeLabel is O(document) for unsaved files — calling it on every keystroke
+        // causes noticeable lag on large files. Size label is refreshed on save/load/tab-switch
+        // (OnTabChanged, OnSaveCompleted) instead.
     }
 
     private void OnTabChanged(object? sender, EventArgs e)

@@ -1443,6 +1443,13 @@ public sealed class MainForm : Form
                         : OverwriteAction.Skip;
                 };
                 break;
+            case OverwriteAction.Rename:
+                options.OverwriteResolver = (string s, string d, FileEntry si, FileEntry? di, out string? nn) =>
+                {
+                    nn = GenerateUniqueNameAsync(d, destFs, CancellationToken.None).GetAwaiter().GetResult();
+                    return OverwriteAction.Rename;
+                };
+                break;
         }
 
         return options;
@@ -1482,6 +1489,13 @@ public sealed class MainForm : Form
             {
                 newName = GenerateUniqueNameAsync(destination, destFs, CancellationToken.None).GetAwaiter().GetResult();
                 return OverwriteAction.Rename;
+            }
+
+            if (chosen == OverwriteAction.OverwriteOlder)
+            {
+                return destInfo != null && sourceInfo.LastWriteTimeUtc > destInfo.LastWriteTimeUtc
+                    ? OverwriteAction.Overwrite
+                    : OverwriteAction.Skip;
             }
 
             return chosen is OverwriteAction.OverwriteAll ? OverwriteAction.Overwrite : chosen;

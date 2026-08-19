@@ -64,7 +64,11 @@ public sealed class EditorTab : IDisposable
     public EditorTab(IFileSystem? fileSystem = null, string? filePath = null)
     {
         _fs = fileSystem ?? new LocalFileSystem();
-        FilePath = filePath ?? "";
+        // FilePath is deliberately NOT set here — LoadFileAsync sets it only after the read
+        // succeeds. Setting it in the constructor left a tab pointing at a file whose load
+        // failed (locked, permission denied, OOM) with an empty buffer: Ctrl+S would then
+        // save the empty buffer over the original file, destroying its content.
+        FilePath = "";
         Language = LanguageDetector.Detect(filePath);
         Editor = new CodeEditorControl { Dock = DockStyle.Fill, Language = Language };
     }
