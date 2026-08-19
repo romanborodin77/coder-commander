@@ -1062,8 +1062,10 @@ public sealed class MainForm : Form
         FormClosing += OnFormClosing;
         FormClosed += (_, _) =>
         {
+            MtpDeviceCatalog.Instance.Changed -= OnMtpDevicesChanged;
             MtpConnectionRegistry.DisposeAll();
             MtpDeviceCatalog.Instance.Dispose();
+            _deviceWatcher.DevicesChanged -= OnDevicesChanged;
             _deviceWatcher.Dispose();
             ConnectionManager.Instance.Dispose();
         };
