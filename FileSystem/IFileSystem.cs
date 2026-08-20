@@ -66,3 +66,31 @@ public interface IBatchDeletableFileSystem
     /// <summary>Deletes multiple entries in a single operation for better performance.</summary>
     Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Optional interface for file systems that can copy multiple entries out to another file system
+/// in one sequential pass, more efficiently than calling <see cref="IFileSystem.OpenReadAsync"/>
+/// once per file. The concrete motivating case is a sequential-only archive (TAR/TAR.GZ/7z/RAR
+/// without random-access entry opening): each independent <c>OpenReadAsync</c> call there scans
+/// from the start of the archive and discards everything before the target entry, so copying N
+/// files out one at a time costs O(N x archive size) instead of the one O(archive size) pass this
+/// interface allows.
+/// </summary>
+public interface IBatchReadableFileSystem
+{
+    /// <summary>
+    /// Copies every entry in <paramref name="items"/> (this file system's own source path paired
+    /// with its destination path on <paramref name="destFs"/>) in a single pass, in whatever order
+    /// is cheapest for this provider - not necessarily <paramref name="items"/>' own order. A
+    /// source path with no matching entry is skipped (logged, not thrown) rather than aborting the
+    /// whole batch, matching every other partial-failure-tolerant operation in this codebase.
+    /// <paramref name="onFileCopied"/> is invoked once a file's bytes have been fully written to
+    /// its destination, with the entry's own source path and byte count, so the caller can report
+    /// progress and apply attributes/timestamps the same way it would for a per-file copy.
+    /// </summary>
+    Task CopyManyToAsync(
+        IReadOnlyList<(string SourcePath, string DestPath)> items,
+        IFileSystem destFs,
+        Func<string, long, CancellationToken, Task>? onFileCopied,
+        CancellationToken ct = default);
+}

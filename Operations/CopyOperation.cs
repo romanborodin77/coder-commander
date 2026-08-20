@@ -153,6 +153,9 @@ public sealed class CopyOperation : FileOperation
         // tolerance. Collected here and reported together with any enumeration failures below.
         var copyFailures = new List<string>();
 
+        // Directories first (plan is already ordered top-down) - both the batch and per-file
+        // paths below assume every directory in `plan` already exists on the destination.
+        var fileEntries = new List<(FileEntry Entry, string DestPath)>(plan.Count);
         foreach (var (entry, destFullPath) in plan)
         {
             ct.ThrowIfCancellationRequested();
@@ -167,18 +170,36 @@ public sealed class CopyOperation : FileOperation
                 continue;
             }
 
-            try
-            {
-                await CopyFileWithProgress(entry, destFullPath, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
-                copyFailures.Add(entry.FullPath);
-            }
+            fileEntries.Add((entry, destFullPath));
+        }
 
-            _filesProcessed++;
-            ReportProgress(entry.Name);
+        // A source without random-access entry opening (TAR/TAR.GZ/7z/RAR) pays a full archive
+        // scan for every independent OpenReadAsync call - O(files x archive size) instead of one
+        // O(archive size) pass. IBatchReadableFileSystem.CopyManyToAsync is the single-pass
+        // alternative; only worth the extra machinery for more than one file.
+        if (_sourceFs is IBatchReadableFileSystem batchSrc && fileEntries.Count >= 2)
+        {
+            await CopyFilesBatchAsync(batchSrc, fileEntries, copyFailures, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            foreach (var (entry, destFullPath) in fileEntries)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await CopyFileWithProgress(entry, destFullPath, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
+                    copyFailures.Add(entry.FullPath);
+                }
+
+                _filesProcessed++;
+                ReportProgress(entry.Name);
+            }
         }
 
         // Copy everything that could be read (above) before reporting the failure, rather than
@@ -279,13 +300,22 @@ public sealed class CopyOperation : FileOperation
         return plan;
     }
 
-    private async Task CopyFileWithProgress(FileEntry file, string destPath, CancellationToken ct)
+    /// <summary>
+    /// Same-path guard, destination-parent-directory creation, and overwrite-conflict resolution
+    /// for one file - the metadata/existence-check work that has to run per file regardless of
+    /// whether the actual byte copy goes through the per-file path below or
+    /// <see cref="CopyFilesBatchAsync"/>'s single-pass batch read. Returns <c>null</c> if the file
+    /// should be skipped entirely (already accounted in <see cref="_bytesProcessed"/> when the
+    /// skip came from conflict resolution - not when it came from the self-copy guard, matching
+    /// the original single-method version's behavior).
+    /// </summary>
+    private async Task<string?> PrepareFileDestinationAsync(FileEntry file, string destPath, CancellationToken ct)
     {
         // Source == destination: copying a file onto itself. Without this guard,
         // CopyFromStreamAsync opens the dest for writing (truncating it to 0), then
         // OpenReadAsync reads from the now-empty source — silent data loss.
         if (string.Equals(file.FullPath, destPath, StringComparison.OrdinalIgnoreCase))
-            return;
+            return null;
 
         var destDir = VfsPath.GetParent(destPath);
         if (!string.IsNullOrEmpty(destDir))
@@ -295,9 +325,16 @@ public sealed class CopyOperation : FileOperation
         if (!resolution.Proceed)
         {
             Interlocked.Add(ref _bytesProcessed, file.Size);
-            return;
+            return null;
         }
-        var actualDestPath = resolution.TargetPath;
+        return resolution.TargetPath;
+    }
+
+    private async Task CopyFileWithProgress(FileEntry file, string destPath, CancellationToken ct)
+    {
+        var actualDestPath = await PrepareFileDestinationAsync(file, destPath, ct).ConfigureAwait(false);
+        if (actualDestPath == null)
+            return;
 
         using (var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false))
         {
@@ -311,6 +348,103 @@ public sealed class CopyOperation : FileOperation
             await TryApplyAttributes(actualDestPath, file.Attributes, ct).ConfigureAwait(false);
         if (_options.CopyTimestamps)
             ApplyTimestamps(_destFs, actualDestPath, file);
+    }
+
+    /// <summary>
+    /// Runs <see cref="PrepareFileDestinationAsync"/> for every file (may prompt, may rename -
+    /// cheap metadata work, not the expensive archive read), then hands the survivors to
+    /// <paramref name="batchSrc"/> for a single sequential pass instead of one
+    /// <see cref="IFileSystem.OpenReadAsync"/> call per file.
+    /// </summary>
+    private async Task CopyFilesBatchAsync(
+        IBatchReadableFileSystem batchSrc,
+        List<(FileEntry Entry, string DestPath)> fileEntries,
+        List<string> copyFailures,
+        CancellationToken ct)
+    {
+        var cmp = _sourceFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+        var byPath = new Dictionary<string, (FileEntry Entry, string DestPath)>(fileEntries.Count, cmp);
+        var items = new List<(string SourcePath, string DestPath)>(fileEntries.Count);
+
+        foreach (var (entry, destFullPath) in fileEntries)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            string? actualDestPath;
+            try
+            {
+                actualDestPath = await PrepareFileDestinationAsync(entry, destFullPath, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
+                copyFailures.Add(entry.FullPath);
+                _filesProcessed++;
+                ReportProgress(entry.Name);
+                continue;
+            }
+            if (actualDestPath == null)
+            {
+                _filesProcessed++;
+                ReportProgress(entry.Name);
+                continue;
+            }
+
+            byPath[entry.FullPath] = (entry, actualDestPath);
+            items.Add((entry.FullPath, actualDestPath));
+        }
+
+        if (items.Count == 0)
+            return;
+
+        var copiedPaths = new HashSet<string>(cmp);
+        try
+        {
+            await batchSrc.CopyManyToAsync(items, _destFs, async (sourcePath, bytesWritten, innerCt) =>
+            {
+                if (!byPath.TryGetValue(sourcePath, out var target))
+                    return; // defensive only - every sourcePath here came from `items` above
+
+                copiedPaths.Add(sourcePath);
+                _writtenPaths.Add(sourcePath);
+                Interlocked.Add(ref _bytesProcessed, bytesWritten);
+
+                if (_options.CopyAttributes && target.Entry.Attributes != default)
+                    await TryApplyAttributes(target.DestPath, target.Entry.Attributes, innerCt).ConfigureAwait(false);
+                if (_options.CopyTimestamps)
+                    ApplyTimestamps(_destFs, target.DestPath, target.Entry);
+
+                _filesProcessed++;
+                ReportProgress(target.Entry.Name);
+            }, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogService.Warning($"Copy: batch read failed: {ex.Message}");
+            // Whatever the batch call never got to (including everything, if it failed before
+            // copying anything) is reported the same way a per-file failure would be.
+            foreach (var (sourcePath, _) in items)
+            {
+                if (copiedPaths.Contains(sourcePath)) continue;
+                copyFailures.Add(sourcePath);
+                _filesProcessed++;
+                ReportProgress(sourcePath);
+            }
+            return;
+        }
+
+        // An item the batch call itself silently skipped (its entry vanished from the archive
+        // between listing and this read, logged by CopyManyToAsync) never invoked the callback -
+        // still needs to be reported, matching a per-file OpenReadAsync throwing FileNotFoundException.
+        foreach (var (sourcePath, _) in items)
+        {
+            if (copiedPaths.Contains(sourcePath)) continue;
+            copyFailures.Add(sourcePath);
+            _filesProcessed++;
+            ReportProgress(sourcePath);
+        }
     }
 
     private async Task TryApplyAttributes(string path, FileAttributes attributes, CancellationToken ct)

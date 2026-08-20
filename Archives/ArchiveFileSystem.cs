@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Services;
 using CoderCommander.Utils;
 
 namespace CoderCommander.Archives;
@@ -15,7 +16,7 @@ namespace CoderCommander.Archives;
 /// <see cref="CoderCommander.Operations.PackOperation"/>/<see cref="CoderCommander.Operations.UnpackOperation"/>
 /// instead, which only open the writer once per operation.
 /// </summary>
-public sealed class ArchiveFileSystem : IFileSystem
+public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem
 {
     private static readonly ArchiveDirectoryCache Cache = new();
 
@@ -191,6 +192,81 @@ public sealed class ArchiveFileSystem : IFileSystem
             try { File.Delete(tempFile); } catch { /* best effort */ }
             throw;
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Batch counterpart to <see cref="OpenReadAsync"/>'s sequential-format branch, generalized to
+    /// many targets in one pass instead of one. For a source without random-access entry opening
+    /// (<see cref="IArchiveReader.SupportsRandomAccess"/> false - TAR/TAR.GZ/7z/RAR), calling
+    /// <see cref="OpenReadAsync"/> once per file each independently scans from the start of the
+    /// archive and discards everything before the target - O(N x archive size) for N files. This
+    /// opens the reader once and streams every requested entry out as it's encountered in a single
+    /// forward pass instead - what <see cref="CoderCommander.Operations.UnpackOperation"/> already
+    /// did correctly; <see cref="CoderCommander.Operations.CopyOperation"/> did not.
+    /// </remarks>
+    public async Task CopyManyToAsync(
+        IReadOnlyList<(string SourcePath, string DestPath)> items,
+        IFileSystem destFs,
+        Func<string, long, CancellationToken, Task>? onFileCopied,
+        CancellationToken ct = default)
+    {
+        if (items.Count == 0)
+            return;
+
+        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+
+        // Resolve every requested source path to its ArchiveEntryRecord.Index up front - the
+        // token ScanAsync's own entries carry, matched below in O(1) per scanned entry instead of
+        // re-deriving/re-comparing normalized paths. Keyed by Index (not SourcePath), so a
+        // duplicate request for the same archive entry under two different destinations is still
+        // possible to represent, if rare in practice: this codebase's own build-plan step
+        // (CopyOperation.FlattenAsync) already dedupes by destination before this is ever called.
+        var wanted = new Dictionary<int, (string SourcePath, string DestPath)>(items.Count);
+        foreach (var (sourcePath, destPath) in items)
+        {
+            var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(sourcePath).innerPath);
+            var entry = ArchiveTree.FindEntry(dir, innerPath);
+            if (entry == null || entry.IsDirectory)
+            {
+                LogService.Warning($"CopyManyToAsync: entry not found for \"{sourcePath}\", skipping");
+                continue;
+            }
+            wanted[entry.Index] = (sourcePath, destPath);
+        }
+        if (wanted.Count == 0)
+            return;
+
+        using var archiveReader = _format.OpenRead(_archivePath);
+        var remaining = wanted.Count;
+        await foreach (var item in archiveReader.ScanAsync(ct).ConfigureAwait(false))
+        {
+            if (remaining == 0)
+            {
+                // Every requested entry has already been found and written - stop scanning
+                // instead of decompressing the rest of the archive for nothing. Disposing the
+                // enumerator (loop exit) runs ScanAsync's own finally, releasing the reader/stream.
+                item.Content.Dispose();
+                break;
+            }
+            if (!wanted.TryGetValue(item.Entry.Index, out var target))
+            {
+                item.Content.Dispose();
+                continue;
+            }
+
+            using (item.Content)
+            {
+                await destFs.CopyFromStreamAsync(target.DestPath, item.Content, ct).ConfigureAwait(false);
+            }
+            remaining--;
+
+            if (onFileCopied != null)
+                await onFileCopied(target.SourcePath, item.Entry.Size, ct).ConfigureAwait(false);
+        }
+
+        if (remaining > 0)
+            LogService.Warning($"CopyManyToAsync: {remaining} requested entr{(remaining == 1 ? "y" : "ies")} not found while scanning {_archivePath}");
     }
 
     /// <summary>
