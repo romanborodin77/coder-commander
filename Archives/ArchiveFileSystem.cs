@@ -16,7 +16,7 @@ namespace CoderCommander.Archives;
 /// <see cref="CoderCommander.Operations.PackOperation"/>/<see cref="CoderCommander.Operations.UnpackOperation"/>
 /// instead, which only open the writer once per operation.
 /// </summary>
-public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem
+public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem, IBatchDeletableFileSystem
 {
     private static readonly ArchiveDirectoryCache Cache = new();
 
@@ -371,6 +371,69 @@ public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem
         }
 
         Forget(_archivePath);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="DeleteAsync"/> already opens one writer and commits once per *call* - the O(N)
+    /// rewrite cost this exists to remove came from <c>Operations.DeleteOperation</c> calling
+    /// <see cref="DeleteAsync"/> once per *selected item* when a filesystem doesn't implement
+    /// <see cref="IBatchDeletableFileSystem"/>: deleting 50 selected files/folders meant 50
+    /// separate writer sessions, each a full container rewrite for a
+    /// <see cref="RewritingArchiveWriter"/>-backed format (TAR/TAR.GZ/TAR.BZ2). This resolves every
+    /// requested path to its covering entries via <see cref="ArchiveDirectory.Index"/> (O(children)
+    /// per path, not O(n) - see <see cref="Utils.PrefixTreeIndex{T}"/>), dedupes by
+    /// <see cref="ArchiveEntryRecord.Index"/> so two overlapping requests (a folder and a file
+    /// inside it, both selected) don't double-count, then commits once for the whole batch.
+    /// </remarks>
+    public async Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default)
+    {
+        if (!_format.Capabilities.HasFlag(ArchiveCapabilities.DeleteEntries))
+            throw new NotSupportedException($"Archive format \"{_format.Id}\" does not support deleting entries.");
+        if (paths.Count == 0)
+            return;
+
+        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+        var toDelete = new Dictionary<int, ArchiveEntryRecord>();
+
+        foreach (var path in paths)
+        {
+            ct.ThrowIfCancellationRequested();
+            var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
+            if (innerPath.Length == 0)
+                continue;
+
+            var node = dir.Index.Navigate(innerPath);
+            if (node == null)
+                continue; // nothing at this path (already gone, or never existed) - nothing to delete
+
+            // Directory.Delete(path, false) semantics - same guard as DeleteAsync.
+            if (!recursive && node.Children.Count > 0)
+                throw new IOException($"\"{innerPath}\" is not empty.");
+
+            CollectEntriesForDeletion(node, toDelete);
+        }
+
+        if (toDelete.Count == 0)
+            return;
+
+        await using (var writer = _format.OpenWrite(_archivePath, new ArchiveWriteOptions()))
+        {
+            foreach (var entry in toDelete.Values)
+                writer.TryDeleteEntry(entry);
+            await writer.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        Forget(_archivePath);
+    }
+
+    private static void CollectEntriesForDeletion(
+        Utils.PrefixTreeIndex<ArchiveEntryRecord>.Node node, Dictionary<int, ArchiveEntryRecord> result)
+    {
+        if (node.Entry is { } entry)
+            result[entry.Index] = entry;
+        foreach (var child in node.Children.Values)
+            CollectEntriesForDeletion(child, result);
     }
 
     /// <summary>Creates a directory entry at <paramref name="path"/> inside the archive.</summary>

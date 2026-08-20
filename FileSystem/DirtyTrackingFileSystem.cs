@@ -16,7 +16,7 @@ namespace CoderCommander.FileSystem;
 /// (<c>ReleaseArchiveLease</c>, invoked on exiting/replacing the archive), so blocking writes
 /// entirely stopped being the right default.</para>
 /// </summary>
-public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSystem
+public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSystem, IBatchReadableFileSystem
 {
     private readonly IFileSystem _inner;
     private readonly Action _markDirty;
@@ -121,6 +121,39 @@ public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSy
             if (anyDeleted) _markDirty();
             if (errors.Count > 0)
                 throw new AggregateException("One or more deletions failed", errors);
+        }
+    }
+
+    /// <summary>Delegates to <paramref name="inner"/>'s own batch read when it has one (archives -
+    /// the only kind of filesystem this decorator ever actually wraps); a per-entry fallback keeps
+    /// the interface contract honest regardless. Reading never mutates the lease, so unlike every
+    /// other method here, this never calls <see cref="_markDirty"/> - matches
+    /// <see cref="OpenReadAsync"/>'s own plain passthrough. Wrapped unconditionally, like
+    /// <see cref="DeleteBatchAsync"/>, so <c>Operations.CopyOperation</c>'s
+    /// <c>_sourceFs is IBatchReadableFileSystem</c> check sees this decorator the same way it
+    /// would see the unwrapped inner filesystem.</summary>
+    public async Task CopyManyToAsync(
+        IReadOnlyList<(string SourcePath, string DestPath)> items,
+        IFileSystem destFs,
+        Func<string, long, CancellationToken, Task>? onFileCopied,
+        CancellationToken ct = default)
+    {
+        if (_inner is IBatchReadableFileSystem batch)
+        {
+            await batch.CopyManyToAsync(items, destFs, onFileCopied, ct).ConfigureAwait(false);
+            return;
+        }
+
+        foreach (var (sourcePath, destPath) in items)
+        {
+            long size;
+            using (var src = await _inner.OpenReadAsync(sourcePath, ct).ConfigureAwait(false))
+            {
+                await destFs.CopyFromStreamAsync(destPath, src, ct).ConfigureAwait(false);
+                size = src.Length;
+            }
+            if (onFileCopied != null)
+                await onFileCopied(sourcePath, size, ct).ConfigureAwait(false);
         }
     }
 }
