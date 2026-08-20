@@ -13,22 +13,26 @@ internal static class ClipboardHelper
 {
     /// <summary>Best-effort clipboard write with retry. Logs and returns false on failure
     /// instead of throwing. Antivirus scanners and clipboard managers frequently hold the
-    /// clipboard open briefly — retrying with a short delay handles the common case.</summary>
+    /// clipboard open briefly — retrying with a short delay handles the common case.
+    ///
+    /// <para>Uses the framework's own <c>Clipboard.SetDataObject(data, copy, retryTimes,
+    /// retryDelay)</c> overload rather than a hand-rolled <c>Clipboard.SetText</c> + <c>Thread.Sleep</c>
+    /// loop - every call site here is a synchronous UI event handler, so the retry delay still
+    /// blocks the UI thread either way, but the framework's own OLE-level retry loop is what
+    /// Windows Forms itself ships specifically for this exact "clipboard transiently held open"
+    /// case, rather than this app re-implementing the same shape by hand.</para>
+    /// </summary>
     public static bool TrySetClipboard(string text)
     {
-        for (var i = 0; i < 10; i++)
+        try
         {
-            try
-            {
-                Clipboard.SetText(text);
-                return true;
-            }
-            catch (ExternalException)
-            {
-                System.Threading.Thread.Sleep(50);
-            }
+            Clipboard.SetDataObject(text, copy: true, retryTimes: 10, retryDelay: 50);
+            return true;
         }
-        LogService.Error("Clipboard copy failed after 10 retries");
-        return false;
+        catch (ExternalException ex)
+        {
+            LogService.Error($"Clipboard copy failed after 10 retries: {ex.Message}");
+            return false;
+        }
     }
 }

@@ -111,6 +111,19 @@ internal static class FontCache
 {
     private static readonly Dictionary<(string Name, float Size, FontStyle Style), Font> Cache = new();
 
+    /// <summary>Ordinary theme usage touches a few dozen distinct (family, size, style)
+    /// combinations at most. Every call site across the app treats <see cref="Get"/>'s return
+    /// value as shared and never disposes it (enforced by CA2000 - the analyzer only allows this
+    /// because the return value is provably always cache-owned), so capping growth by evicting-
+    /// and-disposing, or by handing back an uncached instance past some threshold, would either
+    /// reintroduce the GDI+ "disposed font mid-repaint" bug this cache was built to remove or
+    /// silently violate that ownership contract at every call site. This threshold is
+    /// observability only: a one-time warning if something (a live font-size preview slider driven
+    /// unusually far, a bug generating combinations in a loop) pushes distinct entries well past
+    /// normal usage, so unbounded growth is at least visible in the log instead of silent.</summary>
+    private const int WarnThresholdEntries = 512;
+    private static bool _thresholdWarned;
+
     /// <summary>Returns a cached <see cref="Font"/> for the specified family, size, and style,
     /// creating and caching it on first access.</summary>
     /// <param name="name">Font family name (e.g. <c>"Segoe UI"</c>).</param>
@@ -127,6 +140,11 @@ internal static class FontCache
 
             var font = CreateFont(name, size, style);
             Cache[key] = font;
+            if (Cache.Count >= WarnThresholdEntries && !_thresholdWarned)
+            {
+                _thresholdWarned = true;
+                LogService.Warning($"FontCache: {Cache.Count} distinct fonts cached, well past normal theme usage - possible runaway (family, size, style) combination growth.");
+            }
             return font;
         }
     }

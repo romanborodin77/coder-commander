@@ -404,12 +404,31 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
 
     public void Dispose()
     {
-        lock (_deviceLock)
+        if (_disposed) return;
+        // Set first, unlocked - a transfer currently inside one of the `lock (_deviceLock) {
+        // _device.DownloadFile/UploadFile(...) }` calls above cannot be interrupted (MediaDevices
+        // offers no cancellation for these), and MainForm.OnFormClosed calls this on the UI
+        // thread. Taking the lock unconditionally here used to block the whole app for the full
+        // duration of a multi-gigabyte MTP transfer on close, with no progress and no way to
+        // cancel.
+        _disposed = true;
+
+        // Bounded wait: if a transfer is genuinely still running, don't block further - the
+        // process is exiting either way, and the OS/WPD driver reclaims the device connection on
+        // process exit regardless of whether Disconnect()/Dispose() ran cleanly here.
+        if (!Monitor.TryEnter(_deviceLock, TimeSpan.FromMilliseconds(500)))
         {
-            if (_disposed) return;
-            _disposed = true;
+            LogService.Warning($"MTP: device {_deviceId} is still transferring on close - skipping graceful disconnect.");
+            return;
+        }
+        try
+        {
             try { _device.Disconnect(); } catch { /* best-effort on teardown */ }
             _device.Dispose();
+        }
+        finally
+        {
+            Monitor.Exit(_deviceLock);
         }
     }
 

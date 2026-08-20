@@ -25,6 +25,14 @@ public static class ToolbarIcons
     private static int _lastDpi = 96;
     private static List<Bitmap>? _pendingDisposal;
 
+    /// <summary>Guards <see cref="_pendingDisposal"/>/<see cref="_lastDpi"/> and the
+    /// generation-swap in <see cref="ClearCache"/> - see <see cref="FileIcons"/>'s identical lock
+    /// for why: <see cref="ClearCache"/> is called both from <c>ThemeService.ApplyTheme</c> and
+    /// from <see cref="Get"/>'s own DPI-change branch, and without this a race between the two
+    /// could double-dispose the same Bitmap or drop a generation out of
+    /// <see cref="_pendingDisposal"/> entirely.</summary>
+    private static readonly object _clearLock = new();
+
     /// <summary>Which palette colour an icon is drawn in.</summary>
     private enum Tint { Foreground, Accent, Danger, Dim }
 
@@ -38,6 +46,12 @@ public static class ToolbarIcons
     {
         if (string.IsNullOrEmpty(key)) return null;
 
+        // Deliberately unlocked out here (only ClearCache() itself takes _clearLock) - see
+        // FileIcons.Get's identical comment: the double-dispose/dropped-generation race lived
+        // inside ClearCache() and is closed by its own lock; two callers redundantly both calling
+        // ClearCache() after both observing a stale _lastDpi is harmless. Wrapping this compare in
+        // the same lock too made CA2000 lose track of ToolStripButton disposal ownership at
+        // unrelated call sites that use Get() inline in an object initializer.
         var currentDpi = GetCurrentDpi();
         if (currentDpi != _lastDpi)
         {
@@ -57,9 +71,12 @@ public static class ToolbarIcons
     /// </summary>
     public static void ClearCache()
     {
-        _pendingDisposal?.ForEach(b => b.Dispose());
-        _pendingDisposal = _cache.Values.ToList();
-        _cache.Clear();
+        lock (_clearLock)
+        {
+            _pendingDisposal?.ForEach(b => b.Dispose());
+            _pendingDisposal = _cache.Values.ToList();
+            _cache.Clear();
+        }
     }
 
     private static int GetCurrentDpi()

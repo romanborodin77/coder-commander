@@ -23,6 +23,17 @@ public sealed class MtpDeviceCatalog : IDisposable
     private readonly System.Threading.Timer _timer;
     private bool _disposed;
 
+    /// <summary>Base poll interval (also the fast interval a device-set change resets back to, so
+    /// a quick unplug/replug during an already-backed-off idle period is still caught promptly).</summary>
+    private static readonly TimeSpan BaseInterval = TimeSpan.FromSeconds(3);
+
+    /// <summary>Ceiling the interval backs off to on a machine with no MTP device ever attached -
+    /// most of them. A machine that never has a device to enumerate used to pay a full WPD/COM
+    /// <c>GetDevices()</c> round trip every 3 seconds for the app's entire lifetime.</summary>
+    private static readonly TimeSpan MaxInterval = TimeSpan.FromSeconds(20);
+
+    private TimeSpan _currentInterval = BaseInterval;
+
     /// <summary>Raised after <see cref="Current"/> changes. **Fires on a thread-pool thread.**</summary>
     public event EventHandler? Changed;
 
@@ -34,7 +45,7 @@ public sealed class MtpDeviceCatalog : IDisposable
 
     private MtpDeviceCatalog()
     {
-        _timer = new System.Threading.Timer(_ => Refresh(), null, TimeSpan.Zero, TimeSpan.FromSeconds(3));
+        _timer = new System.Threading.Timer(_ => Refresh(), null, TimeSpan.Zero, BaseInterval);
     }
 
     /// <summary>Re-reads the device list immediately.</summary>
@@ -73,6 +84,20 @@ public sealed class MtpDeviceCatalog : IDisposable
             _current = snapshot;
             disposed = _disposed;
         }
+
+        if (!disposed)
+        {
+            // Exponential-ish back-off (fixed 1s step, capped at MaxInterval) while the device set
+            // stays unchanged - the common case for the entire session on a machine with no MTP
+            // device attached. Any observed change resets straight back to BaseInterval so a
+            // hot-plug is still caught promptly even right after backing off.
+            _currentInterval = changed
+                ? BaseInterval
+                : TimeSpan.FromSeconds(Math.Min(_currentInterval.TotalSeconds + 1, MaxInterval.TotalSeconds));
+            try { _timer.Change(_currentInterval, _currentInterval); }
+            catch (ObjectDisposedException) { /* Dispose() raced this callback */ }
+        }
+
         if (changed && !disposed)
             Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -80,6 +105,16 @@ public sealed class MtpDeviceCatalog : IDisposable
     public void Dispose()
     {
         lock (_lock) _disposed = true;
+
+        // Dispose(WaitHandle) so a Refresh() already mid-flight (blocked in the WPD/COM
+        // GetDevices() call) finishes before this returns, rather than potentially still running
+        // after Dispose() completes. Bounded: shutdown must not hang indefinitely on a stuck
+        // device enumeration. The plain Dispose() afterward is a safe no-op on an
+        // already-disposed Timer - it's here only so CA2213's pattern match (which doesn't
+        // recognise the WaitHandle overload as disposing the field) sees this field disposed.
+        using var done = new ManualResetEvent(false);
+        if (_timer.Dispose(done))
+            done.WaitOne(TimeSpan.FromSeconds(2));
         _timer.Dispose();
     }
 }

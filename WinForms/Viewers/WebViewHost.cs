@@ -78,10 +78,23 @@ public sealed class WebViewHost : IDisposable
 
     private async Task InitAsync()
     {
-        var userDataFolder = Path.Combine(DataDirectory.Root, "webview2");
-        var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, null).ConfigureAwait(true);
-        await _webView.EnsureCoreWebView2Async(env).ConfigureAwait(true);
-        ConfigureSecurityBaseline(_webView.CoreWebView2);
+        try
+        {
+            var userDataFolder = Path.Combine(DataDirectory.Root, "webview2");
+            var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder, null).ConfigureAwait(true);
+            await _webView.EnsureCoreWebView2Async(env).ConfigureAwait(true);
+            ConfigureSecurityBaseline(_webView.CoreWebView2);
+        }
+        catch
+        {
+            // A transient failure here (runtime-installer mid-update, the user data folder briefly
+            // locked by another instance) used to be cached forever in _initTask: every later
+            // Markdown/HTML/PDF/media view in this window re-awaited the same faulted task and
+            // failed identically, with no recovery short of closing and reopening the viewer. Null
+            // it out so the next EnsureInitializedAsync call retries from scratch instead.
+            _initTask = null;
+            throw;
+        }
     }
 
     private static void ConfigureSecurityBaseline(CoreWebView2 core)

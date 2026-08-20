@@ -23,6 +23,14 @@ public static class FileIcons
     private static int _lastDpi = 96;
     private static List<Bitmap>? _pendingDisposal;
 
+    /// <summary>Guards <see cref="_pendingDisposal"/>/<see cref="_lastDpi"/> and the
+    /// generation-swap in <see cref="ClearCache"/> - it is called both from
+    /// <c>ThemeService.ApplyTheme</c> and from <see cref="Get(FileIconType, int)"/>'s own DPI-change
+    /// branch, and without this lock two concurrent calls could double-dispose the same Bitmap
+    /// (both threads reading the same <see cref="_pendingDisposal"/> before either replaces it) or
+    /// drop a generation's bitmaps out of <see cref="_pendingDisposal"/> entirely.</summary>
+    private static readonly object _clearLock = new();
+
     /// <summary>
     /// Drops the cache. Bitmaps handed out by <see cref="Get(FileIconType, int)"/> are assigned
     /// directly to long-lived controls (menu items, toolbar buttons, ImageLists) that don't
@@ -32,9 +40,12 @@ public static class FileIcons
     /// </summary>
     public static void ClearCache()
     {
-        _pendingDisposal?.ForEach(b => b.Dispose());
-        _pendingDisposal = _sizedCache.Values.ToList();
-        _sizedCache.Clear();
+        lock (_clearLock)
+        {
+            _pendingDisposal?.ForEach(b => b.Dispose());
+            _pendingDisposal = _sizedCache.Values.ToList();
+            _sizedCache.Clear();
+        }
     }
 
     private static int GetCurrentDpi()
@@ -95,6 +106,15 @@ public static class FileIcons
     /// <summary>Render an icon at the requested pixel size (vector quality, DPI-aware).</summary>
     public static Bitmap Get(FileIconType type, int px)
     {
+        // Deliberately unlocked out here (only ClearCache() itself takes _clearLock): two
+        // concurrent callers both observing a stale _lastDpi both call ClearCache() and both then
+        // (redundantly but harmlessly) write the same new _lastDpi - ClearCache()'s own lock is
+        // what actually matters, since that's where the double-dispose/dropped-generation race
+        // was. Wrapping this compare in the same lock too would close that last sliver of
+        // redundancy, but CA2000 loses track of ToolStripButton disposal ownership at unrelated
+        // call sites when Get() (used inline in an object initializer) contains a lock statement -
+        // a known analyzer sensitivity to try/finally shape in a value-returning callee, not a
+        // real defect there.
         var currentDpi = GetCurrentDpi();
         if (currentDpi != _lastDpi)
         {

@@ -75,8 +75,14 @@ public static class DiagnosticCommandChannel
 
     public static void Stop()
     {
+        // Cancel only - deliberately not Dispose(). RunLoop is blocked in
+        // server.WaitForConnectionAsync(ct).GetAwaiter().GetResult() with a live cancellation
+        // registration on this token; disposing the source here (called from MainForm's
+        // FormClosed, on the UI thread) can race that registration's own unwind. The process is
+        // exiting either way - this whole channel only exists behind CODERCOMMANDER_UI_DEBUG=1,
+        // never in a normal end-user launch - so leaving the CTS for the GC instead of disposing
+        // it costs nothing worth a synchronization dance over.
         _cts?.Cancel();
-        _cts?.Dispose();
         _cts = null;
     }
 

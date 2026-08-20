@@ -799,7 +799,14 @@ public sealed class EmbeddedTerminalPanel : Panel
                         Services.LogService.Error("Terminal session disposal failed", ex);
                     }
                 })).ToArray();
-                Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(5));
+                // Budget must exceed PtySession.DisposeAsync's own worst case, not the other way
+                // around - its internal steps (2s WaitForExitAsync + 5s ClosePseudoConsole
+                // watchdog + 2s reader-thread join, see PtySession.cs) can sum to ~9s for a single
+                // stuck session. A 5s outer budget here used to be shorter than that sum, silently
+                // abandoning sessions mid-teardown before PtySession's own watchdogs ever got a
+                // chance to run. Sessions still dispose concurrently (Task.Run per session above),
+                // so this bounds total wall time by the single slowest session, not by tab count.
+                Task.WaitAll(disposeTasks, TimeSpan.FromSeconds(10));
             }
             catch (Exception ex)
             {

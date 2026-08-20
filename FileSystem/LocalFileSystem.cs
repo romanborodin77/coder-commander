@@ -21,6 +21,18 @@ public sealed class LocalFileSystem : IFileSystem
     /// </remarks>
     public FileSystemCapabilities Capabilities => FileSystemCapabilities.Local;
 
+    /// <summary>
+    /// Caps <see cref="EnumerateDeepAsync"/>'s result - every remote provider already bounds its
+    /// own recursive walk this way (<c>FileSystem.Remote.RemoteLimits.MaxEntriesPerDirectory</c>,
+    /// 50,000), but the local provider didn't, and it's reachable straight from Alt+Enter on any
+    /// folder (<c>PropertiesForm.BeginScanDirectory</c>) as well as Flat View and the recursive
+    /// size calculation - pointing any of them at a drive root used to allocate a
+    /// <see cref="FileEntry"/> (several strings each) per file with no ceiling at all. Local disk
+    /// I/O is far cheaper per entry than a network round trip, so this is set much higher than the
+    /// remote limit rather than reused from it.
+    /// </summary>
+    private const int MaxDeepEntries = 2_000_000;
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool GetDiskFreeSpaceEx(
         string lpDirectoryName,
@@ -77,6 +89,11 @@ public sealed class LocalFileSystem : IFileSystem
             foreach (var entry in dir.EnumerateFileSystemInfos("*", enumOptions))
             {
                 ct.ThrowIfCancellationRequested();
+                if (result.Count >= MaxDeepEntries)
+                {
+                    LogService.Warning($"EnumerateDeepAsync: \"{path}\" has more than {MaxDeepEntries} entries; truncating.");
+                    break;
+                }
                 result.Add(FileEntry.FromFileSystemInfo(entry.FullName, entry));
             }
 

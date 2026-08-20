@@ -146,7 +146,17 @@ public sealed class OperationManager : IDisposable
         try
         {
             queued.MarkStarted();
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(externalCt, _disposeCts.Token);
+            // _disposeCts.Token can throw ObjectDisposedException if Dispose() races this exact
+            // moment - reading it directly here had no catch around it, so that exception used to
+            // propagate straight out of RunAsync, uncaught, onto whichever fire-and-forget
+            // "_ = Operations.RunAsync(...)" caller started this operation (an unobserved task
+            // exception). A CancellationToken struct obtained before disposal stays safely
+            // queryable afterward, so treating "already disposed" as "already cancelled" and
+            // linking that instead is both correct and exception-free.
+            CancellationToken disposeToken;
+            try { disposeToken = _disposeCts.Token; }
+            catch (ObjectDisposedException) { disposeToken = new CancellationToken(canceled: true); }
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(externalCt, disposeToken);
             await operation.ExecuteAsync(linked.Token);
         }
         finally
@@ -237,8 +247,6 @@ public sealed class OperationManager : IDisposable
         // Don't wait for queue lock synchronously — that blocks the UI thread for up to 5 seconds
         // if an operation is still running. Instead, mark disposed and let RunAsync's finally
         // block release and dispose the semaphore when the operation completes.
-        _disposed = true;
-        _disposeCts.Cancel();
         if (_queueLock.Wait(0))
         {
             _queueLock.Release();

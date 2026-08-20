@@ -269,6 +269,20 @@ internal static class ShellCatalog
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
             catch { /* best effort */ }
+
+            // copyTask/drainStderrTask were started against the outer ct, not timeoutCts - a
+            // *timeout* (CancelAfter) only unblocks the WaitAsync wrappers above, it doesn't
+            // actually cancel either task. Left running after this method returns and the `using`
+            // above disposes ms, a late write from copyTask throws ObjectDisposedException as an
+            // unobserved task exception. Killing the process just above makes both pipes reach EOF
+            // shortly after, so give them a short grace period to actually finish first.
+            try
+            {
+                using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await Task.WhenAll(copyTask, drainStderrTask).WaitAsync(grace.Token).ConfigureAwait(false);
+            }
+            catch { /* best effort - if they're still stuck, there's nothing more to do here */ }
+
             throw;
         }
 

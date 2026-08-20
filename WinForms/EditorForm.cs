@@ -716,11 +716,13 @@ public sealed class EditorForm : ThemedForm
     /// method (toolbar button, Ctrl+W, a tab's close glyph) already treats it as a fire-and-forget
     /// void action, so the signature change is source-compatible.
     ///
-    /// <para>Deliberately NOT <c>tab.SaveFileAsync().GetAwaiter().GetResult()</c>, despite
-    /// <c>SaveFileAsync</c> using <c>ConfigureAwait(false)</c> throughout: that looks safe (no
-    /// particular thread is needed to resume on) but isn't - blocking this thread while its own
-    /// continuation still needs a free thread-pool worker to run on is a real deadlock under a
-    /// small enough pool, reproduced directly while building <see cref="PanelViewModel.ReleaseArchiveLeaseAsync"/>'s
+    /// <para>Deliberately NOT <c>tab.SaveFileAsync().GetAwaiter().GetResult()</c>:
+    /// <c>SaveFileAsync</c> uses <c>ConfigureAwait(true)</c> throughout (it mutates
+    /// <see cref="WinForms.CodeEditorControl"/> state and can show a <c>StyledMessageBox</c> after
+    /// its remote-save branch, both of which need the UI thread), which means blocking this thread
+    /// synchronously on it would deadlock the moment its first await tries to resume back on the
+    /// very thread that's blocked waiting for it - the classic <c>SynchronizationContext</c>
+    /// deadlock, reproduced directly while building <see cref="PanelViewModel.ReleaseArchiveLeaseAsync"/>'s
     /// equivalent call. A plain <c>await</c> here has no such risk.</para>
     /// </summary>
     private async void CloseCurrentTab()

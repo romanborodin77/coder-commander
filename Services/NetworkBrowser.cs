@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CoderCommander.FileSystem;
 
 namespace CoderCommander.Services;
 
@@ -71,6 +72,11 @@ public static class NetworkBrowser
         }
     }
 
+    /// <summary>Backstop against a malformed or hostile network provider response driving the
+    /// `while (true)` below past any reasonable server/share count - real networks have at most a
+    /// few hundred visible servers/shares, not enough to matter against this.</summary>
+    private const int MaxResults = 10_000;
+
     private static List<NetResource> EnumerateChildren(IntPtr handle)
     {
         var results = new List<NetResource>();
@@ -82,7 +88,7 @@ public static class NetworkBrowser
             buffer = Marshal.AllocHGlobal(bufSize);
             var count = 0xffffffffu;
 
-            while (true)
+            while (results.Count < MaxResults)
             {
                 var size = (uint)bufSize;
                 var result = WNetEnumResource(handle, ref count, buffer, ref size);
@@ -98,7 +104,7 @@ public static class NetworkBrowser
 
                 // Read count NETRESOURCE structs from the buffer.
                 var structSize = Marshal.SizeOf<NETRESOURCE>();
-                for (var i = 0; i < count; i++)
+                for (var i = 0; i < count && results.Count < MaxResults; i++)
                 {
                     var ptr = buffer + i * structSize;
                     var nr = Marshal.PtrToStructure<NETRESOURCE>(ptr);
@@ -107,6 +113,25 @@ public static class NetworkBrowser
                     // Top-level entries can be containers (servers) — their children are shares.
                     // A server's remote name looks like \\SERVER. A share's looks like \\SERVER\SHARE.
                     var name = nr.lpRemoteName.TrimStart('\\');
+
+                    // lpRemoteName ends up as UncPath, which NetworkBrowseForm hands straight to
+                    // SmbProvider to build a connection - checked the same way every other remote
+                    // provider validates a server-supplied name (RemotePath.IsSafeEntryName), one
+                    // path segment at a time since a share's name is "SERVER\SHARE", not a single
+                    // segment.
+                    var segmentsSafe = true;
+                    foreach (var segment in name.Split('\\'))
+                    {
+                        if (RemotePath.IsSafeEntryName(segment)) continue;
+                        segmentsSafe = false;
+                        break;
+                    }
+                    if (!segmentsSafe)
+                    {
+                        LogService.Warning("NetworkBrowser: rejected a listing entry with an unsafe name");
+                        continue;
+                    }
+
                     var isServer = nr.dwDisplayType == RESOURCEDISPLAYTYPE_SERVER;
                     results.Add(new NetResource
                     {

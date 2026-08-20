@@ -239,6 +239,7 @@ public sealed class DifferForm : ThemedForm
         try
         {
             _compareCts?.Cancel();
+            _compareCts?.Dispose();
             _compareCts = new CancellationTokenSource();
             var ct = _compareCts.Token;
 

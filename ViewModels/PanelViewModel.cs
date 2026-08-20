@@ -51,6 +51,15 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _navCts;
     private readonly object _navLock = new();
 
+    /// <summary>Set at the start of <see cref="Dispose"/>, before <see cref="_refreshLock"/>/
+    /// <see cref="_archiveLeaseLock"/> are disposed. <see cref="RefreshAsync"/>/
+    /// <see cref="AttachArchiveLeaseAsync"/>/<see cref="ReleaseArchiveLeaseAsync"/> check this
+    /// before calling <c>WaitAsync</c> on either semaphore - a best-effort guard, not a hard
+    /// guarantee (there is still a window between the check and the call), backed by the
+    /// <see cref="ObjectDisposedException"/> catch each of those call sites already has to add
+    /// around <c>WaitAsync</c> for the remaining race.</summary>
+    private volatile bool _disposed;
+
     /// <summary>Captured on the UI thread at construction time so that FileSystemWatcher callbacks
     /// (which fire on thread-pool threads) can marshal timer Start/Stop calls back to the UI thread
     /// — System.Windows.Forms.Timer is not thread-safe.</summary>
@@ -163,7 +172,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     public async Task AttachArchiveLeaseAsync(FileSystem.Materialization.MaterializedFile lease, CancellationToken ct = default)
     {
-        await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true);
+        if (_disposed) return;
+        try { await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true); }
+        catch (ObjectDisposedException) { return; } // Dispose() raced this call
         try
         {
             await ReleaseArchiveLeaseCoreAsync(ct).ConfigureAwait(true);
@@ -227,7 +238,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task ReleaseArchiveLeaseAsync(CancellationToken ct = default)
     {
-        await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true);
+        if (_disposed) return;
+        try { await _archiveLeaseLock.WaitAsync(ct).ConfigureAwait(true); }
+        catch (ObjectDisposedException) { return; } // Dispose() raced this call
         try
         {
             await ReleaseArchiveLeaseCoreAsync(ct).ConfigureAwait(true);
@@ -725,11 +738,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var path = CurrentPath;
         if (string.IsNullOrEmpty(path))
             return;
+        if (_disposed)
+            return;
 
         // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything
         // from _allItems assignment down through ApplyFilter()'s ObservableCollection mutation must
         // stay on the UI thread this method was called from.
-        await _refreshLock.WaitAsync(ct);
+        try { await _refreshLock.WaitAsync(ct); }
+        catch (ObjectDisposedException) { return; } // Dispose() raced this call (e.g. a debounce tick)
         try
         {
             var entries = IsFlatView
@@ -1097,8 +1113,16 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     private void OnDebounceTick(object? sender, EventArgs e)
     {
         _refreshDebounce?.Stop();
-        if (!string.IsNullOrEmpty(CurrentPath) && _refreshDebounce != null)
-            _ = RefreshAsync(_navCts?.Token ?? default);
+        if (string.IsNullOrEmpty(CurrentPath) || _refreshDebounce == null || _disposed)
+            return;
+
+        // Read under _navLock, matching BeginNavigation/Dispose's own synchronization - this used
+        // to read _navCts directly, racing Dispose()'s swap-to-null-then-dispose. A WinForms Timer
+        // tick has no surrounding try/catch of its own, so a disposed-source .Token read here went
+        // straight to the unhandled-exception path.
+        CancellationToken ct;
+        lock (_navLock) { ct = _navCts?.Token ?? default; }
+        _ = RefreshAsync(ct);
     }
 
     /// <summary>Stops the file-system watcher, cancels pending navigation and disposes resources.
@@ -1110,6 +1134,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// narrow, honestly-scoped limitation, not a silent one worth pretending otherwise about.</summary>
     public void Dispose()
     {
+        _disposed = true;
+
         _archiveLease?.Dispose();
         _archiveLease = null;
         _materializeSession.Dispose();
@@ -1126,8 +1152,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         _filterDebounce?.Dispose();
         _filterDebounce = null;
 
-        var cts = _navCts;
-        _navCts = null;
+        // Swapped to null under _navLock, matching BeginNavigation/OnDebounceTick's own reads -
+        // this used to swap unlocked, which was the other half of the race those two guard against.
+        CancellationTokenSource? cts;
+        lock (_navLock)
+        {
+            cts = _navCts;
+            _navCts = null;
+        }
         try { cts?.Cancel(); } catch (ObjectDisposedException) { }
         cts?.Dispose();
         _refreshLock.Dispose();

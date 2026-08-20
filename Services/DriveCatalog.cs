@@ -170,10 +170,18 @@ public sealed class DriveCatalog
     private static async Task<DriveEntry> ProbeAsync(DriveEntry drive, CancellationToken ct)
     {
         var probe = Task.Run(() => Probe(drive), ct);
-        var finished = await Task.WhenAny(probe, Task.Delay(ProbeTimeout, ct)).ConfigureAwait(false);
+
+        // Linked so the timeout delay is cancelled the moment probe wins - without this, every
+        // successful (the common case) probe still left its 1-second Task.Delay timer armed for
+        // its full duration, a small but permanent churn of timer-queue entries every time
+        // DeviceChangeWatcher nudges a refresh.
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var finished = await Task.WhenAny(probe, Task.Delay(ProbeTimeout, timeoutCts.Token)).ConfigureAwait(false);
 
         if (finished != probe)
             return drive with { ProbeState = DriveProbeState.Unavailable };
+
+        timeoutCts.Cancel();
 
         try
         {

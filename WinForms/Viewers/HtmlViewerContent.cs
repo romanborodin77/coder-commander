@@ -26,6 +26,13 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
     private readonly ToolStripItem[] _toolbarItems;
     private readonly ViewerContentContext _ctx;
     private bool _wired;
+    private EventHandler<object>? _historyChangedHandler;
+
+    /// <summary>Session-scoped, deliberately never written back to <see cref="AppSettings"/> -
+    /// see <see cref="ConfigureScripting"/>'s doc comment for why persisting a toggle here would
+    /// silently grant script execution to every future HTML file, not just the one it was turned
+    /// on for.</summary>
+    private bool _scriptsAllowedThisSession;
 
     public override IReadOnlyList<ToolStripItem> ToolbarItems => _toolbarItems;
 
@@ -41,23 +48,27 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
         _backBtn.Enabled = false;
         _forwardBtn.Enabled = false;
 
+        _scriptsAllowedThisSession = _ctx.Settings.ViewerHtmlAllowScripts;
         _scriptsBtn = new ToolStripButton(LocalizationService.Current.GetString("View.Html.Scripts"))
         {
             CheckOnClick = false,
-            Checked = _ctx.Settings.ViewerHtmlAllowScripts,
+            Checked = _scriptsAllowedThisSession,
             ForeColor = p.Danger,
         };
         _scriptsBtn.Click += (_, _) =>
         {
-            _scriptsBtn.Checked = !_scriptsBtn.Checked;
-            _ctx.Settings.ViewerHtmlAllowScripts = _scriptsBtn.Checked;
-            SettingsService.Save(_ctx.Settings);
-            Host.SetScriptEnabled(_scriptsBtn.Checked);
+            // In-memory only for this open file - see ConfigureScripting's doc comment. Not
+            // written to AppSettings/SettingsService.Save: this used to persist here, which meant
+            // one deliberate "yes, run scripts in this page I trust" silently became "run scripts
+            // in every HTML file I ever open with F3" for the rest of the app's life.
+            _scriptsAllowedThisSession = !_scriptsAllowedThisSession;
+            _scriptsBtn.Checked = _scriptsAllowedThisSession;
+            Host.SetScriptEnabled(_scriptsAllowedThisSession);
             // WebView2 applies IsScriptEnabled at the next navigation, not to the page already
             // loaded - without a reload here, turning the toggle OFF looks like it disabled
-            // scripts (the button un-checks, the setting persists as false) while whatever
-            // scripts the page already started (timers, event handlers) keep running. Reload
-            // makes the toggle's visible state always match what's actually executing.
+            // scripts (the button un-checks) while whatever scripts the page already started
+            // (timers, event handlers) keep running. Reload makes the toggle's visible state
+            // always match what's actually executing.
             Host.Core?.Reload();
         };
 
@@ -70,15 +81,26 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
 
     protected override void ConfigureScripting(WebViewHost host)
     {
-        host.SetScriptEnabled(_ctx.Settings.ViewerHtmlAllowScripts);
+        // Reset to the app's persisted baseline on every fresh render (ShowFileAsync calls this
+        // once per file RenderAsync delivers - not on the toggle button's own Reload(), which
+        // revisits the same file). Without this reset, toggling scripts on for one HTML file and
+        // then opening a different one in the same window would carry the "yes" over to content
+        // the user never actually consented to running scripts for.
+        _scriptsAllowedThisSession = _ctx.Settings.ViewerHtmlAllowScripts;
+        _scriptsBtn.Checked = _scriptsAllowedThisSession;
+        host.SetScriptEnabled(_scriptsAllowedThisSession);
 
         // First call after EnsureInitializedAsync inside the base class's ShowFileAsync - Core is
         // only non-null from here on, so this is the earliest point live back/forward state can
         // be wired. Persistent for this content's lifetime; HistoryChanged firing while this
-        // format isn't the visible one is harmless (the buttons just aren't on screen yet).
+        // format isn't the visible one is harmless (the buttons just aren't on screen yet). The
+        // handler is stored so Dispose() can unsubscribe it before this instance's own buttons are
+        // disposed - core is the shared, window-lifetime CoreWebView2, so an unsubscribed handler
+        // otherwise outlives _backBtn/_forwardBtn and fires into disposed controls during teardown.
         if (_wired || host.Core is not { } core) return;
         _wired = true;
-        core.HistoryChanged += (_, _) => UpdateHistoryButtons(core);
+        _historyChangedHandler = (_, _) => UpdateHistoryButtons(core);
+        core.HistoryChanged += _historyChangedHandler;
         UpdateHistoryButtons(core);
     }
 
@@ -90,6 +112,14 @@ internal sealed class HtmlViewerContent : WebFileViewerContentBase
 
     public override void Dispose()
     {
+        // Unsubscribe from the shared, window-lifetime CoreWebView2 before the buttons it updates
+        // are disposed below - ViewerForm.Dispose disposes contents (this) before the WebViewHost,
+        // so a still-subscribed handler firing during WebView2's own teardown hit an already-
+        // disposed ToolStripButton (ObjectDisposedException on the UI thread while closing).
+        if (_historyChangedHandler is { } handler && Host.Core is { } core)
+            core.HistoryChanged -= handler;
+        _historyChangedHandler = null;
+
         _backBtn.Dispose();
         _forwardBtn.Dispose();
         _refreshBtn.Dispose();

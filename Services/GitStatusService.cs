@@ -72,9 +72,20 @@ public sealed class GitStatusSnapshot
 /// </summary>
 public static class GitStatusService
 {
-    private static bool? _gitAvailable;
-    private static string? _gitExecutable;
-    private static bool _gitExecutableResolved;
+    // -1/0/1 (unknown/false/true) rather than bool?, mutated via Interlocked - both panels can
+    // navigate into a git repo concurrently on their own background threads, and this was
+    // previously a plain unlocked bool? field: one thread's non-atomic read of a partially-written
+    // value (or a torn read racing ResolveGitExecutable's own two-field write below) could see
+    // "resolved" with a null executable, throw, and permanently disable git status for the whole
+    // session on a machine where git is actually installed.
+    private static int _gitAvailable = -1;
+
+    /// <summary>Absolute path to git.exe, resolved once per process. <see cref="Lazy{T}"/>'s
+    /// default thread-safety mode (ExecutionAndPublication) makes this correctly single-flight on
+    /// its own - concurrent callers block on the same in-progress resolution rather than each
+    /// racing to write <c>_gitExecutable</c>/<c>_gitExecutableResolved</c> as two separate,
+    /// unsynchronized fields the way this used to.</summary>
+    private static readonly Lazy<string?> GitExecutableLazy = new(FindGitExecutable, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     /// Returns a status snapshot for the repository containing <paramref name="directory"/>, or
@@ -84,7 +95,7 @@ public static class GitStatusService
     /// </summary>
     public static GitStatusSnapshot? GetStatus(string directory)
     {
-        if (_gitAvailable == false)
+        if (Volatile.Read(ref _gitAvailable) == 0)
             return null;
 
         var repoRoot = FindRepoRoot(directory);
@@ -95,12 +106,12 @@ public static class GitStatusService
         try
         {
             output = RunGit(repoRoot, "status --porcelain=v1 --untracked-files=all");
-            _gitAvailable = true;
+            Interlocked.Exchange(ref _gitAvailable, 1);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             // git isn't installed / isn't on PATH - stop trying for the rest of this session.
-            _gitAvailable = false;
+            Interlocked.Exchange(ref _gitAvailable, 0);
             return null;
         }
         catch (Exception ex)
@@ -237,25 +248,17 @@ public static class GitStatusService
 
     /// <summary>
     /// Absolute path to <c>git.exe</c>, resolved once per process and cached (git doesn't get
-    /// installed/uninstalled mid-session). Resolves through the registry key Git for Windows'
-    /// installer writes and a couple of known Program Files locations - never through a bare
-    /// "git" <see cref="ProcessStartInfo.FileName"/>, which Win32's <c>CreateProcess</c> would
-    /// otherwise resolve by searching the launch directory, System32, Windows, then every
-    /// <c>%PATH%</c> entry in order. That search order is exactly the risk
-    /// <c>Terminal/Shells/ShellCatalog.cs</c> already documents and avoids for every built-in
-    /// shell: a poisoned or user-writable PATH/launch-directory entry could substitute a
+    /// installed/uninstalled mid-session) via <see cref="GitExecutableLazy"/>. Resolves through
+    /// the registry key Git for Windows' installer writes and a couple of known Program Files
+    /// locations - never through a bare "git" <see cref="ProcessStartInfo.FileName"/>, which
+    /// Win32's <c>CreateProcess</c> would otherwise resolve by searching the launch directory,
+    /// System32, Windows, then every <c>%PATH%</c> entry in order. That search order is exactly
+    /// the risk <c>Terminal/Shells/ShellCatalog.cs</c> already documents and avoids for every
+    /// built-in shell: a poisoned or user-writable PATH/launch-directory entry could substitute a
     /// different binary for "git" - and this runs on effectively every panel navigation into a
     /// git repository, not a one-off action.
     /// </summary>
-    private static string? ResolveGitExecutable()
-    {
-        if (_gitExecutableResolved)
-            return _gitExecutable;
-
-        _gitExecutable = FindGitExecutable();
-        _gitExecutableResolved = true;
-        return _gitExecutable;
-    }
+    private static string? ResolveGitExecutable() => GitExecutableLazy.Value;
 
     private static string? FindGitExecutable()
     {

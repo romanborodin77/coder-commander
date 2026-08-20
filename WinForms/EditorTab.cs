@@ -82,11 +82,11 @@ public sealed class EditorTab : IDisposable
         try
         {
             byte[] bytes;
-            var stream = await _fs.OpenReadAsync(path, ct).ConfigureAwait(false);
-            await using (stream.ConfigureAwait(false))
+            var stream = await _fs.OpenReadAsync(path, ct).ConfigureAwait(true);
+            await using (stream.ConfigureAwait(true))
             {
                 using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                await stream.CopyToAsync(ms, ct).ConfigureAwait(true);
                 bytes = ms.ToArray();
             }
 
@@ -203,13 +203,13 @@ public sealed class EditorTab : IDisposable
                 try
                 {
                     using (var ms = new MemoryStream(bytes))
-                        await _fs.CopyFromStreamAsync(sidecar, ms, ct).ConfigureAwait(false);
+                        await _fs.CopyFromStreamAsync(sidecar, ms, ct).ConfigureAwait(true);
 
-                    var uploaded = await _fs.GetFileInfoAsync(sidecar, ct).ConfigureAwait(false);
+                    var uploaded = await _fs.GetFileInfoAsync(sidecar, ct).ConfigureAwait(true);
                     if (uploaded == null || uploaded.Size != bytes.LongLength)
                         throw new IOException($"Save of \"{savePath}\" did not complete: uploaded size did not match.");
 
-                    await _fs.MoveAsync(sidecar, savePath, overwrite: true, CancellationToken.None).ConfigureAwait(false);
+                    await _fs.MoveAsync(sidecar, savePath, overwrite: true, CancellationToken.None).ConfigureAwait(true);
                 }
                 catch
                 {
@@ -221,12 +221,12 @@ public sealed class EditorTab : IDisposable
                     // is the only surviving copy. Only delete it when the origin is confirmed still
                     // present; otherwise keep it and say where it is.
                     FileEntry? originStillThere;
-                    try { originStillThere = await _fs.GetFileInfoAsync(savePath, CancellationToken.None).ConfigureAwait(false); }
+                    try { originStillThere = await _fs.GetFileInfoAsync(savePath, CancellationToken.None).ConfigureAwait(true); }
                     catch { originStillThere = null; }
 
                     if (originStillThere is not null)
                     {
-                        try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(false); }
+                        try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(true); }
                         catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
                         throw;
                     }

@@ -157,6 +157,11 @@ internal sealed class PtySession : IAsyncDisposable
             rollbacks.Push(() => processHandle.Dispose());
 
             var process = Process.GetProcessById(pi.dwProcessId);
+            // Every other resource acquired in this method is pushed onto the rollback stack -
+            // this one wasn't. If a FileStream construction below, or the PtySession constructor
+            // itself (which subscribes Exited and sets EnableRaisingEvents = true), throws, this
+            // Process object was dropped without Dispose(), relying on finalization instead.
+            rollbacks.Push(() => process.Dispose());
 
             var outputStream = new FileStream(outputRead, FileAccess.Read, bufferSize: 1, isAsync: false);
             var inputStream = new FileStream(inputWrite, FileAccess.Write, bufferSize: 1, isAsync: false);
