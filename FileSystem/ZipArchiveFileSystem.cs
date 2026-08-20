@@ -93,11 +93,37 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         /// <summary>True when at least one name is stored in an OEM code page rather than UTF-8.</summary>
         public bool HasLegacyNames { get; }
 
+        private readonly Lazy<(ZipEntryRecord Entry, string NormalizedName)[]> _normalizedEntries;
+
+        /// <summary>Pre-computed trimmed names (directory entries carry a trailing "/" in
+        /// <see cref="ZipEntryRecord.FullName"/>; backslashes are already normalized to forward
+        /// slashes and "./" already stripped at parse time - see <c>ParseCentralDirectory</c>).
+        /// Lazy for the same reason as <c>Archives.ArchiveDirectory.NormalizedEntries</c>: not
+        /// every caller of <see cref="Entries"/> needs it.</summary>
+        public IReadOnlyList<(ZipEntryRecord Entry, string NormalizedName)> NormalizedEntries => _normalizedEntries.Value;
+
+        private readonly Lazy<Utils.PrefixTreeIndex<ZipEntryRecord>> _index;
+
+        /// <summary>'/'-segmented prefix tree over <see cref="NormalizedEntries"/> - see
+        /// <see cref="Utils.PrefixTreeIndex{T}"/>'s own doc comment. Turns
+        /// EnumerateAsync/EnumerateDeepAsync/GetFileInfoAsync/ExistsAsync from an O(n) scan of
+        /// every entry in the archive into O(children)/O(1)/O(1), built once per cached snapshot.</summary>
+        internal Utils.PrefixTreeIndex<ZipEntryRecord> Index => _index.Value;
+
         /// <summary>Creates a new directory snapshot.</summary>
         public ZipDirectory(IReadOnlyList<ZipEntryRecord> entries, bool hasLegacyNames)
         {
             Entries = entries;
             HasLegacyNames = hasLegacyNames;
+            _normalizedEntries = new Lazy<(ZipEntryRecord, string)[]>(() =>
+            {
+                var result = new (ZipEntryRecord, string)[entries.Count];
+                for (var i = 0; i < entries.Count; i++)
+                    result[i] = (entries[i], entries[i].FullName.Trim('/'));
+                return result;
+            });
+            _index = new Lazy<Utils.PrefixTreeIndex<ZipEntryRecord>>(
+                () => new Utils.PrefixTreeIndex<ZipEntryRecord>(NormalizedEntries, e => e.LastWriteTimeUtc));
         }
     }
 
@@ -565,63 +591,46 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     // the UI thread directly instead of just delaying the panel refresh.
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Queries <see cref="ZipDirectory.Index"/> (a <see cref="Utils.PrefixTreeIndex{T}"/>) instead
+    /// of scanning every entry in the archive - previously an O(n) walk with a fresh
+    /// <c>Replace('\')</c>/<c>StartsWith</c> per entry on every single navigation, which is what
+    /// made browsing a ZIP with hundreds of thousands of entries freeze the panel on each folder
+    /// click. A directory synthesized here purely from deeper entries (no entry of its own) shows
+    /// the timestamp of whichever entry first touched it; an entry that has both children AND its
+    /// own explicit directory-marker record instead always shows that marker's own timestamp,
+    /// regardless of scan order - a minor, deliberate improvement over the old "whichever entry
+    /// happened to be seen first" behavior, not merely a perf-neutral rewrite.
+    /// </remarks>
     public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
         var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
-        var prefix = string.IsNullOrEmpty(innerPath) ? "" : innerPath + "/";
 
-        var result = new List<FileEntry>();
-        var seenDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var entries = GetEntries();
+        var dir = ReadDirectory(_archivePath);
+        var node = dir.Index.Navigate(innerPath);
+        if (node == null)
+            return Array.Empty<FileEntry>();
 
-        foreach (var entry in entries)
+        var prefix = innerPath.Length == 0 ? "" : innerPath + "/";
+        var result = new List<FileEntry>(node.Children.Count);
+        foreach (var (name, child) in node.Children)
         {
             ct.ThrowIfCancellationRequested();
-            var name = entry.FullName.Replace('\\', '/');
-            var isDirEntry = name.EndsWith('/');
 
-            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var rest = name[prefix.Length..];
-            if (string.IsNullOrEmpty(rest))
-                continue;
-
-            if (isDirEntry)
+            // A node can be both a directory (has children, or an explicit "name/" marker entry)
+            // and a file (a same-named entry with no trailing slash) in a pathological archive -
+            // the linear scan this replaces showed both rows for that case too.
+            if (child.Children.Count > 0 || child.Entry is { IsDirectory: true })
             {
-                var dirName = rest.TrimEnd('/');
-                if (string.IsNullOrEmpty(dirName))
-                    continue;
-                var slashIdx = dirName.IndexOf('/', StringComparison.Ordinal);
-                if (slashIdx >= 0)
-                    dirName = dirName[..slashIdx];
-                if (seenDirs.Add(dirName))
-                {
-                    var dirFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + dirName);
-                    result.Add(new FileEntry(dirFullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
-                }
+                result.Add(new FileEntry(CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + name),
+                    true, lastWriteTimeUtc: child.LastWriteTimeUtc));
             }
-            else
+            if (child.Entry is { IsDirectory: false } file)
             {
-                var slashIdx = rest.IndexOf('/', StringComparison.Ordinal);
-                if (slashIdx >= 0)
-                {
-                    var dirName = rest[..slashIdx];
-                    if (seenDirs.Add(dirName))
-                    {
-                        var dirFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + dirName);
-                        result.Add(new FileEntry(dirFullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
-                    }
-                }
-                else
-                {
-                    var fileFullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name);
-                    result.Add(new FileEntry(
-                        fileFullPath, false, true, entry.Size,
-                        lastWriteTimeUtc: entry.LastWriteTimeUtc));
-                }
+                result.Add(new FileEntry(CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + name),
+                    false, true, file.Size, lastWriteTimeUtc: file.LastWriteTimeUtc));
             }
         }
 
@@ -629,41 +638,44 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     }, ct);
 
     /// <inheritdoc/>
+    /// <remarks>Never synthesizes a row for an implicit folder (one with no entry of its own) -
+    /// only entries genuinely present in the archive are returned, matching the linear scan this
+    /// replaces exactly (unlike <see cref="EnumerateAsync"/>, which does synthesize immediate
+    /// child folders one level down).</remarks>
     public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run<IReadOnlyList<FileEntry>>(() =>
     {
         var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
         innerPath = innerPath.Replace('\\', '/').Trim('/');
-        var prefix = string.IsNullOrEmpty(innerPath) ? "" : innerPath + "/";
+
+        var dir = ReadDirectory(_archivePath);
+        var node = dir.Index.Navigate(innerPath);
+        if (node == null)
+            return Array.Empty<FileEntry>();
 
         var result = new List<FileEntry>();
-        var entries = GetEntries();
-
-        foreach (var entry in entries)
-        {
-            ct.ThrowIfCancellationRequested();
-            var name = entry.FullName.Replace('\\', '/');
-            var isDirEntry = name.EndsWith('/');
-
-            if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var rest = name[prefix.Length..];
-            if (string.IsNullOrEmpty(rest))
-                continue;
-
-            var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name.TrimEnd('/'));
-
-            if (isDirEntry)
-                result.Add(new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc));
-            else
-                result.Add(new FileEntry(
-                    fullPath, false, true, entry.Size,
-                    lastWriteTimeUtc: entry.LastWriteTimeUtc));
-        }
-
+        CollectDeepEntries(node, _archivePath, innerPath, result, ct);
         return result;
     }, ct);
+
+    private static void CollectDeepEntries(
+        Utils.PrefixTreeIndex<ZipEntryRecord>.Node node, string archivePath, string normalizedPath,
+        List<FileEntry> result, CancellationToken ct)
+    {
+        foreach (var (name, child) in node.Children)
+        {
+            ct.ThrowIfCancellationRequested();
+            var childPath = normalizedPath.Length == 0 ? name : normalizedPath + "/" + name;
+            if (child.Entry is { } entry)
+            {
+                var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(archivePath, childPath);
+                result.Add(entry.IsDirectory
+                    ? new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc)
+                    : new FileEntry(fullPath, false, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc));
+            }
+            CollectDeepEntries(child, archivePath, childPath, result, ct);
+        }
+    }
 
     /// <inheritdoc/>
     public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
@@ -678,36 +690,18 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             return new FileEntry(rootPath, true);
         }
 
-        var entries = GetEntries();
-
-        foreach (var entry in entries)
+        var dir = ReadDirectory(_archivePath);
+        if (dir.Index.TryGetExact(innerPath, out var entry) && entry != null)
         {
-            var name = entry.FullName.Replace('\\', '/');
-            // Strip "./" prefix (e.g. from Info-ZIP or similar tools)
-            if (name.StartsWith("./", StringComparison.Ordinal))
-                name = name[2..];
-            name = name.Trim('/');
-            if (string.Equals(name, innerPath, StringComparison.OrdinalIgnoreCase))
-            {
-                var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, name);
-                var isDir = entry.FullName.EndsWith('/');
-                return new FileEntry(
-                    fullPath, isDir, true, entry.Size,
-                    lastWriteTimeUtc: entry.LastWriteTimeUtc);
-            }
+            var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, innerPath);
+            return new FileEntry(fullPath, entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
         }
 
-        var prefix = innerPath + "/";
-        foreach (var entry in entries)
+        var node = dir.Index.Navigate(innerPath);
+        if (node != null && node.Children.Count > 0)
         {
-            var name = entry.FullName.Replace('\\', '/');
-            if (name.StartsWith("./", StringComparison.Ordinal))
-                name = name[2..];
-            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, innerPath);
-                return new FileEntry(fullPath, true);
-            }
+            var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, innerPath);
+            return new FileEntry(fullPath, true);
         }
 
         return null;
@@ -723,24 +717,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (string.IsNullOrEmpty(innerPath))
             return true;
 
-        var entries = GetEntries();
-
-        foreach (var entry in entries)
-        {
-            var name = entry.FullName.Replace('\\', '/').Trim('/');
-            if (string.Equals(name, innerPath, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        var prefix = innerPath + "/";
-        foreach (var entry in entries)
-        {
-            var name = entry.FullName.Replace('\\', '/');
-            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
+        var dir = ReadDirectory(_archivePath);
+        return dir.Index.Navigate(innerPath) != null;
     }, ct);
 
     /// <inheritdoc/>

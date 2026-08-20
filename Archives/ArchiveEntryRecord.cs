@@ -1,3 +1,5 @@
+using CoderCommander.Utils;
+
 namespace CoderCommander.Archives;
 
 /// <summary>
@@ -41,16 +43,33 @@ public sealed class ArchiveDirectory
     /// distinguish this from a genuinely empty archive.</summary>
     public bool IsValid { get; }
 
+    private readonly Lazy<(ArchiveEntryRecord, string)[]> _normalizedEntries;
+
     /// <summary>Pre-computed normalized names (backslash→forward, trimmed, "./" stripped) paired
-    /// with their source records, so <see cref="ArchiveTree"/> doesn't re-normalize every entry on
-    /// every listing, search, or existence check — critical for archives with 50k+ entries.</summary>
-    public IReadOnlyList<(ArchiveEntryRecord Entry, string NormalizedName)> NormalizedEntries { get; }
+    /// with their source records. Lazy: a caller that only ever reads <see cref="Entries"/> (most
+    /// of Operations/PackOperation.cs's and UnpackOperation.cs's own already-optimized paths, for
+    /// instance) shouldn't pay for a normalized-name array it never looks at, and this array alone
+    /// was a meaningful fraction of the per-archive memory footprint the directory cache retains.</summary>
+    public IReadOnlyList<(ArchiveEntryRecord Entry, string NormalizedName)> NormalizedEntries => _normalizedEntries.Value;
+
+    private readonly Lazy<PrefixTreeIndex<ArchiveEntryRecord>> _index;
+
+    /// <summary>
+    /// '/'-segmented prefix tree over <see cref="NormalizedEntries"/> - what turns
+    /// <see cref="ArchiveTree"/>'s listing/exact-lookup/has-descendants queries from an O(n) scan
+    /// of every entry in the archive into O(children)/O(1)/O(1). Built once, lazily, on first
+    /// query against this snapshot (the same snapshot is reused across every navigation inside the
+    /// same archive at the same file stamp, via <see cref="ArchiveDirectoryCache"/>).
+    /// </summary>
+    internal PrefixTreeIndex<ArchiveEntryRecord> Index => _index.Value;
 
     public ArchiveDirectory(IReadOnlyList<ArchiveEntryRecord> entries, bool isValid)
     {
         Entries = entries;
         IsValid = isValid;
-        NormalizedEntries = BuildNormalized(entries);
+        _normalizedEntries = new Lazy<(ArchiveEntryRecord, string)[]>(() => BuildNormalized(entries));
+        _index = new Lazy<PrefixTreeIndex<ArchiveEntryRecord>>(
+            () => new PrefixTreeIndex<ArchiveEntryRecord>(NormalizedEntries, e => e.LastWriteTimeUtc));
     }
 
     private static (ArchiveEntryRecord, string)[] BuildNormalized(IReadOnlyList<ArchiveEntryRecord> entries)

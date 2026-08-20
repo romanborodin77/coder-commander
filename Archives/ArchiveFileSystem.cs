@@ -77,39 +77,55 @@ public sealed class ArchiveFileSystem : IFileSystem
 
     /// <summary>
     /// Lists the immediate children of the directory at <paramref name="path"/> inside the archive.
+    ///
+    /// Wrapped in <see cref="Task.Run{TResult}(Func{Task{TResult}}, CancellationToken)"/> rather
+    /// than a plain <c>async</c> method - <see cref="ArchiveDirectoryCache.GetOrReadAsync"/> can
+    /// resolve synchronously on a cache hit (the common case: the same snapshot is reused across
+    /// every navigation inside the same archive at the same file stamp), and an `await` on an
+    /// already-completed <see cref="Task"/> continues inline on the calling thread regardless of
+    /// <c>ConfigureAwait</c>. Without this, every navigation inside a TAR/TAR.GZ/7z/RAR archive
+    /// after the first ran its full tree-index build/query directly on the UI thread - the same
+    /// reasoning <see cref="FileSystem.ZipArchiveFileSystem"/>'s own <c>Task.Run</c> wrappers
+    /// document.
     /// </summary>
-    public async Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default)
-    {
-        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        return ArchiveTree.ListChildren(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
-    }
+    public Task<IReadOnlyList<FileEntry>> EnumerateAsync(string path, bool includeHidden, CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<FileEntry>>(async () =>
+        {
+            var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+            return ArchiveTree.ListChildren(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
+        }, ct);
 
     /// <summary>
     /// Lists all descendants (recursively) of the directory at <paramref name="path"/> inside the archive.
+    /// See <see cref="EnumerateAsync"/>'s doc comment for why this is wrapped in <see cref="Task.Run{TResult}(Func{Task{TResult}}, CancellationToken)"/>.
     /// </summary>
-    public async Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default)
-    {
-        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        return ArchiveTree.ListDescendants(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
-    }
+    public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default) =>
+        Task.Run<IReadOnlyList<FileEntry>>(async () =>
+        {
+            var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+            return ArchiveTree.ListDescendants(dir, _archivePath, ArchivePath.SplitPath(path).innerPath);
+        }, ct);
 
-    /// <summary>Returns a <see cref="FileEntry"/> for <paramref name="path"/>, or <c>null</c> if not found.</summary>
-    public async Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default)
-    {
-        var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
-        if (innerPath.Length == 0)
-            return new FileEntry(ArchivePath.MakePath(_archivePath, ""), true);
+    /// <summary>Returns a <see cref="FileEntry"/> for <paramref name="path"/>, or <c>null</c> if
+    /// not found. See <see cref="EnumerateAsync"/>'s doc comment for why this is wrapped in
+    /// <see cref="Task.Run{TResult}(Func{Task{TResult}}, CancellationToken)"/>.</summary>
+    public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
+        Task.Run<FileEntry?>(async () =>
+        {
+            var innerPath = VfsPath.NormalizeInner(ArchivePath.SplitPath(path).innerPath);
+            if (innerPath.Length == 0)
+                return new FileEntry(ArchivePath.MakePath(_archivePath, ""), true);
 
-        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
-        var entry = ArchiveTree.FindEntry(dir, innerPath);
-        if (entry != null)
-            return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
+            var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+            var entry = ArchiveTree.FindEntry(dir, innerPath);
+            if (entry != null)
+                return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
 
-        if (ArchiveTree.HasDescendants(dir, innerPath))
-            return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), true);
+            if (ArchiveTree.HasDescendants(dir, innerPath))
+                return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), true);
 
-        return null;
-    }
+            return null;
+        }, ct);
 
     /// <summary>Returns <c>true</c> if <paramref name="path"/> exists inside the archive.</summary>
     public async Task<bool> ExistsAsync(string path, CancellationToken ct = default) =>

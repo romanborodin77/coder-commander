@@ -71,24 +71,9 @@ public sealed class SharpCompressReader : IArchiveReader
         {
             try
             {
-                var entries = new List<ArchiveEntryRecord>();
-                using var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
-                using var reader = OpenReader(fileStream, out var archive);
-                try
-                {
-                    var index = 0;
-                    while (reader.MoveToNextEntry())
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        entries.Add(ToRecord(reader.Entry, index++));
-                    }
-                }
-                finally
-                {
-                    archive?.Dispose();
-                }
-
-                return new ArchiveDirectory(entries, isValid: true);
+                return _kind is SharpCompressKind.SevenZip or SharpCompressKind.Rar
+                    ? ReadDirectoryViaHeaderIndex(ct)
+                    : ReadDirectoryViaSequentialScan(ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -96,6 +81,68 @@ public sealed class SharpCompressReader : IArchiveReader
                 return new ArchiveDirectory(Array.Empty<ArchiveEntryRecord>(), isValid: false);
             }
         }, ct);
+    }
+
+    /// <summary>
+    /// 7z/RAR listing path: reads <see cref="IArchive.Entries"/> - metadata parsed from the
+    /// archive's own header/central-directory-equivalent structure - rather than going through
+    /// <see cref="OpenReader"/>'s forward-only <see cref="ExtractAllEntries"/> pipeline this reader
+    /// otherwise uses uniformly for both listing and extraction. For a solid 7z/RAR, advancing
+    /// <c>ExtractAllEntries()</c>'s <see cref="IReader.MoveToNextEntry"/> entry-by-entry to reach
+    /// entry N forces LZMA/RAR decoding of every preceding entry's data too (they share one
+    /// compressed block) - purely to read names for a panel listing that touches no content at
+    /// all. <see cref="IArchive.Entries"/> never enters that pipeline.
+    ///
+    /// Entry order and index assignment are verified to match <see cref="ExtractAllEntries"/>'s
+    /// own iteration order for 7z (both are exposed by SharpCompress's shared
+    /// <c>AbstractArchive&lt;TEntry,TVolume&gt;</c> base, backed by the same parsed header) - this
+    /// matters because <see cref="ArchiveEntryRecord.Index"/> assigned here is the same addressing
+    /// token <see cref="ScanAsync"/>'s own sequential pass uses later to find "the Nth entry" for
+    /// extraction.
+    /// </summary>
+    private ArchiveDirectory ReadDirectoryViaHeaderIndex(CancellationToken ct)
+    {
+        var options = new ReaderOptions { LeaveStreamOpen = true };
+        using var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
+        using IArchive archive = _kind == SharpCompressKind.SevenZip
+            ? SevenZipArchive.OpenArchive(fileStream, options)
+            : RarArchive.OpenArchive(fileStream, options);
+
+        var entries = new List<ArchiveEntryRecord>();
+        var index = 0;
+        foreach (var entry in archive.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            entries.Add(ToRecord(entry, index++));
+        }
+
+        return new ArchiveDirectory(entries, isValid: true);
+    }
+
+    /// <summary>TAR.BZ2/TAR.XZ listing path: these have no header/central-directory structure to
+    /// read independently of content - a TAR's own "header" is per-entry and embedded sequentially
+    /// in the stream, so listing genuinely requires walking it via <see cref="OpenReader"/>'s
+    /// forward-only reader, same as extraction does. Unlike 7z/RAR, there is no cheaper path.</summary>
+    private ArchiveDirectory ReadDirectoryViaSequentialScan(CancellationToken ct)
+    {
+        var entries = new List<ArchiveEntryRecord>();
+        using var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
+        using var reader = OpenReader(fileStream, out var archive);
+        try
+        {
+            var index = 0;
+            while (reader.MoveToNextEntry())
+            {
+                ct.ThrowIfCancellationRequested();
+                entries.Add(ToRecord(reader.Entry, index++));
+            }
+        }
+        finally
+        {
+            archive?.Dispose();
+        }
+
+        return new ArchiveDirectory(entries, isValid: true);
     }
 
     /// <summary>Throws <see cref="NotSupportedException"/> — SharpCompress forward-only readers cannot open individual entries by index.</summary>
