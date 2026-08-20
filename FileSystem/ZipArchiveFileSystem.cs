@@ -1144,9 +1144,21 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (string.IsNullOrEmpty(innerPath))
             return;
 
+        // Cheap check against the cached directory BEFORE paying for OpenForUpdate - which copies
+        // the entire archive byte-for-byte before anything else happens (see ZipUpdateSession.Open/
+        // CopyLockedFile). The common case for this call ("ensure this folder exists") is that it
+        // already does - MakeDir on an existing folder, or the panel silently ensuring a
+        // destination directory before every file write - and paying for a full multi-gigabyte
+        // copy just to discover a no-op was the actual cost here, not the ZipArchive Update-mode
+        // work itself.
+        if (ReadDirectory(_archivePath).Index.TryGetExact(innerPath, out var existing) && existing is { IsDirectory: true })
+            return;
+
         using var session = OpenForUpdate(_archivePath, new[] { innerPath + "/" });
         var zip = session.Archive;
 
+        // Re-checked against the live session: the cached snapshot above could be stale if another
+        // process/session modified the archive between the check and OpenForUpdate's own copy.
         if (FindEntry(zip, innerPath + "/") != null)
             return;
 
