@@ -47,7 +47,15 @@ internal sealed class NonDisposingStream : Stream
     {
         if (disposing)
         {
-            try { _inner.CopyTo(Stream.Null); }
+            // Drain remaining data from the inner stream — SharpCompress IReader doesn't
+            // advance past the current entry until it's fully read, so skipping without
+            // draining leaves the reader stuck. Use a bounded loop instead of CopyTo(Stream.Null)
+            // which has no size limit and can block for a very long time on a large skipped entry.
+            try
+            {
+                var drainBuffer = new byte[81920];
+                while (_inner.Read(drainBuffer, 0, drainBuffer.Length) > 0) { /* drain */ }
+            }
             catch { /* best effort - a broken reader can't do much worse than skip forward wrong */ }
         }
         // the real reader (TarReader/SharpCompress IReader) owns actually closing _inner

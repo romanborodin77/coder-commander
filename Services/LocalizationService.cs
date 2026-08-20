@@ -56,8 +56,6 @@ public sealed class LocalizationService
     /// <summary>Loads a language file from lang/{code}.lng.</summary>
     public void LoadLanguage(string code)
     {
-        _currentLanguage = code;
-
         // LoadDefaults() is the fail-safe fallback (baked into the binary) for every language,
         // English included - lang/english.lng is loaded on top of it just like russian.lng is for
         // "ru", so the two don't have to be kept in sync by hand.
@@ -77,6 +75,7 @@ public sealed class LocalizationService
         // populated dictionary instead of either the old or the new language.
         lock (_lock)
         {
+            _currentLanguage = code;
             _strings.Clear();
             LoadDefaults();
             if (File.Exists(path))

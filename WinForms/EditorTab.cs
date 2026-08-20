@@ -183,7 +183,22 @@ public sealed class EditorTab : IDisposable
                 // reason: CopyFromStreamAsync on a remote provider is one direct PUT/STOR with no
                 // atomic in-place replace, so writing straight over savePath would leave a
                 // truncated file there if the upload failed or was interrupted partway.
-                var bytes = Encoding.GetBytes(Editor.Text);
+                // Prepend BOM/preamble for encodings that use one (UTF-8 with BOM, UTF-16).
+                // Encoding.GetBytes alone doesn't include the preamble — without this, saving
+                // a BOM-bearing file to a remote FS silently strips the BOM, breaking round-trip.
+                var preamble = Encoding.GetPreamble();
+                var body = Encoding.GetBytes(Editor.Text);
+                byte[] bytes;
+                if (preamble.Length > 0)
+                {
+                    bytes = new byte[preamble.Length + body.Length];
+                    Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
+                    Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
+                }
+                else
+                {
+                    bytes = body;
+                }
                 var sidecar = savePath + ".cc-save-" + Guid.NewGuid().ToString("N");
                 try
                 {

@@ -99,7 +99,9 @@ public sealed class HotkeyManager
     public bool HandleKey(KeyEventArgs e)
     {
         // Match exact key combination (KeyData includes modifiers)
-        foreach (var hk in _hotkeys)
+        // Snapshot before iteration — a command handler could trigger Reload (which clears
+        // _hotkeys), and foreach over a modified List throws InvalidOperationException.
+        foreach (var hk in _hotkeys.ToArray())
         {
             if (hk.Shortcut == e.KeyData)
             {

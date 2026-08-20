@@ -170,8 +170,24 @@ internal sealed class TerminalKeyBindings
 
         // Reject chords without at least one modifier — a bare letter key binding would hijack
         // normal typing (e.g. binding "T" to CloseTab makes it impossible to type the letter T).
+        // Exception: function keys (F1-F24), navigation keys, and numpad operators are safe to
+        // bind without modifiers — they don't produce ordinary text input. Without this exception,
+        // TryParseChord rejects "F9" (a registered default), and custom rebinds like "F11" survive
+        // in the editor but silently revert to the default after restart because the saved chord
+        // can't be parsed back.
         if ((result & Keys.Modifiers) == Keys.None)
-            return false;
+        {
+            var key = result & Keys.KeyCode;
+            var bareKeyOk = key is >= Keys.F1 and <= Keys.F24
+                or Keys.Back or Keys.Add or Keys.Subtract
+                or Keys.Multiply or Keys.Divide
+                or Keys.Insert or Keys.Delete
+                or Keys.Home or Keys.End
+                or Keys.PageUp or Keys.PageDown
+                or Keys.Left or Keys.Right or Keys.Up or Keys.Down;
+            if (!bareKeyOk)
+                return false;
+        }
 
         chord = result;
         return true;

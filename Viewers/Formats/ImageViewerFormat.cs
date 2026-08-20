@@ -74,8 +74,14 @@ public sealed class ImageViewerLoader : IViewerLoader
 
         try
         {
-            using var ms = new MemoryStream(raw);
-            using var decoded = Image.FromStream(ms);
+            // MemoryStream is NOT disposed here — Image.FromStream keeps a reference to its
+            // source stream for the image's lifetime (GDI+ lazy decode). The Image (and the
+            // underlying byte[] via MemoryStream) stays alive until the caller disposes the
+            // returned ImagePayload. Previously, a `using` + `new Bitmap(decoded)` clone
+            // detached from the stream, but cloning loses all but the first frame of
+            // multi-page TIFF and animated GIF.
+            var ms = new MemoryStream(raw);
+            var decoded = Image.FromStream(ms);
 
             // GDI+ decode has no cancellation-aware overload - it runs to completion regardless
             // of ct. This is the earliest point cancellation can be honored.
@@ -83,6 +89,8 @@ public sealed class ImageViewerLoader : IViewerLoader
 
             if ((long)decoded.Width * decoded.Height > ViewerLimits.ImageMaxPixels)
             {
+                decoded.Dispose();
+                ms.Dispose();
                 return new ViewerErrorPayload(
                     L.GetString("View.ImageTooBig", $"{decoded.Width}x{decoded.Height}px", $"{ViewerLimits.ImageMaxPixels:N0}px"),
                     Modal: true);
@@ -93,20 +101,10 @@ public sealed class ImageViewerLoader : IViewerLoader
             // this, JPEGs from phones appear sideways or upside-down.
             var oriented = ApplyExifOrientation(decoded);
 
-            // Detach from the MemoryStream (which is about to be disposed) by cloning into a
-            // fresh Bitmap - GDI+ decode can be lazy, and Image.FromStream keeps a reference to
-            // its source stream for the image's lifetime otherwise.
-            //
-            // CA2000's escape analysis can't trace disposal through "wrapped in a record and
-            // returned" - ownership genuinely transfers to the ImagePayload here: the caller
+            // Ownership of both `oriented` and `ms` transfers to the ImagePayload: the caller
             // disposes it via ViewerPayload.ReleaseUnapplied() if the load is superseded before
-            // ever reaching a content, or the content (ImageViewerContent.Dispose) does once it's
-            // no longer needed. Same class of false positive already documented at
-            // MainForm.OpenDirectoryTree() for a different escape shape (an event subscription).
-#pragma warning disable CA2000
-            var detached = new Bitmap(oriented);
-#pragma warning restore CA2000
-            return new ImagePayload(detached);
+            // ever reaching a content, or ImageViewerContent.Dispose does once it's no longer needed.
+            return new ImagePayload(oriented);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) when (ct.IsCancellationRequested)

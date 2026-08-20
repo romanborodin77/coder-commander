@@ -62,7 +62,7 @@ public sealed class TarArchiveReader : IArchiveReader
     public async IAsyncEnumerable<ArchiveEntryStream> ScanAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
-        Stream source;
+        Stream? source = null;
         TarReader reader;
         try
         {
@@ -71,7 +71,10 @@ public sealed class TarArchiveReader : IArchiveReader
         }
         catch
         {
-            fileStream.Dispose();
+            // Dispose `source` (which may be a GZipStream wrapping fileStream) rather than just
+            // fileStream — GZipStream's finalizer would otherwise linger until GC, and explicitly
+            // disposing it also disposes the underlying fileStream (leaveOpen: false).
+            source?.Dispose();
             throw;
         }
 

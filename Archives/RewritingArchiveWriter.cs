@@ -45,8 +45,21 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         // archives that already exist need this; a brand-new archive has nothing to race over yet.
         _lock = File.Exists(archivePath) ? ArchiveFileRetry.OpenExclusiveWithRetry(archivePath) : null;
 
-        _stagingStream = new FileStream(_stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        _stagingWriter = createWriter(_stagingStream);
+        try
+        {
+            _stagingStream = new FileStream(_stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            _stagingWriter = createWriter(_stagingStream);
+        }
+        catch
+        {
+            // If staging stream or writer creation fails, release the exclusive lock and clean
+            // up the partial staging file — without this, the archive stays locked (FileShare.None)
+            // until GC finalizes the FileStream, blocking all other access.
+            _stagingStream?.Dispose();
+            _lock?.Dispose();
+            try { File.Delete(_stagingPath); } catch { /* best-effort */ }
+            throw;
+        }
     }
 
     public ArchiveWriteMode Mode => ArchiveWriteMode.RewriteThrough;

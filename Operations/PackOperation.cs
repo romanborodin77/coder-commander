@@ -88,7 +88,13 @@ public sealed class PackOperation : FileOperation
             return;
 
         _filesTotal = plan.Count;
-        _bytesTotal = plan.Where(i => !i.IsDirectory && i.Source != null).Sum(i => i.Source!.Size);
+        // checked arithmetic: Sum can silently overflow long for very large multi-select
+        _bytesTotal = 0;
+        foreach (var i in plan)
+        {
+            if (!i.IsDirectory && i.Source != null)
+                checked { _bytesTotal += i.Source!.Size; }
+        }
 
         // Materialized AFTER confirming there's work to do (above), not before - a no-op pack
         // (empty plan) never touches the network for a non-local container. Passthrough (the
@@ -112,6 +118,7 @@ public sealed class PackOperation : FileOperation
 
         var written = 0;
         var writtenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deletedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var packFailures = new List<string>();
 
         await using (var writer = format.OpenWrite(localArchivePath, new ArchiveWriteOptions { PlannedEntryNames = plan.Select(i => i.EntryName).ToList() }))
@@ -131,7 +138,7 @@ public sealed class PackOperation : FileOperation
 
                 try
                 {
-                    if (await WriteFileAsync(writer, item, existing, ct).ConfigureAwait(false))
+                    if (await WriteFileAsync(writer, item, existing, deletedNames, ct).ConfigureAwait(false))
                     {
                         written++;
                         writtenPaths.Add(item.Source!.FullPath);
@@ -238,6 +245,7 @@ public sealed class PackOperation : FileOperation
         IArchiveWriter writer,
         PackItem item,
         IReadOnlyDictionary<string, ArchiveEntryRecord> existing,
+        HashSet<string> deletedNames,
         CancellationToken ct)
     {
         var source = item.Source!;
@@ -255,12 +263,26 @@ public sealed class PackOperation : FileOperation
                 entryName = slash < 0 ? newName : entryName[..(slash + 1)] + newName;
                 // Re-check: the renamed entry may collide with another existing entry.
                 if (existing.TryGetValue(entryName.Trim('/'), out var clash2))
+                {
                     writer.TryDeleteEntry(clash2);
+                    deletedNames.Add(entryName.Trim('/'));
+                }
             }
             else
             {
                 writer.TryDeleteEntry(clash);
+                deletedNames.Add(item.EntryName.Trim('/'));
             }
+        }
+
+        // Guard against stale `existing` entries that were already deleted earlier in this
+        // session (e.g. a rename targeting a name whose original was TryDeleteEntry'd). Without
+        // this, the stale dictionary would report a clash that no longer exists, and the writer
+        // would TryDeleteEntry a non-existent entry (no-op) then CreateEntry on top — producing
+        // duplicate entries in the archive.
+        if (deletedNames.Contains(entryName.Trim('/')))
+        {
+            // Already deleted this session — no clash to resolve, just write.
         }
 
         // Skip compression for already-compressed formats
