@@ -30,7 +30,8 @@ internal sealed class SmbFileSystem : IFileSystem, IDisposable
     public string Name => "SMB";
     public FileSystemCapabilities Capabilities =>
         FileSystemCapabilities.FileWatch | FileSystemCapabilities.GitStatus |
-        FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable;
+        FileSystemCapabilities.Writable | FileSystemCapabilities.Deletable |
+        FileSystemCapabilities.Attributes;
 
     /// <param name="host">Server name, e.g. <c>NAS1</c> — used as the <see cref="RemotePath"/> authority.</param>
     /// <param name="uncRoot">UNC root the connection was opened against, e.g. <c>\\NAS1</c> or

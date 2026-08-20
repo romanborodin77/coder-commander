@@ -39,7 +39,19 @@ public sealed class ZipArchiveReader : IArchiveReader
     public Stream OpenEntry(ArchiveEntryRecord entry)
     {
         _zip ??= ZipFile.OpenRead(_archivePath);
-        return _zip.Entries[entry.Index].Open();
+
+        // ParseCentralDirectory can stop early on a truncated central directory while ZipArchive
+        // applies its own, different tolerance rules - the two indices can desync. This is reached
+        // from UnpackOperation outside any try, so an unchecked index here used to abort an entire
+        // extraction with a raw ArgumentOutOfRangeException instead of failing just this one entry.
+        // Every other index-into-Entries call site in this codebase (see
+        // ZipArchiveFileSystem.FindEntry) already bounds-checks; this was the one gap.
+        if (entry.Index >= 0 && entry.Index < _zip.Entries.Count)
+            return _zip.Entries[entry.Index].Open();
+
+        var byName = ZipArchiveFileSystem.FindEntry(_zip, _archivePath, entry.FullName)
+            ?? throw new FileNotFoundException($"Entry not found in archive: {entry.FullName}");
+        return byName.Open();
     }
 
     /// <summary>Scans all entries sequentially, yielding each as an <see cref="ArchiveEntryStream"/>.</summary>

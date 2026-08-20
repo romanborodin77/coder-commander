@@ -75,7 +75,17 @@ public enum FileSystemCapabilities
     /// principle support one without the other.</summary>
     Deletable = 1 << 5,
 
+    /// <summary>
+    /// <see cref="IFileSystem.SetAttributesAsync"/> actually changes something. Every provider
+    /// implements the method (the interface requires it), but archives and every remote provider
+    /// except SMB (ZIP/TAR-family, WebDAV, FTP, SFTP, MTP) silently no-op it - there is no
+    /// container-entry or protocol concept of ReadOnly/Hidden/System/Archive bits for them to set.
+    /// Without this flag, <c>PropertiesForm</c> could not tell "attributes were applied" from
+    /// "attributes were silently discarded", and reported success for both.
+    /// </summary>
+    Attributes = 1 << 6,
+
     /// <summary>Everything a real local filesystem offers. Named combination per the .NET flag-enum
     /// guidance, so the common case doesn't require callers to OR the parts together.</summary>
-    Local = NativePaths | RecycleBin | FileWatch | GitStatus | Writable | Deletable,
+    Local = NativePaths | RecycleBin | FileWatch | GitStatus | Writable | Deletable | Attributes,
 }

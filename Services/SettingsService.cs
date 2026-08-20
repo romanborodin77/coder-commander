@@ -306,6 +306,45 @@ public static class SettingsService
     }
 
     /// <summary>
+    /// Thread-safe read of <see cref="AppSettings.Connections"/>: a shallow copy taken under
+    /// <see cref="Lock"/>, not the live list <see cref="Load"/> would otherwise hand out.
+    ///
+    /// <see cref="Services.ConnectionManager"/> is documented as never running on the UI thread and
+    /// enumerates connections on every status refresh and every <c>ConnectAsync</c>/
+    /// <c>AutoConnectAllAsync</c> call, while <see cref="WinForms.ConnectionsForm"/> mutates the
+    /// same list on the UI thread. Handing out the raw <c>List&lt;ConnectionProfile&gt;</c> reference
+    /// (what plain <c>Load().Connections</c> does) let those two race - an
+    /// <see cref="InvalidOperationException"/> ("Collection was modified") thrown out of a
+    /// background enumeration, or out of <see cref="Save"/>'s own <c>JsonSerializer.Serialize</c>
+    /// call, aborting the write mid-flight.
+    /// </summary>
+    public static IReadOnlyList<Models.ConnectionProfile> SnapshotConnections()
+    {
+        lock (Lock)
+        {
+            return new List<Models.ConnectionProfile>(Load().Connections);
+        }
+    }
+
+    /// <summary>
+    /// Thread-safe mutation of <see cref="AppSettings.Connections"/>: <paramref name="mutate"/>
+    /// runs against the live list under <see cref="Lock"/>, and the result is persisted before the
+    /// lock is released - closing the same race <see cref="SnapshotConnections"/> exists to close,
+    /// from the writer's side. <see cref="Lock"/> is acquired via the ordinary <c>lock</c>
+    /// statement (<c>Monitor</c>-based, reentrant for the owning thread), so the nested
+    /// <see cref="Load"/>/<see cref="Save"/> calls inside are safe.
+    /// </summary>
+    public static void MutateConnections(Action<List<Models.ConnectionProfile>> mutate)
+    {
+        lock (Lock)
+        {
+            var settings = Load();
+            mutate(settings.Connections);
+            Save(settings);
+        }
+    }
+
+    /// <summary>
     /// Copies the unreadable file aside before it gets overwritten by the in-memory defaults on the
     /// next <see cref="Save"/>. Best-effort: a failure here (disk full, permission denied) is
     /// logged but must not replace or hide the original read failure that's already been logged by
@@ -390,6 +429,18 @@ public static class SettingsService
 
         foreach (var c in s.Connections.Where(c => c.Id == Guid.Empty))
             c.Id = Guid.NewGuid();
+
+        // Defensive backstop: ConnectionEditForm.OnOk already refuses to save a URL with an
+        // embedded "user:pass@" - this strips it anyway on every load, in case a profile reached
+        // settings.json some other way (an older build, hand-editing the file, a future import
+        // path). Url is serialised to disk in the clear; a credential living inside it defeats the
+        // entire point of routing passwords through the DPAPI-encrypted CredentialStore instead.
+        foreach (var c in s.Connections.Where(c => Uri.TryCreate(c.Url, UriKind.Absolute, out var u) && u.UserInfo.Length > 0))
+        {
+            var uri = new Uri(c.Url, UriKind.Absolute);
+            var builder = new UriBuilder(uri) { UserName = "", Password = "" };
+            c.Url = builder.Uri.ToString();
+        }
 
         // AutoConnect with neither a saved password nor an anonymous login would pop a credential
         // prompt during startup, before the window is even usable. Clearing it is the conservative

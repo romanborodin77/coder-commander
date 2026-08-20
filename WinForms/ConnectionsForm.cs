@@ -161,9 +161,8 @@ public sealed class ConnectionsForm : ThemedForm
         using var editor = new ConnectionEditForm(draft, _credentials);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
 
-        var settings = SettingsService.Load();
-        settings.Connections.Add(editor.Result);
-        Persist(settings);
+        SettingsService.MutateConnections(list => list.Add(editor.Result));
+        Persist();
     }
 
     private void EditSelected()
@@ -173,13 +172,15 @@ public sealed class ConnectionsForm : ThemedForm
         using var editor = new ConnectionEditForm(profile, _credentials);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
 
-        var settings = SettingsService.Load();
-        var index = settings.Connections.FindIndex(c => c.Id == editor.Result.Id);
-        if (index < 0)
-            settings.Connections.Add(editor.Result);   // vanished underneath us - keep the edit
-        else
-            settings.Connections[index] = editor.Result;
-        Persist(settings);
+        SettingsService.MutateConnections(list =>
+        {
+            var index = list.FindIndex(c => c.Id == editor.Result.Id);
+            if (index < 0)
+                list.Add(editor.Result);   // vanished underneath us - keep the edit
+            else
+                list[index] = editor.Result;
+        });
+        Persist();
     }
 
     private void RemoveSelected()
@@ -192,19 +193,21 @@ public sealed class ConnectionsForm : ThemedForm
             Text, MsgBoxButtons.YesNo, MsgBoxIcon.Question, this);
         if (answer != MsgBoxResult.Yes) return;
 
-        var settings = SettingsService.Load();
-        settings.Connections.RemoveAll(c => c.Id == profile.Id);
+        SettingsService.MutateConnections(list => list.RemoveAll(c => c.Id == profile.Id));
 
         // The stored password must go with the profile. Leaving it would keep a live secret for a
         // connection the user believes they deleted - CredentialStore.RemoveOrphans is the
         // backstop for paths that skip this, not a substitute for it.
         _credentials.Remove(profile.Id);
-        Persist(settings);
+        Persist();
     }
 
-    private void Persist(AppSettings settings)
+    /// <summary>Refreshes the UI and notifies listeners after <see cref="SettingsService.MutateConnections"/>
+    /// has already persisted the change - unlike the old shape, saving is no longer this method's
+    /// job (<see cref="SettingsService.MutateConnections"/> saves under the same lock it mutates
+    /// under, closing a race with <see cref="Services.ConnectionManager"/>'s background reads).</summary>
+    private void Persist()
     {
-        SettingsService.Save(settings);
         RefreshList();
         ConnectionsChanged?.Invoke(this, EventArgs.Empty);
     }

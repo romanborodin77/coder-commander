@@ -1051,6 +1051,23 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         }
         else
         {
+            // Directory.Delete(path, false) semantics: refuse a non-empty directory instead of
+            // silently deleting only its marker entry and orphaning the children underneath it in
+            // the archive (they used to stay in the ZIP with no listable parent - EnumerateAsync
+            // would then re-synthesize the folder on the very next listing, making the delete look
+            // like it had silently failed). A lone file target is unaffected: nothing else in the
+            // archive can share its name as a prefix.
+            var prefix = innerPath + "/";
+            var hasDescendants = GetEntries().Any(cached =>
+            {
+                var name = cached.FullName.Replace('\\', '/');
+                return !name.Equals(innerPath, StringComparison.OrdinalIgnoreCase) &&
+                       !name.Equals(prefix, StringComparison.OrdinalIgnoreCase) &&
+                       name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            });
+            if (hasDescendants)
+                throw new IOException($"\"{innerPath}\" is not empty.");
+
             var entry = FindEntry(zip, innerPath);
             if (entry != null)
                 toDelete.Add(entry);
@@ -1104,6 +1121,20 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             }
             else
             {
+                // Directory.Delete(path, false) semantics - see DeleteAsync's identical guard
+                // above for why: without this, deleting just a directory's own marker entry here
+                // left its children orphaned in the archive with no listable parent.
+                var prefix = innerPath + "/";
+                var hasDescendants = GetEntries().Any(cached =>
+                {
+                    var name = cached.FullName.Replace('\\', '/');
+                    return !name.Equals(innerPath, StringComparison.OrdinalIgnoreCase) &&
+                           !name.Equals(prefix, StringComparison.OrdinalIgnoreCase) &&
+                           name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+                });
+                if (hasDescendants)
+                    throw new IOException($"\"{innerPath}\" is not empty.");
+
                 // Look up the index directly from the cached record instead of finding the
                 // ZipArchiveEntry first and then Array.IndexOf-ing zip.Entries.ToArray() for it -
                 // that materialized a fresh array and did an O(m) scan per path on top of this

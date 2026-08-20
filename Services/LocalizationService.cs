@@ -510,6 +510,7 @@ public sealed class LocalizationService
         _strings["Conn.Invalid.Name"] = "Enter a name for the connection.";
         _strings["Conn.Invalid.Url"] = "Enter a full address, for example https://example.com/dav or ftp://example.com";
         _strings["Conn.Invalid.SchemeMismatch"] = "The URL scheme does not match the selected connection type.";
+        _strings["Conn.Invalid.UserInfoInUrl"] = "Don't put a username or password in the address - use the User and Password fields below.";
         _strings["Conn.AutoConnectNeedsPassword"] = "Connect on startup needs a saved password, or an empty user name.";
         _strings["Settings.Connections"] = "Connections";
         _strings["Bookmark.Title"] = "Bookmarks";

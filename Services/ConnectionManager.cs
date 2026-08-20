@@ -62,7 +62,7 @@ public sealed class ConnectionManager : IDisposable
     {
         get
         {
-            var profiles = SettingsService.Load().Connections;
+            var profiles = SettingsService.SnapshotConnections();
             lock (_lock)
             {
                 return profiles.Select(p => new ConnectionStatus(
@@ -129,7 +129,7 @@ public sealed class ConnectionManager : IDisposable
     /// </summary>
     public async Task<IFileSystem?> ConnectAsync(Guid profileId, CancellationToken ct = default)
     {
-        var profile = SettingsService.Load().Connections.FirstOrDefault(c => c.Id == profileId);
+        var profile = SettingsService.SnapshotConnections().FirstOrDefault(c => c.Id == profileId);
         if (profile is null) return null;
 
         lock (_lock)
@@ -217,7 +217,7 @@ public sealed class ConnectionManager : IDisposable
     /// </summary>
     public async Task AutoConnectAllAsync(CancellationToken ct = default)
     {
-        var eligible = SettingsService.Load().Connections
+        var eligible = SettingsService.SnapshotConnections()
             .Where(c => c.AutoConnect)
             .Select(c => c.Id)
             .ToList();
@@ -234,7 +234,7 @@ public sealed class ConnectionManager : IDisposable
     /// </summary>
     public void SyncWithProfiles()
     {
-        var live = SettingsService.Load().Connections.Select(c => c.Id).ToHashSet();
+        var live = SettingsService.SnapshotConnections().Select(c => c.Id).ToHashSet();
         List<Guid> removed;
         lock (_lock)
         {

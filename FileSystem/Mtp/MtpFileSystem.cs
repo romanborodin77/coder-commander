@@ -1,5 +1,6 @@
 using MediaDevices;
 using System.Runtime.InteropServices;
+using CoderCommander.FileSystem.Remote;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 
@@ -96,6 +97,16 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                 {
                     foreach (var dir in _device.GetDirectories(devicePath))
                     {
+                        // The device names the entry, the same way a WebDAV/FTP/SFTP server does -
+                        // that name goes on to build a real local path during a download, so it is
+                        // checked exactly like a server-supplied listing entry (see
+                        // WebDavPropfindParser's own identical check). Every other remote provider
+                        // does this; MTP was the one gap.
+                        if (!RemotePath.IsSafeEntryName(dir))
+                        {
+                            LogService.Warning("MTP: rejected a directory listing entry with an unsafe name");
+                            continue;
+                        }
                         var full = devicePath.TrimEnd('\\') + "\\" + dir;
                         long size = 0;
                         DateTime writeTime = default;
@@ -113,6 +124,11 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                     }
                     foreach (var file in _device.GetFiles(devicePath))
                     {
+                        if (!RemotePath.IsSafeEntryName(file))
+                        {
+                            LogService.Warning("MTP: rejected a file listing entry with an unsafe name");
+                            continue;
+                        }
                         var full = devicePath.TrimEnd('\\') + "\\" + file;
                         long size = 0;
                         DateTime writeTime = default;
@@ -138,24 +154,49 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             return (IReadOnlyList<FileEntry>)entries;
         }, ct);
 
+    /// <summary>
+    /// Iterative (queue-based) walk, not recursive - a self-referential or very deep device tree
+    /// (a symlink-like alias some devices report, or a malformed/malicious driver response) used
+    /// to risk a StackOverflowException (unrecoverable - it terminates the process) via unbounded
+    /// recursion. Mirrors WebDavFileSystem.EnumerateDeepAsync's shape: a visited-set guards cycles
+    /// and RemoteLimits.MaxEntriesPerDirectory caps the total, same as every other remote provider.
+    /// </summary>
     public Task<IReadOnlyList<FileEntry>> EnumerateDeepAsync(string path, bool includeHidden, CancellationToken ct = default) =>
         Task.Run(async () =>
         {
             var result = new List<FileEntry>();
-            await EnumerateDeepRecursiveAsync(path, result, ct).ConfigureAwait(false);
+            var queue = new Queue<string>();
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            queue.Enqueue(path);
+            visited.Add(path);
+
+            while (queue.Count > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (result.Count >= RemoteLimits.MaxEntriesPerDirectory) break;
+
+                var current = queue.Dequeue();
+                IReadOnlyList<FileEntry> children;
+                try
+                {
+                    children = await EnumerateAsync(current, includeHidden, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    LogService.Warning($"MTP: cannot list {current}: {ex.GetType().Name}");
+                    continue;
+                }
+
+                foreach (var child in children)
+                {
+                    result.Add(child);
+                    if (child.IsDirectory && visited.Add(child.FullPath))
+                        queue.Enqueue(child.FullPath);
+                }
+            }
+
             return (IReadOnlyList<FileEntry>)result;
         }, ct);
-
-    private async Task EnumerateDeepRecursiveAsync(string path, List<FileEntry> result, CancellationToken ct)
-    {
-        var entries = await EnumerateAsync(path, includeHidden: false, ct).ConfigureAwait(false);
-        foreach (var e in entries)
-        {
-            result.Add(e);
-            if (e.IsDirectory)
-                await EnumerateDeepRecursiveAsync(e.FullPath, result, ct).ConfigureAwait(false);
-        }
-    }
 
     public Task<FileEntry?> GetFileInfoAsync(string path, CancellationToken ct = default) =>
         Task.Run<FileEntry?>(() =>

@@ -166,7 +166,8 @@ public sealed class PropertiesForm : ThemedForm
 
         BuildHeader(root);
         BuildInfoSection(root);
-        BuildAttributesSection(root);
+        if (_fs.Capabilities.HasFlag(FileSystemCapabilities.Attributes))
+            BuildAttributesSection(root);
 
         if (_isSingle && _isDirectory)
             BuildRecursiveCheckbox(root);
@@ -740,7 +741,12 @@ public sealed class PropertiesForm : ThemedForm
         int failures = 0;
         int success = 0;
 
-        // Attributes: for each item, build new mask, possibly recursive.
+        // Attributes: for each item, build new mask, possibly recursive. Section is hidden (and
+        // _attrCheckboxes left unpopulated) for a filesystem that can't actually apply attribute
+        // changes - see FileSystemCapabilities.Attributes's own doc comment. Without this guard,
+        // ZIP/TAR-family archives, WebDAV, FTP, SFTP and MTP would report "success" here for a
+        // SetAttributesAsync call that is a silent Task.CompletedTask no-op on all of them.
+        if (_fs.Capabilities.HasFlag(FileSystemCapabilities.Attributes))
         for (int idx = 0; idx < _items.Count; idx++)
         {
             var original = _originalAttributes[idx];

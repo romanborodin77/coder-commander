@@ -17,12 +17,24 @@ public sealed class ZipArchiveWriter : IArchiveWriter
 {
     private readonly string _archivePath;
     private readonly ZipArchiveFileSystem.ZipUpdateSession _session;
+    private readonly Dictionary<int, ZipArchiveEntry> _byOriginalIndex;
     private ZipArchive _zip => _session.Archive;
 
     public ZipArchiveWriter(string archivePath, ArchiveWriteOptions options)
     {
         _archivePath = archivePath;
         _session = ZipArchiveFileSystem.OpenForUpdate(archivePath, options.PlannedEntryNames);
+
+        // Snapshot index -> entry once, before any add/delete this session makes. The session's
+        // temp copy is a byte-for-byte copy of the original archive (see ZipUpdateSession.Open),
+        // so at this point _zip.Entries is in the same order as our own central-directory scan and
+        // entry.Index (ArchiveEntryRecord.Index, the addressing token that exists precisely because
+        // legacy code-page names don't round-trip) lines up. Held as object references rather than
+        // re-derived indices so later deletes in this same session - which shrink and reindex
+        // ZipArchive's own Entries collection - can't desync a later TryDeleteEntry call.
+        _byOriginalIndex = new Dictionary<int, ZipArchiveEntry>(_zip.Entries.Count);
+        for (var i = 0; i < _zip.Entries.Count; i++)
+            _byOriginalIndex[i] = _zip.Entries[i];
     }
 
     public ArchiveWriteMode Mode => ArchiveWriteMode.UpdateInPlace;
@@ -56,6 +68,19 @@ public sealed class ZipArchiveWriter : IArchiveWriter
 
     public bool TryDeleteEntry(ArchiveEntryRecord entry)
     {
+        // Address by Index first - the token that exists specifically because some formats'
+        // entry names don't round-trip byte-for-byte through the encoding the directory listing
+        // decoded them with (legacy code-page ZIP names), and the only way to tell two
+        // identically-named entries apart (ZIP permits duplicate names; resolving by name alone
+        // always found the first one, so deleting the second silently deleted the wrong entry).
+        // Removed from the map on use so a duplicate delete request for the same index correctly
+        // reports "already gone" instead of calling Delete() twice on the same ZipArchiveEntry.
+        if (_byOriginalIndex.Remove(entry.Index, out var byIndex))
+        {
+            byIndex.Delete();
+            return true;
+        }
+
         var target = ZipArchiveFileSystem.FindEntry(_zip, _archivePath, entry.FullName);
         if (target == null)
             return false;

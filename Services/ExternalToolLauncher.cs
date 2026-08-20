@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CoderCommander.Utils;
 
 namespace CoderCommander.Services;
 
@@ -37,7 +38,12 @@ public static class ExternalToolLauncher
                 return false;
             }
 
-            var quotedPath = "\"" + filePath.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+            // Win32ArgumentQuoting, not the CSV/cmd doubling convention this used to use: that
+            // convention mishandles a path with a trailing backslash (the final \" escapes the
+            // closing quote instead of ending the argument, so the argument swallows the rest of
+            // the command line) - a real argument-injection vector, since filePath can come from a
+            // materialized archive/remote entry whose name isn't restricted from containing one.
+            var quotedPath = Win32ArgumentQuoting.Quote(filePath);
             var args = string.IsNullOrEmpty(argsTemplate)
                 ? quotedPath
                 : argsTemplate.Contains("%1", StringComparison.Ordinal)

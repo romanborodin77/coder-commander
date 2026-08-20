@@ -250,6 +250,27 @@ public sealed class ArchiveFileSystem : IFileSystem
         if (toDelete.Count == 0)
             return;
 
+        if (!recursive)
+        {
+            // Directory.Delete(path, false) semantics: refuse a non-empty directory instead of
+            // silently deleting its contents. `recursive: false` used to be ignored entirely here,
+            // so MoveOperation's own "clean up now-empty directories after a move" pass - which
+            // calls DeleteAsync(dir, recursive: false) and relies on a non-empty directory failing
+            // rather than being wiped - silently deleted directories that still had files left in
+            // them under a TAR/TAR.GZ/7z/RAR source. A lone file target is unaffected: nothing
+            // else in toDelete can match its own prefix, so hasDescendants is false for it.
+            var hasDescendants = toDelete.Any(e =>
+                !string.Equals(e.FullName.Replace('\\', '/').Trim('/'), innerPath, StringComparison.OrdinalIgnoreCase));
+            if (hasDescendants)
+                throw new IOException($"\"{innerPath}\" is not empty.");
+
+            toDelete = toDelete
+                .Where(e => string.Equals(e.FullName.Replace('\\', '/').Trim('/'), innerPath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (toDelete.Count == 0)
+                return; // a purely synthetic empty directory (no marker entry of its own) - nothing to delete
+        }
+
         await using (var writer = _format.OpenWrite(_archivePath, new ArchiveWriteOptions()))
         {
             foreach (var entry in toDelete)

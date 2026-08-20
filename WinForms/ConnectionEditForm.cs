@@ -178,6 +178,18 @@ public sealed class ConnectionEditForm : ThemedForm
             return;
         }
 
+        // Reject credentials embedded in the address itself (e.g. "ftp://user:pass@host" or
+        // "https://user:secret@dav.example.com/..."). ConnectionProfile.Url is serialised into
+        // settings.json in the clear - its own doc comment says a secret must never end up there,
+        // no matter how the file is later copied, backed up, or attached to a bug report. The
+        // User/Password fields below route through CredentialStore's DPAPI-encrypted storage
+        // instead; letting a pasted URL silently bypass that would defeat the whole design.
+        if (uri.UserInfo.Length > 0)
+        {
+            Reject(L.GetString("Conn.Invalid.UserInfoInUrl"), _urlBox);
+            return;
+        }
+
         // The URL scheme must match the selected provider scheme. A mismatch (e.g. "dav" selected
         // with an "ftp://" URL) would save a profile that fails at connect time with a confusing
         // provider-side error.

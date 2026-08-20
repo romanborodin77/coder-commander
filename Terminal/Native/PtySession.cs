@@ -281,51 +281,13 @@ internal sealed class PtySession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Standard Win32 command-line quoting (the same algorithm CommandLineToArgvW parses):
-    /// wrap an argument in quotes if it contains a space/tab/quote, doubling backslashes that
-    /// immediately precede a quote and escaping the quote itself.
+    /// Standard Win32 command-line quoting (the same algorithm CommandLineToArgvW parses) - now a
+    /// shared helper (<see cref="Utils.Win32ArgumentQuoting"/>) since Services/ExternalToolLauncher
+    /// needs the identical, correct escaping for launching a user-configured external viewer/editor
+    /// and used to hand-roll a different (and buggy) one.
     /// </summary>
-    internal static string BuildCommandLine(string executablePath, IReadOnlyList<string> arguments)
-    {
-        var sb = new StringBuilder();
-        AppendArgument(sb, executablePath);
-        foreach (var arg in arguments)
-        {
-            sb.Append(' ');
-            AppendArgument(sb, arg);
-        }
-        return sb.ToString();
-    }
-
-    private static void AppendArgument(StringBuilder sb, string arg)
-    {
-        if (arg.Length > 0 && arg.IndexOfAny([' ', '\t', '"']) < 0)
-        {
-            sb.Append(arg);
-            return;
-        }
-
-        sb.Append('"');
-        var backslashCount = 0;
-        foreach (var c in arg)
-        {
-            if (c == '\\')
-            {
-                backslashCount++;
-                continue;
-            }
-            if (c == '"')
-            {
-                sb.Append('\\', backslashCount * 2 + 1).Append('"');
-                backslashCount = 0;
-                continue;
-            }
-            sb.Append('\\', backslashCount);
-            backslashCount = 0;
-            sb.Append(c);
-        }
-        sb.Append('\\', backslashCount * 2).Append('"');
-    }
+    internal static string BuildCommandLine(string executablePath, IReadOnlyList<string> arguments) =>
+        Utils.Win32ArgumentQuoting.BuildCommandLine(executablePath, arguments);
 
     /// <summary>
     /// Builds a CREATE_UNICODE_ENVIRONMENT-compatible block: "KEY=VALUE\0" pairs, sorted

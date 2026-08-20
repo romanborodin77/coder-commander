@@ -82,7 +82,17 @@ internal static class Program
             LogCrash("UNOBSERVED TASK: " + args.Exception);
             args.SetObserved();
         };
-        AppDomain.CurrentDomain.FirstChanceException += (_, args) => LogFirstChanceException(args.Exception);
+        // Gated behind the same debug-mode env var as the UI-tree dump filter below - unlike
+        // UnhandledException/UnobservedTaskException above, FirstChanceException fires for every
+        // *handled* exception anywhere in the process, including the dozens of deliberate
+        // try/catch-and-continue blocks scattered through this codebase (TempSessionRoot,
+        // MtpFileSystem, FtpControlConnection, per-item copy loops, ...). Left unconditional, a
+        // single large operation could serialise every worker thread on LogService's process-
+        // global lock and file-append for exceptions nobody needed to see, and would write full
+        // stack traces (routinely containing file paths and server-returned text) into app.log -
+        // exactly the file users attach to bug reports.
+        if (Environment.GetEnvironmentVariable(DiagnosticCommandChannel.EnvironmentVariable) == "1")
+            AppDomain.CurrentDomain.FirstChanceException += (_, args) => LogFirstChanceException(args.Exception);
 
         // UI-tree dump for fast layout inspection (JSON, not a screenshot) - gated behind an env
         // var so it never activates outside a debug-mode launch; F12 is unmodified because

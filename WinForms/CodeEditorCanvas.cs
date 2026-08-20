@@ -187,6 +187,7 @@ internal sealed class CodeEditorCanvas : Control
             _highlightTimer.Dispose();
             _highlightCts?.Cancel();
             _highlightCts?.Dispose();
+            _highlightCts = null;
             _ownedFont?.Dispose();
         }
         base.Dispose(disposing);
@@ -324,6 +325,15 @@ internal sealed class CodeEditorCanvas : Control
             _highlightCts?.Cancel();
             _highlightCts?.Dispose();
             _highlightCts = null;
+            // A background pass may genuinely still be running (Tokenize has no cancellation
+            // checks inside its scan loops - see the comment below). Its closure reads a
+            // CancellationToken captured before this dispose, not _highlightCts itself, so
+            // disposing here is safe for it - but this sync branch bypasses the async flow
+            // entirely, so _tokenizeInFlight must be reset here too or it stays stuck true
+            // forever (the background task's own reset is gated on ReferenceEquals(_highlightCts,
+            // its own cts), which is now false).
+            _tokenizeInFlight = false;
+            _tokenizePending = false;
             List<SyntaxToken> tokens;
             try { tokens = SyntaxHighlighter.Tokenize(text, _language); }
             catch (Exception ex) { LogService.Error($"Tokenize failed: {ex.Message}"); return; }
@@ -347,13 +357,21 @@ internal sealed class CodeEditorCanvas : Control
         _highlightCts = cts;
         _tokenizeInFlight = true;
         var language = _language;
+        // Captured once, on the UI thread, before Task.Run - a CancellationToken struct read
+        // this way stays safely queryable even after `cts` itself is later cancelled+disposed
+        // by a subsequent SetLanguage or by the sync branch above. Re-reading cts.Token from the
+        // background thread instead (as this used to) throws ObjectDisposedException once that
+        // happens, which aborted this Task.Run before it ever reached the ReferenceEquals reset
+        // below - leaving _tokenizeInFlight stuck true forever and permanently disabling live
+        // syntax highlighting for the rest of the tab's session.
+        var token = cts.Token;
         Task.Run(() =>
         {
             List<SyntaxToken>? tokens = null;
             try { tokens = SyntaxHighlighter.Tokenize(text, language); }
             catch (Exception ex) { LogService.Error($"Tokenize failed: {ex.Message}"); }
 
-            if (cts.Token.IsCancellationRequested || !IsHandleCreated)
+            if (token.IsCancellationRequested || !IsHandleCreated)
             {
                 // Only clear the flag if no newer tokenize has since started (SetLanguage
                 // cancels this task's cts but can't stop the Tokenize() call already in
@@ -369,7 +387,7 @@ internal sealed class CodeEditorCanvas : Control
                 BeginInvoke(() =>
                 {
                     if (ReferenceEquals(_highlightCts, cts)) _tokenizeInFlight = false;
-                    if (!cts.Token.IsCancellationRequested && tokens != null)
+                    if (!token.IsCancellationRequested && tokens != null)
                         ApplyTokens(tokens);
                     if (_tokenizePending)
                     {
@@ -382,7 +400,7 @@ internal sealed class CodeEditorCanvas : Control
             {
                 if (ReferenceEquals(_highlightCts, cts)) _tokenizeInFlight = false; // canvas closed while tokenizing
             }
-        }, cts.Token);
+        }, token);
     }
 
     private void ApplyTokens(List<SyntaxToken> tokens)

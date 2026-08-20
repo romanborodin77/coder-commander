@@ -1161,6 +1161,11 @@ sealed class FileComparer(bool dirsFirst, string column, bool descending) : ICom
             "Size" => x.Size.CompareTo(y.Size),
             "Modified" => x.Modified.CompareTo(y.Modified),
             "Extension" => string.Compare(x.Extension, y.Extension, StringComparison.OrdinalIgnoreCase),
+            // By bit mask, not AttributesDisplay's rendered "RHSA" string - the string's character
+            // order doesn't reflect any meaningful ranking, so sorting it lexically would just be a
+            // different, equally-arbitrary order. The mask at least groups identical attribute sets
+            // together and is stable across the R/H/S/A letters used for display.
+            "Attributes" => ((int)x.Attributes).CompareTo((int)y.Attributes),
             _ => string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase)
         };
 

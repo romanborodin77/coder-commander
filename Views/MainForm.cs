@@ -1884,7 +1884,7 @@ public sealed class MainForm : Form
         if (fs is null)
         {
             // Warn before sending credentials over an unencrypted FTP connection.
-            var profile = SettingsService.Load().Connections.FirstOrDefault(p => p.Id == profileId);
+            var profile = SettingsService.SnapshotConnections().FirstOrDefault(p => p.Id == profileId);
             if (profile is not null && string.Equals(profile.Scheme, "ftp", StringComparison.OrdinalIgnoreCase))
             {
                 var L0 = LocalizationService.Current;
