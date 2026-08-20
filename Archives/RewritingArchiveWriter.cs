@@ -29,6 +29,22 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     private bool _committed;
     private bool _disposed;
 
+    /// <summary>
+    /// True once <see cref="CreateDirectoryEntry"/>/<see cref="WriteFileAsync"/> has actually
+    /// written something to <see cref="_stagingWriter"/> - deliberately NOT set by
+    /// <see cref="TryDeleteEntry"/>, which only ever touches <see cref="_touchedNames"/>. A
+    /// delete-only commit (the common case: removing selected files/folders, adding nothing) never
+    /// writes a single entry to the staging writer, so <see cref="_stagingPath"/> ends up a literal
+    /// 0-byte file once <see cref="_stagingWriter"/> is disposed with nothing written - not a valid
+    /// "empty archive" the way a 0-byte plain-TAR read tolerates, but for the gzip-wrapped formats
+    /// (TAR.GZ/TAR.BZ2) 0 bytes isn't valid GZIP framing at all. Reading it back in
+    /// <see cref="CommitAsync"/> via <c>stagingReader.ScanAsync</c> threw
+    /// <see cref="EndOfStreamException"/> instead of the graceful "no entries" a genuinely empty
+    /// TAR reader returns - silently breaking every delete on a TAR.GZ/TAR.BZ2 archive. This flag
+    /// is what lets <see cref="CommitAsync"/> skip that read entirely when there is nothing there.
+    /// </summary>
+    private bool _hasStagedContent;
+
     public RewritingArchiveWriter(string archivePath, IArchiveFormat format, Func<Stream, ISequentialArchiveWriter> createWriter)
     {
         _archivePath = archivePath;
@@ -68,6 +84,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     {
         _touchedNames.Add(Key(entryName, isDirectory: true));
         _stagingWriter.WriteDirectory(entryName, lastWriteTimeUtc);
+        _hasStagedContent = true;
     }
 
     public async Task WriteFileAsync(
@@ -80,6 +97,7 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     {
         _touchedNames.Add(Key(entryName, isDirectory: false));
         await _stagingWriter.WriteFileAsync(entryName, content, size, lastWriteTimeUtc, compression, ct).ConfigureAwait(false);
+        _hasStagedContent = true;
     }
 
     /// <summary>Always reports success: actual removal is realized at <see cref="CommitAsync"/> by
@@ -126,15 +144,21 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
                         await CopySurvivorsAsync(originalReader, finalWriter, ct).ConfigureAwait(false);
                     }
 
-                    using var stagingReader = _format.OpenRead(_stagingPath);
-                    await foreach (var item in stagingReader.ScanAsync(ct).ConfigureAwait(false))
+                    // Skip reading the staging file back at all when nothing was ever staged (a
+                    // delete-only commit) - see _hasStagedContent's own doc comment for why reading
+                    // it anyway used to throw for the gzip-wrapped formats.
+                    if (_hasStagedContent)
                     {
-                        using var content = item.Content;
-                        if (item.Entry.IsDirectory)
-                            finalWriter.WriteDirectory(item.Entry.FullName, item.Entry.LastWriteTimeUtc);
-                        else
-                            await finalWriter.WriteFileAsync(item.Entry.FullName, content, item.Entry.Size,
-                                item.Entry.LastWriteTimeUtc, DefaultCompression, ct).ConfigureAwait(false);
+                        using var stagingReader = _format.OpenRead(_stagingPath);
+                        await foreach (var item in stagingReader.ScanAsync(ct).ConfigureAwait(false))
+                        {
+                            using var content = item.Content;
+                            if (item.Entry.IsDirectory)
+                                finalWriter.WriteDirectory(item.Entry.FullName, item.Entry.LastWriteTimeUtc);
+                            else
+                                await finalWriter.WriteFileAsync(item.Entry.FullName, content, item.Entry.Size,
+                                    item.Entry.LastWriteTimeUtc, DefaultCompression, ct).ConfigureAwait(false);
+                        }
                     }
                 }
             }

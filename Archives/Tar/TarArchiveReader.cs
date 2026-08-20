@@ -82,14 +82,32 @@ public sealed class TarArchiveReader : IArchiveReader
         TarEntry? entry;
         try
         {
-            while ((entry = await reader.GetNextEntryAsync(copyData: false, ct).ConfigureAwait(false)) != null)
+            // copyData: true when the underlying stream can't seek (the gzip case - GZipStream.CanSeek
+            // is always false). TarReader's own documented contract for GetNextEntryAsync's copyData
+            // parameter: with copyData:false over an unseekable stream, "the user has the
+            // responsibility of reading and processing the DataStream immediately after calling this
+            // method" - but this iterator yields the entry and returns control to the caller
+            // (RewritingArchiveWriter.CopySurvivorsAsync's `await foreach`), which does further async
+            // work (writing the *previous* entry to the output archive, or draining/skipping it via
+            // NonDisposingStream) before resuming this iterator to ask for the next entry. That gap is
+            // exactly what violated the contract: TarReader could no longer tell how much of the
+            // previous entry had actually been consumed by the time GetNextEntryAsync was called
+            // again, and threw EndOfStreamException trying to parse leftover entry bytes as the next
+            // header. copyData:true buffers each entry into its own private MemoryStream up front,
+            // which survives that gap by construction - exactly the case the BCL added the flag for.
+            // Reproduced and verified against a real .tar.gz: DeleteAsync on either format (plain TAR
+            // or TAR.GZ) worked without this fix on TAR, but TAR.GZ failed deleting ANY entry (not
+            // just a specific position) until this changed.
+            while ((entry = await reader.GetNextEntryAsync(copyData: !source.CanSeek, ct).ConfigureAwait(false)) != null)
             {
                 ct.ThrowIfCancellationRequested();
                 var record = ToRecord(entry, index++);
                 // TarReader inspects the previous entry's DataStream when asked for the next one (to
                 // know how much unread data to skip), so it must stay alive until then - see
                 // NonDisposingStream's doc comment for why every consumer's `using`/Dispose() must not
-                // be what tears it down.
+                // be what tears it down. Harmless (if redundant) now that a gzip-sourced DataStream is
+                // an independent, already-fully-buffered MemoryStream rather than a live view into the
+                // archive stream - draining an already-complete buffer on dispose is a no-op.
                 var content = entry.DataStream is { } dataStream ? new NonDisposingStream(dataStream) : Stream.Null;
                 yield return new ArchiveEntryStream(record, content);
             }
