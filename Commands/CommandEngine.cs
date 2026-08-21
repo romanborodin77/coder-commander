@@ -86,6 +86,8 @@ public static class CommandIds
     public const string ToggleHidden = "cm_ToggleHidden";
     /// <summary>Toggle flat (recursive) view mode (Ctrl+P).</summary>
     public const string ToggleFlatView = "cm_ToggleFlatView";
+    /// <summary>Show/hide the active panel's quick filter box (Ctrl+F).</summary>
+    public const string ToggleQuickFilter = "cm_ToggleQuickFilter";
 
     // View
     /// <summary>Switch the application theme (Ctrl+1 for Dark, Ctrl+2 for Light).</summary>

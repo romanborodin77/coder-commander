@@ -56,6 +56,9 @@ public sealed class FilePanelUserControl : UserControl
     private TextBox _pathBar = null!;
     private FlowLayoutPanel _breadcrumbBar = null!;
     private ListView _fileList = null!;
+    private Panel _filterBar = null!;
+    private Label _filterLabel = null!;
+    private TextBox _filterBox = null!;
     private StatusStrip _statusStrip = null!;
     private ToolStripStatusLabel _lblCursor = null!;
     private ToolStripStatusLabel _lblSelected = null!;
@@ -413,10 +416,51 @@ public sealed class FilePanelUserControl : UserControl
         };
         _statusStrip.Items.AddRange([_lblCursor, _lblSelected, _lblFree]);
 
+        // Quick filter bar (Ctrl+F) - hidden by default. PanelViewModel.Filter/ApplyFilter already
+        // existed and worked (matching DisplayName in Flat View, debounced via _filterDebounce);
+        // this bar was the only missing piece - the model layer had no UI entry point at all.
+        _filterBar = new Panel
+        {
+            Dock = DockStyle.Bottom,
+            Visible = false,
+            Height = 30,
+            BackColor = p.HeaderBackground,
+            Padding = new Padding(8, 3, 8, 3)
+        };
+        _filterBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.None,
+            Font = p.GridFont,
+            BackColor = p.HeaderBackground,
+            ForeColor = p.HeaderForeground
+        };
+        _filterBox.TextChanged += (_, _) => _vm.Filter = _filterBox.Text;
+        _filterBox.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.Escape) return;
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            HideQuickFilter();
+        };
+        _filterLabel = new Label
+        {
+            Dock = DockStyle.Left,
+            AutoSize = false,
+            Width = 50,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = p.GridFont,
+            ForeColor = p.DimForeground,
+            Text = L.GetString("Panel.Filter")
+        };
+        _filterBar.Controls.Add(_filterBox);
+        _filterBar.Controls.Add(_filterLabel);
+
         content.Controls.Add(_fileList);
         content.Controls.Add(_driveBar);
         content.Controls.Add(_pathBar);
         content.Controls.Add(_breadcrumbBar);
+        content.Controls.Add(_filterBar);
         content.Controls.Add(_statusStrip);
         _borderPanel.Controls.Add(content);
         Controls.Add(_borderPanel);
@@ -950,6 +994,34 @@ public sealed class FilePanelUserControl : UserControl
     /// why it went unnoticed.</para>
     /// </summary>
     public void FocusFileList() => _fileList.Focus();
+
+    // -- Quick filter (Ctrl+F) --
+
+    /// <summary>Shows the filter box (focusing and selecting any existing text) if hidden, or
+    /// hides it (and clears the filter) if already shown - the same "toggle re-hides" contract
+    /// Ctrl+P/ToggleFlatView's own command already has.</summary>
+    public void ToggleQuickFilter()
+    {
+        if (_filterBar.Visible) HideQuickFilter();
+        else ShowQuickFilter();
+    }
+
+    private void ShowQuickFilter()
+    {
+        _filterBar.Visible = true;
+        _filterBox.Focus();
+        _filterBox.SelectAll();
+    }
+
+    /// <summary>Hides the bar and clears the filter - matches every mainstream file manager's own
+    /// "Esc closes the filter box AND un-filters the list" convention, rather than leaving a
+    /// filtered list on screen with no visible indication of why items are missing.</summary>
+    private void HideQuickFilter()
+    {
+        _filterBar.Visible = false;
+        _filterBox.Text = "";
+        FocusFileList();
+    }
 
     // -- Drag & Drop --
 
@@ -1673,6 +1745,12 @@ public sealed class FilePanelUserControl : UserControl
         RebuildBreadcrumb();
         _driveBar.BackColor = p.HeaderBackground;
         _driveBar.ForeColor = p.HeaderForeground;
+        _filterBar.BackColor = p.HeaderBackground;
+        _filterBox.BackColor = p.HeaderBackground;
+        _filterBox.ForeColor = p.HeaderForeground;
+        _filterBox.Font = p.GridFont;
+        _filterLabel.Font = p.GridFont;
+        _filterLabel.ForeColor = p.DimForeground;
         _fileList.BackColor = p.PanelBackground;
         _fileList.ForeColor = p.Foreground;
         _fileList.Font = p.GridFont;
@@ -1881,6 +1959,9 @@ public sealed class FilePanelUserControl : UserControl
             _fileList?.Dispose();
             _pathBar?.Dispose();
             _breadcrumbBar?.Dispose();
+            _filterBar?.Dispose();
+            _filterBox?.Dispose();
+            _filterLabel?.Dispose();
             _statusStrip?.Dispose();
             _lblCursor?.Dispose();
             _lblSelected?.Dispose();

@@ -228,6 +228,7 @@ public sealed class LocalizationService
         _strings["Menu.View.Sort.Descending"] = "&Descending";
         _strings["Menu.View.ShowExtInName"] = "Show e&xtension in name";
         _strings["Menu.View.FlatView"] = "&Flat View (recursive listing)";
+        _strings["Menu.View.QuickFilter"] = "&Quick Filter";
         _strings["Language.English"] = "English";
         _strings["Language.Russian"] = "Русский";
 

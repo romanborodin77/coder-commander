@@ -295,6 +295,7 @@ public sealed class MainForm : Form
         // comment called it a "placeholder" even though the command has worked since it was
         // registered; only the menu discoverability was ever missing.
         m.DropDownItems.Add(Mi("Menu.View.FlatView", "view", "Ctrl+P", CommandIds.ToggleFlatView));
+        m.DropDownItems.Add(Mi("Menu.View.QuickFilter", "search", "Ctrl+F", CommandIds.ToggleQuickFilter));
         m.DropDownItems.Add(Mi("Menu.View.Refresh", "refresh", "Ctrl+R", CommandIds.Refresh));
         m.DropDownItems.Add(Mi("Menu.View.RefreshDrives", "drive", "Ctrl+Shift+R", CommandIds.RefreshDrives));
 
@@ -839,6 +840,16 @@ public sealed class MainForm : Form
         Controls.Add(_terminalPanel);
     }
 
+    /// <summary>Ctrl+F - shows/hides the quick filter box on whichever panel is currently active
+    /// (same LeftPanel/RightPanel-to-control mapping ToggleTerminal's own focus-restore uses).
+    /// The actual filtering (PanelViewModel.Filter/ApplyFilter) already existed and worked; this
+    /// is the missing UI entry point.</summary>
+    private void ToggleQuickFilter()
+    {
+        var target = _vm.ActivePanel == _vm.LeftPanel ? _leftPanel : _rightPanel;
+        target.ToggleQuickFilter();
+    }
+
     private void ToggleTerminal()
     {
         _terminalVisible = !_terminalVisible;
@@ -1100,6 +1111,7 @@ public sealed class MainForm : Form
         _vm.FindFilesRequested += (_, _) => OpenFindFiles();
         _vm.FindDuplicatesRequested += (_, _) => OpenDuplicateFinder();
         _vm.ToggleTerminalRequested += (_, _) => ToggleTerminal();
+        _vm.QuickFilterToggleRequested += (_, _) => ToggleQuickFilter();
         _vm.CreateTerminalTabRequested += (_, _) => CreateTerminalTabWithDefaults();
         _vm.CloseTerminalTabRequested += (_, _) => CloseTerminalTab();
         _vm.NextTerminalTabRequested += (_, _) => NextTerminalTab();

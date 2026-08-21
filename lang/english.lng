@@ -80,6 +80,7 @@ Menu.View.Sort.DirsFirst=&Directories first
 Menu.View.Sort.Descending=&Descending
 Menu.View.ShowExtInName=Show e&xtension in name
 Menu.View.FlatView=&Flat View (recursive listing)
+Menu.View.QuickFilter=&Quick Filter
 Language.English=English
 Language.Russian=Русский
 Menu.Config=&Configuration

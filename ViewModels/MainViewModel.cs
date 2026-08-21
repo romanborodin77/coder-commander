@@ -155,6 +155,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.TargetEqualSource, _ => TargetEqualSource());
         Commands.Register(CommandIds.ToggleHidden, _ => ActivePanel.ShowHidden = !ActivePanel.ShowHidden);
         Commands.Register(CommandIds.ToggleFlatView, _ => ActivePanel.IsFlatView = !ActivePanel.IsFlatView);
+        Commands.Register(CommandIds.ToggleQuickFilter, _ => QuickFilterToggleRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.View, p => { _ = SafeExecuteAsync(() => ViewFileAsync(), "View"); });
         Commands.Register(CommandIds.Edit, p => { _ = SafeExecuteAsync(() => EditFileAsync(), "Edit"); });
         Commands.Register(CommandIds.SetTheme, param => SetTheme(param ?? "Dark"));
@@ -1157,6 +1158,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? FindDuplicatesRequested;
     /// <summary>Raised when the user toggles the embedded terminal panel.</summary>
     public event EventHandler? ToggleTerminalRequested;
+    /// <summary>Raised when the user toggles the active panel's quick filter box. The UI layer
+    /// owns showing/hiding the actual text box (a View concern) and maps ActivePanel to the
+    /// FilePanelUserControl instance that shows it - see MainForm.ToggleQuickFilter.</summary>
+    public event EventHandler? QuickFilterToggleRequested;
     /// <summary>Raised when the user requests a new terminal tab with default shell settings.</summary>
     public event EventHandler? CreateTerminalTabRequested;
     /// <summary>Raised when the user requests closing the active terminal tab.</summary>
