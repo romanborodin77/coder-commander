@@ -99,8 +99,14 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>Raised when sort settings change so the UI can refresh.</summary>
     public event EventHandler? SortChanged;
 
-    /// <summary>Items visible in the panel (after filtering).</summary>
-    public ObservableCollection<FileSystemItem> Items { get; } = [];
+    /// <summary>Items visible in the panel (after filtering). A plain list swapped wholesale by
+    /// <see cref="ApplyFilter"/> in a single assignment (audit finding G049) rather than an
+    /// <see cref="ObservableCollection{T}"/> mutated one <c>Add</c> at a time - nothing has ever
+    /// subscribed to its <c>CollectionChanged</c> (the panel redraws off the separate
+    /// <see cref="ItemsChanged"/> event below, raised once per filter/refresh regardless), so every
+    /// `Clear()`+`Add()` pair on a keystroke-triggered filter was paying for notification
+    /// infrastructure nothing ever read.</summary>
+    public IReadOnlyList<FileSystemItem> Items { get; private set; } = [];
 
     /// <summary>All loaded items (before filtering).</summary>
     private List<FileSystemItem> _allItems = [];
@@ -482,10 +488,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         var mySeq = Interlocked.Increment(ref _navSeq);
 
         // Deliberately no ConfigureAwait(false): the rest of this method (and RefreshAsync below)
-        // sets CurrentPath and mutates the ObservableCollection Items, both of which need to run
-        // back on the UI thread that called NavigateAsync - StartWatcher (triggered by the
-        // CurrentPath setter) creates a System.Windows.Forms.Timer, which only fires its Tick
-        // event on the thread that created it, and ObservableCollection isn't thread-safe.
+        // sets CurrentPath and reassigns Items, both of which need to run back on the UI thread
+        // that called NavigateAsync - StartWatcher (triggered by the CurrentPath setter) creates a
+        // System.Windows.Forms.Timer, which only fires its Tick event on the thread that created
+        // it, and the panel's own read side (FilePanelUserControl) assumes Items only ever changes
+        // on that same thread.
         if (!await _fs.ExistsAsync(path))
         {
             LogService.Warning($"Path does not exist: {path}");
@@ -742,8 +749,8 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return;
 
         // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything
-        // from _allItems assignment down through ApplyFilter()'s ObservableCollection mutation must
-        // stay on the UI thread this method was called from.
+        // from _allItems assignment down through ApplyFilter()'s Items reassignment must stay on
+        // the UI thread this method was called from.
         try { await _refreshLock.WaitAsync(ct); }
         catch (ObjectDisposedException) { return; } // Dispose() raced this call (e.g. a debounce tick)
         try
@@ -878,9 +885,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
     private void ApplyFilter()
     {
-        Items.Clear();
-        // Single pass: add visible items to Items, clear IsSelected on hidden items.
-        // The previous two-pass + HashSet approach allocated a HashSet on every keystroke.
+        // Single pass: collect visible items, clear IsSelected on hidden items. The previous
+        // two-pass + HashSet approach allocated a HashSet on every keystroke; the version before
+        // that mutated the old Items collection in place via Clear()+per-item Add() (audit finding
+        // G049) - swapping the whole list in one assignment below instead avoids that entirely.
+        var visible = new List<FileSystemItem>(_allItems.Count);
         FileSystemItem? selectedAfterFilter = null;
         foreach (var item in _allItems)
         {
@@ -888,7 +897,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 item.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase);
             if (isVisible)
             {
-                Items.Add(item);
+                visible.Add(item);
                 if (ReferenceEquals(item, SelectedItem))
                     selectedAfterFilter = item;
             }
@@ -897,6 +906,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
                 item.IsSelected = false;
             }
         }
+        Items = visible;
 
         // A filter must never leave the cursor item hidden: GetSelectedOrActive falls back to
         // SelectedItem when nothing is checkbox-selected (an operation could then silently target

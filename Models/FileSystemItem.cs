@@ -98,17 +98,42 @@ public sealed class FileSystemItem : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Last write time formatted as "yyyy-MM-dd HH:mm".</summary>
-    public string ModifiedDisplay { get; }
+    private string? _modifiedDisplay;
 
-    /// <summary>Attribute flags as a short string (e.g. "RHA").</summary>
-    public string AttributesDisplay { get; }
+    /// <summary>Last write time formatted as "yyyy-MM-dd HH:mm". Computed lazily (audit finding
+    /// G048) - with the panel's ListView in VirtualMode, only visibly-rendered rows ever read this,
+    /// so eagerly formatting it for every item in a large listing (most of which never scroll into
+    /// view) was pure waste.</summary>
+    public string ModifiedDisplay => _modifiedDisplay ??=
+        IsParent ? "" : Entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
-    /// <summary>Name without extension (e.g. "report" from "report.txt").</summary>
-    public string NameWithoutExtension { get; }
+    private string? _attributesDisplay;
 
-    /// <summary>Extension without leading dot for Type column (e.g. "txt"). Empty for directories.</summary>
-    public string TypeDisplay { get; }
+    /// <summary>Attribute flags as a short string (e.g. "RHA"). Computed lazily, same reasoning as
+    /// <see cref="ModifiedDisplay"/>, via a precomputed 16-entry lookup table (one entry per
+    /// combination of the 4 tracked bits) instead of a per-item <see cref="System.Text.StringBuilder"/>.</summary>
+    public string AttributesDisplay => _attributesDisplay ??=
+        IsParent ? "" : AttributeDisplayTable[AttributeTableIndex(Entry.Attributes)];
+
+    private string? _nameWithoutExtension;
+
+    /// <summary>Name without extension (e.g. "report" from "report.txt"). Computed lazily, same
+    /// reasoning as <see cref="ModifiedDisplay"/>.</summary>
+    public string NameWithoutExtension => _nameWithoutExtension ??= ComputeNameWithoutExtension();
+
+    private string ComputeNameWithoutExtension()
+    {
+        if (IsParent) return "";
+        var ext = Entry.Extension;
+        return string.IsNullOrEmpty(ext) ? Entry.Name : Entry.Name[..^ext.Length];
+    }
+
+    private string? _typeDisplay;
+
+    /// <summary>Extension without leading dot for Type column (e.g. "txt"). Empty for directories.
+    /// Computed lazily, same reasoning as <see cref="ModifiedDisplay"/>.</summary>
+    public string TypeDisplay => _typeDisplay ??=
+        IsParent ? "" : (Entry.Extension.Length > 0 ? Entry.Extension[1..] : "");
 
     /// <summary>Custom display name (for Flat View — relative path).</summary>
     public string? DisplayName { get; init; }
@@ -145,21 +170,6 @@ public sealed class FileSystemItem : INotifyPropertyChanged
     {
         Entry = entry;
         IsParent = isParent;
-        ModifiedDisplay = isParent ? "" : entry.LastWriteTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-        AttributesDisplay = isParent ? "" : FormatAttributes(entry.Attributes);
-        if (isParent)
-        {
-            NameWithoutExtension = "";
-            TypeDisplay = "";
-        }
-        else
-        {
-            var ext = entry.Extension;
-            NameWithoutExtension = string.IsNullOrEmpty(ext)
-                ? entry.Name
-                : entry.Name[..^ext.Length];
-            TypeDisplay = ext.Length > 0 ? ext[1..] : "";
-        }
     }
 
     /// <summary>Creates the ".." parent navigation entry.</summary>
@@ -206,15 +216,36 @@ public sealed class FileSystemItem : INotifyPropertyChanged
         return new FileSystemItem(entry, isParent: true) { DisplayName = ".." };
     }
 
-    /// <summary>Formats file attributes into a short string (e.g. "RHA").</summary>
-    private static string FormatAttributes(FileAttributes attr)
+    /// <summary>All 16 combinations of the 4 tracked attribute bits (ReadOnly/Hidden/System/Archive),
+    /// indexed by <see cref="AttributeTableIndex"/> - built once per process instead of running a
+    /// <see cref="System.Text.StringBuilder"/> for every item's <see cref="AttributesDisplay"/>.</summary>
+    private static readonly string[] AttributeDisplayTable = BuildAttributeDisplayTable();
+
+    private static string[] BuildAttributeDisplayTable()
     {
-        var sb = new System.Text.StringBuilder(5);
-        if ((attr & FileAttributes.ReadOnly) != 0) sb.Append('R');
-        if ((attr & FileAttributes.Hidden) != 0) sb.Append('H');
-        if ((attr & FileAttributes.System) != 0) sb.Append('S');
-        if ((attr & FileAttributes.Archive) != 0) sb.Append('A');
-        return sb.ToString();
+        var table = new string[16];
+        for (var i = 0; i < 16; i++)
+        {
+            var sb = new System.Text.StringBuilder(4);
+            if ((i & 1) != 0) sb.Append('R');
+            if ((i & 2) != 0) sb.Append('H');
+            if ((i & 4) != 0) sb.Append('S');
+            if ((i & 8) != 0) sb.Append('A');
+            table[i] = sb.ToString();
+        }
+        return table;
+    }
+
+    /// <summary>Packs the 4 tracked <see cref="FileAttributes"/> bits (which aren't contiguous in
+    /// the real enum - Archive is bit 5, not bit 3) into a dense 0-15 index for <see cref="AttributeDisplayTable"/>.</summary>
+    private static int AttributeTableIndex(FileAttributes attr)
+    {
+        var idx = 0;
+        if ((attr & FileAttributes.ReadOnly) != 0) idx |= 1;
+        if ((attr & FileAttributes.Hidden) != 0) idx |= 2;
+        if ((attr & FileAttributes.System) != 0) idx |= 4;
+        if ((attr & FileAttributes.Archive) != 0) idx |= 8;
+        return idx;
     }
 
     /// <summary>Occurs when a property value changes.</summary>
