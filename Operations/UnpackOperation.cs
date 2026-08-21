@@ -38,6 +38,14 @@ public sealed class UnpackOperation : FileOperation
     private readonly TransferOptions _options;
     private readonly bool _removeSource;
 
+    // Lazily computed once (not per-entry - see GetNormalizedDestRoot) and reused by every
+    // ArchiveSafety.EscapesRoot check in ProcessRecordAsync, which previously recomputed the same
+    // Path.GetFullPath(_destPath) call on every single extracted entry (audit finding G046).
+    // Entries are processed strictly sequentially (see the two ProcessRecordAsync call sites in
+    // ExecuteCoreAsync), so no locking is needed around this cache.
+    private string? _normalizedDestRoot;
+    private bool _normalizedDestRootComputed;
+
     private int _filesProcessed;
     private int _filesTotal;
     private long _bytesProcessed;
@@ -169,6 +177,27 @@ public sealed class UnpackOperation : FileOperation
                 (_extractFailures.Count > 5 ? $" and {_extractFailures.Count - 5} more" : ""));
     }
 
+    /// <summary>Computes and caches <see cref="ArchiveSafety.NormalizeRoot"/> for <see cref="_destPath"/>
+    /// on first use. Null means normalization itself failed (malformed destination path) - callers
+    /// treat that the same as "escapes the root", matching <see cref="ArchiveSafety.EscapesRoot"/>'s
+    /// own fail-closed behavior on a <see cref="Path.GetFullPath(string)"/> failure.</summary>
+    private string? GetNormalizedDestRoot()
+    {
+        if (_normalizedDestRootComputed)
+            return _normalizedDestRoot;
+
+        _normalizedDestRootComputed = true;
+        try
+        {
+            _normalizedDestRoot = ArchiveSafety.NormalizeRoot(_destPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            _normalizedDestRoot = null;
+        }
+        return _normalizedDestRoot;
+    }
+
     private async Task ProcessRecordAsync(ArchiveEntryRecord record, Stream? content, List<ArchiveEntryRecord> extracted, CancellationToken ct)
     {
         using var _ = content;
@@ -180,7 +209,8 @@ public sealed class UnpackOperation : FileOperation
             return;
         }
 
-        if (ArchiveSafety.EscapesTarget(relative) || ArchiveSafety.EscapesRoot(_destPath, relative))
+        var normalizedRoot = GetNormalizedDestRoot();
+        if (ArchiveSafety.EscapesTarget(relative) || normalizedRoot == null || ArchiveSafety.EscapesRoot(normalizedRoot, relative))
         {
             LogService.Warning($"Unpack: refusing traversal entry {record.FullName}");
             _filesProcessed++;
