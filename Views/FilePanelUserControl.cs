@@ -668,6 +668,18 @@ public sealed class FilePanelUserControl : UserControl
         {
             if (!ReferenceEquals(items[i], target)) continue;
 
+            // _fileList.VirtualListSize can still be the OLD (smaller) count here: OnItemsChanged
+            // defers RebuildList via BeginInvoke, so a SelectedItem change that lands synchronously
+            // right after an Items change (PanelViewModel.RefreshAsync does exactly this) can be
+            // observed before the queued rebuild has actually run. SelectedIndices.Add(i) with i
+            // past the ListView's own (still stale) VirtualListSize throws ArgumentOutOfRangeException
+            // (audit finding: reproduced live, D:\...zip|... Refresh crash, ArgumentOutOfRangeException
+            // at SyncSelectionFromVm). Safe to just skip: RebuildList's own selection-restore pass
+            // (keyed off item.IsSelected/ReferenceEquals to the same SelectedItem) fully re-syncs
+            // selection and focus every time it runs, including this case, once the pending
+            // BeginInvoke actually fires - moments later, same UI thread.
+            if (i >= _fileList.VirtualListSize) return;
+
             _suppressSelectionEvent = true;
             if (!_fileList.SelectedIndices.Contains(i))
                 _fileList.SelectedIndices.Add(i);
@@ -692,7 +704,13 @@ public sealed class FilePanelUserControl : UserControl
         {
             _fileList.SelectedIndices.Clear();
             var items = _vm.Items;
-            for (var i = 0; i < items.Count; i++)
+            // Bounded by the ListView's own (possibly still-stale) VirtualListSize, not items.Count -
+            // see SyncSelectionFromVm's identical guard for why: a pending RebuildList (queued via
+            // BeginInvoke off ItemsChanged) can leave VirtualListSize behind _vm.Items for one UI-thread
+            // turn. Entries past it are reconciled once that rebuild runs, which independently re-derives
+            // SelectedIndices from IsSelected the same way this loop does.
+            var bound = Math.Min(items.Count, _fileList.VirtualListSize);
+            for (var i = 0; i < bound; i++)
             {
                 if (items[i].IsSelected)
                     _fileList.SelectedIndices.Add(i);

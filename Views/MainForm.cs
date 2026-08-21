@@ -646,6 +646,18 @@ public sealed class MainForm : Form
         // alone would miss an archive panel; the capability flag is the one check that is correct
         // for both, matching FileSystemCapabilities.NativePaths's own doc comment.
         var isNative = originFs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
+        // Defense against item going stale between the click/Enter that raised ItemActivated and
+        // this handler actually running: _vm.ActivePanel.CurrentFileSystem reflects the panel's
+        // CURRENT location, but if a navigation (e.g. GoToRoot from a drive-bar click) lands in
+        // between, isNative above answers for the NEW location while item.FullPath still names
+        // the OLD one - reproduced live: "archive.zip|file.txt" reached Process.Start below with
+        // isNative=true because the panel had already navigated to a plain local root by the time
+        // this ran. item.FullPath's own shape is the more trustworthy signal here - if it still
+        // looks like an archive or remote path despite isNative claiming otherwise, it's stale;
+        // refuse rather than hand a VFS path to Process.Start (or materialize it against a
+        // filesystem it was never inside).
+        if (isNative && (VfsPath.IsArchive(item.FullPath) || RemotePath.IsRemote(item.FullPath)))
+            return;
         // TrimEnd('.', ' ') before extracting the extension: Win32 silently strips a trailing dot
         // or space when it materializes a file on disk (the same fact RemotePath.IsSafeEntryName
         // rejects names for), so an entry named "invoice.exe." or "invoice.exe " reports extension
