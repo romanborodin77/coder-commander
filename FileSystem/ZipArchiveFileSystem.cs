@@ -36,7 +36,6 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
     private static readonly Encoding Cp866 = Encoding.GetEncoding(866);
     private static readonly Encoding Utf8 = Encoding.UTF8;
-    private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, throwOnInvalidBytes: true);
 
     /// <summary>HRESULT for Win32 ERROR_SHARING_VIOLATION (0x20), which FileStream surfaces as an
     /// IOException when the file is locked by another process. Checking this instead of the
@@ -517,15 +516,13 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (!hasHighByte)
             return true;
 
-        try
-        {
-            StrictUtf8.GetString(data);
-            return true;
-        }
-        catch (DecoderFallbackException)
-        {
-            return false;
-        }
+        // System.Text.Unicode.Utf8.IsValid, not a try/catch around StrictUtf8.GetString - a
+        // CP866-named archive (the exact case this method exists for) used to throw and catch a
+        // DecoderFallbackException for EVERY non-ASCII entry name, at ~10-50us per throw; a
+        // 200,000-entry Russian-named ZIP spent seconds purely in exception dispatch, plus
+        // allocated a throwaway decoded string per entry that was immediately discarded either
+        // way. This validates the bytes directly with no allocation and no exception.
+        return System.Text.Unicode.Utf8.IsValid(data);
     }
 
     private static string ExpandEscapedCodePoints(string text)
