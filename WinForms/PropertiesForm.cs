@@ -172,7 +172,12 @@ public sealed class PropertiesForm : ThemedForm
         if (_isSingle && _isDirectory)
             BuildRecursiveCheckbox(root);
 
-        if (_isSingle && _fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
+        // Was _isSingle-only ("mass timestamp change" README.md claimed doesn't exist" per the
+        // audit's doc-vs-code gap A1); the section itself already worked generically off
+        // _items[0]'s values as a seed and per-checkbox opt-in per field, same shape
+        // BuildAttributesSection already applies across every selected item - only ApplyChanges'
+        // own timestamp loop was hardcoded to _items[0].
+        if (_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             BuildTimestampSection(root);
 
         // Kick off async scan for single-directory case.
@@ -795,29 +800,33 @@ public sealed class PropertiesForm : ThemedForm
             }
         }
 
-        // Timestamps (single item only — section hidden for multi).
-        if (_isSingle)
+        // Timestamps - applies to every selected item (was _items[0] only). Recursion into a
+        // directory's own contents still only makes sense for a single directory target - same
+        // scope the recursive checkbox itself is built under (_isSingle && _isDirectory above).
+        if (_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
         {
-            var target = _items[0].FullPath;
-            var isDir = _isDirectory;
-            bool recursive = isDir && _recursiveCheckbox?.Checked == true;
+            bool recursive = _isSingle && _isDirectory && _recursiveCheckbox?.Checked == true;
 
-            for (int i = 0; i < 3; i++)
+            foreach (var it in _items)
             {
-                var cb = _timeCheckboxes[i];
-                var dtp = _timePickers[i];
-                if (cb == null || !cb.Checked || dtp == null || !dtp.Enabled) continue;
+                var target = it.FullPath;
+                for (int i = 0; i < 3; i++)
+                {
+                    var cb = _timeCheckboxes[i];
+                    var dtp = _timePickers[i];
+                    if (cb == null || !cb.Checked || dtp == null || !dtp.Enabled) continue;
 
-                DateTime value = dtp.Value;
-                try
-                {
-                    ApplyTimestamp(target, i, value, recursive && isDir);
-                    success++;
-                }
-                catch (Exception ex)
-                {
-                    LogService.Warning($"SetTimestamp[{i}] failed for {target}: {ex.Message}");
-                    failures++;
+                    DateTime value = dtp.Value;
+                    try
+                    {
+                        ApplyTimestamp(target, i, value, recursive);
+                        success++;
+                    }
+                    catch (Exception ex)
+                    {
+                        LogService.Warning($"SetTimestamp[{i}] failed for {target}: {ex.Message}");
+                        failures++;
+                    }
                 }
             }
         }
