@@ -229,6 +229,10 @@ public sealed class MainForm : Form
         var L = LocalizationService.Current;
         var m = new ToolStripMenuItem(L.GetString("Menu.Commands"));
 
+        // Previously toolbar-button-only with no menu entry at all (audit finding G055).
+        m.DropDownItems.Add(Mi("Menu.Commands.GoBack", "back", "Alt+Left", CommandIds.GoBack));
+        m.DropDownItems.Add(Mi("Menu.Commands.GoForward", "forward", "Alt+Right", CommandIds.GoForward));
+        m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.Search", "search", "Alt+F7", CommandIds.FindFiles));
         m.DropDownItems.Add(Mi("Menu.Commands.FindDuplicates", "search", "", CommandIds.FindDuplicates));
         m.DropDownItems.Add(Mi("Menu.Commands.MultiRename", "multirename", "Ctrl+M", CommandIds.MultiRename));
@@ -356,8 +360,12 @@ public sealed class MainForm : Form
             Renderer = new ThemeRenderer()
         };
 
-        _toolStrip.Items.Add(TbBtn("Toolbar.Back", "back", () => _ = _vm.ActivePanel.GoBackAsync()));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Forward", "forward", () => _ = _vm.ActivePanel.GoForwardAsync()));
+        // Routed through the command engine (audit finding G055), not a direct ActivePanel call -
+        // matching every other toolbar button here, and what makes Alt+Left/Alt+Right, the View
+        // menu entries, and DiagnosticCommandChannel (cm_GoBack/cm_GoForward) all reach the exact
+        // same code path instead of three independent ones.
+        _toolStrip.Items.Add(TbBtn("Toolbar.Back", "back", () => _vm.Commands.Execute(CommandIds.GoBack)));
+        _toolStrip.Items.Add(TbBtn("Toolbar.Forward", "forward", () => _vm.Commands.Execute(CommandIds.GoForward)));
         _toolStrip.Items.Add(TbBtn("Toolbar.Up", "up", () => _ = _vm.ActivePanel.GoToParentAsync()));
         _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
         _toolStrip.Items.Add(TbBtn("Toolbar.Copy", "copy", () => _vm.Commands.Execute(CommandIds.Copy)));

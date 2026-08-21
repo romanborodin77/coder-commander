@@ -43,6 +43,13 @@ public static class CommandIds
     public const string FindDuplicates = "cm_FindDuplicates";
 
     // Navigation
+    /// <summary>Navigate back in the active panel's history (Alt+Left / mouse XButton1). Was
+    /// toolbar-button-only, bypassing the command engine entirely - no hotkey, no menu entry, no
+    /// mouse back-button support (audit finding G055).</summary>
+    public const string GoBack = "cm_GoBack";
+    /// <summary>Navigate forward in the active panel's history (Alt+Right / mouse XButton2). See
+    /// <see cref="GoBack"/>.</summary>
+    public const string GoForward = "cm_GoForward";
     /// <summary>Navigate to the parent directory (Backspace).</summary>
     public const string GoToParent = "cm_GoToParent";
     /// <summary>Navigate to the drive root (Ctrl+\).</summary>

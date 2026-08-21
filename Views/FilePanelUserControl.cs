@@ -818,6 +818,21 @@ public sealed class FilePanelUserControl : UserControl
 
     private void OnFileListMouseDown(object? sender, MouseEventArgs e)
     {
+        // Mouse back/forward side buttons (audit finding G055) - navigates whichever panel the
+        // mouse is physically over, activating it first the same way a left-click would.
+        if (e.Button == MouseButtons.XButton1)
+        {
+            ActivatePanel();
+            _ = _vm.GoBackAsync();
+            return;
+        }
+        if (e.Button == MouseButtons.XButton2)
+        {
+            ActivatePanel();
+            _ = _vm.GoForwardAsync();
+            return;
+        }
+
         // Right-click selects the item under cursor and shows context menu
         if (e.Button == MouseButtons.Right)
         {

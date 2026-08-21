@@ -152,6 +152,8 @@ public sealed class HotkeyManager
         Register(Keys.Alt | Keys.X, CommandIds.Exit);
 
         // Navigation
+        Register(Keys.Alt | Keys.Left, CommandIds.GoBack);
+        Register(Keys.Alt | Keys.Right, CommandIds.GoForward);
         Register(Keys.Back, CommandIds.GoToParent);
         Register(Keys.Control | Keys.Back, CommandIds.GoToParent);
         Register(Keys.Control | Keys.R, CommandIds.Refresh);

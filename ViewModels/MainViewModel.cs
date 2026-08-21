@@ -143,6 +143,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.Wipe, _ => Wipe());
         Commands.Register(CommandIds.MakeDir, _ => MakeDir());
         Commands.Register(CommandIds.Rename, _ => Rename());
+        Commands.Register(CommandIds.GoBack, p => { _ = SafeExecuteAsync(() => ActivePanel.GoBackAsync(), "GoBack"); });
+        Commands.Register(CommandIds.GoForward, p => { _ = SafeExecuteAsync(() => ActivePanel.GoForwardAsync(), "GoForward"); });
         Commands.Register(CommandIds.GoToParent, p => { _ = SafeExecuteAsync(() => ActivePanel.GoToParentAsync(), "GoToParent"); });
         Commands.Register(CommandIds.Refresh, p => { _ = SafeExecuteAsync(() => ActivePanel.RefreshAsync(), "Refresh"); });
         Commands.Register(CommandIds.RefreshDrives, p => { _ = SafeExecuteAsync(() => DriveCatalog.Instance.RefreshAsync(), "RefreshDrives"); });

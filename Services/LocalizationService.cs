@@ -195,6 +195,8 @@ public sealed class LocalizationService
         _strings["Menu.Selection.DeselectGroup"] = "Deselect &Group…";
 
         _strings["Menu.Commands"] = "&Commands";
+        _strings["Menu.Commands.GoBack"] = "&Back";
+        _strings["Menu.Commands.GoForward"] = "&Forward";
         _strings["Menu.Commands.Search"] = "&Search…";
         _strings["Menu.Commands.MultiRename"] = "&Multi-Rename…";
         _strings["Menu.Commands.SyncDirs"] = "Synchronize &Dirs…";
