@@ -286,21 +286,6 @@ Settings.Hotkeys.ResetAll=Сбросить всё к умолчаниям
 Settings.Hotkeys.PressKeys=Нажмите комбинацию клавиш…
 Settings.Hotkeys.ConflictConfirm="{0}" уже используется для «{1}». Переназначить на это действие?
 
-# ═══ Поиск ═══
-Search.Title=Поиск
-Search.Path=Путь:
-Search.Pattern=Маска файла:
-Search.Content=Содержит текст:
-Search.CaseSensitive=Учитывать регистр
-Search.UseRegex=Регулярное выражение
-Search.Subdirs=Искать в подпапках
-Search.Start=Найти
-Search.Stop=Стоп
-Search.Results=Результаты
-Search.Found=Найдено {0} файл(ов)
-Search.Searching=Поиск…
-Search.NoResults=Файлы не найдены
-
 # ═══ Закладки ═══
 Conn.NoProviders=В этой сборке пока нет ни одного типа подключений.
 Conn.NotConnected=Это подключение не открыто. Откройте его на полке мест и повторите.
@@ -808,6 +793,9 @@ Find.Field.Text=Содержит текст
 Find.MatchCase=Учитывать регистр
 Find.WholeWord=Только слово целиком
 Find.Subdirectories=Включая подпапки
+Find.UseRegex=Regex
+Find.InvalidMaskRegex=Маска файлов не является корректным регулярным выражением.
+Find.InvalidContentRegex=Шаблон содержимого не является корректным регулярным выражением.
 Find.Col.Name=Имя
 Find.Col.Folder=Папка
 Find.Col.Size=Размер

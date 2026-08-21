@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace CoderCommander.Services.Search;
 
@@ -41,6 +42,18 @@ public static class ContentSearcher
     /// <summary>Decoded characters per block. Large enough that per-block overhead disappears,
     /// small enough that the overlap below is a rounding error next to it.</summary>
     private const int BlockChars = 128 * 1024;
+
+    /// <summary>Ceiling on how much of a single physical line is buffered before matching it as one
+    /// unit in <see cref="FindRegexAsync"/>. Unlike <see cref="FindAsync"/>'s literal search - which
+    /// only ever needs to carry <c>needle.Length</c> characters across a block boundary, since a
+    /// literal match has a known length - a regex match has no bounded length, so the safe
+    /// alternative this class uses is line-oriented: match complete lines one at a time rather than
+    /// windowing arbitrary spans across the whole file. A line longer than this (a minified bundle,
+    /// one huge JSON blob) is matched in <see cref="MaxLineLength"/>-sized pieces instead of
+    /// buffering without bound - a documented limitation (a pattern that would only match across
+    /// that internal split is missed), not a silent one: this is what keeps a pathological or just
+    /// unusually-shaped file from exhausting memory the way a truly unbounded carry would.</summary>
+    private const int MaxLineLength = 4 * 1024 * 1024;
 
     /// <summary>
     /// Whether <paramref name="stream"/> contains <paramref name="needle"/>.
@@ -107,6 +120,105 @@ public static class ContentSearcher
             if (read == 0) return ContentHit.None;
             pending = buffer.AsMemory(0, read);
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="stream"/> contains a line matching <paramref name="pattern"/>.
+    /// Line-oriented, not windowed like <see cref="FindAsync"/> - see <see cref="MaxLineLength"/>'s
+    /// own doc comment for why a regex match needs a different streaming strategy than a literal
+    /// one. <paramref name="pattern"/> should already carry its own bounded match timeout (the same
+    /// defensive construction <see cref="FileMask"/> uses) - a per-line <see cref="RegexMatchTimeoutException"/>
+    /// is treated as "this line doesn't match" rather than aborting the whole file.
+    /// </summary>
+    /// <param name="stream">Read forward only; the caller owns it.</param>
+    public static async Task<ContentHit> FindRegexAsync(
+        Stream stream, Regex pattern, CancellationToken ct = default)
+    {
+        var header = new byte[SniffBytes];
+        var headerLength = await ReadAtLeastAsync(stream, header, ct).ConfigureAwait(false);
+        if (headerLength == 0) return ContentHit.None;
+
+        if (LooksBinary(header, headerLength)) return ContentHit.None;
+
+        var encoding = TextEncodingDetector.Detect(header[..headerLength], out var preambleLength);
+        var decoder = encoding.GetDecoder();
+
+        var carry = "";
+        var lineNumber = 1;
+        var readBuffer = new byte[BlockChars];
+        var charBuffer = new char[encoding.GetMaxCharCount(BlockChars)];
+        var pending = header.AsMemory(preambleLength, headerLength - preambleLength);
+
+        while (pending.Length > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var decoded = decoder.GetChars(pending.Span, charBuffer, flush: false);
+            carry += new string(charBuffer, 0, decoded);
+
+            var hit = ConsumeLines(pattern, ref carry, ref lineNumber);
+            if (hit.Found) return hit;
+
+            if (carry.Length >= MaxLineLength)
+            {
+                hit = MatchLine(pattern, carry, lineNumber);
+                if (hit.Found) return hit;
+                carry = "";
+            }
+
+            var read = await stream.ReadAsync(readBuffer, ct).ConfigureAwait(false);
+            pending = read == 0 ? Memory<byte>.Empty : readBuffer.AsMemory(0, read);
+        }
+
+        // Flush any decoder state left over from a multi-byte sequence split across the very last
+        // block boundary.
+        var flushed = decoder.GetChars(ReadOnlySpan<byte>.Empty, charBuffer, flush: true);
+        if (flushed > 0) carry += new string(charBuffer, 0, flushed);
+
+        var finalHit = ConsumeLines(pattern, ref carry, ref lineNumber);
+        if (finalHit.Found) return finalHit;
+
+        // A file with no trailing newline still has one last line worth checking.
+        return carry.Length > 0 ? MatchLine(pattern, carry, lineNumber) : ContentHit.None;
+    }
+
+    /// <summary>Matches and removes every complete line currently in <paramref name="carry"/>,
+    /// leaving the trailing partial line (if any) for the next block. <c>\r\n</c> counts as one
+    /// line break, matching <see cref="CountLines"/>'s own convention below.</summary>
+    private static ContentHit ConsumeLines(Regex pattern, ref string carry, ref int lineNumber)
+    {
+        while (true)
+        {
+            var idx = carry.IndexOfAny(['\n', '\r']);
+            if (idx < 0) return ContentHit.None;
+
+            var hit = MatchLine(pattern, carry[..idx], lineNumber);
+            if (hit.Found) return hit;
+
+            lineNumber++;
+            var advance = idx + 1;
+            if (carry[idx] == '\r' && advance < carry.Length && carry[advance] == '\n')
+                advance++;
+            carry = carry[advance..];
+        }
+    }
+
+    private static ContentHit MatchLine(Regex pattern, string line, int lineNumber)
+    {
+        Match m;
+        try
+        {
+            m = pattern.Match(line);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return ContentHit.None;
+        }
+        if (!m.Success) return ContentHit.None;
+
+        var display = line.Trim();
+        if (display.Length > MaxPreviewLength) display = display[..MaxPreviewLength] + "…";
+        return new ContentHit(true, lineNumber, display);
     }
 
     /// <summary>

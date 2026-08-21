@@ -441,21 +441,6 @@ public sealed class LocalizationService
         _strings["Settings.Hotkeys.PressKeys"] = "Press a key combination…";
         _strings["Settings.Hotkeys.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
 
-        // ═══ Search ═══
-        _strings["Search.Title"] = "Search";
-        _strings["Search.Path"] = "Path:";
-        _strings["Search.Pattern"] = "File mask:";
-        _strings["Search.Content"] = "Containing text:";
-        _strings["Search.CaseSensitive"] = "Case sensitive";
-        _strings["Search.UseRegex"] = "Regular expression";
-        _strings["Search.Subdirs"] = "Search subdirectories";
-        _strings["Search.Start"] = "Search";
-        _strings["Search.Stop"] = "Stop";
-        _strings["Search.Results"] = "Results";
-        _strings["Search.Found"] = "Found {0} file(s)";
-        _strings["Search.Searching"] = "Searching…";
-        _strings["Search.NoResults"] = "No files found";
-
         // ═══ Bookmarks ═══
         _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
         _strings["Menu.Commands.Find"] = "Search...";
@@ -465,6 +450,9 @@ public sealed class LocalizationService
         _strings["Find.MatchCase"] = "Match case";
         _strings["Find.WholeWord"] = "Whole words only";
         _strings["Find.Subdirectories"] = "Include subfolders";
+        _strings["Find.UseRegex"] = "Regex";
+        _strings["Find.InvalidMaskRegex"] = "The file mask is not a valid regular expression.";
+        _strings["Find.InvalidContentRegex"] = "The content pattern is not a valid regular expression.";
         _strings["Find.Col.Name"] = "Name";
         _strings["Find.Col.Folder"] = "Folder";
         _strings["Find.Col.Size"] = "Size";

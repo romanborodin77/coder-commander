@@ -1,16 +1,27 @@
+using System.Text.RegularExpressions;
 using CoderCommander.FileSystem;
 
 namespace CoderCommander.Services.Search;
 
 /// <summary>What to look for.</summary>
-/// <param name="NameMask">Wildcard masks, <c>;</c>-separated. Empty means every name.</param>
-/// <param name="ContentText">Text that must occur inside the file. Empty means "names only".</param>
+/// <param name="NameMask">Wildcard masks, <c>;</c>-separated, or a single regular expression when
+/// <paramref name="UseRegex"/> is true. Empty means every name.</param>
+/// <param name="ContentText">Text that must occur inside the file - a literal substring, or a
+/// regular expression when <paramref name="UseRegex"/> is true (matched per line - see
+/// <see cref="ContentSearcher.FindRegexAsync"/>'s own doc comment for why regex content search
+/// can't use the same whole-file substring window <see cref="ContentSearcher.FindAsync"/> does).
+/// Empty means "names only".</param>
+/// <param name="UseRegex">Interpret both <paramref name="NameMask"/> and
+/// <paramref name="ContentText"/> as regular expressions instead of a wildcard mask / literal
+/// substring. <paramref name="WholeWord"/> has no effect in this mode - a regex already expresses
+/// word boundaries itself, via <c>\b</c>, when the user wants them.</param>
 public sealed record SearchQuery(
     string NameMask,
     string ContentText = "",
     bool MatchCase = false,
     bool WholeWord = false,
-    bool SearchSubdirectories = true);
+    bool SearchSubdirectories = true,
+    bool UseRegex = false);
 
 /// <summary>One file the search matched.</summary>
 /// <param name="LineNumber">Line of the content match, or 0 for a name-only match.</param>
@@ -41,9 +52,15 @@ public sealed class SearchEngine
     /// <summary>Progress, for a status line. Directories walked, files examined, hits so far.</summary>
     public readonly record struct SearchProgress(int Directories, int FilesExamined, int Hits, string CurrentPath);
 
+    /// <summary>Same bounded timeout as <see cref="FileMask"/>'s own wildcard/regex compile - the
+    /// content pattern is user-typed text too, and a pathological regex must time out per line
+    /// rather than hang the search.</summary>
+    private static readonly TimeSpan ContentMatchTimeout = TimeSpan.FromSeconds(1);
+
     private readonly IFileSystem _fs;
     private readonly SearchQuery _query;
     private readonly FileMask _mask;
+    private readonly Regex? _contentRegex;
 
     private int _directories;
     private int _filesExamined;
@@ -53,8 +70,33 @@ public sealed class SearchEngine
     {
         _fs = fs;
         _query = query;
-        _mask = new FileMask(query.NameMask);
+        _mask = new FileMask(query.NameMask, query.UseRegex, query.MatchCase);
+
+        if (query.UseRegex && query.ContentText.Length > 0)
+        {
+            var opts = RegexOptions.Compiled | (query.MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
+            try
+            {
+                _contentRegex = new Regex(query.ContentText, opts, ContentMatchTimeout);
+            }
+            catch (ArgumentException)
+            {
+                // Invalid regex - IsValid below reports it so the caller can show the compile
+                // error instead of silently running a search that will find nothing.
+                _contentRegex = null;
+                ContentRegexInvalid = true;
+            }
+        }
     }
+
+    /// <summary>False when <see cref="SearchQuery.NameMask"/> failed to compile as a regex - see
+    /// <see cref="FileMask.IsValid"/>. Check before calling <see cref="RunAsync"/>.</summary>
+    public bool IsNameMaskValid => _mask.IsValid;
+
+    /// <summary>True when <see cref="SearchQuery.ContentText"/> failed to compile as a regex (only
+    /// meaningful when <see cref="SearchQuery.UseRegex"/> is true and content text is non-empty).
+    /// Check before calling <see cref="RunAsync"/>.</summary>
+    public bool ContentRegexInvalid { get; }
 
     /// <summary>Whether the search stopped because it reached <see cref="MaxResults"/>.</summary>
     public bool WasTruncated { get; private set; }
@@ -201,9 +243,11 @@ public sealed class SearchEngine
             Interlocked.Increment(ref _filesExamined);
 
             await using var stream = await _fs.OpenReadAsync(entry.FullPath, ct).ConfigureAwait(false);
-            var hit = await ContentSearcher
-                .FindAsync(stream, _query.ContentText, _query.MatchCase, _query.WholeWord, ct)
-                .ConfigureAwait(false);
+            var hit = _contentRegex != null
+                ? await ContentSearcher.FindRegexAsync(stream, _contentRegex, ct).ConfigureAwait(false)
+                : await ContentSearcher
+                    .FindAsync(stream, _query.ContentText, _query.MatchCase, _query.WholeWord, ct)
+                    .ConfigureAwait(false);
 
             if (!hit.Found) return;
 

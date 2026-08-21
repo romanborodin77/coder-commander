@@ -30,15 +30,54 @@ public sealed class FileMask
 
     private readonly Regex[] _patterns;
 
-    /// <summary>Whether this mask accepts everything, in which case matching is skipped entirely.</summary>
-    public bool MatchesEverything => _patterns.Length == 0;
+    /// <summary>Whether this mask accepts everything, in which case matching is skipped entirely.
+    /// False for an invalid regex - see <see cref="IsValid"/> - since that matches nothing, not
+    /// everything.</summary>
+    public bool MatchesEverything => IsValid && _patterns.Length == 0;
 
     /// <summary>The text this mask was built from, for showing back to the user.</summary>
     public string Text { get; }
 
-    public FileMask(string? masks)
+    /// <summary>False only when constructed with <c>useRegex: true</c> and <see cref="Text"/> failed
+    /// to compile as a regex (unbalanced group, bad escape, etc.) - wildcard mode is always valid,
+    /// since <see cref="Compile"/> builds its own regex from escaped literal text and cannot fail on
+    /// arbitrary input. A caller driving a search UI should check this before running the search and
+    /// show the compile error, rather than silently getting zero results from a mask that never
+    /// matches anything (see <see cref="Matches"/>).</summary>
+    public bool IsValid { get; } = true;
+
+    public FileMask(string? masks) : this(masks, useRegex: false, caseSensitive: false) { }
+
+    /// <param name="masks">Wildcard masks (<c>;</c>/<c>,</c>-separated) in the default mode, or a
+    /// single regular expression when <paramref name="useRegex"/> is true - regex mode matches the
+    /// whole <paramref name="masks"/> string as one pattern, never split on separators (a semicolon
+    /// can be a meaningful regex literal, and combining multiple regexes with a separator has no
+    /// single obvious meaning the way wildcard masks' implicit OR does).</param>
+    /// <param name="useRegex">Interpret <paramref name="masks"/> as a regular expression instead of
+    /// wildcards. Unlike wildcard mode (always case-insensitive, matching Windows file name
+    /// semantics), regex mode honors <paramref name="caseSensitive"/> explicitly.</param>
+    public FileMask(string? masks, bool useRegex, bool caseSensitive)
     {
         Text = masks?.Trim() ?? "";
+
+        if (useRegex)
+        {
+            if (Text.Length == 0) { _patterns = []; return; }
+
+            var opts = RegexOptions.Compiled | (caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
+            try
+            {
+                _patterns = [new Regex(Text, opts, MatchTimeout)];
+            }
+            catch (ArgumentException)
+            {
+                // Invalid regex, most often typed live and not finished yet - IsValid false lets
+                // the caller surface this instead of a search that silently finds nothing.
+                _patterns = [];
+                IsValid = false;
+            }
+            return;
+        }
 
         var parts = Text.Split(Separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -49,9 +88,12 @@ public sealed class FileMask
             : parts.Select(Compile).ToArray();
     }
 
-    /// <summary>Whether <paramref name="name"/> matches any mask in the set.</summary>
+    /// <summary>Whether <paramref name="name"/> matches any mask in the set. Always false when
+    /// <see cref="IsValid"/> is false (an invalid regex matches nothing rather than everything -
+    /// the safer default for a mask feeding a selection or a delete filter).</summary>
     public bool Matches(string name)
     {
+        if (!IsValid) return false;
         if (_patterns.Length == 0) return true;
 
         foreach (var pattern in _patterns)

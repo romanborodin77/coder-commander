@@ -32,6 +32,7 @@ public sealed class FindFilesForm : ThemedForm
     private readonly ThemedCheckBox _matchCaseCheck;
     private readonly ThemedCheckBox _wholeWordCheck;
     private readonly ThemedCheckBox _subdirectoriesCheck;
+    private readonly ThemedCheckBox _regexCheck;
     private readonly ListView _results;
     private readonly Label _status;
     private readonly Button _startBtn;
@@ -70,6 +71,7 @@ public sealed class FindFilesForm : ThemedForm
         _matchCaseCheck = UiHelpers.CreateCheckBox(L.GetString("Find.MatchCase"), false);
         _wholeWordCheck = UiHelpers.CreateCheckBox(L.GetString("Find.WholeWord"), false);
         _subdirectoriesCheck = UiHelpers.CreateCheckBox(L.GetString("Find.Subdirectories"), true);
+        _regexCheck = UiHelpers.CreateCheckBox(L.GetString("Find.UseRegex"), false);
 
         _results = UiHelpers.CreateListView(
             (L.GetString("Find.Col.Name"), 200),
@@ -141,7 +143,7 @@ public sealed class FindFilesForm : ThemedForm
             WrapContents = false,
             BackColor = Color.Transparent,
         };
-        foreach (var check in new[] { _matchCaseCheck, _wholeWordCheck, _subdirectoriesCheck })
+        foreach (var check in new[] { _matchCaseCheck, _wholeWordCheck, _subdirectoriesCheck, _regexCheck })
         {
             SizeToText(check);
             check.Margin = new Padding(0, 0, 16, 0);
@@ -234,9 +236,25 @@ public sealed class FindFilesForm : ThemedForm
             _textBox.Text,
             _matchCaseCheck.Checked,
             _wholeWordCheck.Checked,
-            _subdirectoriesCheck.Checked);
+            _subdirectoriesCheck.Checked,
+            _regexCheck.Checked);
 
         var engine = new SearchEngine(_fs, query);
+
+        // Checked before starting rather than left to silently find nothing - see
+        // FileMask.IsValid's own doc comment for why an invalid regex matches nothing instead of
+        // everything, which would otherwise look identical to "search ran, found no matches".
+        if (!engine.IsNameMaskValid)
+        {
+            _status.Text = L.GetString("Find.InvalidMaskRegex");
+            return;
+        }
+        if (engine.ContentRegexInvalid)
+        {
+            _status.Text = L.GetString("Find.InvalidContentRegex");
+            return;
+        }
+
         _cancellation = new CancellationTokenSource();
         _running = true;
         _flushTimer.Start();
@@ -380,6 +398,7 @@ public sealed class FindFilesForm : ThemedForm
             _matchCaseCheck?.Dispose();
             _wholeWordCheck?.Dispose();
             _subdirectoriesCheck?.Dispose();
+            _regexCheck?.Dispose();
             _startBtn?.Dispose();
             _goToBtn?.Dispose();
             _status?.Dispose();

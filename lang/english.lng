@@ -288,21 +288,6 @@ Settings.Hotkeys.ResetAll=Reset All to Defaults
 Settings.Hotkeys.PressKeys=Press a key combination…
 Settings.Hotkeys.ConflictConfirm="{0}" is already used by "{1}". Reassign it to this action instead?
 
-# ═══ Search ═══
-Search.Title=Search
-Search.Path=Path:
-Search.Pattern=File mask:
-Search.Content=Containing text:
-Search.CaseSensitive=Case sensitive
-Search.UseRegex=Regular expression
-Search.Subdirs=Search subdirectories
-Search.Start=Search
-Search.Stop=Stop
-Search.Results=Results
-Search.Found=Found {0} file(s)
-Search.Searching=Searching…
-Search.NoResults=No files found
-
 # ═══ Bookmarks ═══
 Conn.NoProviders=No connection types are available in this build yet.
 Conn.NotConnected=That connection is not open. Open it from the places bar and try again.
@@ -809,6 +794,9 @@ Find.Field.Text=Containing text
 Find.MatchCase=Match case
 Find.WholeWord=Whole words only
 Find.Subdirectories=Include subfolders
+Find.UseRegex=Regex
+Find.InvalidMaskRegex=The file mask is not a valid regular expression.
+Find.InvalidContentRegex=The content pattern is not a valid regular expression.
 Find.Col.Name=Name
 Find.Col.Folder=Folder
 Find.Col.Size=Size
