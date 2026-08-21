@@ -45,7 +45,12 @@ public sealed class LocalFileSystem : IFileSystem
         {
             var result = new List<FileEntry>();
 
-            var dir = new DirectoryInfo(path);
+            // \\?\-prefix a root past MAX_PATH the same way every other LocalFileSystem method
+            // does (audit finding G057) - every entry.FullName below inherits the prefix from this
+            // root, so each is stripped back off before becoming a FileEntry (LongPath's own doc
+            // comment). A no-op for the overwhelmingly common short-path case.
+            var accessible = LongPath.EnsureAccessible(path);
+            var dir = new DirectoryInfo(accessible);
             if (!dir.Exists)
                 return result;
 
@@ -58,7 +63,7 @@ public sealed class LocalFileSystem : IFileSystem
             foreach (var entry in dir.EnumerateFileSystemInfos("*", enumOptions))
             {
                 ct.ThrowIfCancellationRequested();
-                result.Add(FileEntry.FromFileSystemInfo(entry.FullName, entry));
+                result.Add(FileEntry.FromFileSystemInfo(LongPath.StripPrefix(entry.FullName), entry));
             }
 
             return result;
@@ -72,7 +77,11 @@ public sealed class LocalFileSystem : IFileSystem
         {
             var result = new List<FileEntry>();
 
-            var dir = new DirectoryInfo(path);
+            // See EnumerateAsync's own comment - identical \\?\ prefix/strip treatment (audit
+            // finding G057), which matters even more here: a deep recursive walk is exactly where
+            // a path is most likely to cross MAX_PATH partway down, not just at the root.
+            var accessible = LongPath.EnsureAccessible(path);
+            var dir = new DirectoryInfo(accessible);
             if (!dir.Exists)
                 return result;
 
@@ -94,7 +103,7 @@ public sealed class LocalFileSystem : IFileSystem
                     LogService.Warning($"EnumerateDeepAsync: \"{path}\" has more than {MaxDeepEntries} entries; truncating.");
                     break;
                 }
-                result.Add(FileEntry.FromFileSystemInfo(entry.FullName, entry));
+                result.Add(FileEntry.FromFileSystemInfo(LongPath.StripPrefix(entry.FullName), entry));
             }
 
             return result;

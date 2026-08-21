@@ -8,17 +8,15 @@ namespace CoderCommander.FileSystem;
 /// machines; it defaults off. <c>\\?\</c> is the portable fix that works regardless of that
 /// setting, predating it by well over a decade.
 ///
-/// <para><b>Honestly scoped, not a complete fix.</b> Applied at <see cref="LocalFileSystem"/>'s
-/// single-path, non-enumerating methods (exists/create/copy/move/delete/read a specific path) -
-/// where <c>\\?\</c>-prefixing a path and using it for one Win32 call has no other consequence.
-/// Deliberately NOT applied yet to <c>EnumerateAsync</c>/<c>EnumerateDeepAsync</c>: those build
-/// each returned <c>FileEntry.FullPath</c> from <see cref="System.IO.DirectoryInfo.FullName"/>
-/// starting at the enumerated root, so a prefixed root would leak <c>\\?\</c> into every entry's
-/// path shown in the UI and passed to every other method downstream - fixing that correctly means
-/// stripping the prefix back off each result, which needs its own dedicated pass and tests, not a
-/// same-session bolt-on. A user hitting the limit via Flat View or a deep recursive walk is not yet
-/// covered; one hitting it via Ctrl+G to a long path, or a copy/move/pack/unpack whose destination
-/// ends up past the limit, now is.</para>
+/// <para><b>Now also covers tree traversal (audit finding G057).</b> <see cref="LocalFileSystem.EnumerateAsync"/>/
+/// <see cref="LocalFileSystem.EnumerateDeepAsync"/> resolve their root through <see cref="EnsureAccessible"/>
+/// the same as every other method here, but a <c>\\?\</c>-prefixed root makes every yielded
+/// <see cref="System.IO.FileSystemInfo.FullName"/> underneath it carry the prefix too - that would
+/// leak into every <c>FileEntry.FullPath</c> shown in the UI and passed to every other method
+/// downstream if left as-is, so each result is run back through <see cref="StripPrefix"/> before
+/// becoming a <see cref="FileEntry"/>. This is what makes Flat View, the recursive folder-size
+/// calculation, and content search work past the limit, not just Ctrl+G to a long path or a single
+/// copy/move/pack/unpack destination.</para>
 /// </summary>
 public static class LongPath
 {
@@ -47,5 +45,21 @@ public static class LongPath
         return full.StartsWith(@"\\", StringComparison.Ordinal)
             ? @"\\?\UNC\" + full[2..]
             : @"\\?\" + full;
+    }
+
+    /// <summary>
+    /// Inverse of <see cref="EnsureAccessible"/> - removes a <c>\\?\</c> or <c>\\?\UNC\</c> prefix
+    /// if present, restoring the ordinary form every caller outside this file expects to see and
+    /// pass around. A no-op for a path that was never prefixed (the common case, since
+    /// <see cref="EnsureAccessible"/> itself is a no-op below <see cref="SafeLength"/>) - safe to
+    /// call unconditionally on every result of a <c>\\?\</c>-rooted enumeration.
+    /// </summary>
+    public static string StripPrefix(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.Ordinal))
+            return @"\\" + path[8..];
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            return path[4..];
+        return path;
     }
 }
