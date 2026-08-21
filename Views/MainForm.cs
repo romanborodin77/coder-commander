@@ -271,6 +271,7 @@ public sealed class MainForm : Form
         sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.Extension", "settings", "", CommandIds.SetSortColumn, null, "Extension"));
         sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.Size", "settings", "", CommandIds.SetSortColumn, null, "Size"));
         sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.Modified", "settings", "", CommandIds.SetSortColumn, null, "Modified"));
+        sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.Attributes", "settings", "", CommandIds.SetSortColumn, null, "Attributes"));
         sortMenu.DropDownItems.Add(new ToolStripSeparator());
         sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.DirsFirst", "settings", "", CommandIds.SetDirectoriesFirst));
         sortMenu.DropDownItems.Add(Mi("Menu.View.Sort.Descending", "settings", "", CommandIds.SetSortDescending));
@@ -280,6 +281,10 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.View.Hidden", "view", "Ctrl+.", CommandIds.ToggleHidden));
         m.DropDownItems.Add(Mi("Menu.View.ShowExtInName", "view", "", CommandIds.ToggleShowExtensionInName));
+        // Was Ctrl+P-only with no menu entry at all (audit finding G056) - HotkeyManager's own
+        // comment called it a "placeholder" even though the command has worked since it was
+        // registered; only the menu discoverability was ever missing.
+        m.DropDownItems.Add(Mi("Menu.View.FlatView", "view", "Ctrl+P", CommandIds.ToggleFlatView));
         m.DropDownItems.Add(Mi("Menu.View.Refresh", "refresh", "Ctrl+R", CommandIds.Refresh));
         m.DropDownItems.Add(Mi("Menu.View.RefreshDrives", "drive", "Ctrl+Shift+R", CommandIds.RefreshDrives));
 
@@ -921,8 +926,13 @@ public sealed class MainForm : Form
             _vm.RightPanel.ShowHidden = s.ShowHidden;
             _vm.LeftPanel.ShowSystem = s.ShowSystem;
             _vm.RightPanel.ShowSystem = s.ShowSystem;
-            _vm.LeftPanel.IsFlatView = s.FlatView;
-            _vm.RightPanel.IsFlatView = s.FlatView;
+            // Deliberately NOT pushing s.FlatView onto the live panels here (audit finding G056) -
+            // unlike ShowHidden/ShowSystem, Flat View's live per-session control is Ctrl+P/the View
+            // menu, not this dialog; the checkbox here only sets the default a *new* PanelViewModel
+            // reads at startup (see its constructor). Doing this unconditionally on every Settings
+            // save - regardless of whether the user touched the checkbox - used to silently revert
+            // whatever the user had just toggled live via Ctrl+P back to the last value saved to
+            // disk (which, before that checkbox existed, was only ever written at app close).
             _leftPanel.RefreshFromViewModel();
             _rightPanel.RefreshFromViewModel();
             _cachedTerminalFollow = s.TerminalFollowPanelCwd;

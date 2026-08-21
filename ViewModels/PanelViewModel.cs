@@ -893,8 +893,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         FileSystemItem? selectedAfterFilter = null;
         foreach (var item in _allItems)
         {
+            // DisplayName (Flat View's relative path) when set, not the bare file Name - otherwise
+            // typing part of a Flat View entry's PATH into the filter (what's actually on screen)
+            // fails to match it (audit finding G056).
             var isVisible = string.IsNullOrEmpty(Filter) || item.IsParent ||
-                item.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase);
+                (item.DisplayName ?? item.Name).Contains(Filter, StringComparison.OrdinalIgnoreCase);
             if (isVisible)
             {
                 visible.Add(item);
@@ -1208,7 +1211,11 @@ sealed class FileComparer(bool dirsFirst, string column, bool descending) : ICom
             // different, equally-arbitrary order. The mask at least groups identical attribute sets
             // together and is stable across the R/H/S/A letters used for display.
             "Attributes" => ((int)x.Attributes).CompareTo((int)y.Attributes),
-            _ => string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase)
+            // DisplayName (Flat View's relative path), not the bare file Name - otherwise a Flat
+            // View listing sorts by each entry's own leaf name while the column actually shows the
+            // relative path, producing an order that doesn't match what's on screen (audit finding
+            // G056).
+            _ => string.Compare(x.DisplayName ?? x.Name, y.DisplayName ?? y.Name, StringComparison.OrdinalIgnoreCase)
         };
 
         if (result != 0)
@@ -1219,6 +1226,6 @@ sealed class FileComparer(bool dirsFirst, string column, bool descending) : ICom
         // with no visible cause - toggling DirectoriesFirst, a FileSystemWatcher-triggered
         // RefreshAsync, etc. Always ascending by name regardless of `descending`, so ties settle
         // into one consistent order no matter which direction the primary sort runs.
-        return column == "Name" ? 0 : string.Compare(x.Name, y.Name, StringComparison.OrdinalIgnoreCase);
+        return column == "Name" ? 0 : string.Compare(x.DisplayName ?? x.Name, y.DisplayName ?? y.Name, StringComparison.OrdinalIgnoreCase);
     }
 }

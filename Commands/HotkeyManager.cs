@@ -173,7 +173,7 @@ public sealed class HotkeyManager
         // Panel
         Register(Keys.Control | Keys.U, CommandIds.SwapPanels);
         Register(Keys.Control | Keys.OemPeriod, CommandIds.ToggleHidden); // Ctrl+.
-        Register(Keys.Control | Keys.P, CommandIds.ToggleFlatView); // Ctrl+P placeholder
+        Register(Keys.Control | Keys.P, CommandIds.ToggleFlatView); // Ctrl+P - also in the View menu (Menu.View.FlatView)
         Register(Keys.Alt | Keys.Enter, CommandIds.ShowProperties);
         Register(Keys.Control | Keys.Alt | Keys.Space, CommandIds.CalculateFolderSize);
 

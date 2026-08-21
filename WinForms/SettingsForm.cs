@@ -28,6 +28,7 @@ public sealed class SettingsForm : ThemedForm
             _showStatusBarCheck?.Dispose();
             _showFnButtonsCheck?.Dispose();
             _dirsFirstCheck?.Dispose();
+            _flatViewCheck?.Dispose();
             _uiFontDisplayLabel?.Dispose();
             _monoFontDisplayLabel?.Dispose();
             _compressionFormatCombo?.Dispose();
@@ -76,6 +77,7 @@ public sealed class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _showStatusBarCheck;
     private readonly ThemedCheckBox _showFnButtonsCheck;
     private readonly ThemedCheckBox _dirsFirstCheck;
+    private readonly ThemedCheckBox _flatViewCheck;
     private readonly Label _uiFontDisplayLabel;
     private readonly Label _monoFontDisplayLabel;
     private string _workingUiFontFamily;
@@ -231,12 +233,16 @@ public sealed class SettingsForm : ThemedForm
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Appearance"), appearLayout, "Settings.Nav.Appearance"));
 
         // ── Panels section ──
-        var panelsLayout = CreateSectionLayout(rows: 4);
+        var panelsLayout = CreateSectionLayout(rows: 5);
         int prow = 0;
         _showHiddenCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowHidden", s.ShowHidden);
         _showSystemCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowSystem", s.ShowSystem);
         _dirsFirstCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.DirectoriesFirst", s.DirectoriesFirst);
         _showExtInNameCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowExtInName", s.ShowExtensionInName);
+        // Startup default only - Ctrl+P/View menu toggle Flat View live per-session without
+        // touching this (see MainForm.OpenSettings's fix for the round-trip bug this used to have,
+        // audit finding G056).
+        _flatViewCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.FlatView", s.FlatView);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Panels"), panelsLayout, "Settings.Nav.Panels"));
 
@@ -1000,6 +1006,7 @@ public sealed class SettingsForm : ThemedForm
         s.Language = langCode;
         s.ShowHidden = _showHiddenCheck.Checked;
         s.ShowSystem = _showSystemCheck.Checked;
+        s.FlatView = _flatViewCheck.Checked;
         s.ShowToolbar = _showToolbarCheck.Checked;
         s.ShowStatusBar = _showStatusBarCheck.Checked;
         s.ShowFunctionButtons = _showFnButtonsCheck.Checked;

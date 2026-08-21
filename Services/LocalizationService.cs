@@ -219,9 +219,11 @@ public sealed class LocalizationService
         _strings["Menu.View.Sort.Extension"] = "E&xtension";
         _strings["Menu.View.Sort.Size"] = "&Size";
         _strings["Menu.View.Sort.Modified"] = "Date &modified";
+        _strings["Menu.View.Sort.Attributes"] = "&Attributes";
         _strings["Menu.View.Sort.DirsFirst"] = "&Directories first";
         _strings["Menu.View.Sort.Descending"] = "&Descending";
         _strings["Menu.View.ShowExtInName"] = "Show e&xtension in name";
+        _strings["Menu.View.FlatView"] = "&Flat View (recursive listing)";
         _strings["Language.English"] = "English";
         _strings["Language.Russian"] = "Русский";
 
@@ -393,6 +395,7 @@ public sealed class LocalizationService
         _strings["Settings.ShowCommandLine"] = "Show command line";
         _strings["Settings.ShowFunctionButtons"] = "Show function buttons";
         _strings["Settings.DirectoriesFirst"] = "Directories first";
+        _strings["Settings.FlatView"] = "Flat View by default";
         _strings["Settings.UiFont"] = "UI font:";
         _strings["Settings.MonoFont"] = "Monospace font:";
         _strings["Settings.Font.Change"] = "Change…";
