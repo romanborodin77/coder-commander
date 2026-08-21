@@ -646,6 +646,8 @@ Archive.OpenUnsupported=Файл внутри архива пока нельзя
 Archive.ConfirmWriteBack=«{0}» был изменён во время просмотра. Сохранить изменения обратно?
 Archive.WriteBackFailed=Не удалось сохранить изменения обратно в «{0}».\n\n{1}
 Archive.ConfirmDownload=«{0}» весит {1}. Скачать копию, чтобы просмотреть?
+Archive.MaterializingTitle=Загрузка архива
+Archive.MaterializingMessage=Загрузка «{0}»…
 Archive.SplitUnsupported=Разбивка недоступна для элементов архива. Сначала извлеките файл.
 Archive.CombineUnsupported=Сборка недоступна для элементов архива. Сначала извлеките части.
 

@@ -624,6 +624,8 @@ Archive.OpenUnsupported=Files inside an archive cannot be opened in place yet. E
 Archive.ConfirmWriteBack="{0}" was changed while browsing it. Save the changes back?
 Archive.WriteBackFailed=Could not save changes back to "{0}".\n\n{1}
 Archive.ConfirmDownload="{0}" is {1}. Download a copy to browse it?
+Archive.MaterializingTitle=Downloading archive
+Archive.MaterializingMessage=Downloading "{0}"...
 Archive.SplitUnsupported=Splitting is not available for archive entries. Extract the file first.
 Archive.CombineUnsupported=Combining is not available for archive entries. Extract the parts first.
 

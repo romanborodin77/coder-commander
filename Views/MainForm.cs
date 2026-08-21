@@ -1964,8 +1964,10 @@ public sealed class MainForm : Form
         var originFs = panel.ViewModel.CurrentFileSystem;
         FileSystem.Materialization.MaterializedFile materialized;
 
+        MaterializingWaitForm? waitForm = null;
         try
         {
+            var showWaitIndicator = false;
             if (!originFs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             {
                 var info = await originFs.GetFileInfoAsync(item.FullPath);
@@ -1975,11 +1977,24 @@ public sealed class MainForm : Form
                         L.GetString("Archive.ConfirmDownload", item.Name, Utils.FormatUtils.FormatSize(info.Size)),
                         L.GetString("Archive.Title"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
                     if (!confirmed) return;
+                    showWaitIndicator = true;
                 }
             }
 
+            // A large non-local archive can take a while to download before browsing can even
+            // start - give the user a cancel button instead of the previous CancellationToken.None
+            // (audit finding G044), which made this unconditionally uncancellable regardless of
+            // size or connection speed.
+            using var cts = new CancellationTokenSource();
+            if (showWaitIndicator)
+            {
+                waitForm = new MaterializingWaitForm(item.Name);
+                waitForm.CancelClicked += (_, _) => cts.Cancel();
+                waitForm.Show(this);
+            }
+
             materialized = await panel.ViewModel.MaterializeAsync(
-                originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, CancellationToken.None);
+                originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, cts.Token);
         }
         // Was `catch (IOException ex)` only - the caller (OnArchiveEntered) is async void, so
         // anything this doesn't catch becomes an unhandled-exception crash instead of an error
@@ -1992,8 +2007,23 @@ public sealed class MainForm : Form
             StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
             return;
         }
+        catch (OperationCanceledException)
+        {
+            // User cancelled the download via the wait dialog - not an error, just a no-op return.
+            return;
+        }
+        finally
+        {
+            if (waitForm != null)
+            {
+                waitForm.Close();
+                waitForm.Dispose();
+            }
+        }
 
-        var format = ArchiveFormatRegistry.Detect(materialized.LocalPath);
+        // Signature sniff (File.OpenRead + read the header) - off the UI thread so probing a large
+        // or slow-to-stat archive doesn't freeze the window for the duration of the sniff.
+        var format = await Task.Run(() => ArchiveFormatRegistry.Detect(materialized.LocalPath));
         IFileSystem? archiveFs = format?.CreateFileSystem(materialized.LocalPath);
         if (archiveFs == null)
         {

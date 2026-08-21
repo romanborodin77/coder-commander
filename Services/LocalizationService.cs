@@ -823,6 +823,8 @@ public sealed class LocalizationService
         _strings["Archive.ConfirmWriteBack"] = "\"{0}\" was changed while browsing it. Save the changes back?";
         _strings["Archive.WriteBackFailed"] = "Could not save changes back to \"{0}\".\n\n{1}";
         _strings["Archive.ConfirmDownload"] = "\"{0}\" is {1}. Download a copy to browse it?";
+        _strings["Archive.MaterializingTitle"] = "Downloading archive";
+        _strings["Archive.MaterializingMessage"] = "Downloading \"{0}\"...";
         _strings["Archive.SplitUnsupported"] = "Splitting is not available for archive entries. Extract the file first.";
         _strings["Archive.CombineUnsupported"] = "Combining is not available for archive entries. Extract the parts first.";
 

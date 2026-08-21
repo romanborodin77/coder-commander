@@ -384,6 +384,23 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         fs.Position = cdOffset;
         var records = new List<ZipEntryRecord>((int)Math.Min(totalEntries, 1 << 20));
         int entryIndex = 0;
+
+        // Ceiling on how many entries a single listing will parse, independent of what the file's
+        // own EOCD/ZIP64-EOCD record claims (audit finding G044). Without this, a crafted archive
+        // whose ZIP64 locator claims an astronomically large entry count is bounded only by how
+        // many minimal-size fake central-directory headers physically fit in the file - a
+        // maliciously packed few-hundred-MB file can hold tens of millions of them, each becoming a
+        // heap-allocated ZipEntryRecord well before the truncation guard below ever triggers.
+        // Mirrors Operations.UnpackLimits.MaxEntries (200,000) - not referenced directly, since
+        // Archives/FileSystem stays below Operations/ in the dependency layering documented in
+        // CLAUDE.md.
+        const long MaxCentralDirectoryEntries = 200_000;
+        if (totalEntries > MaxCentralDirectoryEntries)
+        {
+            LogService.Warning($"Archive {archivePath}: central directory claims {totalEntries:N0} entries, more than the {MaxCentralDirectoryEntries:N0} this app will list - truncating.");
+            totalEntries = MaxCentralDirectoryEntries;
+        }
+
         for (long i = 0; i < totalEntries; i++)
         {
             var sig = reader.ReadUInt32();
