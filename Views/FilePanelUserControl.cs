@@ -68,8 +68,19 @@ public sealed class FilePanelUserControl : UserControl
 
     private bool _suppressSelectionEvent;
     private bool _updatingItems;
-    private ListViewItem? _hoveredItem;
+    // Index-based, not a ListViewItem reference: in VirtualMode a ListViewItem returned from
+    // HitTest/RetrieveVirtualItem is a transient wrapper, not a stable identity - two calls for the
+    // same logical row are not guaranteed to return the same object, so reference comparisons that
+    // worked before virtualization (audit finding G047) silently stop matching.
+    private int? _hoveredIndex;
     private bool _showExtensionInName = true;
+
+    // Windowed ListViewItem cache for VirtualMode (RetrieveVirtualItem/CacheVirtualItems) - the
+    // standard pattern from the ListView.VirtualMode documentation. Invalidated (set to null)
+    // whenever the underlying model list changes, so a stale cached row is never served after a
+    // refresh, sort, or navigation.
+    private ListViewItem[]? _virtualCache;
+    private int _virtualCacheStart;
 
     /// <summary>The ViewModel that provides data and commands for this panel.</summary>
     public PanelViewModel ViewModel => _vm;
@@ -197,6 +208,14 @@ public sealed class FilePanelUserControl : UserControl
     {
         base.OnHandleCreated(e);
         PopulateDriveBar();
+
+        // See _pendingRebuild's own doc comment - the file-list equivalent of the drive-bar gap
+        // this method already exists to close.
+        if (_pendingRebuild)
+        {
+            _pendingRebuild = false;
+            RebuildList();
+        }
     }
 
     /// <summary>
@@ -315,7 +334,14 @@ public sealed class FilePanelUserControl : UserControl
             Font = p.GridFont,
             BackColor = p.PanelBackground,
             ForeColor = p.Foreground,
-            HeaderStyle = ColumnHeaderStyle.Clickable
+            HeaderStyle = ColumnHeaderStyle.Clickable,
+            // VirtualMode (audit finding G047): a folder with hundreds of thousands of entries
+            // used to materialize one ListViewItem + 5 SubItems for every single row on every
+            // refresh, including FileSystemWatcher-triggered ones - multi-second UI freezes and
+            // millions of objects for a large listing. In VirtualMode the ListView only ever asks
+            // for the rows it's actually about to draw (RetrieveVirtualItem/CacheVirtualItems
+            // below), regardless of how many entries the model holds.
+            VirtualMode = true
         };
         _fileList.HandleCreated += (_, _) => NativeControlThemer.ThemeListView(_fileList);
         _fileList.SelectedIndexChanged += OnSelectedIndexChanged;
@@ -333,6 +359,9 @@ public sealed class FilePanelUserControl : UserControl
         _fileList.DrawSubItem += OnDrawSubItem;
         _fileList.Paint += OnFileListPaint;
         _fileList.Resize += OnFileListResize;
+        _fileList.RetrieveVirtualItem += OnRetrieveVirtualItem;
+        _fileList.CacheVirtualItems += OnCacheVirtualItems;
+        _fileList.SearchForVirtualItem += OnSearchForVirtualItem;
         _fileList.AllowDrop = true;
         _fileList.DragEnter += OnFileListDragEnter;
         _fileList.DragOver += OnFileListDragOver;
@@ -439,9 +468,18 @@ public sealed class FilePanelUserControl : UserControl
         }
     }
 
+    // Set when OnItemsChanged fires before the handle exists (same startup race OnHandleCreated's
+    // own doc comment already describes for the drive bar - the initial NavigateAsync at startup
+    // can complete, and raise ItemsChanged, before this control's handle has been created,
+    // especially for whichever of the two docked panels finishes layout second). Without this, that
+    // very first listing is silently dropped and the panel sits empty until some unrelated event
+    // (a manual Refresh, a theme switch) happens to trigger a rebuild - reproduced consistently for
+    // the panel that isn't SetActivePanel'd at startup (audit finding, Ф4 virtualization pass).
+    private bool _pendingRebuild;
+
     private void OnItemsChanged(object? sender, EventArgs e)
     {
-        if (!IsHandleCreated) return;
+        if (!IsHandleCreated) { _pendingRebuild = true; return; }
         BeginInvoke(RebuildList);
     }
 
@@ -465,6 +503,98 @@ public sealed class FilePanelUserControl : UserControl
 
     // -- List building --
 
+    /// <summary>Builds the (fully populated but otherwise disconnected) row for one model item -
+    /// the single place both <see cref="OnRetrieveVirtualItem"/> and <see cref="OnCacheVirtualItems"/>
+    /// go to construct a row on demand. Never sets <see cref="ListViewItem.Selected"/>/<see cref="ListViewItem.Focused"/>
+    /// - in <see cref="ListView.VirtualMode"/> those are controlled by the native control's own
+    /// per-index state (<see cref="ListView.SelectedIndices"/>/<see cref="ListView.FocusedItem"/>),
+    /// not by whatever a transient row object happens to carry.</summary>
+    private ListViewItem BuildListViewItem(FileSystemItem item)
+    {
+        var displayName = item.IsParent
+            ? (item.DisplayName ?? item.Name)
+            : (_showExtensionInName ? (item.DisplayName ?? item.Name) : (item.DisplayName ?? item.NameWithoutExtension));
+
+        var lvi = new ListViewItem(displayName)
+        {
+            Tag = item,
+            UseItemStyleForSubItems = false,
+            ImageKey = GetFileIconKey(item)
+        };
+
+        lvi.SubItems.Add(item.TypeDisplay);
+        lvi.SubItems.Add(item.SizeDisplay);
+        lvi.SubItems.Add(item.ModifiedDisplay);
+        lvi.SubItems.Add(item.AttributesDisplay);
+        return lvi;
+    }
+
+    /// <summary>VirtualMode callback: the ListView needs the row at <see cref="RetrieveVirtualItemEventArgs.ItemIndex"/>
+    /// to draw or hit-test it. Serves from the small windowed cache <see cref="OnCacheVirtualItems"/>
+    /// maintains when possible, otherwise builds it directly (a cache miss - e.g. a jump via
+    /// Home/End/Ctrl+A on a huge list - is still correct, just not pre-warmed).</summary>
+    private void OnRetrieveVirtualItem(object? sender, RetrieveVirtualItemEventArgs e)
+    {
+        if (_virtualCache != null && e.ItemIndex >= _virtualCacheStart && e.ItemIndex < _virtualCacheStart + _virtualCache.Length)
+        {
+            e.Item = _virtualCache[e.ItemIndex - _virtualCacheStart];
+            return;
+        }
+
+        e.Item = e.ItemIndex >= 0 && e.ItemIndex < _vm.Items.Count
+            ? BuildListViewItem(_vm.Items[e.ItemIndex])
+            : new ListViewItem();
+    }
+
+    /// <summary>VirtualMode callback: the ListView is about to need rows in [StartIndex, EndIndex]
+    /// (typically the visible viewport plus a small margin) - pre-build them once instead of one
+    /// RetrieveVirtualItem call at a time, and drop anything outside that window so the cache stays
+    /// bounded regardless of how large the underlying list is.</summary>
+    private void OnCacheVirtualItems(object? sender, CacheVirtualItemsEventArgs e)
+    {
+        if (_virtualCache != null && e.StartIndex >= _virtualCacheStart && e.EndIndex <= _virtualCacheStart + _virtualCache.Length - 1)
+            return; // requested range is already a subset of what's cached
+
+        _virtualCacheStart = e.StartIndex;
+        var length = e.EndIndex - e.StartIndex + 1;
+        var cache = new ListViewItem[length];
+        for (var i = 0; i < length; i++)
+        {
+            var modelIndex = e.StartIndex + i;
+            if (modelIndex < _vm.Items.Count)
+                cache[i] = BuildListViewItem(_vm.Items[modelIndex]);
+        }
+        _virtualCache = cache;
+    }
+
+    /// <summary>VirtualMode callback backing native keyboard type-ahead ("type a letter to jump to
+    /// a file starting with it") - SysListView32 sends LVN_ODFINDITEM for an owner-data list
+    /// exactly the way a non-virtual ListView resolves the same keystrokes against its own Items
+    /// collection internally. Without handling this, VirtualMode silently drops type-ahead
+    /// entirely (FindItemWithText/FindNearestItem return null per the VirtualMode.SearchForVirtualItem
+    /// documentation) - a real behavior regression from virtualizing this list, not merely a
+    /// missing optimization.</summary>
+    private void OnSearchForVirtualItem(object? sender, SearchForVirtualItemEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Text)) return;
+
+        var items = _vm.Items;
+        var count = items.Count;
+        if (count == 0) return;
+
+        var start = Math.Clamp(e.StartIndex, 0, count - 1);
+        for (var offset = 0; offset < count; offset++)
+        {
+            var idx = (start + offset) % count;
+            var name = items[idx].DisplayName ?? items[idx].Name;
+            if (name.StartsWith(e.Text, StringComparison.OrdinalIgnoreCase))
+            {
+                e.Index = idx;
+                return;
+            }
+        }
+    }
+
     private void RebuildList()
     {
         _updatingItems = true;
@@ -472,45 +602,41 @@ public sealed class FilePanelUserControl : UserControl
 
         var selItem = _vm.SelectedItem;
         var topIndex = _fileList.TopItem?.Index ?? 0;
-        ListViewItem? focusLvi = null;
+
+        // The model changed - any previously cached row would carry a stale display string or
+        // even reference a FileSystemItem the panel no longer shows.
+        _virtualCache = null;
+
+        int? focusIndex = null;
 
         _fileList.BeginUpdate();
         try
         {
-            _fileList.Items.Clear();
+            _fileList.VirtualListSize = _vm.Items.Count;
 
-            foreach (var item in _vm.Items)
+            // Restore selection state from the model - VirtualMode tracks selection by index
+            // natively (SelectedIndices), not via any per-row .Selected a retrieved item carries,
+            // and setting VirtualListSize resets it, so this has to be rebuilt explicitly every
+            // time, the same as the old Items.Clear()+Add() rebuild implicitly required.
+            _fileList.SelectedIndices.Clear();
+            var items = _vm.Items;
+            for (var i = 0; i < items.Count; i++)
             {
-                var displayName = item.IsParent
-                    ? (item.DisplayName ?? item.Name)
-                    : (_showExtensionInName ? (item.DisplayName ?? item.Name) : (item.DisplayName ?? item.NameWithoutExtension));
-
-                var lvi = new ListViewItem(displayName)
-                {
-                    Tag = item,
-                    UseItemStyleForSubItems = false,
-                    ImageKey = GetFileIconKey(item)
-                };
-
-                lvi.SubItems.Add(item.TypeDisplay);
-                lvi.SubItems.Add(item.SizeDisplay);
-                lvi.SubItems.Add(item.ModifiedDisplay);
-                lvi.SubItems.Add(item.AttributesDisplay);
-
-                // Restore selection state from model
+                var item = items[i];
                 if (item.IsSelected)
-                    lvi.Selected = true;
+                    _fileList.SelectedIndices.Add(i);
 
-                _fileList.Items.Add(lvi);
-
-                // Restore focus — use ReferenceEquals instead of Name comparison to handle
-                // FlatView where items from different directories can share the same name.
+                // Restore focus - ReferenceEquals instead of Name comparison to handle FlatView,
+                // where items from different directories can share the same name.
                 if (selItem != null && ReferenceEquals(item, selItem))
-                {
-                    lvi.Selected = true;
-                    lvi.Focused = true;
-                    focusLvi = lvi;
-                }
+                    focusIndex = i;
+            }
+
+            if (focusIndex is { } fi)
+            {
+                _fileList.FocusedItem = _fileList.Items[fi];
+                if (!_fileList.SelectedIndices.Contains(fi))
+                    _fileList.SelectedIndices.Add(fi);
             }
 
             // Restore scroll position so a FileSystemWatcher-triggered refresh doesn't jump to top.
@@ -523,7 +649,8 @@ public sealed class FilePanelUserControl : UserControl
         }
 
         // Ensure the focused item is visible after the list rebuild.
-        focusLvi?.EnsureVisible();
+        if (focusIndex is { } visIndex)
+            _fileList.EnsureVisible(visIndex);
 
         _suppressSelectionEvent = false;
         _updatingItems = false;
@@ -536,33 +663,44 @@ public sealed class FilePanelUserControl : UserControl
         var target = _vm.SelectedItem;
         if (target == null) return;
 
-        foreach (ListViewItem lvi in _fileList.Items)
+        var items = _vm.Items;
+        for (var i = 0; i < items.Count; i++)
         {
-            if (lvi.Tag is FileSystemItem item && item == target)
-            {
-                _suppressSelectionEvent = true;
-                lvi.Selected = true;
-                lvi.Focused = true;
-                lvi.EnsureVisible();
-                _suppressSelectionEvent = false;
-                break;
-            }
+            if (!ReferenceEquals(items[i], target)) continue;
+
+            _suppressSelectionEvent = true;
+            if (!_fileList.SelectedIndices.Contains(i))
+                _fileList.SelectedIndices.Add(i);
+            _fileList.FocusedItem = _fileList.Items[i];
+            _fileList.EnsureVisible(i);
+            _suppressSelectionEvent = false;
+            break;
         }
     }
 
     /// <summary>
-    /// Re-syncs every row's visual .Selected state from item.IsSelected. Needed after bulk
-    /// selection changes (SelectAll/DeselectAll/InvertSelection/pattern select) which mutate
-    /// the model directly without going through the ListView's own selection events.
+    /// Re-syncs the ListView's native selection state from item.IsSelected for every row. Needed
+    /// after bulk selection changes (SelectAll/DeselectAll/InvertSelection/pattern select) which
+    /// mutate the model directly without going through the ListView's own selection events.
     /// </summary>
     private void SyncAllSelectionFromModel()
     {
         if (_updatingItems) return;
         _suppressSelectionEvent = true;
-        foreach (ListViewItem lvi in _fileList.Items)
+        _fileList.BeginUpdate();
+        try
         {
-            if (lvi.Tag is FileSystemItem item)
-                lvi.Selected = item.IsSelected;
+            _fileList.SelectedIndices.Clear();
+            var items = _vm.Items;
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].IsSelected)
+                    _fileList.SelectedIndices.Add(i);
+            }
+        }
+        finally
+        {
+            _fileList.EndUpdate();
         }
         _suppressSelectionEvent = false;
         UpdateStatus();
@@ -577,33 +715,32 @@ public sealed class FilePanelUserControl : UserControl
         // Sync ListView selection state back to model. WinForms fires this event multiple
         // times during a Shift+Click range select — each call iterates all items, but we only
         // update IsSelected on items whose state actually changed (avoids spurious PropertyChanged
-        // notifications that trigger O(n) RecomputeSelectionStats each time).
-        var selectedKeys = new HashSet<FileSystemItem>();
-        foreach (ListViewItem lvi in _fileList.SelectedItems)
+        // notifications that trigger O(n) RecomputeSelectionStats each time). SelectedItems/Items
+        // aren't available in VirtualMode (InvalidOperationException) - SelectedIndices (a native,
+        // Win32-backed index set) is, and is what every VirtualMode ListView sample uses for this.
+        var selectedIndices = new HashSet<int>();
+        foreach (int idx in _fileList.SelectedIndices)
+            selectedIndices.Add(idx);
+
+        var items = _vm.Items;
+        for (var i = 0; i < items.Count; i++)
         {
-            if (lvi.Tag is FileSystemItem sel)
-                selectedKeys.Add(sel);
-        }
-        foreach (ListViewItem lvi in _fileList.Items)
-        {
-            if (lvi.Tag is FileSystemItem item)
-            {
-                var shouldSelect = selectedKeys.Contains(item);
-                if (item.IsSelected != shouldSelect)
-                    item.IsSelected = shouldSelect;
-            }
+            var shouldSelect = selectedIndices.Contains(i);
+            if (items[i].IsSelected != shouldSelect)
+                items[i].IsSelected = shouldSelect;
         }
         _vm.NotifySelectionChanged();
 
         // Update cursor item
-        if (_fileList.SelectedItems.Count > 0 && _fileList.FocusedItem != null)
+        var focused = _fileList.FocusedItem;
+        if (selectedIndices.Count > 0 && focused != null)
         {
-            if (_fileList.FocusedItem.Tag is FileSystemItem item)
+            if (focused.Tag is FileSystemItem item)
             {
                 _vm.SelectedItem = item;
             }
         }
-        else if (_fileList.SelectedItems.Count == 0 && _fileList.FocusedItem == null)
+        else if (selectedIndices.Count == 0 && focused == null)
         {
             _vm.SelectedItem = null;
         }
@@ -688,9 +825,9 @@ public sealed class FilePanelUserControl : UserControl
             if (info.Item != null)
             {
                 _suppressSelectionEvent = true;
-                _fileList.SelectedItems.Clear();
-                info.Item.Selected = true;
-                info.Item.Focused = true;
+                _fileList.SelectedIndices.Clear();
+                _fileList.SelectedIndices.Add(info.Item.Index);
+                _fileList.FocusedItem = info.Item;
                 _suppressSelectionEvent = false;
                 if (info.Item.Tag is FileSystemItem fsItem)
                     _vm.SelectedItem = fsItem;
@@ -713,26 +850,30 @@ public sealed class FilePanelUserControl : UserControl
     private void OnFileListMouseMove(object? sender, MouseEventArgs e)
     {
         var info = _fileList.HitTest(e.Location);
-        var newHovered = info.Item;
-        if (!ReferenceEquals(_hoveredItem, newHovered))
+        var newHoveredIndex = info.Item?.Index is >= 0 ? info.Item.Index : (int?)null;
+        if (_hoveredIndex != newHoveredIndex)
         {
-            var oldHovered = _hoveredItem;
-            _hoveredItem = newHovered;
-            if (oldHovered != null && oldHovered.Index >= 0)
-                _fileList.Invalidate(new Rectangle(0, oldHovered.Bounds.Top, _fileList.ClientSize.Width, oldHovered.Bounds.Height));
-            if (_hoveredItem != null && _hoveredItem.Index >= 0)
-                _fileList.Invalidate(new Rectangle(0, _hoveredItem.Bounds.Top, _fileList.ClientSize.Width, _hoveredItem.Bounds.Height));
+            var oldBounds = _hoveredIndex is { } oldIdx && oldIdx < _fileList.Items.Count ? _fileList.Items[oldIdx].Bounds : (Rectangle?)null;
+            _hoveredIndex = newHoveredIndex;
+            var newBounds = info.Item?.Bounds;
+
+            if (oldBounds is { } ob)
+                _fileList.Invalidate(new Rectangle(0, ob.Top, _fileList.ClientSize.Width, ob.Height));
+            if (newBounds is { } nb)
+                _fileList.Invalidate(new Rectangle(0, nb.Top, _fileList.ClientSize.Width, nb.Height));
         }
     }
 
     private void OnFileListMouseLeave(object? sender, EventArgs e)
     {
-        if (_hoveredItem != null)
+        if (_hoveredIndex is { } idx)
         {
-            var oldHovered = _hoveredItem;
-            _hoveredItem = null;
-            if (oldHovered.Index >= 0)
-                _fileList.Invalidate(new Rectangle(0, oldHovered.Bounds.Top, _fileList.ClientSize.Width, oldHovered.Bounds.Height));
+            _hoveredIndex = null;
+            if (idx < _fileList.Items.Count)
+            {
+                var bounds = _fileList.Items[idx].Bounds;
+                _fileList.Invalidate(new Rectangle(0, bounds.Top, _fileList.ClientSize.Width, bounds.Height));
+            }
         }
     }
 
@@ -783,10 +924,13 @@ public sealed class FilePanelUserControl : UserControl
     {
         if (e.Button != MouseButtons.Left) return;
 
+        // SelectedItems is unavailable in VirtualMode (InvalidOperationException) - SelectedIndices
+        // (native, Win32-backed) mapped against the model list stands in for it.
         var items = new List<FileSystemItem>();
-        foreach (ListViewItem lvi in _fileList.SelectedItems)
+        var vmItems = _vm.Items;
+        foreach (int idx in _fileList.SelectedIndices)
         {
-            if (lvi.Tag is FileSystemItem item && !item.IsParent)
+            if (idx >= 0 && idx < vmItems.Count && vmItems[idx] is { IsParent: false } item)
                 items.Add(item);
         }
 
@@ -887,29 +1031,30 @@ public sealed class FilePanelUserControl : UserControl
         return hit.Item?.Tag is FileSystemItem { IsDirectory: true, IsParent: false } folder ? folder : null;
     }
 
-    private ListViewItem? _dropHighlight;
+    private int? _dropHighlightIndex;
 
     private void HighlightDropTarget(FileSystemItem? folder)
     {
-        ListViewItem? target = null;
+        // Index-based (see _hoveredIndex's own comment) - folder identity is looked up against the
+        // model list directly rather than scanning ListView.Items, which VirtualMode disallows
+        // enumerating anyway.
+        int? target = null;
         if (folder != null)
         {
-            foreach (ListViewItem lvi in _fileList.Items)
+            var items = _vm.Items;
+            for (var i = 0; i < items.Count; i++)
             {
-                if (ReferenceEquals(lvi.Tag, folder)) { target = lvi; break; }
+                if (ReferenceEquals(items[i], folder)) { target = i; break; }
             }
         }
 
-        if (ReferenceEquals(_dropHighlight, target)) return;
+        if (_dropHighlightIndex == target) return;
 
-        _dropHighlight = target;
+        _dropHighlightIndex = target;
+        // OnDrawSubItem recomputes back/fore color purely from isDropTarget/isSelected/isHovered -
+        // it never reads a ListViewItem's own BackColor/ForeColor, so there is nothing further to
+        // set here beyond the repaint RefreshItemColors triggers.
         RefreshItemColors();
-
-        if (target != null)
-        {
-            target.BackColor = ThemeService.Current.Selection;
-            target.ForeColor = ThemeService.Current.SelectionForeground;
-        }
     }
 
     // -- Context menu --
@@ -1363,8 +1508,8 @@ public sealed class FilePanelUserControl : UserControl
         var lvi = e.Item!;
         var item = lvi.Tag as FileSystemItem;
         var isSelected = lvi.Selected;
-        var isDropTarget = ReferenceEquals(_dropHighlight, lvi);
-        var isHovered = _hoveredItem == lvi;
+        var isDropTarget = _dropHighlightIndex == lvi.Index;
+        var isHovered = _hoveredIndex == lvi.Index;
 
         Color backColor;
         Color foreColor;
