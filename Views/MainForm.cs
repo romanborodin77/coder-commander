@@ -2011,6 +2011,12 @@ public sealed class MainForm : Form
         }
 
         var originFs = panel.ViewModel.CurrentFileSystem;
+        // Stamped before any await below - if materialization takes long enough (a large/remote
+        // archive) for the user to navigate this same panel elsewhere in the meantime, that
+        // manual navigation must win instead of being silently overwritten once the download
+        // finally finishes. See PanelViewModel.NavSeq's own doc comment for why NavigateAsync's
+        // own sequence guard can't catch this by itself.
+        var navSeqAtStart = panel.ViewModel.NavSeq;
         FileSystem.Materialization.MaterializedFile materialized;
 
         MaterializingWaitForm? waitForm = null;
@@ -2088,6 +2094,16 @@ public sealed class MainForm : Form
         // anything worth offering to write back.
         if (!materialized.IsPassthrough)
             archiveFs = new DirtyTrackingFileSystem(archiveFs, materialized.MarkDirty);
+
+        if (panel.ViewModel.NavSeq != navSeqAtStart)
+        {
+            // The panel navigated elsewhere (Backspace, a bookmark, a typed path...) while this
+            // archive was being materialized/detected - committing now would silently teleport
+            // the user back into an archive they've already moved away from. The download itself
+            // isn't wasted work in vain: it's simply moot, same as a cancelled one.
+            materialized.Dispose();
+            return;
+        }
 
         try
         {

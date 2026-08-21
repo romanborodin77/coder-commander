@@ -118,6 +118,17 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         set => _fs = value;
     }
 
+    /// <summary>Current value of <see cref="_navSeq"/> - the same navigation-freshness stamp
+    /// <see cref="NavigateAsync"/>/<see cref="GoBackAsync"/>/<see cref="GoForwardAsync"/> already
+    /// use to resolve two overlapping calls to themselves. Exposed so a caller whose own async
+    /// work sits entirely OUTSIDE those methods (<c>MainForm.EnterArchiveAsync</c> materializing a
+    /// remote archive before it ever calls <see cref="NavigateAsync"/>) can tell, once that work
+    /// finishes, whether the user navigated this panel somewhere else in the meantime - the
+    /// in-method stamp alone can't catch this, since it is only claimed at the top of
+    /// <see cref="NavigateAsync"/> itself, which for that caller happens after the slow part is
+    /// already done.</summary>
+    public long NavSeq => Interlocked.Read(ref _navSeq);
+
     /// <summary>
     /// <c>true</c> when this panel is looking at a virtual tree rather than the real filesystem -
     /// inside an archive of any format, OR on a remote connection (FTP/SFTP/WebDAV). Named
