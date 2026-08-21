@@ -596,6 +596,7 @@ public sealed class LocalizationService
         _strings["Ctx.Delete"] = "Delete";
         _strings["Ctx.Split"] = "Split into parts...";
         _strings["Ctx.Combine"] = "Combine from parts...";
+        _strings["Ctx.VerifyChecksum"] = "Verify checksums...";
         _strings["Ctx.Properties"] = "Properties";
         _strings["Ctx.CreateLink"] = "Create Link";
         _strings["Ctx.CreateSymlink"] = "Symbolic Link…";
@@ -906,6 +907,15 @@ public sealed class LocalizationService
         _strings["Checksum.ExportDone"] = "Exported to {0}";
         _strings["Checksum.ExportFailed"] = "Export failed: {0}";
         _strings["Checksum.NothingToExport"] = "Nothing to export — no valid hashes.";
+        _strings["ChecksumVerify.Title"] = "Verify — {0}";
+        _strings["ChecksumVerify.Status"] = "Status";
+        _strings["ChecksumVerify.Verifying"] = "Verifying…";
+        _strings["ChecksumVerify.Ok"] = "OK";
+        _strings["ChecksumVerify.Mismatch"] = "Mismatch";
+        _strings["ChecksumVerify.Missing"] = "Missing";
+        _strings["ChecksumVerify.NoEntries"] = "No entries found in this checksum file.";
+        _strings["ChecksumVerify.AllOk"] = "All {0} file(s) verified OK.";
+        _strings["ChecksumVerify.Summary"] = "{0}/{1} OK — {2} mismatched, {3} missing";
         _strings["Menu.Commands.Checksum"] = "Calculate &Checksum…";
 
         // ═══ Differ ═══

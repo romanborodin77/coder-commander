@@ -121,6 +121,11 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when Properties is requested from context menu.</summary>
     public event EventHandler? PropertiesRequested;
 
+    /// <summary>Raised from the context menu's "Verify checksums" item, only shown when the
+    /// selected item's extension is one of the formats <see cref="Services.ChecksumService"/> can
+    /// export/parse (<c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/<c>.sha256</c>).</summary>
+    public event EventHandler<FileSystemItem>? VerifyChecksumRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -1208,6 +1213,13 @@ public sealed class FilePanelUserControl : UserControl
         {
             CtxItem(menu, "Ctx.Combine", "combine", () => CombineRequested?.Invoke(this, EventArgs.Empty));
         }
+        // "Verify checksums..." only for a recognized checksum-file extension - showing it
+        // unconditionally would just error out parsing an unrelated file.
+        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } checksumItem &&
+            IsChecksumFileExtension(checksumItem.Extension))
+        {
+            CtxItem(menu, "Ctx.VerifyChecksum", "properties", () => VerifyChecksumRequested?.Invoke(this, checksumItem));
+        }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
 
@@ -1233,6 +1245,12 @@ public sealed class FilePanelUserControl : UserControl
     /// the "Combine from parts..." context menu item.</summary>
     private static readonly System.Text.RegularExpressions.Regex SplitPartNameRegex =
         new(@"\.\d{3,}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Whether <paramref name="extension"/> (lowercase, dot-inclusive - see
+    /// <see cref="FileSystem.FileEntry.GetExtension"/>) is one of the formats
+    /// <see cref="Services.ChecksumService"/> exports/parses.</summary>
+    private static bool IsChecksumFileExtension(string extension) =>
+        extension is ".sfv" or ".md5" or ".sha1" or ".sha256";
 
     private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action)
     {

@@ -565,6 +565,20 @@ public sealed class MainForm : Form
         panel.PropertiesRequested += (_, _) => _vm.Commands.Execute(CommandIds.ShowProperties);
         panel.SplitRequested += (_, _) => _vm.Commands.Execute(CommandIds.SplitFile);
         panel.CombineRequested += (_, _) => _vm.Commands.Execute(CommandIds.CombineFiles);
+        panel.VerifyChecksumRequested += (_, item) => OnVerifyChecksum(panel, item);
+    }
+
+    /// <summary>Opens <see cref="ChecksumVerifyForm"/> for a <c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/
+    /// <c>.sha256</c> file selected via the panel's own "Verify checksums" context menu item -
+    /// <see cref="Services.ChecksumService.VerifyAsync"/> was already fully implemented for
+    /// computing/exporting checksums but had no read/compare counterpart or UI entry point.</summary>
+    private void OnVerifyChecksum(FilePanelUserControl panel, FileSystemItem item)
+    {
+#pragma warning disable CA2000 // see the comment on OpenDirectoryTree() above
+        var dlg = new ChecksumVerifyForm(panel.ViewModel.CurrentFileSystem, item.FullPath);
+#pragma warning restore CA2000
+        dlg.FormClosed += (_, _) => dlg.Dispose();
+        dlg.Show(this);
     }
 
     private void OnItemsDropped(object? sender, PanelDropEventArgs e)

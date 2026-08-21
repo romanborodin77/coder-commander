@@ -401,6 +401,7 @@ Ctx.Rename=Rename
 Ctx.Delete=Delete
 Ctx.Split=Split into parts...
 Ctx.Combine=Combine from parts...
+Ctx.VerifyChecksum=Verify checksums...
 Ctx.Properties=Properties
 Ctx.CreateLink=Create Link
 Ctx.CreateSymlink=Symbolic Link…
@@ -708,6 +709,15 @@ Checksum.Export=Export…
 Checksum.ExportDone=Exported to {0}
 Checksum.ExportFailed=Export failed: {0}
 Checksum.NothingToExport=Nothing to export — no valid hashes.
+ChecksumVerify.Title=Verify — {0}
+ChecksumVerify.Status=Status
+ChecksumVerify.Verifying=Verifying…
+ChecksumVerify.Ok=OK
+ChecksumVerify.Mismatch=Mismatch
+ChecksumVerify.Missing=Missing
+ChecksumVerify.NoEntries=No entries found in this checksum file.
+ChecksumVerify.AllOk=All {0} file(s) verified OK.
+ChecksumVerify.Summary={0}/{1} OK — {2} mismatched, {3} missing
 
 # ═══ Differ ═══
 Differ.Title=File Compare

@@ -423,6 +423,7 @@ Ctx.Rename=Переименовать
 Ctx.Delete=Удалить
 Ctx.Split=Разбить на части...
 Ctx.Combine=Собрать из частей...
+Ctx.VerifyChecksum=Проверить контрольные суммы...
 Ctx.Properties=Свойства
 Ctx.CreateLink=Создать ссылку
 Ctx.CreateSymlink=Символическая ссылка…
@@ -730,6 +731,15 @@ Checksum.Export=Экспорт…
 Checksum.ExportDone=Экспортировано в {0}
 Checksum.ExportFailed=Ошибка экспорта: {0}
 Checksum.NothingToExport=Нечего экспортировать — нет корректных хешей.
+ChecksumVerify.Title=Проверка — {0}
+ChecksumVerify.Status=Статус
+ChecksumVerify.Verifying=Проверка…
+ChecksumVerify.Ok=OK
+ChecksumVerify.Mismatch=Не совпадает
+ChecksumVerify.Missing=Отсутствует
+ChecksumVerify.NoEntries=В файле контрольных сумм не найдено ни одной записи.
+ChecksumVerify.AllOk=Все {0} файл(ов) проверены успешно.
+ChecksumVerify.Summary={0}/{1} OK — {2} не совпадает, {3} отсутствует
 Menu.Commands.Checksum=Рассчитать &контрольную сумму…
 
 # ═══ Сравнение файлов ═══
