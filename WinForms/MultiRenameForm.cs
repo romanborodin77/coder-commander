@@ -21,6 +21,9 @@ public sealed class MultiRenameForm : ThemedForm
     private TextBox _extBox = null!;
     private NumericUpDown _startIndex = null!;
     private NumericUpDown _stepIndex = null!;
+    private TextBox _findBox = null!;
+    private TextBox _replaceBox = null!;
+    private ThemedCheckBox _regexCheck = null!;
     private ListView _previewList = null!;
     private Button _okBtn = null!;
     private Button _cancelBtn = null!;
@@ -56,7 +59,7 @@ public sealed class MultiRenameForm : ThemedForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 6,
+            RowCount = 8,
             Padding = new Padding(16, 16, 16, 8),
             BackColor = p.Background
         };
@@ -66,6 +69,8 @@ public sealed class MultiRenameForm : ThemedForm
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -152,6 +157,49 @@ public sealed class MultiRenameForm : ThemedForm
         layout.Controls.Add(counterPanel, 1, row);
         row++;
 
+        // Find/Replace - an extra pass applied to the name AFTER placeholder substitution (same
+        // order "Advanced Renamer"-style tools use), not a placeholder itself. Empty Find is a
+        // no-op, so existing patterns using only [N]/[C]/etc. are unaffected by default.
+        var lblFind = UiHelpers.CreateLabel(L.GetString("MultiRename.Find"), bold: true);
+        lblFind.Dock = DockStyle.Fill;
+        lblFind.TextAlign = ContentAlignment.MiddleLeft;
+        layout.Controls.Add(lblFind, 0, row);
+
+        _findBox = UiHelpers.CreateTextBox();
+        _findBox.Dock = DockStyle.Fill;
+        _findBox.TextChanged += (_, _) => UpdatePreview();
+        layout.Controls.Add(_findBox, 1, row);
+        row++;
+
+        var lblReplace = UiHelpers.CreateLabel(L.GetString("MultiRename.Replace"), bold: true);
+        lblReplace.Dock = DockStyle.Fill;
+        lblReplace.TextAlign = ContentAlignment.MiddleLeft;
+        layout.Controls.Add(lblReplace, 0, row);
+
+        var replacePanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = Color.Transparent
+        };
+        replacePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        replacePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        _replaceBox = UiHelpers.CreateTextBox();
+        _replaceBox.Dock = DockStyle.Fill;
+        _replaceBox.TextChanged += (_, _) => UpdatePreview();
+        replacePanel.Controls.Add(_replaceBox, 0, 0);
+
+        _regexCheck = UiHelpers.CreateCheckBox(L.GetString("MultiRename.UseRegex"));
+        _regexCheck.Margin = new Padding(12, 5, 0, 0);
+        _regexCheck.AutoSize = true;
+        _regexCheck.CheckedChanged += (_, _) => UpdatePreview();
+        replacePanel.Controls.Add(_regexCheck, 1, 0);
+
+        layout.Controls.Add(replacePanel, 1, row);
+        row++;
+
         // Hint
         _hintLabel = UiHelpers.CreateLabel(L.GetString("MultiRename.Hint"), false);
         _hintLabel.Dock = DockStyle.Fill;
@@ -193,6 +241,9 @@ public sealed class MultiRenameForm : ThemedForm
             _extBox.Text = "[E]";
             _startIndex.Value = 1;
             _stepIndex.Value = 1;
+            _findBox.Text = "";
+            _replaceBox.Text = "";
+            _regexCheck.Checked = false;
         };
 
         var bottomPanel = CreateBottomPanel(_okBtn, _cancelBtn, _resetBtn);
@@ -273,7 +324,41 @@ public sealed class MultiRenameForm : ThemedForm
         var name = ReplacePlaceholders(pattern, baseName, baseExt, item, index, startValue, step, now);
         var ext = ReplacePlaceholders(extPattern, baseName, baseExt, item, index, startValue, step, now);
 
+        // Find/Replace is a second pass over the already-placeholder-resolved name, not a
+        // placeholder itself - lets "replace every underscore with a space" work regardless of
+        // which placeholders built the name in the first place.
+        name = ApplyFindReplace(name, _findBox.Text, _replaceBox.Text, _regexCheck.Checked);
+
         return (name, ext);
+    }
+
+    /// <summary>Applies the Find/Replace pass to <paramref name="name"/>. An empty
+    /// <paramref name="find"/> is a no-op. Regex mode uses a bounded <see cref="Regex.Replace(string,string,string,RegexOptions,TimeSpan)"/>
+    /// match timeout - same defensive pattern as <see cref="Services.Search.FileMask"/>'s own
+    /// wildcard-to-regex compile (audit finding F002), since a pattern typed live into a text box,
+    /// character by character, can transiently be catastrophically backtracking mid-edit. An
+    /// invalid regex (unbalanced group, bad escape - also typed live, mid-edit) or a timeout both
+    /// fall back to the unmodified name rather than crashing the preview or leaving it stuck on a
+    /// stale value.</summary>
+    private static string ApplyFindReplace(string name, string find, string replace, bool useRegex)
+    {
+        if (find.Length == 0) return name;
+
+        if (!useRegex)
+            return name.Replace(find, replace, StringComparison.Ordinal);
+
+        try
+        {
+            return Regex.Replace(name, find, replace, RegexOptions.None, TimeSpan.FromSeconds(1));
+        }
+        catch (ArgumentException)
+        {
+            return name;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return name;
+        }
     }
 
     /// <summary>Replaces all recognized placeholders in a pattern string with their computed values.</summary>
@@ -469,6 +554,9 @@ public sealed class MultiRenameForm : ThemedForm
             _extBox?.Dispose();
             _startIndex?.Dispose();
             _stepIndex?.Dispose();
+            _findBox?.Dispose();
+            _replaceBox?.Dispose();
+            _regexCheck?.Dispose();
             _previewList?.Dispose();
             _hintLabel?.Dispose();
             _okBtn?.Dispose();

@@ -448,6 +448,9 @@ MultiRename.Pattern=Шаблон:
 MultiRename.Extension=Расширение:
 MultiRename.StartAt=Начало счётчика:
 MultiRename.Step=Шаг:
+MultiRename.Find=Найти:
+MultiRename.Replace=Заменить:
+MultiRename.UseRegex=Regex
 MultiRename.Hint=[N]=имя  [E]=расш  [N3]=первые 3 симв  [N-3]=последние 3  [C]=счётчик  [C2:10]=ширина 2 старт 10  [D]=дата  [T]=время  [P]=родительский каталог
 MultiRename.OldName=Старое имя
 MultiRename.NewName=Новое имя

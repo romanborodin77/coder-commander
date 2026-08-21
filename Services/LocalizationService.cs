@@ -621,6 +621,9 @@ public sealed class LocalizationService
         _strings["MultiRename.Extension"] = "Extension:";
         _strings["MultiRename.StartAt"] = "Counter start:";
         _strings["MultiRename.Step"] = "Step:";
+        _strings["MultiRename.Find"] = "Find:";
+        _strings["MultiRename.Replace"] = "Replace:";
+        _strings["MultiRename.UseRegex"] = "Regex";
         _strings["MultiRename.Hint"] = "[N]=name  [E]=ext  [N3]=first 3 chars  [N-3]=last 3  [C]=counter  [C2:10]=width 2 start 10  [D]=date  [T]=time  [P]=parent dir";
         _strings["MultiRename.OldName"] = "Old Name";
         _strings["MultiRename.NewName"] = "New Name";
