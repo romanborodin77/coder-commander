@@ -1061,15 +1061,20 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     /// <summary>
     /// Batch delete: removes multiple entries in a single archive open/close cycle.
     /// More efficient than calling <see cref="DeleteAsync"/> repeatedly.
+    ///
+    /// Resolves every path against the cached <see cref="ZipDirectory.Index"/> (O(children) per
+    /// path, not the O(n) scan-per-path this used to be - deleting 5,000 selected items from a
+    /// 500k-entry ZIP used to be 2.5x10^9 string comparisons before a single byte was rewritten)
+    /// and only opens <see cref="OpenForUpdate"/> - a full byte-for-byte copy of the archive -
+    /// once something has actually been resolved to delete, same reasoning as
+    /// <see cref="CreateDirectoryAsync"/>'s no-op check.
     /// </summary>
     public Task DeleteBatchAsync(IReadOnlyList<string> paths, bool recursive, CancellationToken ct = default) => Task.Run(() =>
     {
         if (paths.Count == 0)
             return;
 
-        using var session = OpenForUpdate(_archivePath);
-        var zip = session.Archive;
-
+        var dir = ReadDirectory(_archivePath);
         var toDelete = new HashSet<int>();
 
         foreach (var path in paths)
@@ -1078,51 +1083,25 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
             var (_, innerPath) = CoderCommander.FileSystem.ArchivePath.SplitPath(path);
             innerPath = innerPath.Replace('\\', '/').Trim('/');
-
             if (string.IsNullOrEmpty(innerPath))
                 continue;
 
-            if (recursive)
-            {
-                var prefix = innerPath + "/";
-                foreach (var cached in GetEntries())
-                {
-                    var name = cached.FullName.Replace('\\', '/');
-                    if (name.Equals(innerPath, StringComparison.OrdinalIgnoreCase) ||
-                        name.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
-                        name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (cached.Index < zip.Entries.Count)
-                            toDelete.Add(cached.Index);
-                    }
-                }
-            }
-            else
-            {
-                // Directory.Delete(path, false) semantics - see DeleteAsync's identical guard
-                // above for why: without this, deleting just a directory's own marker entry here
-                // left its children orphaned in the archive with no listable parent.
-                var prefix = innerPath + "/";
-                var hasDescendants = GetEntries().Any(cached =>
-                {
-                    var name = cached.FullName.Replace('\\', '/');
-                    return !name.Equals(innerPath, StringComparison.OrdinalIgnoreCase) &&
-                           !name.Equals(prefix, StringComparison.OrdinalIgnoreCase) &&
-                           name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-                });
-                if (hasDescendants)
-                    throw new IOException($"\"{innerPath}\" is not empty.");
+            var node = dir.Index.Navigate(innerPath);
+            if (node == null)
+                continue; // nothing at this path - nothing to delete
 
-                // Look up the index directly from the cached record instead of finding the
-                // ZipArchiveEntry first and then Array.IndexOf-ing zip.Entries.ToArray() for it -
-                // that materialized a fresh array and did an O(m) scan per path on top of this
-                // already-O(n) lookup.
-                var record = GetEntries().FirstOrDefault(e =>
-                    string.Equals(e.FullName.Replace('\\', '/').Trim('/'), innerPath, StringComparison.OrdinalIgnoreCase));
-                if (record != null && record.Index < zip.Entries.Count)
-                    toDelete.Add(record.Index);
-            }
+            // Directory.Delete(path, false) semantics - see DeleteAsync's identical guard above.
+            if (!recursive && node.Children.Count > 0)
+                throw new IOException($"\"{innerPath}\" is not empty.");
+
+            CollectZipIndicesForDeletion(node, toDelete);
         }
+
+        if (toDelete.Count == 0)
+            return;
+
+        using var session = OpenForUpdate(_archivePath);
+        var zip = session.Archive;
 
         // Delete in reverse order to preserve indices
         foreach (var idx in toDelete.OrderByDescending(i => i))
@@ -1134,6 +1113,14 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         InvalidateCache();
         session.Commit();
     }, ct);
+
+    private static void CollectZipIndicesForDeletion(Utils.PrefixTreeIndex<ZipEntryRecord>.Node node, HashSet<int> result)
+    {
+        if (node.Entry is { } entry)
+            result.Add(entry.Index);
+        foreach (var child in node.Children.Values)
+            CollectZipIndicesForDeletion(child, result);
+    }
 
     /// <inheritdoc/>
     public Task CreateDirectoryAsync(string path, CancellationToken ct = default) => Task.Run(() =>

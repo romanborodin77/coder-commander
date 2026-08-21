@@ -111,9 +111,14 @@ public sealed class PackOperation : FileOperation
         using (var reader = format.OpenRead(localArchivePath))
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
-            existing = directory.Entries
-                .GroupBy(e => e.FullName.Trim('/'), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            // Single pass with TryAdd (first-wins, same as the GroupBy+.First() this replaces)
+            // instead of GroupBy+ToDictionary - for a 500k-entry archive that allocated ~500k
+            // throwaway IGrouping objects just to pick the first of each, even when the plan being
+            // packed has one item.
+            var map = new Dictionary<string, ArchiveEntryRecord>(directory.Entries.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var e in directory.Entries)
+                map.TryAdd(e.FullName.Trim('/'), e);
+            existing = map;
         }
 
         var written = 0;

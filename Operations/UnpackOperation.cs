@@ -100,7 +100,7 @@ public sealed class UnpackOperation : FileOperation
             if (!directory.IsValid)
                 throw new IOException($"Archive could not be read (corrupt, truncated, or locked): {_archivePath}");
 
-            var selected = SelectRecords(directory.Entries);
+            var selected = SelectRecords(directory);
             if (selected.Count == 0)
                 return;
 
@@ -225,13 +225,20 @@ public sealed class UnpackOperation : FileOperation
         ReportProgress(VfsPath.GetName(relative));
     }
 
-    /// <summary>Resolves the selection into the concrete set of records to extract.</summary>
-    private List<ArchiveEntryRecord> SelectRecords(IReadOnlyList<ArchiveEntryRecord> all)
+    /// <summary>
+    /// Resolves the selection into the concrete set of records to extract.
+    ///
+    /// Queries <see cref="ArchiveDirectory.Index"/> instead of the nested-loop scan this used to
+    /// be (every selected item against every entry in the archive) - extracting 20,000 selected
+    /// entries from a 400,000-entry archive was 8x10^9 iterations, each allocating a trimmed
+    /// string, before a single byte was extracted.
+    /// </summary>
+    private List<ArchiveEntryRecord> SelectRecords(ArchiveDirectory directory)
     {
         if (_items.Count == 0)
         {
             var basePrefix = _innerBasePath.Length == 0 ? "" : _innerBasePath + "/";
-            return all.Where(r => r.FullName.StartsWith(basePrefix, StringComparison.OrdinalIgnoreCase)
+            return directory.Entries.Where(r => r.FullName.StartsWith(basePrefix, StringComparison.OrdinalIgnoreCase)
                                   && r.FullName.Trim('/').Length > basePrefix.Trim('/').Length)
                       .ToList();
         }
@@ -245,18 +252,23 @@ public sealed class UnpackOperation : FileOperation
             if (inner.Length == 0)
                 continue;
 
-            var prefix = inner + "/";
-            foreach (var record in all)
-            {
-                var name = record.FullName.Trim('/');
-                var isSelf = string.Equals(name, inner, StringComparison.OrdinalIgnoreCase);
-                var isBelow = record.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-                if ((isSelf || isBelow) && seen.Add(record.Index))
-                    picked.Add(record);
-            }
+            var node = directory.Index.Navigate(inner);
+            if (node == null)
+                continue;
+
+            CollectSelfAndDescendants(node, picked, seen);
         }
 
         return picked;
+    }
+
+    private static void CollectSelfAndDescendants(
+        Utils.PrefixTreeIndex<ArchiveEntryRecord>.Node node, List<ArchiveEntryRecord> picked, HashSet<int> seen)
+    {
+        if (node.Entry is { } entry && seen.Add(entry.Index))
+            picked.Add(entry);
+        foreach (var child in node.Children.Values)
+            CollectSelfAndDescendants(child, picked, seen);
     }
 
     private string Relativize(string entryName)
@@ -295,9 +307,18 @@ public sealed class UnpackOperation : FileOperation
             throw new IOException(
                 $"This archive has {selected.Count:N0} entries, more than the {UnpackLimits.MaxEntries:N0} this app will extract in one operation.");
 
+        // Single pass (was three: one to sum sizes, one to check the ratio, one for path depth) -
+        // the depth check in particular used LINQ's Count(delegate) per record, allocating an
+        // enumerator and invoking a lambda per character; for 200,000 selected entries that alone
+        // was hundreds of thousands of allocations before extraction had written a single byte.
         long uncompressed = 0, compressed = 0;
         foreach (var record in selected)
         {
+            var depth = CountPathSeparators(record.FullName);
+            if (depth > UnpackLimits.MaxPathDepth)
+                throw new IOException(
+                    $"\"{record.FullName}\" is nested {depth} levels deep, more than the {UnpackLimits.MaxPathDepth} this app will extract.");
+
             if (record.IsDirectory || record.PackedSize <= 0) continue;
             try
             {
@@ -318,14 +339,14 @@ public sealed class UnpackOperation : FileOperation
         if (compressed > 0 && uncompressed > compressed * UnpackLimits.MaxRatio)
             throw new IOException(
                 $"This archive would expand {(double)uncompressed / compressed:N0}x, more than the {UnpackLimits.MaxRatio}x this app will extract - it has the shape of a decompression bomb.");
+    }
 
-        foreach (var record in selected)
-        {
-            var depth = record.FullName.Count(c => c is '/' or '\\');
-            if (depth > UnpackLimits.MaxPathDepth)
-                throw new IOException(
-                    $"\"{record.FullName}\" is nested {depth} levels deep, more than the {UnpackLimits.MaxPathDepth} this app will extract.");
-        }
+    private static int CountPathSeparators(string name)
+    {
+        var count = 0;
+        foreach (var c in name)
+            if (c is '/' or '\\') count++;
+        return count;
     }
 
     /// <summary>
