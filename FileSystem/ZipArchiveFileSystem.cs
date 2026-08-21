@@ -146,24 +146,44 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
     private static readonly Dictionary<string, LinkedListNode<string>> DirectoryCacheLruNodes =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Per-archive-path lock objects, so two threads reading the same never-yet-cached
+    /// archive at the same moment serialize onto one <see cref="ParseCentralDirectory"/> call
+    /// instead of both parsing it independently (audit finding G043 - two panels opening the same
+    /// large ZIP at once used to each pay the full parse cost). Guarded by <see cref="DirectoryCache"/>'s
+    /// own lock, and swept whenever an entry leaves that cache so this never outlives it.</summary>
+    private static readonly Dictionary<string, object> ParseLocks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static object GetParseLock(string archivePath)
+    {
+        lock (DirectoryCache)
+        {
+            if (!ParseLocks.TryGetValue(archivePath, out var lockObj))
+                ParseLocks[archivePath] = lockObj = new object();
+            return lockObj;
+        }
+    }
+
+    private static DirectoryStamp? TryStatArchive(string archivePath)
+    {
+        try
+        {
+            var info = new FileInfo(archivePath);
+            return info.Exists ? new DirectoryStamp(info.Length, info.LastWriteTimeUtc.Ticks) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Reads (and memoises) the central directory. The cache key carries the file length and
     /// timestamp, so any external modification of the archive invalidates it automatically.
     /// </summary>
     public static ZipDirectory ReadDirectory(string archivePath)
     {
-        DirectoryStamp stamp;
-        try
-        {
-            var info = new FileInfo(archivePath);
-            if (!info.Exists) return ZipDirectory.Empty;
-            stamp = new DirectoryStamp(info.Length, info.LastWriteTimeUtc.Ticks);
-        }
-        catch (Exception ex)
-        {
-            LogService.Warning($"Archive not accessible: {archivePath}: {ex.Message}");
+        if (TryStatArchive(archivePath) is not { } stamp)
             return ZipDirectory.Empty;
-        }
 
         lock (DirectoryCache)
         {
@@ -174,43 +194,69 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             }
         }
 
-        ZipDirectory parsed;
-        try
+        // Serialize on a per-archive-path lock, not the shared DirectoryCache lock, so parsing
+        // archive A never blocks a concurrent read of unrelated archive B.
+        lock (GetParseLock(archivePath))
         {
-            parsed = ParseCentralDirectory(archivePath);
-        }
-        catch (IOException ex) when (IsSharingViolation(ex))
-        {
-            LogService.Warning($"Archive locked by another process, retrying: {archivePath}");
-
-            // A single 100ms retry proved too short in practice — a freshly written archive can
-            // stay locked for a second or more while Windows Defender/the search indexer scans
-            // it. Back off across a few attempts instead of giving up after one.
-            ReadOnlySpan<int> retryDelaysMs = [150, 300, 600];
-            Exception lastError = ex;
-            parsed = ZipDirectory.Empty;
-            var succeeded = false;
-            foreach (var delayMs in retryDelaysMs)
+            // Another thread may have already parsed and cached this exact stamp while this one
+            // was waiting for the lock above - re-check before parsing again.
+            lock (DirectoryCache)
             {
-                Thread.Sleep(delayMs);
-                try
+                if (DirectoryCache.TryGetValue(archivePath, out var cached2) && cached2.Stamp == stamp)
                 {
-                    parsed = ParseCentralDirectory(archivePath);
-                    succeeded = true;
-                    break;
-                }
-                catch (Exception ex2)
-                {
-                    lastError = ex2;
+                    TouchDirectoryCache(archivePath);
+                    return cached2.Directory;
                 }
             }
 
-            if (!succeeded)
+            ZipDirectory parsed;
+            try
             {
-                LogService.Error($"Cannot read archive directory after {retryDelaysMs.Length} retries: {archivePath}: {lastError.Message}", lastError);
-                // Prefer a stale-but-real listing over an empty one - the archive momentarily
-                // looking empty while another operation holds it is far more misleading than
-                // briefly showing its last known contents.
+                parsed = ParseCentralDirectory(archivePath);
+            }
+            catch (IOException ex) when (IsSharingViolation(ex))
+            {
+                LogService.Warning($"Archive locked by another process, retrying: {archivePath}");
+
+                // A single 100ms retry proved too short in practice — a freshly written archive can
+                // stay locked for a second or more while Windows Defender/the search indexer scans
+                // it. Back off across a few attempts instead of giving up after one.
+                ReadOnlySpan<int> retryDelaysMs = [150, 300, 600];
+                Exception lastError = ex;
+                parsed = ZipDirectory.Empty;
+                var succeeded = false;
+                foreach (var delayMs in retryDelaysMs)
+                {
+                    Thread.Sleep(delayMs);
+                    try
+                    {
+                        parsed = ParseCentralDirectory(archivePath);
+                        succeeded = true;
+                        break;
+                    }
+                    catch (Exception ex2)
+                    {
+                        lastError = ex2;
+                    }
+                }
+
+                if (!succeeded)
+                {
+                    LogService.Error($"Cannot read archive directory after {retryDelaysMs.Length} retries: {archivePath}: {lastError.Message}", lastError);
+                    // Prefer a stale-but-real listing over an empty one - the archive momentarily
+                    // looking empty while another operation holds it is far more misleading than
+                    // briefly showing its last known contents.
+                    lock (DirectoryCache)
+                    {
+                        if (DirectoryCache.TryGetValue(archivePath, out var stale))
+                            return stale.Directory;
+                    }
+                    return ZipDirectory.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Error($"Cannot read archive directory: {archivePath}: {ex.Message}", ex);
                 lock (DirectoryCache)
                 {
                     if (DirectoryCache.TryGetValue(archivePath, out var stale))
@@ -218,25 +264,22 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 }
                 return ZipDirectory.Empty;
             }
-        }
-        catch (Exception ex)
-        {
-            LogService.Error($"Cannot read archive directory: {archivePath}: {ex.Message}", ex);
-            lock (DirectoryCache)
-            {
-                if (DirectoryCache.TryGetValue(archivePath, out var stale))
-                    return stale.Directory;
-            }
-            return ZipDirectory.Empty;
-        }
 
-        lock (DirectoryCache)
-        {
-            DirectoryCache[archivePath] = (stamp, parsed);
-            TouchDirectoryCache(archivePath);
-            EvictLeastRecentlyUsedDirectoryCacheEntryIfOverCapacity();
+            // Re-stat after parsing: if the archive was rewritten while ParseCentralDirectory was
+            // running, the snapshot just built no longer matches the file's current content and
+            // must not be cached under the pre-parse stamp - the next access should re-read for
+            // real rather than serve this stale-on-arrival snapshot indefinitely.
+            if (TryStatArchive(archivePath) == stamp)
+            {
+                lock (DirectoryCache)
+                {
+                    DirectoryCache[archivePath] = (stamp, parsed);
+                    TouchDirectoryCache(archivePath);
+                    EvictLeastRecentlyUsedDirectoryCacheEntryIfOverCapacity();
+                }
+            }
+            return parsed;
         }
-        return parsed;
     }
 
     /// <summary>Drops the memoised directory of an archive.</summary>
@@ -247,6 +290,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             DirectoryCache.Remove(archivePath);
             if (DirectoryCacheLruNodes.Remove(archivePath, out var node))
                 DirectoryCacheLruOrder.Remove(node);
+            ParseLocks.Remove(archivePath);
         }
     }
 
@@ -267,6 +311,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             DirectoryCache.Remove(lru.Value);
             DirectoryCacheLruNodes.Remove(lru.Value);
             DirectoryCacheLruOrder.RemoveLast();
+            ParseLocks.Remove(lru.Value);
         }
     }
 
