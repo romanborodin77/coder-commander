@@ -1152,6 +1152,12 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
             case TerminalAction.SelectAll:
                 SelectAll();
                 break;
+            case TerminalAction.ClearBuffer:
+                ClearBuffer();
+                break;
+            case TerminalAction.ResetTerminal:
+                ResetTerminal();
+                break;
             case TerminalAction.IncreaseFont: Zoom(1); break;
             case TerminalAction.DecreaseFont: Zoom(-1); break;
             case TerminalAction.ResetFont: ResetZoom(); break;
@@ -1166,6 +1172,22 @@ internal sealed class TerminalCanvas : Control, IKeyboardGreedyControl
                 ActionRequested?.Invoke(this, action);
                 break;
         }
+    }
+
+    private void ClearBuffer()
+    {
+        lock (_session.Screen.SyncRoot)
+            _session.Screen.ClearBuffer();
+        _selection.Clear();
+        ScrollToLive();
+    }
+
+    private void ResetTerminal()
+    {
+        lock (_session.Screen.SyncRoot)
+            _session.Screen.ResetTerminal();
+        _selection.Clear();
+        ScrollToLive();
     }
 
     private void SelectAll()

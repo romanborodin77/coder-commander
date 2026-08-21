@@ -62,6 +62,7 @@ internal sealed class TerminalKeyBindings
         [Keys.Control | Keys.C] = TerminalAction.CopyOrInterrupt,
         [Keys.Control | Keys.Shift | Keys.C] = TerminalAction.Copy,
         [Keys.Control | Keys.Shift | Keys.V] = TerminalAction.Paste,
+        [Keys.Control | Keys.Shift | Keys.A] = TerminalAction.SelectAll,
         [Keys.Control | Keys.Shift | Keys.F] = TerminalAction.Find,
         [Keys.Control | Keys.Shift | Keys.K] = TerminalAction.ClearBuffer,
 
@@ -90,7 +91,9 @@ internal sealed class TerminalKeyBindings
     {
         [Keys.Control | Keys.C] = TerminalAction.CopyOrInterrupt,
         [Keys.Control | Keys.V] = TerminalAction.Paste,
+        [Keys.Control | Keys.Shift | Keys.A] = TerminalAction.SelectAll,
         [Keys.Control | Keys.Shift | Keys.F] = TerminalAction.Find,
+        [Keys.Control | Keys.Shift | Keys.K] = TerminalAction.ClearBuffer,
 
         [Keys.Control | Keys.T] = TerminalAction.NewTab,
         [Keys.Control | Keys.W] = TerminalAction.CloseTab,

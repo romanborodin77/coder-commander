@@ -232,6 +232,12 @@ public sealed class MainForm : Form
         // Previously toolbar-button-only with no menu entry at all (audit finding G055).
         m.DropDownItems.Add(Mi("Menu.Commands.GoBack", "back", "Alt+Left", CommandIds.GoBack));
         m.DropDownItems.Add(Mi("Menu.Commands.GoForward", "forward", "Alt+Right", CommandIds.GoForward));
+        // GoToRoot/GoToHome had no menu entry either, and GoToRoot's only hotkey (Ctrl+\) used to
+        // be bound to a key that doesn't exist on a standard 104-key keyboard - see the fix on
+        // HotkeyManager.RegisterDefaults. A menu entry means the command no longer depends on that
+        // one hotkey working at all.
+        m.DropDownItems.Add(Mi("Menu.Commands.GoToRoot", "root", "Ctrl+\\", CommandIds.GoToRoot));
+        m.DropDownItems.Add(Mi("Menu.Commands.GoToHome", "home", "Ctrl+Home", CommandIds.GoToHome));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.Search", "search", "Alt+F7", CommandIds.FindFiles));
         m.DropDownItems.Add(Mi("Menu.Commands.FindDuplicates", "search", "", CommandIds.FindDuplicates));

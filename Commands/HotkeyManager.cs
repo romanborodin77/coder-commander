@@ -168,7 +168,14 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.Subtract, CommandIds.DeselectGroup);
 
         // Navigation extras
-        Register(Keys.Control | Keys.OemBackslash, CommandIds.GoToRoot); // Ctrl+\
+        // Ctrl+\ - registered on Keys.OemPipe (VK_OEM_5, the "\|" key on a standard ANSI/RU
+        // 104-key keyboard), not Keys.OemBackslash (VK_OEM_102, only present on ISO 102-key
+        // layouts). HandleKey below matches by exact KeyData, so binding only OemBackslash made
+        // this command entirely unreachable on the far more common 104-key layout - caught by
+        // reading the actual VK codes, not by trusting the "Ctrl+\" comment that used to be here.
+        // OemBackslash stays registered as a second binding for ISO keyboards that do have it.
+        Register(Keys.Control | Keys.OemPipe, CommandIds.GoToRoot); // Ctrl+\
+        Register(Keys.Control | Keys.OemBackslash, CommandIds.GoToRoot); // Ctrl+\ on ISO layouts
         Register(Keys.Control | Keys.Home, CommandIds.GoToHome); // Ctrl+Home
         Register(Keys.Control | Keys.G, CommandIds.ChangeDir); // Ctrl+G
 

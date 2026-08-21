@@ -107,9 +107,17 @@ internal static class Program
         ThemeService.ApplyTheme(SettingsService.GetEffectiveTheme());
 
         // Load saved language
-        var lang = SettingsService.Load().Language;
-        if (!string.IsNullOrEmpty(lang))
-            LocalizationService.Current.LoadLanguage(lang);
+        var settings = SettingsService.Load();
+        if (!string.IsNullOrEmpty(settings.Language))
+            LocalizationService.Current.LoadLanguage(settings.Language);
+
+        // Prune credential-store entries for connection profiles that no longer exist -
+        // ConnectionsForm.RemoveSelected already deletes the matching credential directly when a
+        // profile is removed through the UI; this is the backstop CredentialStore.RemoveOrphans'
+        // own doc comment describes for the cases that bypass that path (a hand-edited
+        // settings.json, a settings file restored from an older backup, a crash between the two
+        // writes) - without it a removed connection's password lives on disk forever.
+        CredentialStore.Instance.RemoveOrphans(settings.Connections.Select(c => c.Id));
 
         // Create ViewModel and main form
         var vm = new MainViewModel();

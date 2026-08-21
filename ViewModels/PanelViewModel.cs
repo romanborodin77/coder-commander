@@ -949,7 +949,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             // Stale-guard: if the user navigated away while we were awaiting, the result
             // belongs to a different path/filesystem — discard it rather than show wrong free space.
             if (!string.Equals(CurrentPath, path, StringComparison.OrdinalIgnoreCase)) return;
-            FreeSpaceDisplay = total > 0 ? $"{FormatUtils.FormatSize(free)} / {FormatUtils.FormatSize(total)}" : "";
+            FreeSpaceDisplay = total > 0
+                ? LocalizationService.Current.GetString("Status.FreeSpace", FormatUtils.FormatSize(free), FormatUtils.FormatSize(total))
+                : "";
         }
         catch (Exception ex)
         {

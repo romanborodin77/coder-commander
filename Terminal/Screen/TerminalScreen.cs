@@ -161,6 +161,51 @@ internal sealed class TerminalScreen : IVtSink
         Dirty.MarkAll();
     }
 
+    /// <summary>Client-side "Clear Buffer" (the same action Windows Terminal binds to
+    /// Ctrl+Shift+K): drops scrollback AND the visible screen and moves the cursor home, without
+    /// sending anything to the shell. Distinct from CSI 3J (<see cref="HandleEraseDisplay"/> mode
+    /// 3, xterm's "erase saved lines") which only drops scrollback and leaves the visible screen
+    /// and cursor untouched. Operates on whichever buffer is currently active - clearing a
+    /// full-screen program's alt-screen content is harmless, since that program will repaint it on
+    /// its own next redraw anyway. Caller must hold <see cref="SyncRoot"/>.</summary>
+    public void ClearBuffer()
+    {
+        for (var r = 0; r < _active.Rows; r++) _active[r].ClearAll(_cursor.Bg);
+        _active.Scrollback?.Clear();
+        _cursor.Row = 0;
+        _cursor.Col = 0;
+        _cursor.PendingWrap = false;
+        Dirty.MarkAll();
+    }
+
+    /// <summary>Client-side "Reset Terminal" action - broader than the existing private
+    /// <see cref="SoftReset()"/> this reuses (that one is DECSTR, <c>CSI ! p</c>, and only resets
+    /// cursor attributes/origin-mode/cursor-visibility per the xterm spec it implements). This is
+    /// the scope of a terminal app's own "Reset" menu action, not a hard reset that would kill or
+    /// respawn the shell: on top of DECSTR's own effects, it also drops back to the main screen,
+    /// resets the scroll region and tab stops, resets every terminal mode (mouse tracking,
+    /// bracketed paste, etc. - DECSTR alone leaves those as-is) to its default, and clears both the
+    /// visible screen and scrollback. Useful when a misbehaving program (or a truncated escape
+    /// sequence) leaves the terminal in a broken state without needing to actually restart the
+    /// session. Caller must hold <see cref="SyncRoot"/>.</summary>
+    public void ResetTerminal()
+    {
+        if (_usingAlt) SetAltScreen(false, alsoSaveRestoreCursor: false);
+
+        SoftReset();
+        _active.TabStops = TerminalBuffer.BuildDefaultTabStops(_active.Cols);
+        Modes.ResetToDefaults();
+
+        _cursor = CursorState.Initial(CellColor.Default, CellColor.Default);
+        _savedCursorMain = _cursor;
+        _savedCursorAlt = _cursor;
+        _lastPrintedRune = -1;
+
+        for (var r = 0; r < _active.Rows; r++) _active[r].ClearAll(CellColor.Default);
+        _active.Scrollback?.Clear();
+        Dirty.MarkAll();
+    }
+
     // ── IVtSink: Print / Execute ───────────────────────────────────────────────────────────
 
     public void Print(int rune)

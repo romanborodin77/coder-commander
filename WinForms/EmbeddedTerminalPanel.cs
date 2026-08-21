@@ -651,7 +651,9 @@ public sealed class EmbeddedTerminalPanel : Panel
             case TerminalAction.CloseTab: CloseTerminalTab(tabId); break;
             case TerminalAction.NextTab: NextTab(); break;
             case TerminalAction.PrevTab: PreviousTab(); break;
-            // Find/ClearBuffer/ResetTerminal/scroll navigation land in later phases.
+            // Find/scroll navigation land in later phases. ClearBuffer/ResetTerminal/SelectAll
+            // and the scroll actions are screen-local and handled directly inside
+            // TerminalCanvas.DispatchAction - they never reach ActionRequested at all.
         }
     }
 

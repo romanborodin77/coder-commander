@@ -197,6 +197,8 @@ public sealed class LocalizationService
         _strings["Menu.Commands"] = "&Commands";
         _strings["Menu.Commands.GoBack"] = "&Back";
         _strings["Menu.Commands.GoForward"] = "&Forward";
+        _strings["Menu.Commands.GoToRoot"] = "Drive &Root";
+        _strings["Menu.Commands.GoToHome"] = "&Home Folder";
         _strings["Menu.Commands.Search"] = "&Search…";
         _strings["Menu.Commands.MultiRename"] = "&Multi-Rename…";
         _strings["Menu.Commands.SyncDirs"] = "Synchronize &Dirs…";
@@ -664,6 +666,7 @@ public sealed class LocalizationService
         _strings["View.Encoding.Ascii"] = "ASCII";
         _strings["View.TooBigForText"] = "File too large for text mode ({0}). Limit: {1}.";
         _strings["View.HexTruncated"] = "Showing first {0} of {1}.";
+        _strings["View.HexMore"] = "... ({0} more)";
         _strings["View.Error"] = "Error";
         _strings["View.FileNotFound"] = "File not found.";
         _strings["View.Toolbar.Previous"] = "Previous";
@@ -769,6 +772,7 @@ public sealed class LocalizationService
         _strings["Op.DisplayMove"] = "Move {0} item(s) to {1}";
         _strings["Op.DisplaySplit"] = "Split {0} file(s)";
         _strings["Op.DisplayCombine"] = "Combine into {0}";
+        _strings["Op.DisplaySyncDirs"] = "Sync {0} item(s)";
         // Keys are IFileOperation.Title's own English identifier values ("Copy"/"Move"/"Delete"/
         // "Wipe"/"Pack"/"Unpack"/"Split"/"Combine" - see Operations/*.cs), looked up via string
         // concatenation in OperationDialogForm, not written out as literals here.
