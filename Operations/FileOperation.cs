@@ -18,6 +18,17 @@ public abstract class FileOperation : IFileOperation, IDisposable
     private CancellationTokenSource? _cts;
     private readonly object _stateLock = new();
     private bool _cancelRequested;
+    private TaskCompletionSource<bool>? _pauseTcs;
+    private CancellationTokenSource? _skipCts;
+
+    /// <summary>True once a subclass has actually wired <see cref="WaitIfPausedAsync"/> and
+    /// <see cref="BeginFile"/>/<see cref="EndFile"/> into its own per-file loop - <see cref="Pause"/>/
+    /// <see cref="RequestSkip"/> are implemented generically here in the base class, but calling
+    /// them on an operation that never checks the gate would silently do nothing while still
+    /// flipping <see cref="State"/> to <see cref="OperationState.Paused"/>, which is worse than not
+    /// offering the buttons at all. Defaults to false; overridden by whichever operations have
+    /// actually been wired.</summary>
+    public virtual bool SupportsPauseAndSkip => false;
 
     /// <inheritdoc/>
     public OperationState State => _state;
@@ -74,11 +85,108 @@ public abstract class FileOperation : IFileOperation, IDisposable
     /// <inheritdoc/>
     public void Cancel()
     {
+        TaskCompletionSource<bool>? pauseTcs;
         lock (_stateLock)
         {
             _cancelRequested = true;
             _cts?.Cancel();
+            // A paused operation is blocked inside WaitIfPausedAsync's await, which only observes
+            // the linked ct - _cts.Cancel() above already signals that, but the pause TCS itself
+            // must also be released so the await actually wakes up and re-checks it, rather than
+            // sitting blocked forever behind a gate nothing will ever open otherwise.
+            pauseTcs = _pauseTcs;
+            _pauseTcs = null;
         }
+        pauseTcs?.TrySetResult(true);
+    }
+
+    /// <summary>Pauses a running operation - a no-op unless <see cref="State"/> is currently
+    /// <see cref="OperationState.Running"/> (so a stray click after the operation already finished,
+    /// or a double-click, can't leave it stuck showing Paused forever).</summary>
+    public void Pause()
+    {
+        lock (_stateLock)
+        {
+            if (_state != OperationState.Running) return;
+            _pauseTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _state = OperationState.Paused;
+        }
+        StateChanged?.Invoke(this, OperationState.Paused);
+    }
+
+    /// <summary>Resumes a paused operation - a no-op unless <see cref="State"/> is currently
+    /// <see cref="OperationState.Paused"/>.</summary>
+    public void Resume()
+    {
+        TaskCompletionSource<bool>? tcs;
+        lock (_stateLock)
+        {
+            if (_state != OperationState.Paused) return;
+            tcs = _pauseTcs;
+            _pauseTcs = null;
+            _state = OperationState.Running;
+        }
+        StateChanged?.Invoke(this, OperationState.Running);
+        tcs?.TrySetResult(true);
+    }
+
+    /// <summary>Requests that whichever file is currently being processed be abandoned and the
+    /// operation move on to the next one, without cancelling the operation as a whole. A no-op if
+    /// no file is currently in flight (nothing between <see cref="BeginFile"/> and <see cref="EndFile"/>
+    /// right now) - there is nothing to skip.</summary>
+    public void RequestSkip()
+    {
+        lock (_stateLock) { _skipCts?.Cancel(); }
+    }
+
+    /// <summary>Awaited between files (and, for a single large file, periodically during its own
+    /// streamed copy - see <see cref="ProgressStream"/> callers) so a paused operation genuinely
+    /// stops doing I/O instead of merely showing "Paused" while continuing to run underneath.
+    /// Async, not a blocking wait - an operation that stays paused for a long time (the user
+    /// stepped away) does not tie up a thread-pool thread for the duration.</summary>
+    protected async Task WaitIfPausedAsync(CancellationToken ct)
+    {
+        while (true)
+        {
+            TaskCompletionSource<bool>? tcs;
+            lock (_stateLock) { tcs = _pauseTcs; }
+            if (tcs == null) return;
+
+            using var reg = ct.Register(static s => ((TaskCompletionSource<bool>)s!).TrySetCanceled(), tcs);
+            await tcs.Task.ConfigureAwait(false);
+            // Loop back rather than trusting a single wait: Resume() then an immediate re-Pause()
+            // could otherwise let a caller fall through believing it's still running when a new
+            // pause already started.
+        }
+    }
+
+    /// <summary>Synchronous variant of <see cref="WaitIfPausedAsync"/> for callers that can't be
+    /// async themselves - e.g. <see cref="ProgressStream"/>'s per-chunk callback, invoked from
+    /// inside <see cref="Stream.CopyToAsync(Stream)"/>'s own read loop. Safe to block on: operations
+    /// already run off the UI thread (no captured <see cref="SynchronizationContext"/> to deadlock
+    /// against), and <see cref="WaitIfPausedAsync"/>'s own await is <c>ConfigureAwait(false)</c>
+    /// throughout.</summary>
+    protected void WaitIfPausedSync(CancellationToken ct) => WaitIfPausedAsync(ct).GetAwaiter().GetResult();
+
+    /// <summary>Marks the start of processing one file - creates a fresh cancellation source linked
+    /// to <paramref name="ct"/> that <see cref="RequestSkip"/> can trigger independently, and pass
+    /// its <see cref="CancellationTokenSource.Token"/> into that single file's I/O. Must be paired
+    /// with <see cref="EndFile"/> (a <c>using</c>/<c>try</c>/<c>finally</c>) so a skip request can
+    /// never leak into the next file by hitting a stale, already-disposed source.</summary>
+    protected CancellationTokenSource BeginFile(CancellationToken ct)
+    {
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        lock (_stateLock) { _skipCts = cts; }
+        return cts;
+    }
+
+    /// <summary>Ends the file started by <see cref="BeginFile"/> - clears <c>_skipCts</c> only if it
+    /// still points at <paramref name="cts"/> (a concurrent <see cref="BeginFile"/> for the next
+    /// file may already have replaced it) and disposes it.</summary>
+    protected void EndFile(CancellationTokenSource cts)
+    {
+        lock (_stateLock) { if (ReferenceEquals(_skipCts, cts)) _skipCts = null; }
+        cts.Dispose();
     }
 
     /// <summary>Subclasses implement the actual work here. Called once per <see cref="ExecuteAsync"/> invocation.</summary>
@@ -137,6 +245,12 @@ public abstract class FileOperation : IFileOperation, IDisposable
         {
             _cts?.Dispose();
             _cts = null;
+            // Not expected to still be non-null here in the ordinary case (EndFile already cleared
+            // it once the last file finished) - only reachable if the operation was disposed while
+            // a file was genuinely still in flight (e.g. torn down mid-operation), which BeginFile/
+            // EndFile's own pairing can't prevent from outside.
+            _skipCts?.Dispose();
+            _skipCts = null;
         }
         // No finalizer on this class today, so this costs nothing either way - but it's the
         // correct defensive default (CA1816) if a derived type ever adds one: without it, that

@@ -76,6 +76,13 @@ public sealed class CopyOperation : FileOperation
     public override OperationType Type => OperationType.Copy;
     public override string Title => "Copy";
 
+    /// <summary>Wired into the per-file (non-batch) copy loop below - see <see cref="ExecuteCoreAsync"/>.
+    /// Not honored on the batch-archive-source path (<see cref="CopyFilesBatchAsync"/>), which reads
+    /// through a format-specific <see cref="IBatchReadableFileSystem.CopyManyToAsync"/> single pass
+    /// that has no natural per-file interruption point without threading pause/skip into every
+    /// implementer of that interface - deferred.</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _sourceFs;
     private readonly IFileSystem _destFs;
     private readonly IReadOnlyList<FileEntry> _files;
@@ -186,15 +193,27 @@ public sealed class CopyOperation : FileOperation
             foreach (var (entry, destFullPath) in fileEntries)
             {
                 ct.ThrowIfCancellationRequested();
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
+                var fileCts = BeginFile(ct);
                 try
                 {
-                    await CopyFileWithProgress(entry, destFullPath, ct).ConfigureAwait(false);
+                    await CopyFileWithProgress(entry, destFullPath, fileCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    // fileCts fired but the operation's own ct didn't - a Skip request for this
+                    // file specifically, not a cancellation of the whole copy.
+                    LogService.Info($"Copy: skipped {entry.FullPath} by user request");
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
                     copyFailures.Add(entry.FullPath);
+                }
+                finally
+                {
+                    EndFile(fileCts);
                 }
 
                 _filesProcessed++;
@@ -338,11 +357,21 @@ public sealed class CopyOperation : FileOperation
 
         using (var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false))
         {
-            await _destFs.CopyFromStreamAsync(actualDestPath, src, ct).ConfigureAwait(false);
+            // Reports progress as bytes are actually read, not only once the whole file finishes -
+            // without this (audit finding G050), copying a single very large file left the
+            // indicator frozen until the entire file had already landed. Also the pause checkpoint
+            // for a file large enough that "between files" would otherwise mean a very long delay
+            // before Pause actually takes effect.
+            using var progressSrc = new ProgressStream(src, n =>
+            {
+                Interlocked.Add(ref _bytesProcessed, n);
+                WaitIfPausedSync(ct);
+                ReportThrottled(() => ReportProgress(file.Name));
+            });
+            await _destFs.CopyFromStreamAsync(actualDestPath, progressSrc, ct).ConfigureAwait(false);
         }
 
         _writtenPaths.Add(file.FullPath);
-        Interlocked.Add(ref _bytesProcessed, file.Size);
 
         if (_options.CopyAttributes && file.Attributes != default)
             await TryApplyAttributes(actualDestPath, file.Attributes, ct).ConfigureAwait(false);

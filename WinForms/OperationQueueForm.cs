@@ -96,10 +96,74 @@ public sealed class OperationQueueForm : ThemedForm
 
         CancelButton = _closeBtn;
 
+        // Pause/Resume/Skip per row (audit finding G051/G052) - OpQueue.Pause/OpQueue.Resume
+        // existed as localization strings with nothing in the code ever reading them; this form
+        // had no per-row interaction at all before this (Cancel All / Clear only acted on the
+        // whole queue). Built fresh on every right-click and self-disposes via AutoDisposeOnClose,
+        // the same pattern FilePanelUserControl.BuildContextMenu uses - a persistent, rebuilt-in-
+        // place menu has no safe way to update while still open.
+        _listView.MouseDown += OnListViewMouseDown;
+
         _manager.OperationChanged += OnOperationChanged;
         FormClosing += (_, _) => _manager.OperationChanged -= OnOperationChanged;
 
         Load += (_, _) => RefreshList();
+    }
+
+    private void OnListViewMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right) return;
+        var info = _listView.HitTest(e.Location);
+        if (info.Item?.Tag is not QueuedOperation queued) return;
+        info.Item.Selected = true;
+        info.Item.Focused = true;
+
+        var op = queued.Operation;
+        var L = LocalizationService.Current;
+#pragma warning disable CA2000 // disposed via AutoDisposeOnClose below, same as FilePanelUserControl's own context menu
+        var menu = new ContextMenuStrip
+        {
+            BackColor = ThemeService.Current.HeaderBackground,
+            ForeColor = ThemeService.Current.Foreground,
+            Font = ThemeService.Current.GridFont,
+            Renderer = new ThemeRenderer()
+        };
+#pragma warning restore CA2000
+
+        if (op.SupportsPauseAndSkip && op.State is OperationState.Running or OperationState.Paused)
+        {
+            var pauseItem = new ToolStripMenuItem(op.State == OperationState.Paused
+                ? L.GetString("OpQueue.Resume")
+                : L.GetString("OpQueue.Pause"));
+            pauseItem.Click += (_, _) =>
+            {
+                if (op.State == OperationState.Paused) op.Resume();
+                else op.Pause();
+            };
+            menu.Items.Add(pauseItem);
+
+            var skipItem = new ToolStripMenuItem(L.GetString("OpDlg.Skip"));
+            skipItem.Click += (_, _) => op.RequestSkip();
+            menu.Items.Add(skipItem);
+
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
+        if (op.State is OperationState.Running or OperationState.Paused or OperationState.NotStarted)
+        {
+            var cancelItem = new ToolStripMenuItem(L.GetString("OpDlg.Cancel"));
+            cancelItem.Click += (_, _) => op.Cancel();
+            menu.Items.Add(cancelItem);
+        }
+
+        if (menu.Items.Count == 0)
+        {
+            menu.Dispose();
+            return;
+        }
+
+        UiHelpers.AutoDisposeOnClose(menu, this);
+        menu.Show(_listView, e.Location);
     }
 
     private void OnOperationChanged(object? sender, OperationManagerEventArgs e)

@@ -227,12 +227,38 @@ public sealed class OperationDialogForm : ThemedForm
         _skipBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Skip"));
         _skipBtn.Height = 36;
         _skipBtn.Margin = new Padding(0, 0, 8, 0);
-        _skipBtn.Click += (_, _) => SkipRequested?.Invoke(this, EventArgs.Empty);
+        // Was raising SkipRequested with nobody ever subscribed to it (audit finding G052) - a
+        // silent no-op click. IFileOperation.RequestSkip() now does the actual work directly;
+        // SkipRequested is kept (and still raised) for any external observer that wants to know a
+        // skip happened, but the operation no longer depends on one existing.
+        _skipBtn.Click += (_, _) =>
+        {
+            _operation.RequestSkip();
+            SkipRequested?.Invoke(this, EventArgs.Empty);
+        };
 
         _pauseBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Pause"));
         _pauseBtn.Height = 36;
         _pauseBtn.Margin = new Padding(0);
-        _pauseBtn.Enabled = false;
+        // The label toggles to "Resume"/"Продолжить" once paused (see OnOperationStateChanged) -
+        // CreateThemedButton only measures and sizes the button once, for the text given at
+        // construction time, so without this the wider Resume text would get clipped the same way
+        // Skip's own text used to be (see the comment above). Widen up front for the wider of the
+        // two labels the button will ever actually show.
+        var resumeWidth = TextRenderer.MeasureText(L.GetString("OpDlg.Resume"), p.GridFont).Width + 44;
+        _pauseBtn.Width = Math.Max(_pauseBtn.Width, resumeWidth);
+        // Was permanently disabled with no click handler at all (audit finding G051) -
+        // OperationState.Paused existed but nothing could ever reach it. Both buttons only make
+        // sense for an operation that actually checks for pause/skip in its own per-file loop.
+        _pauseBtn.Enabled = operation.SupportsPauseAndSkip;
+        _skipBtn.Enabled = operation.SupportsPauseAndSkip;
+        _pauseBtn.Click += (_, _) =>
+        {
+            if (_operation.State == OperationState.Paused)
+                _operation.Resume();
+            else
+                _operation.Pause();
+        };
 
         var leftGroup = new FlowLayoutPanel
         {
@@ -309,6 +335,24 @@ public sealed class OperationDialogForm : ThemedForm
                 OperationState.Failed => L.GetString("OpDlg.Failed"),
                 _ => ""
             };
+            if (_operation.SupportsPauseAndSkip)
+            {
+                // Toggle label/target between Pause and Resume as the operation's own state
+                // actually changes, rather than the button click handler guessing - state can also
+                // change from Cancel() releasing a pause wait (see FileOperation.Cancel), which the
+                // click handler never sees directly.
+                _pauseBtn.Text = state == OperationState.Paused
+                    ? L.GetString("OpDlg.Resume")
+                    : L.GetString("OpDlg.Pause");
+                // Skip works even while paused - RequestSkip() cancels the same per-file token
+                // WaitIfPausedAsync is registered against, so it interrupts a paused wait too, then
+                // the operation returns to waiting on the next file (still paused, since Resume()
+                // was never called) rather than silently un-pausing.
+                var active = state is OperationState.Running or OperationState.Paused;
+                _pauseBtn.Enabled = active;
+                _skipBtn.Enabled = active;
+            }
+
             if (state is OperationState.Completed or OperationState.Canceled or OperationState.Failed)
             {
                 if (state == OperationState.Completed)

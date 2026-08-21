@@ -17,6 +17,13 @@ public interface IFileOperation
     /// <summary>Human-readable title for display (e.g. "Copy", "Move").</summary>
     string Title { get; }
 
+    /// <summary>True when this operation actually honors <see cref="Pause"/>/<see cref="Resume"/>/
+    /// <see cref="RequestSkip"/> in its own per-file loop - callers (the Pause/Skip UI) should only
+    /// offer those controls when this is true, since calling them on an operation that never checks
+    /// for pause/skip would flip <see cref="State"/> to <see cref="OperationState.Paused"/> without
+    /// the operation actually stopping.</summary>
+    bool SupportsPauseAndSkip { get; }
+
     /// <summary>Raised when <see cref="State"/> changes.</summary>
     event EventHandler<OperationState>? StateChanged;
 
@@ -28,4 +35,16 @@ public interface IFileOperation
 
     /// <summary>Requests cooperative cancellation of a running or queued operation.</summary>
     void Cancel();
+
+    /// <summary>Pauses a running operation. No-op unless <see cref="SupportsPauseAndSkip"/> and
+    /// <see cref="State"/> is <see cref="OperationState.Running"/>.</summary>
+    void Pause();
+
+    /// <summary>Resumes a paused operation. No-op unless <see cref="State"/> is
+    /// <see cref="OperationState.Paused"/>.</summary>
+    void Resume();
+
+    /// <summary>Requests that the file currently being processed be abandoned and the operation
+    /// move on to the next one, without cancelling the operation as a whole.</summary>
+    void RequestSkip();
 }
