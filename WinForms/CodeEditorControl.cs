@@ -26,8 +26,6 @@ public sealed class CodeEditorControl : Panel
     public new event EventHandler? TextChanged;
     /// <summary>Raised when the caret position or selection changes.</summary>
     public event EventHandler? SelectionChanged;
-    /// <summary>Raised when the <see cref="Modified"/> flag changes value.</summary>
-    public event EventHandler? ModifiedChanged;
 
     /// <summary>
     /// Gets or sets the modified flag. Setting to <c>false</c> resets the clean-state marker
@@ -40,9 +38,7 @@ public sealed class CodeEditorControl : Panel
         {
             if (!value)
                 _cleanStateId = _canvas.UndoStack.CurrentStateId;
-            if (_modified == value) return;
             _modified = value;
-            ModifiedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

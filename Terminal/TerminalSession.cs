@@ -58,14 +58,6 @@ internal sealed class TerminalSession : IAsyncDisposable
     /// afterward (right-click a tab header).</summary>
     public string Name { get; set; }
 
-    /// <summary>
-    /// Raised on the pty's dedicated reader thread - NEVER the UI thread - every time a chunk of
-    /// output has been parsed into <see cref="Screen"/>. Subscribers that touch WinForms controls
-    /// MUST marshal via <c>Control.BeginInvoke</c>, never a synchronous <c>Invoke</c> - the same
-    /// deadlock-on-teardown hazard <see cref="PtySession"/> itself documents applies here.
-    /// </summary>
-    public event Action? OutputArrived;
-
     /// <summary>Raised when the shell process exits on its own (not via <see cref="DisposeAsync"/>).</summary>
     public event Action<int>? Exited;
 
@@ -198,7 +190,6 @@ internal sealed class TerminalSession : IAsyncDisposable
         // here must go through Screen.SyncRoot, which the UI layer takes around its own reads.
         lock (Screen.SyncRoot)
             _decoder.Decode(bytes.Span, _decodeScratch, chars => _parser.Parse(chars, Screen));
-        OutputArrived?.Invoke();
     }
 
     private void OnCwdReported(string path) => CurrentPath = path;

@@ -583,6 +583,8 @@ MultiRename.OldName=Old Name
 MultiRename.NewName=New Name
 MultiRename.Status=Status
 MultiRename.ErrDuplicate=Duplicate target names detected. Adjust the pattern.
+MultiRename.ErrChain=A new name matches an existing file being renamed. This would cause a chain conflict. Please adjust the pattern.
+MultiRename.WarnSkipped={0} item(s) have invalid names and will be skipped. Continue?
 
 # ═══ Archive ═══
 Archive.Title=Archive
@@ -593,6 +595,7 @@ Archive.PackPrompt=Archive name:
 Archive.PackFormat=Format:
 Archive.PackCompression=Compression:
 Archive.PackMoveOriginals=Delete originals after packing (move)
+Archive.PackNameRequired=Archive name cannot be empty.
 Archive.Format.Zip=ZIP
 Archive.Format.Tar=TAR
 Archive.Format.TarGz=TAR.GZ
@@ -781,6 +784,7 @@ Settings.Terminal.KeyBindings.Clear=Clear Shortcut
 Settings.Terminal.KeyBindings.ResetAll=Reset All to Defaults
 Settings.Terminal.KeyBindings.PressKeys=Press a key combination…
 Settings.Terminal.KeyBindings.ConflictConfirm="{0}" is already used by "{1}". Reassign it to this action instead?
+Settings.ExtensionsInvalidChars=The extension contains invalid characters.
 
 Menu.Commands.Find=Search...
 Find.Title=Search for files

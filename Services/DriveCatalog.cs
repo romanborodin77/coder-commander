@@ -41,9 +41,9 @@ public sealed class DriveCatalog
     ///
     /// **Fires on a thread-pool thread, never guaranteed to be the UI thread.** Subscribers that
     /// touch WinForms controls must marshal with <c>Control.BeginInvoke</c> - the same contract
-    /// <c>TerminalSession.OutputArrived</c> documents, and for the same reason: a synchronous
-    /// <c>Invoke</c> from here can deadlock against a UI thread that is itself waiting on this
-    /// class.
+    /// <see cref="Terminal.Native.PtySession"/> documents for its own background-thread events, and
+    /// for the same reason: a synchronous <c>Invoke</c> from here can deadlock against a UI thread
+    /// that is itself waiting on this class.
     /// </summary>
     public event EventHandler? Changed;
 

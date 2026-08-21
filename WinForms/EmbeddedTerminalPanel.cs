@@ -45,9 +45,6 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// <summary>Gets the underlying <see cref="TerminalSessionManager"/> that owns tab lifecycle.</summary>
     public TerminalSessionManager? SessionManager => _sessionManager;
 
-    /// <summary>Raised when a tab is created, closed, or the tab count changes.</summary>
-    public event EventHandler? TabsChanged;
-
     /// <summary>Raised when the tracked shell working directory changes for the active tab.</summary>
     public event EventHandler<DirectoryChangedEventArgs>? DirectoryChanged;
 
@@ -431,7 +428,6 @@ public sealed class EmbeddedTerminalPanel : Panel
         _suppressCwdReport.Remove(tabId);
 
         _sessionManager?.CloseTab(tabId);
-        TabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Switch to a tab.</summary>
@@ -584,8 +580,6 @@ public sealed class EmbeddedTerminalPanel : Panel
             var (cols, rows) = view.Canvas.GetTerminalSize();
             session.StartPty(cols, rows);
         });
-
-        TabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Focuses the actual interactive control of a tab page's content - a
@@ -621,7 +615,6 @@ public sealed class EmbeddedTerminalPanel : Panel
             _tabPagesByGuid.Remove(tabId);
             page.Content.Dispose();
         }
-        TabsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnTabActivated(object? sender, Guid tabId)

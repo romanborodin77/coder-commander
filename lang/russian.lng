@@ -449,6 +449,8 @@ MultiRename.OldName=Старое имя
 MultiRename.NewName=Новое имя
 MultiRename.Status=Статус
 MultiRename.ErrDuplicate=Обнаружены дубликаты целевых имён. Скорректируйте шаблон.
+MultiRename.ErrChain=Новое имя совпадает с существующим переименовываемым файлом. Это вызовет цепочный конфликт. Скорректируйте шаблон.
+MultiRename.WarnSkipped={0} элемент(ов) имеют недопустимые имена и будут пропущены. Продолжить?
 
 # ═══ Просмотр ══
 View.Title=Просмотр
@@ -615,6 +617,7 @@ Archive.PackPrompt=Имя архива:
 Archive.PackFormat=Формат:
 Archive.PackCompression=Сжатие:
 Archive.PackMoveOriginals=Удалить исходники после упаковки (перемещение)
+Archive.PackNameRequired=Имя архива не может быть пустым.
 Archive.Format.Zip=ZIP
 Archive.Format.Tar=TAR
 Archive.Format.TarGz=TAR.GZ
@@ -780,6 +783,7 @@ Settings.Terminal.KeyBindings.Clear=Очистить комбинацию
 Settings.Terminal.KeyBindings.ResetAll=Сбросить всё по умолчанию
 Settings.Terminal.KeyBindings.PressKeys=Нажмите комбинацию клавиш…
 Settings.Terminal.KeyBindings.ConflictConfirm="{0}" уже используется для «{1}». Переназначить на это действие?
+Settings.ExtensionsInvalidChars=Расширение содержит недопустимые символы.
 
 Menu.Commands.Find=Поиск файлов...
 Find.Title=Поиск файлов

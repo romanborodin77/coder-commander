@@ -30,9 +30,9 @@ namespace CoderCommander.Terminal.Ui;
 /// ordinary key and this app's own F10=Exit binding must not steal it while typing.
 /// </para>
 /// <para>
-/// <b>Repaint model</b>: does NOT invalidate synchronously from <see cref="TerminalSession.OutputArrived"/> -
-/// that event fires on the pty reader thread for every chunk, and a busy command (e.g. "yes")
-/// could flood the UI thread with invalidate calls. Instead a throttled timer polls
+/// <b>Repaint model</b>: does NOT invalidate synchronously from a per-chunk output notification -
+/// a busy command (e.g. "yes") could flood the UI thread with invalidate calls if it did (this is
+/// exactly why <see cref="TerminalSession"/> has no such event). Instead a throttled timer polls
 /// <see cref="TerminalScreen.Dirty"/> (a bitset the parser already writes to synchronously) and
 /// repaints at a fixed cap, which is also what keeps backpressure free - the parser blocking the
 /// pty read loop is itself what prevents unbounded output from outrunning the screen model.

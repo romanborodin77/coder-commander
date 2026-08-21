@@ -190,7 +190,7 @@ public sealed class MainForm : Form
 
         m.DropDownItems.Add(Mi("Menu.File.View", "view", "F3", CommandIds.View));
         m.DropDownItems.Add(Mi("Menu.File.Edit", "edit", "F4", CommandIds.Edit));
-        m.DropDownItems.Add(Mi("Menu.File.EditNew", "editnew", "Shift+F4", null, () => OpenEditorNew()));
+        m.DropDownItems.Add(Mi("Menu.File.EditNew", "editnew", "Shift+F4", CommandIds.EditNew));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.File.Copy", "copy", "F5", CommandIds.Copy));
         m.DropDownItems.Add(Mi("Menu.File.Move", "move", "F6", CommandIds.Move));
@@ -2239,29 +2239,35 @@ public sealed class MainForm : Form
             op.StateChanged += OnCombineStateChanged;
     }
 
-    /// <summary>Reports a CRC mismatch after a successful combine - not a failure (the file is
-    /// already written either way), just a heads-up. Silent on a verified match or when there was
-    /// nothing to verify against (no <c>.crc</c> sidecar - <see cref="CombineOperation.CrcVerified"/>
-    /// is null in that case, distinct from a confirmed false).</summary>
+    /// <summary>Reports the checksum outcome after a successful combine when the user explicitly
+    /// opted into verification (a <c>.crc</c> sidecar was present and checked) - a mismatch is a
+    /// heads-up, not a failure (the file is already written either way); a verified match confirms
+    /// the explicit ask actually succeeded, not just "no news". Silent only when there was nothing
+    /// to verify against at all (no <c>.crc</c> sidecar - <see cref="CombineOperation.CrcVerified"/>
+    /// is null in that case, distinct from a confirmed true/false).</summary>
     private void OnCombineStateChanged(object? sender, OperationState state)
     {
         if (state is not (OperationState.Completed or OperationState.Failed or OperationState.Canceled))
             return;
         if (sender is CombineOperation op)
             op.StateChanged -= OnCombineStateChanged;
-        if (state != OperationState.Completed || sender is not CombineOperation combine || combine.CrcVerified != false)
+        if (state != OperationState.Completed || sender is not CombineOperation combine || combine.CrcVerified is not { } verified)
             return;
 
-        if (InvokeRequired) { BeginInvoke(() => ShowCrcMismatchWarning()); return; }
-        ShowCrcMismatchWarning();
+        if (InvokeRequired) { BeginInvoke(() => ShowCrcResult(verified)); return; }
+        ShowCrcResult(verified);
     }
 
-    private void ShowCrcMismatchWarning()
+    private void ShowCrcResult(bool verified)
     {
         if (!IsHandleCreated) return;
         var L = LocalizationService.Current;
-        StyledMessageBox.Show(L.GetString("Combine.CrcMismatch"), L.GetString("Combine.Title"),
-            MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
+        if (verified)
+            StyledMessageBox.Show(L.GetString("Combine.CrcVerified"), L.GetString("Combine.Title"),
+                MsgBoxButtons.OK, MsgBoxIcon.Information, this);
+        else
+            StyledMessageBox.Show(L.GetString("Combine.CrcMismatch"), L.GetString("Combine.Title"),
+                MsgBoxButtons.OK, MsgBoxIcon.Warning, this);
     }
 
     /// <summary>A single folder names the archive after itself; anything else after its parent.
