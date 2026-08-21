@@ -39,9 +39,51 @@ internal sealed class TarSequentialWriter : ISequentialArchiveWriter
         ArchiveCompressionSpec compression,
         CancellationToken ct)
     {
-        // TarEntry needs a seekable DataStream to determine its length; the caller's stream (a
-        // ProgressStream wrapping a possibly non-seekable source) isn't guaranteed to be one, so
-        // buffer through a temp file rather than assume.
+        ct.ThrowIfCancellationRequested();
+
+        // TarWriter.ValidateStreamsSeekability (verified directly against System.Formats.Tar, not
+        // just inferred from docs) requires AT LEAST ONE of {entry DataStream, archive output
+        // stream} to be seekable, throwing IOException otherwise. The archive output stream here
+        // is _gzip ?? the caller's stream; GZipStream.CanSeek is always false, so writing into a
+        // gzip-wrapped archive with non-seekable content leaves no side able to satisfy that
+        // requirement except a genuinely buffered entry stream.
+        //
+        // Both fast-path branches below avoid the temp file this method used to buffer EVERY
+        // entry through unconditionally - a 300,000-entry archive rewrite used to create, write,
+        // read and delete 300,000 temp files on the system drive for unchanged survivors alone:
+        if (content.CanSeek)
+        {
+            // Already seekable (e.g. a MemoryStream from a gzip-sourced ArchiveReader's
+            // copyData:true buffering after this round's TarArchiveReader fix, or a local file
+            // opened directly) - satisfies TarWriter on its own, no wrapping needed at all.
+            var entry = new PaxTarEntry(TarEntryType.RegularFile, NormalizeName(entryName, isDirectory: false))
+            {
+                ModificationTime = ToTimestamp(lastWriteTimeUtc),
+                DataStream = content
+            };
+            _writer.WriteEntry(entry);
+            return;
+        }
+
+        if (_gzip == null)
+        {
+            // Archive output isn't gzip-wrapped (plain TAR - the common case for a staging file
+            // before it's gzip-wrapped, and for TarArchiveFormat itself): the archive side already
+            // satisfies TarWriter's seekability requirement, so the entry side can stay a cheap
+            // Length-reporting, non-owning wrapper around the caller's own (borrowed) content -
+            // never disposed here, matching who owned `content` before this method ever ran.
+            var entry = new PaxTarEntry(TarEntryType.RegularFile, NormalizeName(entryName, isDirectory: false))
+            {
+                ModificationTime = ToTimestamp(lastWriteTimeUtc),
+                DataStream = new KnownLengthStream(content, size)
+            };
+            _writer.WriteEntry(entry);
+            return;
+        }
+
+        // Both content and the archive output are non-seekable - TarWriter refuses that
+        // combination outright, so buffer through a temp file (this method's original behavior,
+        // now the fallback rather than the unconditional path).
         var tempPath = TempFileNaming.InSystemTemp("tarwrite");
         try
         {
@@ -62,6 +104,43 @@ internal sealed class TarSequentialWriter : ISequentialArchiveWriter
         {
             try { File.Delete(tempPath); } catch { /* best effort */ }
         }
+    }
+
+    /// <summary>
+    /// Reports a caller-supplied <see cref="Length"/> instead of asking the wrapped stream for one
+    /// - <see cref="CanSeek"/> is always false, so nothing should ever call <see cref="Seek"/> or
+    /// the <see cref="Position"/> setter; both throw if something unexpectedly does, the same
+    /// fail-loud contract every other non-seekable stream wrapper in this codebase follows
+    /// (<see cref="Operations.ProgressStream"/>, <see cref="NonDisposingStream"/>).
+    /// </summary>
+    private sealed class KnownLengthStream : Stream
+    {
+#pragma warning disable CA2213 // pass-through: the caller owns _inner's lifetime, same as ProgressStream/NonDisposingStream
+        private readonly Stream _inner;
+#pragma warning restore CA2213
+        private readonly long _length;
+
+        public KnownLengthStream(Stream inner, long length)
+        {
+            _inner = inner;
+            _length = length;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _length;
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) =>
+            _inner.ReadAsync(buffer, offset, count, ct);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) =>
+            _inner.ReadAsync(buffer, ct);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private static string NormalizeName(string name, bool isDirectory)

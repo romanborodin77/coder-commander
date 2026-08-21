@@ -47,16 +47,25 @@ internal sealed class NonDisposingStream : Stream
     {
         if (disposing)
         {
-            // Drain remaining data from the inner stream — SharpCompress IReader doesn't
-            // advance past the current entry until it's fully read, so skipping without
-            // draining leaves the reader stuck. Use a bounded loop instead of CopyTo(Stream.Null)
-            // which has no size limit and can block for a very long time on a large skipped entry.
+            // Drain remaining data from the inner stream — SharpCompress IReader doesn't advance
+            // past the current entry until it's fully read, so skipping without draining leaves
+            // the reader stuck. This is NOT actually bounded (an earlier version of this comment
+            // claimed it was): skipping a large entry in a solid/compressed archive means fully
+            // decompressing it either way, whether via this loop or CopyTo(Stream.Null) - there is
+            // no cheaper way to advance a forward-only decompressor past data it hasn't read yet.
+            // ArrayPool avoids at least the one incidental cost that WAS avoidable: an 80 KB array
+            // allocated fresh on every single skipped entry (encrypted/unselected/wrong-index),
+            // which for a large selection is one allocation per entry never even opened.
+            var drainBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(81920);
             try
             {
-                var drainBuffer = new byte[81920];
                 while (_inner.Read(drainBuffer, 0, drainBuffer.Length) > 0) { /* drain */ }
             }
             catch { /* best effort - a broken reader can't do much worse than skip forward wrong */ }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(drainBuffer);
+            }
         }
         // the real reader (TarReader/SharpCompress IReader) owns actually closing _inner
         base.Dispose(disposing);
