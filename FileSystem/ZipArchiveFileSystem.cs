@@ -919,12 +919,85 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             string.Equals(candidate.Replace('\\', '/').Trim('/'), wanted, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <inheritdoc/>
-    public async Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
+    /// <summary>
+    /// Renames/moves an entry within this archive using a single <see cref="ZipUpdateSession"/> -
+    /// audit finding G054: the previous implementation (<see cref="CopyFileAsync"/> then
+    /// <see cref="DeleteAsync"/>) opened two independent sessions, and each one's own doc comment
+    /// on <see cref="ZipUpdateSession.Open"/> explains why that means two full byte-for-byte copies
+    /// of the whole archive to a temp file for what is, for an interactive F2 rename, typically a
+    /// change to one entry's name. This class's own <see cref="MoveAsync"/> is only ever reached
+    /// with both <paramref name="source"/> and <paramref name="destination"/> inside THIS instance's
+    /// own <c>_archivePath</c> - <see cref="Operations.MoveOperation.CanRenameInPlace"/> requires
+    /// <c>ReferenceEquals(sourceFs, destFs)</c> for a provider with no <see cref="FileSystemCapabilities.NativePaths"/>
+    /// (ZIP), and the interactive rename command reads/writes through one panel's one
+    /// <see cref="FileSystemCapabilities"/>-checked <c>IFileSystem</c> instance - so there is no
+    /// cross-archive case to special-case here.
+    /// <para>
+    /// Still recompresses (<see cref="ZipArchiveEntry.Open"/> has no raw-compressed-bytes escape
+    /// hatch in <see cref="System.IO.Compression"/>), but that CPU cost is unavoidable either way;
+    /// what this removes is the second full-archive I/O pass <see cref="DeleteAsync"/> used to add
+    /// on top via its own separate session.
+    /// </para>
+    /// </summary>
+    public Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default) => Task.Run(() =>
     {
-        await CopyFileAsync(source, destination, overwrite, ct).ConfigureAwait(false);
-        await DeleteAsync(source, false, ct).ConfigureAwait(false);
-    }
+        var srcInner = VfsPath.NormalizeInner(CoderCommander.FileSystem.ArchivePath.SplitPath(source).innerPath.Replace('\\', '/'));
+        var dstInner = VfsPath.NormalizeInner(CoderCommander.FileSystem.ArchivePath.SplitPath(destination).innerPath.Replace('\\', '/'));
+        if (srcInner.Length == 0 || dstInner.Length == 0)
+            throw new IOException("Cannot move to/from the archive root without an entry name.");
+
+        using var session = OpenForUpdate(_archivePath, new[] { dstInner });
+        var zip = session.Archive;
+
+        var srcEntry = FindEntry(zip, _archivePath, srcInner) ?? FindEntry(zip, _archivePath, srcInner + "/")
+            ?? throw new FileNotFoundException($"Entry not found in archive: {srcInner}");
+        var isDirectory = srcEntry.FullName.EndsWith('/');
+
+        if (isDirectory)
+        {
+            // Directory.Move(path, path) semantics for a non-empty folder: refuse rather than
+            // silently rename just the marker and orphan the children still filed under the old
+            // prefix - the same guard DeleteAsync(recursive:false) already applies (see its own
+            // doc comment), checked here BEFORE any entry is touched so a refusal leaves the
+            // archive completely untouched instead of a half-renamed state (the old
+            // CopyFileAsync-then-DeleteAsync path could reach exactly that: CopyFileAsync would
+            // copy only the empty marker, then DeleteAsync would throw on the non-empty original,
+            // leaving both an orphaned new empty marker AND the untouched original in place).
+            var oldPrefix = srcInner + "/";
+            var hasDescendants = GetEntries().Any(e =>
+            {
+                var name = e.FullName.Replace('\\', '/');
+                return !string.Equals(name, srcInner, StringComparison.OrdinalIgnoreCase) &&
+                       !string.Equals(name, oldPrefix, StringComparison.OrdinalIgnoreCase) &&
+                       name.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase);
+            });
+            if (hasDescendants)
+                throw new IOException($"\"{srcInner}\" is not empty.");
+        }
+
+        var newName = isDirectory ? dstInner.TrimEnd('/') + "/" : dstInner;
+
+        var existing = FindEntry(zip, _archivePath, newName);
+        if (existing != null && existing != srcEntry)
+        {
+            if (!overwrite)
+                throw new IOException($"\"{dstInner}\" already exists.");
+            existing.Delete();
+        }
+
+        var newEntry = zip.CreateEntry(newName, CompressionLevel.Optimal);
+        newEntry.LastWriteTime = srcEntry.LastWriteTime;
+        if (!isDirectory)
+        {
+            using var src = srcEntry.Open();
+            using var dst = newEntry.Open();
+            src.CopyTo(dst);
+        }
+        srcEntry.Delete();
+
+        session.Commit();
+        Forget(_archivePath);
+    }, ct);
 
     /// <summary>
     /// Opens the archive for writing. When the archive holds OEM-encoded names, the same code page

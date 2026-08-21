@@ -25,6 +25,12 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
     // used to collapse them into the same key, so deleting/touching one could make CopySurvivorsAsync
     // skip the other too.
     private readonly HashSet<(string Name, bool IsDirectory)> _touchedNames = new();
+    // Old key -> new name for TryRenameEntry - checked first in CopySurvivorsAsync so a renamed
+    // entry's content streams through unchanged (no decompress/recompress) under its new name in
+    // the SAME single copy pass every other survivor already goes through, instead of a delete
+    // (this session) plus a separate add (a second session/full rewrite) the caller would
+    // otherwise have to do to simulate a rename (audit finding G054).
+    private readonly Dictionary<(string Name, bool IsDirectory), string> _renames = new();
     private FileStream? _lock;
     private bool _committed;
     private bool _disposed;
@@ -109,6 +115,15 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         return true;
     }
 
+    /// <summary>Always reports success, same as <see cref="TryDeleteEntry"/> - actual renaming
+    /// happens in <see cref="CopySurvivorsAsync"/>'s single pass over the original at
+    /// <see cref="CommitAsync"/>, not here.</summary>
+    public bool TryRenameEntry(ArchiveEntryRecord entry, string newName)
+    {
+        _renames[Key(entry.FullName, entry.IsDirectory)] = newName;
+        return true;
+    }
+
     public async Task CommitAsync(CancellationToken ct = default)
     {
         if (_committed) return;
@@ -177,13 +192,22 @@ public sealed class RewritingArchiveWriter : IArchiveWriter
         await foreach (var item in originalReader.ScanAsync(ct).ConfigureAwait(false))
         {
             using var content = item.Content;
-            if (_touchedNames.Contains(Key(item.Entry.FullName, item.Entry.IsDirectory)))
+            var key = Key(item.Entry.FullName, item.Entry.IsDirectory);
+            var isRenamed = _renames.TryGetValue(key, out var renamed);
+
+            // A rename takes priority over (and is mutually exclusive with) a delete of the same
+            // original entry - callers address entries by ArchiveEntryRecord.Index, so one entry
+            // is never both TryRenameEntry'd and TryDeleteEntry'd in the same session. Falls
+            // through to the write below either way, just under the new name when renamed.
+            if (!isRenamed && _touchedNames.Contains(key))
                 continue;
 
+            var name = isRenamed ? renamed! : item.Entry.FullName;
+
             if (item.Entry.IsDirectory)
-                finalWriter.WriteDirectory(item.Entry.FullName, item.Entry.LastWriteTimeUtc);
+                finalWriter.WriteDirectory(name, item.Entry.LastWriteTimeUtc);
             else
-                await finalWriter.WriteFileAsync(item.Entry.FullName, content, item.Entry.Size,
+                await finalWriter.WriteFileAsync(name, content, item.Entry.Size,
                     item.Entry.LastWriteTimeUtc, DefaultCompression, ct).ConfigureAwait(false);
         }
     }

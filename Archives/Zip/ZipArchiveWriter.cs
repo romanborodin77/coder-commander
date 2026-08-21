@@ -32,9 +32,17 @@ public sealed class ZipArchiveWriter : IArchiveWriter
         // legacy code-page names don't round-trip) lines up. Held as object references rather than
         // re-derived indices so later deletes in this same session - which shrink and reindex
         // ZipArchive's own Entries collection - can't desync a later TryDeleteEntry call.
-        _byOriginalIndex = new Dictionary<int, ZipArchiveEntry>(_zip.Entries.Count);
-        for (var i = 0; i < _zip.Entries.Count; i++)
-            _byOriginalIndex[i] = _zip.Entries[i];
+        //
+        // ZipArchive.Entries throws NotSupportedException in Create mode (a brand-new archive,
+        // which ZipUpdateSession.Open enters whenever the real file doesn't exist yet - the normal
+        // case for Pack into a new .zip) - there's nothing to snapshot for an archive with no
+        // entries yet, so this is skipped entirely rather than guarded per-access.
+        _byOriginalIndex = _zip.Mode == ZipArchiveMode.Create
+            ? new Dictionary<int, ZipArchiveEntry>()
+            : new Dictionary<int, ZipArchiveEntry>(_zip.Entries.Count);
+        if (_zip.Mode != ZipArchiveMode.Create)
+            for (var i = 0; i < _zip.Entries.Count; i++)
+                _byOriginalIndex[i] = _zip.Entries[i];
     }
 
     public ArchiveWriteMode Mode => ArchiveWriteMode.UpdateInPlace;
@@ -86,6 +94,35 @@ public sealed class ZipArchiveWriter : IArchiveWriter
             return false;
 
         target.Delete();
+        return true;
+    }
+
+    /// <summary>Same "create new entry, copy the decompressed bytes across, delete the old one"
+    /// shape as <see cref="FileSystem.ZipArchiveFileSystem"/>'s own in-session rename (see that
+    /// class's <c>MoveAsync</c> doc comment for why <see cref="System.IO.Compression"/> offers no
+    /// raw-compressed-bytes shortcut) - but within THIS writer's already-open session, so a caller
+    /// batching several renames alongside adds/deletes still commits everything in one pass rather
+    /// than opening a second session per rename.</summary>
+    public bool TryRenameEntry(ArchiveEntryRecord entry, string newName)
+    {
+        var source = _byOriginalIndex.Remove(entry.Index, out var byIndex)
+            ? byIndex
+            : ZipArchiveFileSystem.FindEntry(_zip, _archivePath, entry.FullName);
+        if (source == null)
+            return false;
+
+        var name = entry.IsDirectory ? newName.Replace('\\', '/').TrimEnd('/') + "/" : newName.Replace('\\', '/');
+        var newEntry = _zip.CreateEntry(name, entry.IsDirectory ? CompressionLevel.NoCompression : CompressionLevel.Optimal);
+        newEntry.LastWriteTime = source.LastWriteTime;
+
+        if (!entry.IsDirectory)
+        {
+            using var src = source.Open();
+            using var dst = newEntry.Open();
+            src.CopyTo(dst);
+        }
+
+        source.Delete();
         return true;
     }
 

@@ -45,6 +45,14 @@ public interface IArchiveWriter : IAsyncDisposable, IDisposable
     /// across every implementation.</summary>
     bool TryDeleteEntry(ArchiveEntryRecord entry);
 
+    /// <summary>Renames an existing entry to <paramref name="newName"/>, passing its content
+    /// through unchanged (no decompress/recompress for a <see cref="RewritingArchiveWriter"/>-backed
+    /// format; for ZIP, still one CPU-bound recompress, but within this session's one archive-wide
+    /// I/O pass rather than a second one - see each implementation's own doc comment). Same
+    /// existence-verification contract as <see cref="TryDeleteEntry"/>: a stage-then-rewrite writer
+    /// defers verification to <see cref="CommitAsync"/> and always returns true here.</summary>
+    bool TryRenameEntry(ArchiveEntryRecord entry, string newName);
+
     /// <summary>Flushes/finalizes all pending changes. Must be called before disposal for
     /// changes to be guaranteed durable.</summary>
     Task CommitAsync(CancellationToken ct = default);

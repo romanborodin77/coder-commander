@@ -308,11 +308,67 @@ public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem, I
         }
     }
 
-    /// <summary>Moves the entry at <paramref name="source"/> to <paramref name="destination"/> (copy + delete).</summary>
+    /// <summary>
+    /// Renames/moves an entry within this archive using ONE writer session and
+    /// <see cref="IArchiveWriter.TryRenameEntry"/>, instead of the previous <see cref="CopyFileAsync"/>
+    /// + <see cref="DeleteAsync"/> pairing (audit finding G054). For a <see cref="RewritingArchiveWriter"/>-
+    /// backed format (TAR/TAR.GZ/TAR.BZ2 - the only writable formats this class serves; 7z/RAR/TAR.XZ
+    /// have no writer at all and never reach here), each writer session is a full container rewrite,
+    /// so the old two-session path cost two full rewrites for what an interactive F2 rename typically
+    /// changes: one entry's name - <see cref="TryRenameEntry"/>'s own doc comment on
+    /// <see cref="RewritingArchiveWriter"/> explains how the single <c>CopySurvivorsAsync</c> pass
+    /// streams the renamed entry's content through unchanged, without <see cref="CopyFileAsync"/>'s
+    /// separate extract-to-temp step at all.
+    /// <para>
+    /// Same "always the same archive" reasoning as <see cref="FileSystem.ZipArchiveFileSystem.MoveAsync"/>'s
+    /// own doc comment: this class's <see cref="MoveAsync"/> is only ever reached with both
+    /// <paramref name="source"/> and <paramref name="destination"/> inside this instance's own
+    /// <c>_archivePath</c> - <see cref="Operations.MoveOperation.CanRenameInPlace"/> requires
+    /// <c>ReferenceEquals(sourceFs, destFs)</c> for a provider with no <see cref="FileSystemCapabilities.NativePaths"/>.
+    /// </para>
+    /// </summary>
     public async Task MoveAsync(string source, string destination, bool overwrite, CancellationToken ct = default)
     {
-        await CopyFileAsync(source, destination, overwrite, ct).ConfigureAwait(false);
-        await DeleteAsync(source, recursive: false, ct).ConfigureAwait(false);
+        if (!_format.Capabilities.HasFlag(ArchiveCapabilities.AddEntries) ||
+            !_format.Capabilities.HasFlag(ArchiveCapabilities.DeleteEntries))
+            throw new NotSupportedException($"Archive format \"{_format.Id}\" does not support renaming entries.");
+
+        var srcInner = VfsPath.NormalizeInner(ArchivePath.SplitPath(source).innerPath);
+        var dstInner = VfsPath.NormalizeInner(ArchivePath.SplitPath(destination).innerPath);
+        if (srcInner.Length == 0 || dstInner.Length == 0)
+            throw new IOException("Cannot move to/from the archive root without an entry name.");
+
+        var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
+        var srcEntry = dir.Index.Navigate(srcInner)?.Entry
+            ?? throw new FileNotFoundException($"Entry not found in archive: {srcInner}");
+
+        if (srcEntry.IsDirectory)
+        {
+            // Directory.Move(path, path) semantics for a non-empty folder: refuse rather than
+            // rename just the marker and orphan the children still filed under the old prefix -
+            // same guard DeleteAsync(recursive:false) already applies, checked up front here so a
+            // refusal leaves the archive completely untouched (see ZipArchiveFileSystem.MoveAsync's
+            // identical guard for why checking AFTER a partial rename would be worse than refusing).
+            var srcNode = dir.Index.Navigate(srcInner);
+            if (srcNode != null && srcNode.Children.Count > 0)
+                throw new IOException($"\"{srcInner}\" is not empty.");
+        }
+
+        var dstEntry = dir.Index.Navigate(dstInner)?.Entry;
+
+        await using var writer = _format.OpenWrite(_archivePath, new ArchiveWriteOptions());
+        if (dstEntry != null)
+        {
+            if (!overwrite)
+                throw new IOException($"\"{dstInner}\" already exists.");
+            writer.TryDeleteEntry(dstEntry);
+        }
+
+        var newName = srcEntry.IsDirectory ? dstInner.TrimEnd('/') + "/" : dstInner;
+        writer.TryRenameEntry(srcEntry, newName);
+        await writer.CommitAsync(ct).ConfigureAwait(false);
+
+        Forget(_archivePath);
     }
 
     /// <summary>
