@@ -78,6 +78,27 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
         /// <summary>Last modification time in UTC.</summary>
         public DateTime LastWriteTimeUtc { get; init; }
+
+        /// <summary>True when the entry's general-purpose bit flag 0 (encrypted) is set - covers
+        /// classic ZipCrypto and the AES compression-method-0x63 scheme alike, since both set this
+        /// bit regardless of which one actually encrypts the entry. Before this was tracked,
+        /// <c>UnpackOperation</c>'s "skip encrypted entries instead of crashing" branch was dead
+        /// code for every ZIP (audit finding G045) - it always saw <c>false</c>.</summary>
+        public bool IsEncrypted { get; init; }
+
+        /// <summary>True for a UNIX symbolic link entry (detected via the external-attributes
+        /// field's high word when "version made by"'s host byte indicates UNIX). Windows-authored
+        /// ZIPs essentially never set this - Explorer/7-Zip/WinRAR on Windows don't create ZIP
+        /// symlink entries - so <c>false</c> is the overwhelmingly common, correct default.</summary>
+        public bool IsLink { get; init; }
+
+        /// <summary>DOS-compatible attribute bits (ReadOnly/Hidden/System/Archive) decoded from the
+        /// external-attributes field's low byte - the same convention essentially every ZIP tool
+        /// follows regardless of which OS actually wrote the archive, Windows tools always and most
+        /// UNIX tools by convention for cross-platform compatibility. <see cref="FileAttributes.Directory"/>
+        /// is deliberately excluded here even if the bit is set - <see cref="IsDirectory"/> already
+        /// carries that, decided from the entry name/marker, not from a possibly-wrong stored bit.</summary>
+        public FileAttributes DosAttributes { get; init; }
     }
 
     /// <summary>Immutable snapshot of an archive's central directory.</summary>
@@ -406,7 +427,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             var sig = reader.ReadUInt32();
             if (sig != 0x02014b50) break; // CD file header signature
 
-            reader.ReadUInt16(); // version made by
+            var versionMadeBy = reader.ReadUInt16();
             reader.ReadUInt16(); // version needed
             var flags = reader.ReadUInt16();
             reader.ReadUInt16(); // compression method
@@ -420,7 +441,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             var commentLen = reader.ReadUInt16();
             reader.ReadUInt16(); // disk number start
             reader.ReadUInt16(); // internal attrs
-            reader.ReadUInt32(); // external attrs
+            var externalAttrs = reader.ReadUInt32();
             reader.ReadUInt32(); // local header offset
 
             // A truncated/corrupted file can claim lengths that run past EOF; without this check
@@ -449,6 +470,27 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             if (normalized.StartsWith("./", StringComparison.Ordinal))
                 normalized = normalized[2..];
 
+            // General-purpose bit 0 (0x0001) marks the entry as encrypted for both classic
+            // ZipCrypto and AES (compression method 0x63) - either way, this app has no
+            // password-prompt UI, so knowing this up front lets extraction skip the entry cleanly
+            // instead of the reader throwing a raw crypto exception when the stream is touched.
+            var isEncrypted = (flags & 0x0001) != 0;
+
+            // DOS-compatible attribute byte (ReadOnly/Hidden/System/Archive) is the external
+            // attributes field's low byte - a convention followed by Windows tools always and most
+            // UNIX tools too for cross-platform compatibility, even though only the low 8 of the
+            // 16-bit field are meaningfully "DOS" attributes. Directory is deliberately excluded -
+            // IsDirectory is already decided from the name/marker, not trusted from this bit.
+            const uint DosAttributeMask = 0x01 | 0x02 | 0x04 | 0x20; // ReadOnly | Hidden | System | Archive
+            var dosAttributes = (FileAttributes)(externalAttrs & DosAttributeMask);
+
+            // A UNIX symlink is marked in the external attributes field's HIGH word (the st_mode
+            // bits a UNIX zip tool stored there), but only means anything when "version made by"'s
+            // host byte says the archive was actually written on UNIX (3) - Windows tools reuse
+            // that same 32-bit field for other things, so checking the mode bits without this guard
+            // would occasionally misidentify an ordinary Windows-authored entry as a symlink.
+            var isLink = (versionMadeBy >> 8) == 3 && ((externalAttrs >> 16) & 0xF000) == 0xA000;
+
             records.Add(new ZipEntryRecord
             {
                 Index = entryIndex++,
@@ -456,7 +498,10 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
                 IsDirectory = normalized.EndsWith('/'),
                 Size = uncompressedSize,
                 CompressedSize = compressedSize,
-                LastWriteTimeUtc = ParseDosDateTime(modDate, modTime)
+                LastWriteTimeUtc = ParseDosDateTime(modDate, modTime),
+                IsEncrypted = isEncrypted,
+                IsLink = isLink,
+                DosAttributes = dosAttributes
             });
         }
 
@@ -684,12 +729,12 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             if (child.Children.Count > 0 || child.Entry is { IsDirectory: true })
             {
                 result.Add(new FileEntry(CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + name),
-                    true, lastWriteTimeUtc: child.LastWriteTimeUtc));
+                    true, lastWriteTimeUtc: child.LastWriteTimeUtc, attributes: child.Entry?.DosAttributes ?? default));
             }
             if (child.Entry is { IsDirectory: false } file)
             {
                 result.Add(new FileEntry(CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, prefix + name),
-                    false, true, file.Size, lastWriteTimeUtc: file.LastWriteTimeUtc));
+                    false, true, file.Size, lastWriteTimeUtc: file.LastWriteTimeUtc, attributes: file.DosAttributes));
             }
         }
 
@@ -729,8 +774,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
             {
                 var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(archivePath, childPath);
                 result.Add(entry.IsDirectory
-                    ? new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc)
-                    : new FileEntry(fullPath, false, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc));
+                    ? new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.DosAttributes)
+                    : new FileEntry(fullPath, false, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.DosAttributes));
             }
             CollectDeepEntries(child, archivePath, childPath, result, ct);
         }
@@ -753,7 +798,7 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
         if (dir.Index.TryGetExact(innerPath, out var entry) && entry != null)
         {
             var fullPath = CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, innerPath);
-            return new FileEntry(fullPath, entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
+            return new FileEntry(fullPath, entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.DosAttributes);
         }
 
         var node = dir.Index.Navigate(innerPath);

@@ -36,12 +36,12 @@ public static class ArchiveTree
             if (child.Children.Count > 0 || child.Entry is { IsDirectory: true })
             {
                 result.Add(new FileEntry(ArchivePath.MakePath(archiveHostPath, prefix + name), true,
-                    lastWriteTimeUtc: child.LastWriteTimeUtc));
+                    lastWriteTimeUtc: child.LastWriteTimeUtc, attributes: child.Entry?.Attributes ?? default));
             }
             if (child.Entry is { IsDirectory: false } file)
             {
                 result.Add(new FileEntry(ArchivePath.MakePath(archiveHostPath, prefix + name), false, true,
-                    file.Size, lastWriteTimeUtc: file.LastWriteTimeUtc));
+                    file.Size, lastWriteTimeUtc: file.LastWriteTimeUtc, attributes: file.Attributes));
             }
         }
 
@@ -73,8 +73,8 @@ public static class ArchiveTree
             {
                 var fullPath = ArchivePath.MakePath(archiveHostPath, childPath);
                 result.Add(entry.IsDirectory
-                    ? new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc)
-                    : new FileEntry(fullPath, false, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc));
+                    ? new FileEntry(fullPath, true, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.Attributes)
+                    : new FileEntry(fullPath, false, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.Attributes));
             }
             CollectDescendants(child, archiveHostPath, childPath, result);
         }

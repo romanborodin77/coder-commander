@@ -73,7 +73,10 @@ public sealed class ZipArchiveReader : IArchiveReader
         Size = e.Size,
         PackedSize = e.CompressedSize,
         LastWriteTimeUtc = e.LastWriteTimeUtc,
-        Index = e.Index
+        Index = e.Index,
+        IsEncrypted = e.IsEncrypted,
+        IsLink = e.IsLink,
+        Attributes = e.DosAttributes
     };
 
     /// <summary>Releases the underlying <see cref="ZipArchive"/> if it was opened.</summary>

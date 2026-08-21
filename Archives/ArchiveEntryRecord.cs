@@ -30,6 +30,12 @@ public sealed record ArchiveEntryRecord
     /// content stream empty for these - extraction skips them explicitly instead of silently
     /// writing a 0-byte file in the link's place.</summary>
     public bool IsLink { get; init; }
+
+    /// <summary>OS file attributes for this entry, when the format's directory metadata carries
+    /// them (currently ZIP's DOS-compatible attribute byte; other formats leave this at its
+    /// default of no flags set). Feeds <see cref="FileSystem.FileEntry.Attributes"/> so the
+    /// Attributes column isn't unconditionally blank for every archive entry.</summary>
+    public FileAttributes Attributes { get; init; }
 }
 
 /// <summary>Immutable snapshot of an archive's directory listing.</summary>

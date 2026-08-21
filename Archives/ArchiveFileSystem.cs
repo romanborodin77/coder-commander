@@ -120,7 +120,7 @@ public sealed class ArchiveFileSystem : IFileSystem, IBatchReadableFileSystem, I
             var dir = await ReadDirectoryAsync(ct).ConfigureAwait(false);
             var entry = ArchiveTree.FindEntry(dir, innerPath);
             if (entry != null)
-                return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc);
+                return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), entry.IsDirectory, true, entry.Size, lastWriteTimeUtc: entry.LastWriteTimeUtc, attributes: entry.Attributes);
 
             if (ArchiveTree.HasDescendants(dir, innerPath))
                 return new FileEntry(ArchivePath.MakePath(_archivePath, innerPath), true);
