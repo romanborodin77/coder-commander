@@ -1059,6 +1059,7 @@ public sealed class MainForm : Form
         _vm.DeleteConfirmRequested += OnDeleteConfirm;
         _vm.WipeConfirmRequested += OnWipeConfirm;
         _vm.ConfirmPermanentDeleteRequested += OnConfirmPermanentDelete;
+        _vm.ArchivePasswordRequested += OnArchivePasswordRequested;
         _vm.CopyConfirmRequested += OnCopyConfirm;
         _vm.MoveConfirmRequested += OnMoveConfirm;
         _vm.MakeDirRequested += OnMakeDir;
@@ -1414,6 +1415,24 @@ public sealed class MainForm : Form
                 MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this);
             return result == MsgBoxResult.Yes;
         }))!;
+    }
+
+    /// <summary>
+    /// <see cref="MainViewModel.ArchivePasswordRequested"/> - same background-thread marshaling
+    /// pattern as <see cref="OnConfirmPermanentDelete"/> above. Returning null (dialog cancelled,
+    /// or the form's handle isn't ready yet) leaves the operation to skip the encrypted entries,
+    /// exactly like today's no-password behavior.
+    /// </summary>
+    private void OnArchivePasswordRequested(object? sender, ArchivePasswordRequestedEventArgs e)
+    {
+        if (!IsHandleCreated)
+            return;
+
+        e.Password = (string?)Invoke(new Func<string?>(() =>
+        {
+            using var dlg = new PasswordPromptForm(VfsPath.GetName(e.ArchivePath));
+            return dlg.ShowDialog(this) == DialogResult.OK ? dlg.Password : null;
+        }));
     }
 
     private void OnCopyConfirm(object? sender, (IReadOnlyList<FileSystemItem> files, string sourcePath, string destPath) e)

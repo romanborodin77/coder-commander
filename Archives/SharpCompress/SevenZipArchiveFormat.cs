@@ -13,7 +13,8 @@ public sealed class SevenZipArchiveFormat : IArchiveFormat
     public IReadOnlyList<string> Extensions { get; } = new[] { ".7z" };
     public string DefaultExtension => ".7z";
 
-    public ArchiveCapabilities Capabilities => ArchiveCapabilities.Read | ArchiveCapabilities.Browse;
+    public ArchiveCapabilities Capabilities =>
+        ArchiveCapabilities.Read | ArchiveCapabilities.Browse | ArchiveCapabilities.PasswordProtectedRead;
 
     public IReadOnlyList<CompressionPreset> SupportedPresets { get; } = Array.Empty<CompressionPreset>();
 
@@ -23,7 +24,8 @@ public sealed class SevenZipArchiveFormat : IArchiveFormat
         return header.Length >= magic.Length && header[..magic.Length].SequenceEqual(magic);
     }
 
-    public IArchiveReader OpenRead(string archivePath) => new SharpCompressReader(archivePath, SharpCompressKind.SevenZip);
+    public IArchiveReader OpenRead(string archivePath, string? password = null) =>
+        new SharpCompressReader(archivePath, SharpCompressKind.SevenZip, password);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         throw new NotSupportedException($"\"{archivePath}\" is a 7z archive, which is read-only and cannot be modified.");

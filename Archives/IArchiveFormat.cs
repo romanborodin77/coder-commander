@@ -32,7 +32,10 @@ public interface IArchiveFormat
     /// <see cref="ArchiveFormatRegistry.Detect"/>.</summary>
     bool MatchesSignature(ReadOnlySpan<byte> header);
 
-    IArchiveReader OpenRead(string archivePath);
+    /// <summary>Opens the archive for reading. <paramref name="password"/> decrypts entries when
+    /// <see cref="Capabilities"/> includes <see cref="ArchiveCapabilities.PasswordProtectedRead"/>;
+    /// otherwise it is ignored (never persisted - the caller owns the string's lifetime).</summary>
+    IArchiveReader OpenRead(string archivePath, string? password = null);
 
     /// <summary>Throws <see cref="NotSupportedException"/> if <see cref="Capabilities"/> doesn't
     /// include <see cref="ArchiveCapabilities.Create"/> or <see cref="ArchiveCapabilities.AddEntries"/>.</summary>

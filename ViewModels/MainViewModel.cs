@@ -364,7 +364,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
 
             op = new UnpackOperation(sourceArchiveFs, sourceArchive, entries, VfsPath.GetInner(sourceBase),
-                unpackDestFs, destPath, options, removeSource: move);
+                unpackDestFs, destPath, options, removeSource: move)
+            {
+                RequestPassword = RaiseArchivePasswordRequested
+            };
         }
         else
         {
@@ -1036,10 +1039,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 continue;
             }
 
-            var op = new UnpackOperation(archiveFs, archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options);
+            var op = new UnpackOperation(archiveFs, archive.FullPath, Array.Empty<FileEntry>(), "", destFs, destPath, options)
+            {
+                RequestPassword = RaiseArchivePasswordRequested
+            };
             _ = Operations.RunAsync(op, Services.LocalizationService.Current.GetString("Op.DisplayUnpack", archive.Name, destPath));
         }
 #pragma warning restore CA2000
+    }
+
+    /// <summary>Bridges <see cref="UnpackOperation.RequestPassword"/> (a synchronous
+    /// operation-level callback, invoked from a background thread) to <see cref="ArchivePasswordRequested"/>
+    /// (a UI-facing event) - the same "no subscriber = safe default" shape
+    /// <see cref="ExecuteDelete"/>'s own <c>ConfirmPermanentDelete</c> lambda uses for
+    /// <see cref="ConfirmPermanentDeleteRequested"/>.</summary>
+    private string? RaiseArchivePasswordRequested(string archivePath)
+    {
+        if (ArchivePasswordRequested == null) return null;
+        var args = new ArchivePasswordRequestedEventArgs(archivePath);
+        ArchivePasswordRequested.Invoke(this, args);
+        return args.Password;
     }
 
     private async Task SafeExecuteAsync(Func<Task> action, string operationName)
@@ -1090,6 +1109,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// Invoked from a background thread - the handler is responsible for marshaling to the UI thread.
     /// </summary>
     public event EventHandler<ConfirmPermanentDeleteEventArgs>? ConfirmPermanentDeleteRequested;
+    /// <summary>
+    /// Raised when an unpack selection contains an entry the archive format can decrypt given a
+    /// password (see <see cref="Archives.ArchiveCapabilities.PasswordProtectedRead"/>). Handler
+    /// must set <see cref="ArchivePasswordRequestedEventArgs.Password"/>; leaving it null proceeds
+    /// without one (encrypted entries are then skipped). Invoked from a background thread - the
+    /// handler is responsible for marshaling to the UI thread, same as
+    /// <see cref="ConfirmPermanentDeleteRequested"/>.
+    /// </summary>
+    public event EventHandler<ArchivePasswordRequestedEventArgs>? ArchivePasswordRequested;
     /// <summary>Raised when a copy operation needs user confirmation before proceeding.</summary>
     public event EventHandler<(IReadOnlyList<Models.FileSystemItem> files, string sourcePath, string destPath)>? CopyConfirmRequested;
     /// <summary>Raised when a move operation needs user confirmation before proceeding.</summary>
@@ -1298,4 +1326,13 @@ public sealed class ConfirmPermanentDeleteEventArgs(IReadOnlyList<string> paths)
     public IReadOnlyList<string> Paths { get; } = paths;
     /// <summary>Set to <c>true</c> by the handler to allow permanent deletion.</summary>
     public bool Proceed { get; set; }
+}
+
+/// <summary>Event args for <see cref="MainViewModel.ArchivePasswordRequested"/>.</summary>
+public sealed class ArchivePasswordRequestedEventArgs(string archivePath) : EventArgs
+{
+    /// <summary>Full path of the archive whose entries need a password to decrypt.</summary>
+    public string ArchivePath { get; } = archivePath;
+    /// <summary>Set by the handler to the entered password, or left null to proceed without one.</summary>
+    public string? Password { get; set; }
 }

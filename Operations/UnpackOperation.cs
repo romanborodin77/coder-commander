@@ -38,6 +38,15 @@ public sealed class UnpackOperation : FileOperation
     private readonly TransferOptions _options;
     private readonly bool _removeSource;
 
+    /// <summary>Asked, at most once per operation, when the selection contains an encrypted entry
+    /// AND the archive format is capable of decrypting it given a password (see
+    /// <see cref="ArchiveCapabilities.PasswordProtectedRead"/> - ZIP is never asked, since no
+    /// password unlocks a ZipCrypto/AES entry through this app's ZIP reader). Receives the
+    /// archive's own path (for display) and returns the password, or null/empty to proceed without
+    /// one (encrypted entries are then skipped, same as today). Never persisted - lives only for
+    /// this operation's lifetime. May be called from a background thread.</summary>
+    public Func<string, string?>? RequestPassword { get; init; }
+
     // Lazily computed once (not per-entry - see GetNormalizedDestRoot) and reused by every
     // ArchiveSafety.EscapesRoot check in ProcessRecordAsync, which previously recomputed the same
     // Path.GetFullPath(_destPath) call on every single extracted entry (audit finding G046).
@@ -45,6 +54,13 @@ public sealed class UnpackOperation : FileOperation
     // ExecuteCoreAsync), so no locking is needed around this cache.
     private string? _normalizedDestRoot;
     private bool _normalizedDestRootComputed;
+
+    // Set once ExecuteCoreAsync has actually reopened the reader with a non-empty password (see
+    // RequestPassword) - distinguishes "this entry is encrypted and we have nothing to decrypt it
+    // with" (skip, as always) from "this entry is encrypted and a password IS in use" (attempt
+    // extraction; a wrong password surfaces as a normal per-entry failure in ExtractAsync's own
+    // try/catch, not a silent skip). Never true for ZIP - see the PasswordProtectedRead gate above.
+    private bool _hasPassword;
 
     private int _filesProcessed;
     private int _filesTotal;
@@ -95,7 +111,8 @@ public sealed class UnpackOperation : FileOperation
 
         var extracted = new List<ArchiveEntryRecord>();
 
-        using (var reader = format.OpenRead(localArchivePath))
+        var reader = format.OpenRead(localArchivePath);
+        try
         {
             var directory = await reader.ReadDirectoryAsync(ct).ConfigureAwait(false);
             // Audit Phase 5/6 (DEBUG.md §0, archive_fuzz): IsValid is false only when
@@ -111,6 +128,24 @@ public sealed class UnpackOperation : FileOperation
             var selected = SelectRecords(directory);
             if (selected.Count == 0)
                 return;
+
+            // Directory listing (names/sizes) is read from the container's own header, which is
+            // rarely itself encrypted even when every entry's content is - so this already-read
+            // `selected` list stays valid after swapping to a password-carrying reader below;
+            // re-listing isn't needed, only content access changes. Index addressing (what
+            // ProcessRecordAsync/OpenEntry/ScanAsync key off) is deterministic per archive, so the
+            // same indices resolve to the same entries on the new reader too.
+            if (format.Capabilities.HasFlag(ArchiveCapabilities.PasswordProtectedRead) &&
+                selected.Any(r => !r.IsDirectory && r.IsEncrypted))
+            {
+                var password = RequestPassword?.Invoke(_archivePath);
+                if (!string.IsNullOrEmpty(password))
+                {
+                    reader.Dispose();
+                    reader = format.OpenRead(localArchivePath, password);
+                    _hasPassword = true;
+                }
+            }
 
             _filesTotal = selected.Count;
             _bytesTotal = 0;
@@ -130,7 +165,25 @@ public sealed class UnpackOperation : FileOperation
                 foreach (var record in selected)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var content = record.IsDirectory ? null : reader.OpenEntry(record);
+                    Stream? content = null;
+                    if (!record.IsDirectory)
+                    {
+                        try
+                        {
+                            content = reader.OpenEntry(record);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            // A bad password, a desynced index (see ZipArchiveReader.OpenEntry's own
+                            // doc comment), or corruption specific to this one entry - none of that
+                            // should abort extraction of every entry after it (audit finding G053).
+                            LogService.Warning($"Unpack: cannot open {record.FullName}: {ex.Message}");
+                            _extractFailures.Add(record.FullName);
+                            _filesProcessed++;
+                            ReportProgress(VfsPath.GetName(Relativize(record.FullName)));
+                            continue;
+                        }
+                    }
                     await ProcessRecordAsync(record, content, extracted, ct).ConfigureAwait(false);
                 }
             }
@@ -140,20 +193,45 @@ public sealed class UnpackOperation : FileOperation
                 // only option, so pick out the wanted entries as they're encountered instead of
                 // opening each one individually afterwards.
                 var wanted = new HashSet<int>(selected.Select(r => r.Index));
-                await foreach (var item in reader.ScanAsync(ct).ConfigureAwait(false))
+                try
                 {
-                    ct.ThrowIfCancellationRequested();
-                    if (!wanted.Contains(item.Entry.Index))
+                    await foreach (var item in reader.ScanAsync(ct).ConfigureAwait(false))
                     {
-                        item.Content.Dispose();
-                        continue;
-                    }
+                        ct.ThrowIfCancellationRequested();
+                        if (!wanted.Remove(item.Entry.Index))
+                        {
+                            item.Content.Dispose();
+                            continue;
+                        }
 
-                    await ProcessRecordAsync(item.Entry, item.Entry.IsDirectory ? null : item.Content, extracted, ct).ConfigureAwait(false);
-                    if (item.Entry.IsDirectory)
-                        item.Content.Dispose();
+                        await ProcessRecordAsync(item.Entry, item.Entry.IsDirectory ? null : item.Content, extracted, ct).ConfigureAwait(false);
+                        if (item.Entry.IsDirectory)
+                            item.Content.Dispose();
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException && wanted.Count > 0)
+                {
+                    // A solid archive's forward-only reader can need to decode a shared compressed
+                    // block just to SKIP past an entry it isn't extracting (see
+                    // SharpCompressReader's own doc comment) - for an encrypted 7z/RAR folder with
+                    // no password, that skip itself throws instead of cleanly reaching the next
+                    // entry, ending the scan partway through with entries left unseen. Report
+                    // those as failures rather than losing everything already extracted before
+                    // this point (audit finding G053) - the alternative, letting this propagate,
+                    // would fail entries that DID extract successfully too.
+                    var unreached = selected.Where(r => wanted.Contains(r.Index)).ToList();
+                    LogService.Warning($"Unpack: archive scan stopped early, {unreached.Count} entry(ies) unreached: {ex.Message}");
+                    foreach (var rec in unreached)
+                    {
+                        _extractFailures.Add(rec.FullName);
+                        _filesProcessed++;
+                    }
                 }
             }
+        }
+        finally
+        {
+            reader.Dispose();
         }
 
         if (_removeSource && extracted.Count > 0)
@@ -217,11 +295,13 @@ public sealed class UnpackOperation : FileOperation
             return;
         }
 
-        if (record.IsEncrypted)
+        if (record.IsEncrypted && !_hasPassword)
         {
-            // No password-prompt UI exists (by design - see the plan's "Прочие решения"); rather
-            // than let the reader throw a raw crypto exception the moment its stream is touched,
-            // skip the entry cleanly and let the rest of the archive extract normally.
+            // No password was supplied (either the format can't decrypt at all - ZIP - or the
+            // user declined the prompt) - rather than let the reader throw a raw crypto exception
+            // the moment its stream is touched, skip the entry cleanly and let the rest of the
+            // archive extract normally. When a password IS in use, content is real (or a wrong
+            // password's own failure) and falls through to normal extraction below instead.
             LogService.Warning($"Unpack: skipping encrypted entry {record.FullName}");
             _filesProcessed++;
             return;

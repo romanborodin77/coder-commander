@@ -13,7 +13,8 @@ public sealed class RarArchiveFormat : IArchiveFormat
     public IReadOnlyList<string> Extensions { get; } = new[] { ".rar" };
     public string DefaultExtension => ".rar";
 
-    public ArchiveCapabilities Capabilities => ArchiveCapabilities.Read | ArchiveCapabilities.Browse;
+    public ArchiveCapabilities Capabilities =>
+        ArchiveCapabilities.Read | ArchiveCapabilities.Browse | ArchiveCapabilities.PasswordProtectedRead;
 
     public IReadOnlyList<CompressionPreset> SupportedPresets { get; } = Array.Empty<CompressionPreset>();
 
@@ -25,7 +26,8 @@ public sealed class RarArchiveFormat : IArchiveFormat
         return header.Length >= magic.Length && header[..magic.Length].SequenceEqual(magic);
     }
 
-    public IArchiveReader OpenRead(string archivePath) => new SharpCompressReader(archivePath, SharpCompressKind.Rar);
+    public IArchiveReader OpenRead(string archivePath, string? password = null) =>
+        new SharpCompressReader(archivePath, SharpCompressKind.Rar, password);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         throw new NotSupportedException($"\"{archivePath}\" is a RAR archive, which is read-only and cannot be modified.");

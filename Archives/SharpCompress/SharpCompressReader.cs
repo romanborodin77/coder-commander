@@ -45,12 +45,19 @@ public sealed class SharpCompressReader : IArchiveReader
 
     private readonly string _archivePath;
     private readonly SharpCompressKind _kind;
+    private readonly string? _password;
 
-    /// <summary>Initializes a new reader for the archive at <paramref name="archivePath"/> using the specified <paramref name="kind"/>.</summary>
-    public SharpCompressReader(string archivePath, SharpCompressKind kind)
+    /// <summary>Initializes a new reader for the archive at <paramref name="archivePath"/> using the
+    /// specified <paramref name="kind"/>. <paramref name="password"/> is threaded into every
+    /// <see cref="ReaderOptions"/> this reader builds - only meaningful for
+    /// <see cref="SharpCompressKind.SevenZip"/>/<see cref="SharpCompressKind.Rar"/>, which are the
+    /// only two of the four kinds this class handles that have an entry-level encryption scheme at
+    /// all (plain-TAR-based TarBz2/TarXz have none, so a supplied password is simply unused there).</summary>
+    public SharpCompressReader(string archivePath, SharpCompressKind kind, string? password = null)
     {
         _archivePath = archivePath;
         _kind = kind;
+        _password = password;
     }
 
     /// <summary>SharpCompress readers are forward-only; random access is not supported.</summary>
@@ -102,7 +109,7 @@ public sealed class SharpCompressReader : IArchiveReader
     /// </summary>
     private ArchiveDirectory ReadDirectoryViaHeaderIndex(CancellationToken ct)
     {
-        var options = new ReaderOptions { LeaveStreamOpen = true };
+        var options = new ReaderOptions { LeaveStreamOpen = true, Password = _password };
         using var fileStream = ArchiveFileRetry.OpenReadWithRetry(_archivePath);
         using IArchive archive = _kind == SharpCompressKind.SevenZip
             ? SevenZipArchive.OpenArchive(fileStream, options)
@@ -175,11 +182,17 @@ public sealed class SharpCompressReader : IArchiveReader
                 ct.ThrowIfCancellationRequested();
 
                 var record = ToRecord(reader.Entry, index++);
-                // Encrypted entries fail with a raw crypto exception the moment their stream is
-                // touched; links have no real file content to stream at all (only a target path).
-                // Skip opening either here so extraction sees IsEncrypted/IsLink and can reject
-                // cleanly instead (see UnpackOperation.ProcessRecordAsync).
-                var content = record.IsDirectory || record.IsEncrypted || record.IsLink
+                // An encrypted entry with no password supplied fails with a raw crypto exception
+                // the moment its stream is touched; links have no real file content to stream at
+                // all (only a target path). Skip opening either here so extraction sees
+                // IsEncrypted/IsLink and can reject cleanly instead (see
+                // UnpackOperation.ProcessRecordAsync). But when a password WAS supplied
+                // (_password non-empty), an encrypted entry's stream is exactly what the caller
+                // asked to decrypt - substituting Stream.Null unconditionally here would silently
+                // defeat every password the caller provides, which is what happened before this
+                // check accounted for _password (audit finding G053).
+                var content = record.IsDirectory || record.IsLink ||
+                    (record.IsEncrypted && string.IsNullOrEmpty(_password))
                     ? Stream.Null
                     : new NonDisposingStream(reader.OpenEntryStream());
 
@@ -216,7 +229,7 @@ public sealed class SharpCompressReader : IArchiveReader
         // stream on Dispose — the caller's finally block owns that cleanup. Without this, the
         // decompressor (GZipStream for TAR.BZ2, BZip2Stream, etc.) closes the file stream when
         // it is disposed, and then the finally block disposes it a second time (double-dispose).
-        var options = new ReaderOptions { LeaveStreamOpen = true };
+        var options = new ReaderOptions { LeaveStreamOpen = true, Password = _password };
         switch (_kind)
         {
             case SharpCompressKind.SevenZip:

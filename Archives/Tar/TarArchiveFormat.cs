@@ -31,7 +31,8 @@ public sealed class TarArchiveFormat : IArchiveFormat
         return header.Slice(magicOffset, magic.Length).SequenceEqual(magic);
     }
 
-    public IArchiveReader OpenRead(string archivePath) => new TarArchiveReader(archivePath, gzip: false);
+    // password is unused: plain TAR has no entry-level encryption scheme at all.
+    public IArchiveReader OpenRead(string archivePath, string? password = null) => new TarArchiveReader(archivePath, gzip: false);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         new RewritingArchiveWriter(archivePath, this, stream => new TarSequentialWriter(stream, gzip: false));

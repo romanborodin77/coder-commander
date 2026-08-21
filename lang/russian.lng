@@ -655,6 +655,9 @@ Archive.MaterializingTitle=Загрузка архива
 Archive.MaterializingMessage=Загрузка «{0}»…
 Archive.SplitUnsupported=Разбивка недоступна для элементов архива. Сначала извлеките файл.
 Archive.CombineUnsupported=Сборка недоступна для элементов архива. Сначала извлеките части.
+Archive.PasswordTitle=Требуется пароль
+Archive.PasswordPrompt=«{0}» содержит зашифрованные записи. Введите пароль для их извлечения:
+Archive.PasswordShow=Показать пароль
 
 # ═══ Разбивка / сборка файлов ═══
 Split.Title=Разбивка файла

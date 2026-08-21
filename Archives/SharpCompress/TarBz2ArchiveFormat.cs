@@ -35,7 +35,8 @@ public sealed class TarBz2ArchiveFormat : IArchiveFormat
                header[magic.Length] is >= (byte)'1' and <= (byte)'9';
     }
 
-    public IArchiveReader OpenRead(string archivePath) => new SharpCompressReader(archivePath, SharpCompressKind.TarBz2);
+    public IArchiveReader OpenRead(string archivePath, string? password = null) =>
+        new SharpCompressReader(archivePath, SharpCompressKind.TarBz2, password);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         new RewritingArchiveWriter(archivePath, this, stream => new SharpCompressTarWriter(stream, CompressionType.BZip2));

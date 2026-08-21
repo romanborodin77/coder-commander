@@ -23,7 +23,8 @@ public sealed class TarGzArchiveFormat : IArchiveFormat
     public bool MatchesSignature(ReadOnlySpan<byte> header) =>
         header.Length >= 2 && header[0] == 0x1F && header[1] == 0x8B;
 
-    public IArchiveReader OpenRead(string archivePath) => new TarArchiveReader(archivePath, gzip: true);
+    // password is unused: the TAR container inside has no entry-level encryption scheme at all.
+    public IArchiveReader OpenRead(string archivePath, string? password = null) => new TarArchiveReader(archivePath, gzip: true);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         new RewritingArchiveWriter(archivePath, this, stream => new TarSequentialWriter(stream, gzip: true));

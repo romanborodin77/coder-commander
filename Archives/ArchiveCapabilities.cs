@@ -17,5 +17,10 @@ public enum ArchiveCapabilities
     /// <summary>Remove entries (needed for move-into/move-out-of-archive and in-panel Delete).</summary>
     DeleteEntries = 1 << 4,
     /// <summary>Has an <see cref="IFileSystem"/> provider, i.e. can be browsed as a panel.</summary>
-    Browse = 1 << 5
+    Browse = 1 << 5,
+    /// <summary>A password can be supplied to <see cref="IArchiveFormat.OpenRead"/> to decrypt
+    /// entries whose <see cref="ArchiveEntryRecord.IsEncrypted"/> is set. ZIP does not have this
+    /// flag: entry-level encryption (ZipCrypto/AES) is undecodable via <see cref="System.IO.Compression.ZipArchive"/>
+    /// regardless of password - such entries are always skipped, never unlocked.</summary>
+    PasswordProtectedRead = 1 << 6
 }

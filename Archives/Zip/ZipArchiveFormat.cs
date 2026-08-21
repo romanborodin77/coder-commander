@@ -35,7 +35,10 @@ public sealed class ZipArchiveFormat : IArchiveFormat
         header.Length >= 4 &&
         (header[..4].SequenceEqual(LocalFileHeaderSignature) || header[..4].SequenceEqual(EmptyArchiveSignature));
 
-    public IArchiveReader OpenRead(string archivePath) => new ZipArchiveReader(archivePath);
+    // password is unused: System.IO.Compression.ZipArchive cannot decode ZipCrypto/AES entries
+    // regardless of a supplied password (see ArchiveCapabilities.PasswordProtectedRead's doc
+    // comment, not set here) - an encrypted entry is always skipped, never unlocked.
+    public IArchiveReader OpenRead(string archivePath, string? password = null) => new ZipArchiveReader(archivePath);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         new ZipArchiveWriter(archivePath, options);

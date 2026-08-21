@@ -27,7 +27,8 @@ public sealed class TarXzArchiveFormat : IArchiveFormat
         return header.Length >= magic.Length && header[..magic.Length].SequenceEqual(magic);
     }
 
-    public IArchiveReader OpenRead(string archivePath) => new SharpCompressReader(archivePath, SharpCompressKind.TarXz);
+    public IArchiveReader OpenRead(string archivePath, string? password = null) =>
+        new SharpCompressReader(archivePath, SharpCompressKind.TarXz, password);
 
     public IArchiveWriter OpenWrite(string archivePath, ArchiveWriteOptions options) =>
         throw new NotSupportedException($"\"{archivePath}\" is a TAR.XZ archive, which is read-only and cannot be modified.");

@@ -832,6 +832,9 @@ public sealed class LocalizationService
         _strings["Archive.MaterializingMessage"] = "Downloading \"{0}\"...";
         _strings["Archive.SplitUnsupported"] = "Splitting is not available for archive entries. Extract the file first.";
         _strings["Archive.CombineUnsupported"] = "Combining is not available for archive entries. Extract the parts first.";
+        _strings["Archive.PasswordTitle"] = "Password required";
+        _strings["Archive.PasswordPrompt"] = "\"{0}\" contains encrypted entries. Enter the password to extract them:";
+        _strings["Archive.PasswordShow"] = "Show password";
 
         // ═══ Split / Combine ═══
         _strings["Split.Title"] = "Split File";

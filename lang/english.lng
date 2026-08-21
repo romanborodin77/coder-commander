@@ -633,6 +633,9 @@ Archive.MaterializingTitle=Downloading archive
 Archive.MaterializingMessage=Downloading "{0}"...
 Archive.SplitUnsupported=Splitting is not available for archive entries. Extract the file first.
 Archive.CombineUnsupported=Combining is not available for archive entries. Extract the parts first.
+Archive.PasswordTitle=Password required
+Archive.PasswordPrompt="{0}" contains encrypted entries. Enter the password to extract them:
+Archive.PasswordShow=Show password
 
 # ═══ Split / Combine ═══
 Split.Title=Split File
