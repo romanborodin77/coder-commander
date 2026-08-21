@@ -46,8 +46,18 @@ public sealed class CodeEditorControl : Panel
         }
     }
 
-    /// <summary>Stored but not yet applied to layout — word wrap reflow isn't implemented (out of scope for this rewrite pass).</summary>
-    public bool WordWrap { get; set; }
+    /// <summary>Gets or sets whether long lines reflow onto multiple visual rows instead of
+    /// scrolling horizontally.</summary>
+    public bool WordWrap
+    {
+        get => _canvas.WordWrap;
+        set
+        {
+            if (_canvas.WordWrap == value) return;
+            _canvas.WordWrap = value;
+            SyncScrollBars();
+        }
+    }
 
     /// <summary>Gets or sets whether whitespace characters are rendered as visible glyphs.</summary>
     public bool ShowWhitespace
@@ -136,6 +146,7 @@ public sealed class CodeEditorControl : Panel
     private void OnCanvasContentChanged(object? sender, EventArgs e)
     {
         Modified = _canvas.UndoStack.CurrentStateId != _cleanStateId;
+        _maxLineLengthDirty = true;
         TextChanged?.Invoke(this, EventArgs.Empty);
         SyncScrollBars();
     }
@@ -150,6 +161,7 @@ public sealed class CodeEditorControl : Panel
         _buffer.LoadText(text);
         _canvas.ResetCaretToStart();
         Modified = false;
+        _maxLineLengthDirty = true;
         SyncScrollBars();
     }
 
@@ -197,14 +209,49 @@ public sealed class CodeEditorControl : Panel
         var lineHeight = _canvas.LineHeight;
         if (lineHeight <= 0 || _canvas.ClientSize.Height <= 0) return;
 
-        var docHeight = _buffer.LineCount * lineHeight;
+        var docHeight = _canvas.TotalVisualRows() * lineHeight;
         _vScroll.Maximum = Math.Max(docHeight, _canvas.ClientSize.Height);
         _vScroll.LargeChange = Math.Max(1, _canvas.ClientSize.Height);
         _vScroll.Value = _canvas.ScrollY;
 
-        // Placeholder horizontal range until real per-line width tracking lands (word-wrap milestone).
-        _hScroll.Maximum = Math.Max(2000, _canvas.ScrollX + _canvas.ClientSize.Width);
-        _hScroll.LargeChange = Math.Max(1, _canvas.ClientSize.Width);
-        _hScroll.Value = _canvas.ScrollX;
+        // Wrapped text never scrolls horizontally (every visual row fits the viewport by
+        // construction - see CodeEditorCanvas.ComputeWrapBreaks) - hiding the bar here also frees
+        // up the row Dock=Bottom would otherwise reserve for it.
+        _hScroll.Visible = !WordWrap;
+        if (WordWrap)
+        {
+            _hScroll.Value = 0;
+            _hScroll.Maximum = 0;
+        }
+        else
+        {
+            // Real measured max line width (audit finding G058) - was a hardcoded 2000 placeholder.
+            // The font is monospace throughout this control (see CodeEditorCanvas's own doc
+            // comment), so character count × CharWidth is exact, no text measurement needed.
+            var maxLineWidth = (int)(GetMaxLineLength() * _canvas.CharWidth);
+            _hScroll.Maximum = Math.Max(maxLineWidth, _canvas.ScrollX + _canvas.ClientSize.Width);
+            _hScroll.LargeChange = Math.Max(1, _canvas.ClientSize.Width);
+            _hScroll.Value = _canvas.ScrollX;
+        }
+    }
+
+    // Cached the same way CodeEditorCanvas caches its wrap layout: dirtied on content change,
+    // recomputed lazily on next use rather than rescanning every line on every keystroke. Only
+    // ever consulted when word wrap is off (see SyncScrollBars), so a document edited exclusively
+    // with wrap on never pays this scan at all.
+    private bool _maxLineLengthDirty = true;
+    private int _maxLineLength;
+
+    private int GetMaxLineLength()
+    {
+        if (_maxLineLengthDirty)
+        {
+            _maxLineLengthDirty = false;
+            var max = 0;
+            for (var i = 0; i < _buffer.LineCount; i++)
+                max = Math.Max(max, _buffer.LineLength(i));
+            _maxLineLength = max;
+        }
+        return _maxLineLength;
     }
 }

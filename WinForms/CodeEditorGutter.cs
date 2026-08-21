@@ -81,18 +81,24 @@ internal sealed class CodeEditorGutter : Control
         if (lineHeight <= 0) return;
 
         var scrollY = _canvas.ScrollY;
-        var firstLine = Math.Max(0, scrollY / lineHeight);
+        var firstRow = Math.Max(0, scrollY / lineHeight);
         var visibleRows = ClientSize.Height / lineHeight + 2;
-        var lastLine = Math.Min(_canvas.Buffer.LineCount - 1, firstLine + visibleRows);
+        var lastRow = Math.Min(_canvas.TotalVisualRows() - 1, firstRow + visibleRows);
         var caretLine = _canvas.Caret.Line;
         var textRect = new Rectangle(0, 0, ClientSize.Width - HorizontalPadding, lineHeight);
 
-        for (var line = firstLine; line <= lastLine; line++)
+        for (var row = firstRow; row <= lastRow; row++)
         {
-            var y = line * lineHeight - scrollY;
+            var info = _canvas.GetVisualRow(row);
+            // Word-wrap continuation rows (the 2nd+ visual row of one buffer line) show no number
+            // at all, matching every mainstream editor's wrapped-line gutter convention - repeating
+            // the same number would misleadingly suggest a new line started.
+            if (!info.IsFirstSegment) continue;
+
+            var y = row * lineHeight - scrollY;
             textRect.Y = y;
-            var color = line == caretLine ? p.Foreground : p.DimForeground;
-            TextRenderer.DrawText(g, (line + 1).ToString(CultureInfo.InvariantCulture), _font, textRect, color,
+            var color = info.BufferLine == caretLine ? p.Foreground : p.DimForeground;
+            TextRenderer.DrawText(g, (info.BufferLine + 1).ToString(CultureInfo.InvariantCulture), _font, textRect, color,
                 TextFormatFlags.NoPadding | TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
         }
     }

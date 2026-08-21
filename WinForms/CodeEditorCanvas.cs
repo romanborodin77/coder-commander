@@ -6,8 +6,19 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Owner-drawn text editing surface backing <see cref="CodeEditorControl"/>. Handles painting,
 /// caret, selection, clipboard, undo/redo, syntax highlighting, and keyboard/mouse input directly
-/// against a <see cref="TextBuffer"/> — no RichTextBox, no RTF. Word wrap is not implemented
-/// (WordWrap is stored but not applied to layout — out of scope for this rewrite).
+/// against a <see cref="TextBuffer"/> — no RichTextBox, no RTF.
+/// <para>
+/// Word wrap (audit finding G058) reflows buffer lines into "visual rows" for display without
+/// altering the buffer itself - a buffer line and its column numbers stay exactly what they always
+/// were; only rendering, hit-testing, scrolling and vertical caret movement translate through a
+/// buffer-line ↔ visual-row mapping (<see cref="EnsureWrapLayout"/>/<see cref="GetVisualRow"/>/
+/// <see cref="ToVisual"/>/<see cref="VisualRowToBufferLine"/>). The font is guaranteed monospace
+/// (<c>ThemePalette.MonoFont</c>, used uniformly as <see cref="_charWidth"/> everywhere in this
+/// class already), so wrap points are computed by character count against the viewport width in
+/// characters, not by measuring text - O(document) per rebuild, the same order every full
+/// tokenize/color-run rebuild in this class already costs, and (like those) only recomputed lazily
+/// via a dirty flag rather than on every keystroke.
+/// </para>
 /// </summary>
 internal sealed class CodeEditorCanvas : Control
 {
@@ -55,6 +66,35 @@ internal sealed class CodeEditorCanvas : Control
     private (TextPosition Open, TextPosition Close)? _bracketMatch;
     /// <summary>Gets or sets whether whitespace characters (spaces, tabs) are rendered as visible glyphs.</summary>
     public bool ShowWhitespace { get; set; }
+
+    private bool _wordWrap;
+    private bool _wrapLayoutDirty = true;
+    // Per buffer line: cumulative visual-row index where that line's first visual row begins.
+    // Length is always _buffer.LineCount + 1 when populated - the extra trailing entry is the
+    // total visual row count, so callers never special-case "last line" separately.
+    private int[] _wrapRowStart = [];
+    // Per buffer line: column offsets where each of its visual sub-rows starts: [0] is always 0
+    // (first sub-row starts at column 0); a line that fits on one row has exactly one entry.
+    private int[][] _wrapBreaks = [];
+
+    /// <summary>
+    /// Gets or sets whether long lines reflow onto multiple visual rows instead of scrolling
+    /// horizontally. Toggling resets horizontal scroll to 0 (wrapped text never needs it) and
+    /// invalidates the cached wrap layout.
+    /// </summary>
+    public bool WordWrap
+    {
+        get => _wordWrap;
+        set
+        {
+            if (_wordWrap == value) return;
+            _wordWrap = value;
+            _wrapLayoutDirty = true;
+            _scrollX = 0;
+            EnsureCaretVisible();
+            Invalidate();
+        }
+    }
 
     private static readonly Dictionary<char, char> BracketPairs = new() { ['('] = ')', ['['] = ']', ['{'] = '}' };
     private static readonly Dictionary<char, char> BracketPairsReverse = new() { [')'] = '(', [']'] = '[', ['}'] = '{' };
@@ -120,7 +160,7 @@ internal sealed class CodeEditorCanvas : Control
         get => _scrollY;
         set
         {
-            var maxScroll = Math.Max(0, _buffer.LineCount * _lineHeight - ClientSize.Height);
+            var maxScroll = Math.Max(0, TotalVisualRows() * _lineHeight - ClientSize.Height);
             var clamped = Math.Clamp(value, 0, maxScroll);
             if (clamped == _scrollY) return;
             _scrollY = clamped;
@@ -135,7 +175,7 @@ internal sealed class CodeEditorCanvas : Control
         get => _scrollX;
         set
         {
-            var clamped = Math.Max(0, value);
+            var clamped = _wordWrap ? 0 : Math.Max(0, value);
             if (clamped == _scrollX) return;
             _scrollX = clamped;
             Invalidate();
@@ -214,6 +254,7 @@ internal sealed class CodeEditorCanvas : Control
         var wide = TextRenderer.MeasureText("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM", _font, Size.Empty, TextFormatFlags.NoPadding);
         _charWidth = wide.Width / 32f;
         _lineHeight = Math.Max(1, TextRenderer.MeasureText("Mg", _font, Size.Empty, TextFormatFlags.NoPadding).Height);
+        _wrapLayoutDirty = true; // charWidth changed - wrap points (chars-per-row) shift too
         Invalidate();
     }
 
@@ -263,9 +304,144 @@ internal sealed class CodeEditorCanvas : Control
 
     private void OnBufferChanged(object? sender, TextChangeEventArgs e)
     {
+        _wrapLayoutDirty = true;
         Invalidate();
         RestartHighlightTimer();
         UpdateBracketMatch();
+    }
+
+    // -- Word wrap layout --
+
+    internal readonly struct VisualRowInfo
+    {
+        public int BufferLine { get; init; }
+        public int StartCol { get; init; }
+        public int EndCol { get; init; }
+        public bool IsFirstSegment { get; init; }
+    }
+
+    /// <summary>Total number of visual rows currently on screen (== buffer line count when word
+    /// wrap is off - the identity mapping every caller falls back to).</summary>
+    internal int TotalVisualRows()
+    {
+        if (!_wordWrap) return _buffer.LineCount;
+        EnsureWrapLayout();
+        return _wrapRowStart.Length > 0 ? _wrapRowStart[^1] : 0;
+    }
+
+    private void EnsureWrapLayout()
+    {
+        if (!_wrapLayoutDirty) return;
+        _wrapLayoutDirty = false;
+
+        if (!_wordWrap)
+        {
+            _wrapRowStart = [];
+            _wrapBreaks = [];
+            return;
+        }
+
+        var lineCount = _buffer.LineCount;
+        var charsPerRow = Math.Max(1, (int)(ClientSize.Width / Math.Max(0.01f, _charWidth)));
+        var rowStart = new int[lineCount + 1];
+        var breaksPerLine = new int[lineCount][];
+        var cum = 0;
+        for (var i = 0; i < lineCount; i++)
+        {
+            rowStart[i] = cum;
+            var breaks = ComputeWrapBreaks(_buffer.GetLine(i), charsPerRow);
+            breaksPerLine[i] = breaks;
+            cum += breaks.Length;
+        }
+        rowStart[lineCount] = cum;
+        _wrapRowStart = rowStart;
+        _wrapBreaks = breaksPerLine;
+    }
+
+    /// <summary>
+    /// Column offsets where each visual sub-row of <paramref name="line"/> starts: <c>[0]</c> is
+    /// always 0. Prefers breaking at the last whitespace run at or before the
+    /// <paramref name="charsPerRow"/> limit (so a wrapped row never starts mid-word); a single
+    /// token longer than the whole viewport (a URL, a minified-JS line with no spaces) falls back
+    /// to a hard character break at the limit — the alternative would be an unbounded row wider
+    /// than the viewport, which word wrap exists specifically to avoid.
+    /// </summary>
+    private static int[] ComputeWrapBreaks(string line, int charsPerRow)
+    {
+        if (line.Length <= charsPerRow) return [0];
+
+        var breaks = new List<int> { 0 };
+        var pos = 0;
+        while (line.Length - pos > charsPerRow)
+        {
+            var limit = pos + charsPerRow;
+            var breakAt = -1;
+            for (var i = limit; i > pos; i--)
+            {
+                if (char.IsWhiteSpace(line[i - 1])) { breakAt = i; break; }
+            }
+            if (breakAt <= pos) breakAt = limit; // no whitespace in range - hard character wrap
+            breaks.Add(breakAt);
+            pos = breakAt;
+        }
+        return [.. breaks];
+    }
+
+    /// <summary>Resolves one visual row to the buffer line/column range it displays. Internal (not
+    /// private) so <see cref="CodeEditorGutter"/> can number continuation rows correctly - see its
+    /// own <c>OnPaint</c>.</summary>
+    internal VisualRowInfo GetVisualRow(int visualRow)
+    {
+        if (!_wordWrap)
+        {
+            var line = Math.Clamp(visualRow, 0, Math.Max(0, _buffer.LineCount - 1));
+            return new VisualRowInfo { BufferLine = line, StartCol = 0, EndCol = _buffer.LineLength(line), IsFirstSegment = true };
+        }
+
+        EnsureWrapLayout();
+        var bufferLine = VisualRowToBufferLine(visualRow);
+        var seg = visualRow - _wrapRowStart[bufferLine];
+        var breaks = _wrapBreaks[bufferLine];
+        var startCol = breaks[Math.Clamp(seg, 0, breaks.Length - 1)];
+        var endCol = seg + 1 < breaks.Length ? breaks[seg + 1] : _buffer.LineLength(bufferLine);
+        return new VisualRowInfo { BufferLine = bufferLine, StartCol = startCol, EndCol = endCol, IsFirstSegment = seg == 0 };
+    }
+
+    /// <summary>Binary search over the per-line cumulative visual-row-start array for the buffer
+    /// line whose visual rows contain <paramref name="visualRow"/>.</summary>
+    private int VisualRowToBufferLine(int visualRow)
+    {
+        if (!_wordWrap) return Math.Clamp(visualRow, 0, Math.Max(0, _buffer.LineCount - 1));
+        EnsureWrapLayout();
+        var lineCount = _buffer.LineCount;
+        if (lineCount == 0) return 0;
+
+        var lo = 0;
+        var hi = lineCount - 1;
+        while (lo < hi)
+        {
+            var mid = (lo + hi + 1) / 2;
+            if (_wrapRowStart[mid] <= visualRow) lo = mid; else hi = mid - 1;
+        }
+        return lo;
+    }
+
+    /// <summary>Converts a buffer (line, column) position to its (visual row, visual column)
+    /// on-screen location - the visual column is relative to that visual row's own start, not
+    /// the buffer line's column 0.</summary>
+    private (int VisualRow, int VisualCol) ToVisual(TextPosition pos)
+    {
+        if (!_wordWrap) return (pos.Line, pos.Column);
+        EnsureWrapLayout();
+
+        var line = Math.Clamp(pos.Line, 0, Math.Max(0, _buffer.LineCount - 1));
+        var breaks = _wrapBreaks[line];
+        var seg = 0;
+        for (var i = 1; i < breaks.Length; i++)
+        {
+            if (breaks[i] <= pos.Column) seg = i; else break;
+        }
+        return (_wrapRowStart[line] + seg, pos.Column - breaks[seg]);
     }
 
     // -- Syntax highlighting --
@@ -499,35 +675,52 @@ internal sealed class CodeEditorCanvas : Control
         g.Clear(p.PanelBackground);
 
         if (_lineHeight <= 0) return;
+        EnsureWrapLayout();
 
-        var firstLine = Math.Max(0, _scrollY / _lineHeight);
+        var totalRows = TotalVisualRows();
+        var firstRow = Math.Max(0, _scrollY / _lineHeight);
         var visibleRows = ClientSize.Height / _lineHeight + 2;
-        var lastLine = Math.Min(_buffer.LineCount - 1, firstLine + visibleRows);
+        var lastRow = Math.Min(totalRows - 1, firstRow + visibleRows);
         var selection = SelectionRange;
+        var caretVisual = ToVisual(_caret);
 
-        // Current-line band. Skipped while there's an active selection — most editors mute it then.
+        // Current-line band (just the caret's own visual row, not its whole wrapped buffer line -
+        // matches how editors with word wrap typically highlight only the active visual line).
+        // Skipped while there's an active selection — most editors mute it then.
         if (selection == null)
         {
-            var caretY = _caret.Line * _lineHeight - _scrollY;
+            var caretY = caretVisual.VisualRow * _lineHeight - _scrollY;
             using var band = new SolidBrush(p.RowHover);
             g.FillRectangle(band, 0, caretY, ClientSize.Width, _lineHeight);
         }
 
-        for (var line = firstLine; line <= lastLine; line++)
+        for (var row = firstRow; row <= lastRow; row++)
         {
-            var y = line * _lineHeight - _scrollY;
+            var info = GetVisualRow(row);
+            var line = info.BufferLine;
+            var y = row * _lineHeight - _scrollY;
+            var text = _buffer.GetLine(line);
+            var lineLen = text.Length;
 
             if (selection is { } sel && line >= sel.Start.Line && line <= sel.End.Line)
             {
                 var selStartCol = line == sel.Start.Line ? sel.Start.Column : 0;
-                var lineLen = _buffer.LineLength(line);
                 var selEndCol = line == sel.End.Line ? sel.End.Column : lineLen;
-                var continuesToNextLine = line < sel.End.Line;
-                var x1 = selStartCol * _charWidth - _scrollX;
-                var x2 = selEndCol * _charWidth - _scrollX + (continuesToNextLine ? _charWidth : 0);
-                var selColor = Focused ? p.Selection : p.InactiveSelection;
-                using var selBrush = new SolidBrush(selColor);
-                g.FillRectangle(selBrush, x1, y, Math.Max(2f, x2 - x1), _lineHeight);
+                var rowSelStart = Math.Max(selStartCol, info.StartCol);
+                var rowSelEnd = Math.Min(selEndCol, info.EndCol);
+                if (rowSelEnd >= rowSelStart)
+                {
+                    // Extends the highlight one char past the row's own text when the selection
+                    // continues onto a later visual row - either a wrap continuation of the same
+                    // buffer line (info.EndCol < lineLen and selection reaches it) or genuinely
+                    // the next buffer line (this is the last segment and sel.End.Line is later).
+                    var continuesPastRow = selEndCol > info.EndCol || (info.EndCol >= lineLen && line < sel.End.Line);
+                    var x1 = (rowSelStart - info.StartCol) * _charWidth - _scrollX;
+                    var x2 = (rowSelEnd - info.StartCol) * _charWidth - _scrollX + (continuesPastRow ? _charWidth : 0);
+                    var selColor = Focused ? p.Selection : p.InactiveSelection;
+                    using var selBrush = new SolidBrush(selColor);
+                    g.FillRectangle(selBrush, x1, y, Math.Max(2f, x2 - x1), _lineHeight);
+                }
             }
 
             if (_findIndexByLine != null && _findMatches != null && _findIndexByLine.TryGetValue(line, out var lineMatches))
@@ -536,19 +729,21 @@ internal sealed class CodeEditorCanvas : Control
                 {
                     var m = _findMatches[mi];
                     var startCol = line == m.Start.Line ? m.Start.Column : 0;
-                    var endCol = line == m.End.Line ? m.End.Column : _buffer.LineLength(line);
-                    var mx1 = startCol * _charWidth - _scrollX;
-                    var mx2 = endCol * _charWidth - _scrollX;
+                    var endCol = line == m.End.Line ? m.End.Column : lineLen;
+                    var rowStart = Math.Max(startCol, info.StartCol);
+                    var rowEnd = Math.Min(endCol, info.EndCol);
+                    if (rowEnd < rowStart) continue;
+                    var mx1 = (rowStart - info.StartCol) * _charWidth - _scrollX;
+                    var mx2 = (rowEnd - info.StartCol) * _charWidth - _scrollX;
                     var matchColor = mi == _findCurrentIndex ? p.Selection : ThemeService.BlendColors(p.PanelBackground, p.Accent, 0.3f);
                     using var matchBrush = new SolidBrush(matchColor);
                     g.FillRectangle(matchBrush, mx1, y, Math.Max(2f, mx2 - mx1), _lineHeight);
                 }
             }
 
-            var text = _buffer.GetLine(line);
-            if (text.Length == 0) continue;
-            DrawLineText(g, line, text, y, p);
-            if (ShowWhitespace) DrawWhitespaceGlyphs(g, text, y, p.DimForeground);
+            if (lineLen == 0 || info.StartCol >= info.EndCol) continue;
+            DrawLineTextSegment(g, line, text, info.StartCol, info.EndCol, y, p);
+            if (ShowWhitespace) DrawWhitespaceGlyphsSegment(g, text, info.StartCol, info.EndCol, y, p.DimForeground);
         }
 
         if (_bracketMatch is { } bm)
@@ -559,38 +754,45 @@ internal sealed class CodeEditorCanvas : Control
 
         if (_caretVisible && Focused)
         {
-            var cx = (int)(_caret.Column * _charWidth) - _scrollX;
-            var cy = _caret.Line * _lineHeight - _scrollY;
+            var cx = (int)(caretVisual.VisualCol * _charWidth) - _scrollX;
+            var cy = caretVisual.VisualRow * _lineHeight - _scrollY;
             using var pen = new Pen(p.Foreground, 2f);
             g.DrawLine(pen, cx, cy, cx, cy + _lineHeight - 1);
         }
     }
 
-    private void DrawLineText(Graphics g, int lineIndex, string text, int y, ThemePalette p)
+    /// <summary>Draws the sub-range <c>[segStart, segEnd)</c> of buffer line <paramref name="lineIndex"/>'s
+    /// text, positioned as if it were its own row starting at column 0 (used for both the
+    /// unwrapped whole-line case, <c>segStart=0</c>/<c>segEnd=line.Length</c>, and one visual
+    /// sub-row of a wrapped line).</summary>
+    private void DrawLineTextSegment(Graphics g, int lineIndex, string text, int segStart, int segEnd, int y, ThemePalette p)
     {
+        segEnd = Math.Min(segEnd, text.Length);
+        if (segStart >= segEnd) return;
+
         var runs = lineIndex < _lineRuns.Length ? _lineRuns[lineIndex] : null;
         if (runs == null || runs.Count == 0)
         {
-            DrawRun(g, text, 0, y, p.Foreground);
+            DrawRun(g, text[segStart..segEnd], 0, y, p.Foreground);
             return;
         }
 
-        var pos = 0;
+        var pos = segStart;
         foreach (var run in runs)
         {
-            if (run.StartCol > pos)
-                DrawRun(g, text[pos..Math.Min(run.StartCol, text.Length)], pos, y, p.Foreground);
+            var runStart = Math.Max(run.StartCol, segStart);
+            var runEnd = Math.Min(run.StartCol + run.Length, segEnd);
+            if (runEnd <= runStart) continue; // run doesn't intersect this segment
 
-            var runEnd = Math.Min(run.StartCol + run.Length, text.Length);
-            if (runEnd > run.StartCol)
-            {
-                var color = _colorMap.TryGetValue(run.Type, out var c) ? c : p.Foreground;
-                DrawRun(g, text[run.StartCol..runEnd], run.StartCol, y, color);
-            }
+            if (runStart > pos)
+                DrawRun(g, text[pos..Math.Min(runStart, text.Length)], pos - segStart, y, p.Foreground);
+
+            var color = _colorMap.TryGetValue(run.Type, out var c) ? c : p.Foreground;
+            DrawRun(g, text[runStart..runEnd], runStart - segStart, y, color);
             pos = Math.Max(pos, runEnd);
         }
-        if (pos < text.Length)
-            DrawRun(g, text[pos..], pos, y, p.Foreground);
+        if (pos < segEnd)
+            DrawRun(g, text[pos..segEnd], pos - segStart, y, p.Foreground);
     }
 
     private void DrawRun(Graphics g, string runText, int startCol, int y, Color color)
@@ -620,14 +822,15 @@ internal sealed class CodeEditorCanvas : Control
             TextFormatFlags.NoPadding | TextFormatFlags.NoClipping | TextFormatFlags.Left | TextFormatFlags.Top);
     }
 
-    private void DrawWhitespaceGlyphs(Graphics g, string text, int y, Color color)
+    private void DrawWhitespaceGlyphsSegment(Graphics g, string text, int segStart, int segEnd, int y, Color color)
     {
         using var pen = new Pen(color, 1f);
         using var dotBrush = new SolidBrush(color);
         var cw = (int)_charWidth;
-        for (var i = 0; i < text.Length; i++)
+        segEnd = Math.Min(segEnd, text.Length);
+        for (var i = segStart; i < segEnd; i++)
         {
-            var x = (int)(i * _charWidth) - _scrollX;
+            var x = (int)((i - segStart) * _charWidth) - _scrollX;
             if (x + cw < 0 || x > ClientSize.Width) continue;
 
             if (text[i] == ' ')
@@ -648,22 +851,24 @@ internal sealed class CodeEditorCanvas : Control
 
     private void DrawBracketOutline(Graphics g, TextPosition pos, ThemePalette p)
     {
-        var y = pos.Line * _lineHeight - _scrollY;
+        var (visualRow, visualCol) = ToVisual(pos);
+        var y = visualRow * _lineHeight - _scrollY;
         if (y + _lineHeight < 0 || y > ClientSize.Height) return;
-        var x = (int)(pos.Column * _charWidth) - _scrollX;
+        var x = (int)(visualCol * _charWidth) - _scrollX;
         using var pen = new Pen(p.Accent, 1.5f);
         g.DrawRectangle(pen, x, y, Math.Max(1, (int)_charWidth - 1), _lineHeight - 1);
     }
 
     private void InvalidateCaretLine()
     {
-        var y = _caret.Line * _lineHeight - _scrollY;
+        var y = ToVisual(_caret).VisualRow * _lineHeight - _scrollY;
         Invalidate(new Rectangle(0, y, ClientSize.Width, _lineHeight));
     }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+        if (_wordWrap) _wrapLayoutDirty = true; // client width changed - chars-per-row shifts too
         ScrollY = _scrollY; // re-clamp against the new viewport height
         Invalidate();
     }
@@ -783,14 +988,51 @@ internal sealed class CodeEditorCanvas : Control
 
     private void EnsureCaretVisible()
     {
-        var caretTop = _caret.Line * _lineHeight;
+        var (visualRow, visualCol) = ToVisual(_caret);
+        var caretTop = visualRow * _lineHeight;
         var caretBottom = caretTop + _lineHeight;
         if (caretTop < _scrollY) ScrollY = caretTop;
         else if (caretBottom > _scrollY + ClientSize.Height) ScrollY = caretBottom - ClientSize.Height;
 
-        var caretX = (int)(_caret.Column * _charWidth);
+        if (_wordWrap) return; // wrapped rows never exceed the viewport width - nothing to scroll
+
+        var caretX = (int)(visualCol * _charWidth);
         if (caretX < _scrollX) ScrollX = caretX;
         else if (caretX + (int)_charWidth > _scrollX + ClientSize.Width) ScrollX = caretX + (int)_charWidth - ClientSize.Width;
+    }
+
+    /// <summary>
+    /// Moves the caret <paramref name="deltaRows"/> visual rows up/down (negative = up), preserving
+    /// a "desired" visual column across the move the same way plain buffer-line movement always
+    /// did - except the desired column is now the ON-SCREEN column (relative to whatever visual
+    /// row the caret ends up in), not a buffer column, so repeatedly pressing Down through several
+    /// differently-wrapped lines keeps the caret roughly under the same screen position instead of
+    /// drifting to whatever raw buffer column happened to be under it before wrapping existed.
+    /// Identical to the old buffer-line-only behavior when word wrap is off (visual column ==
+    /// buffer column, visual row == buffer line, one row per Down press either way).
+    /// </summary>
+    private void MoveCaretByRows(int deltaRows, bool shift)
+    {
+        var desiredVisualCol = _desiredColumn ?? ToVisual(_caret).VisualCol;
+        var target = MoveByVisualRows(desiredVisualCol, deltaRows);
+        MoveCaret(target, shift, keepDesiredColumn: true);
+        _desiredColumn = desiredVisualCol;
+    }
+
+    private TextPosition MoveByVisualRows(int desiredVisualCol, int deltaRows)
+    {
+        if (!_wordWrap)
+        {
+            var targetLine = Math.Clamp(_caret.Line + deltaRows, 0, Math.Max(0, _buffer.LineCount - 1));
+            return new TextPosition(targetLine, desiredVisualCol);
+        }
+
+        EnsureWrapLayout();
+        var (curRow, _) = ToVisual(_caret);
+        var targetRow = Math.Clamp(curRow + deltaRows, 0, Math.Max(0, TotalVisualRows() - 1));
+        var info = GetVisualRow(targetRow);
+        var col = Math.Min(info.StartCol + desiredVisualCol, info.EndCol);
+        return new TextPosition(info.BufferLine, col);
     }
 
     private TextPosition GetLeftPosition(TextPosition pos)
@@ -904,36 +1146,12 @@ internal sealed class CodeEditorCanvas : Control
         {
             case Keys.Left: MoveCaret(GetLeftPosition(_caret), e.Shift); break;
             case Keys.Right: MoveCaret(GetRightPosition(_caret), e.Shift); break;
-            case Keys.Up:
-            {
-                var col = _desiredColumn ?? _caret.Column;
-                MoveCaret(new TextPosition(Math.Max(0, _caret.Line - 1), col), e.Shift, keepDesiredColumn: true);
-                _desiredColumn = col;
-                break;
-            }
-            case Keys.Down:
-            {
-                var col = _desiredColumn ?? _caret.Column;
-                MoveCaret(new TextPosition(Math.Min(_buffer.LineCount - 1, _caret.Line + 1), col), e.Shift, keepDesiredColumn: true);
-                _desiredColumn = col;
-                break;
-            }
+            case Keys.Up: MoveCaretByRows(-1, e.Shift); break;
+            case Keys.Down: MoveCaretByRows(1, e.Shift); break;
             case Keys.Home: MoveCaret(new TextPosition(_caret.Line, 0), e.Shift); break;
             case Keys.End: MoveCaret(new TextPosition(_caret.Line, _buffer.LineLength(_caret.Line)), e.Shift); break;
-            case Keys.PageUp:
-            {
-                var col = _desiredColumn ?? _caret.Column;
-                MoveCaret(new TextPosition(Math.Max(0, _caret.Line - LinesPerPage()), col), e.Shift, keepDesiredColumn: true);
-                _desiredColumn = col;
-                break;
-            }
-            case Keys.PageDown:
-            {
-                var col = _desiredColumn ?? _caret.Column;
-                MoveCaret(new TextPosition(Math.Min(_buffer.LineCount - 1, _caret.Line + LinesPerPage()), col), e.Shift, keepDesiredColumn: true);
-                _desiredColumn = col;
-                break;
-            }
+            case Keys.PageUp: MoveCaretByRows(-LinesPerPage(), e.Shift); break;
+            case Keys.PageDown: MoveCaretByRows(LinesPerPage(), e.Shift); break;
             case Keys.Back: HandleBackspace(); break;
             case Keys.Delete: HandleDelete(); break;
             case Keys.Enter: InsertTextAtCaret("\n"); break;
@@ -1282,15 +1500,17 @@ internal sealed class CodeEditorCanvas : Control
     private TextPosition PointToPosition(Point pt)
     {
         if (_lineHeight <= 0 || _charWidth <= 0) return _caret;
-        var line = Math.Clamp((pt.Y + _scrollY) / _lineHeight, 0, _buffer.LineCount - 1);
-        var column = (int)Math.Round((pt.X + _scrollX) / _charWidth);
-        var lineText = _buffer.GetLine(line);
-        column = Math.Clamp(column, 0, lineText.Length);
+
+        var visualRow = Math.Clamp((pt.Y + _scrollY) / _lineHeight, 0, Math.Max(0, TotalVisualRows() - 1));
+        var info = GetVisualRow(visualRow);
+        var visualCol = (int)Math.Round((pt.X + _scrollX) / _charWidth);
+        var lineText = _buffer.GetLine(info.BufferLine);
+        var column = Math.Clamp(info.StartCol + visualCol, info.StartCol, Math.Min(info.EndCol, lineText.Length));
         // Never let the caret land inside a surrogate pair (e.g. an emoji) - snap back to its start.
         if (column > 0 && column < lineText.Length &&
             char.IsLowSurrogate(lineText[column]) && char.IsHighSurrogate(lineText[column - 1]))
             column--;
-        return new TextPosition(line, column);
+        return new TextPosition(info.BufferLine, column);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
