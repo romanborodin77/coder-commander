@@ -780,6 +780,7 @@ Terminal.PreviousTab=Previous Tab
 Terminal.CopyPath=Copy Path
 Terminal.MaxTabsReached=Maximum number of terminal tabs reached ({0})
 Terminal.ProcessTerminated=Process terminated
+Terminal.ProcessTerminated.WithCode=The shell in tab "{0}" terminated unexpectedly (exit code {1}).
 Terminal.NoShellAvailable=No terminal shell (cmd.exe or PowerShell) is available on this system
 Settings.Terminal=Terminal
 Settings.DefaultShell=Default shell:

@@ -1778,9 +1778,30 @@ public sealed class MainForm : Form
             }
             catch (Exception ex)
             {
-                StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+                StyledMessageBox.Show(FriendlyErrorMessage(ex, dlg.Value), L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
             }
         }
+    }
+
+    /// <summary>Maps MakeDir/Rename's two most common failure exceptions to a localized message
+    /// instead of the raw (always-English, regardless of this app's own language setting)
+    /// exception text - Err.AccessDenied/Err.FileExists/Err.InvalidName had reserved localization
+    /// keys with nothing reading them. <see cref="IOException"/> -&gt; "already exists" is a
+    /// heuristic, not a distinct .NET exception type: in this specific MakeDir/Rename context
+    /// (same-volume, already-validated path) it is overwhelmingly the likely cause, and matching
+    /// on the exception's own <c>Message</c> text is not reliable (that text follows the OS
+    /// display language, not this app's <see cref="LocalizationService"/> setting). Anything else
+    /// falls back to <see cref="Exception.Message"/>, unchanged from before this existed.</summary>
+    private static string FriendlyErrorMessage(Exception ex, string name)
+    {
+        var L = LocalizationService.Current;
+        return ex switch
+        {
+            UnauthorizedAccessException => L.GetString("Err.AccessDenied", name),
+            ArgumentException => L.GetString("Err.InvalidName", name),
+            IOException => L.GetString("Err.FileExists", name),
+            _ => ex.Message
+        };
     }
 
     private async void OnRename(object? sender, FileSystemItem item)
@@ -1804,7 +1825,7 @@ public sealed class MainForm : Form
             }
             catch (Exception ex)
             {
-                StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+                StyledMessageBox.Show(FriendlyErrorMessage(ex, dlg.Value), L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
             }
         }
     }

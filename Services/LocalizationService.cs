@@ -958,6 +958,7 @@ public sealed class LocalizationService
         _strings["Terminal.CopyPath"] = "Copy Path";
         _strings["Terminal.MaxTabsReached"] = "Maximum number of terminal tabs reached ({0})";
         _strings["Terminal.ProcessTerminated"] = "Process terminated";
+        _strings["Terminal.ProcessTerminated.WithCode"] = "The shell in tab \"{0}\" terminated unexpectedly (exit code {1}).";
         _strings["Terminal.NoShellAvailable"] = "No terminal shell (cmd.exe or PowerShell) is available on this system";
         _strings["Settings.Terminal"] = "Terminal";
         _strings["Settings.DefaultShell"] = "Default shell:";

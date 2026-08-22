@@ -392,7 +392,7 @@ public sealed class EmbeddedTerminalPanel : Panel
             _sessions[tabId] = session;
 
             // Store handlers for unsubscription on tab close
-            Action<int> exitedHandler = _ => OnSessionExited(tabId);
+            Action<int> exitedHandler = code => OnSessionExited(tabId, code);
             Action<string> cwdHandler = path => OnSessionCwdReported(tabId, path);
             Action titleHandler = () => OnScreenTitleChanged(tabId);
             Action becameIdleHandler = () => OnScreenBecameIdle(tabId);
@@ -519,6 +519,13 @@ public sealed class EmbeddedTerminalPanel : Panel
             if (!string.IsNullOrEmpty(session.CurrentPath))
                 ClipboardHelper.TrySetClipboard(session.CurrentPath);
         }));
+        menu.Items.Add(new ToolStripSeparator());
+        // Next/Previous Tab had localization keys reserved (Terminal.NextTab/PreviousTab) but no
+        // menu presence at all - only reachable via their (rebindable) key chords. Always act on
+        // the active tab, same as the chord path (NextTab/PreviousTab carry no tab index of their
+        // own), regardless of which tab was right-clicked to open this menu.
+        menu.Items.Add(new ToolStripMenuItem(L.GetString("Terminal.NextTab"), null, (_, _) => NextTab()) { Enabled = _tabControl.Pages.Count > 1 });
+        menu.Items.Add(new ToolStripMenuItem(L.GetString("Terminal.PreviousTab"), null, (_, _) => PreviousTab()) { Enabled = _tabControl.Pages.Count > 1 });
         menu.Show(_tabControl, _tabControl.PointToClient(Cursor.Position));
     }
 
@@ -728,13 +735,30 @@ public sealed class EmbeddedTerminalPanel : Panel
         DirectoryChanged?.Invoke(this, new DirectoryChangedEventArgs { TabId = tabId, NewPath = path });
     }
 
-    private void OnSessionExited(Guid tabId)
+    private void OnSessionExited(Guid tabId, int exitCode)
     {
-        if (InvokeRequired) { BeginInvoke(() => OnSessionExited(tabId)); return; }
+        if (InvokeRequired) { BeginInvoke(() => OnSessionExited(tabId, exitCode)); return; }
         if (IsDisposed) return;
+        // Only reached for a shell that exited on its own (typed "exit", crashed, connection
+        // dropped) - CloseTerminalTab (Ctrl+Shift+W, the tab's close button) already removes the
+        // tab from _sessionManager before its own teardown can raise this same Exited event, so
+        // GetTab returns null for a user-requested close and this method never gets that far.
         if (_sessionManager?.GetTab(tabId) is not TerminalTab tab) return;
 
-        LogService.Info($"Terminal: shell process exited for tab {tab.Name}");
+        LogService.Info($"Terminal: shell process exited for tab {tab.Name} (exit code {exitCode})");
+
+        // A clean exit (typing "exit"/"logout", exit code 0) is the ordinary, expected way to
+        // close a shell - every mainstream terminal just closes the tab for that, silently. A
+        // non-zero code means the shell (or whatever it was running) actually crashed or the
+        // connection dropped, which is worth surfacing since the tab otherwise just vanishes with
+        // no explanation.
+        if (exitCode != 0)
+        {
+            var L = LocalizationService.Current;
+            StyledMessageBox.Show(L.GetString("Terminal.ProcessTerminated.WithCode", tab.Name, exitCode),
+                L.GetString("Terminal.ProcessTerminated"), MsgBoxButtons.OK, MsgBoxIcon.Warning, FindForm());
+        }
+
         CloseTerminalTab(tabId);
     }
 

@@ -779,6 +779,7 @@ Terminal.PreviousTab=Предыдущая вкладка
 Terminal.CopyPath=Копировать путь
 Terminal.MaxTabsReached=Достигнут максимум вкладок терминала ({0})
 Terminal.ProcessTerminated=Процесс завершён
+Terminal.ProcessTerminated.WithCode=Оболочка во вкладке «{0}» неожиданно завершилась (код выхода {1}).
 Terminal.NoShellAvailable=Ни одна оболочка терминала (cmd.exe или PowerShell) не найдена в системе
 Settings.Terminal=Терминал
 Settings.DefaultShell=Оболочка по умолчанию:
