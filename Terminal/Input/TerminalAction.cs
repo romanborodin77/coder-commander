@@ -41,16 +41,26 @@ internal enum TerminalAction
 
     ToggleTerminalPanel,
 
-    /// <summary>F5 — delegated to the app's Copy command (file panel).</summary>
+    /// <summary>Delegates to the app's Copy command (file panel) - see
+    /// <see cref="WinForms.EmbeddedTerminalPanel.AppCommandRequested"/>. F5, its default binding
+    /// (like the other five App* actions below), never actually reaches this dispatch path: F5-F8/
+    /// Ctrl+R/Ctrl+L are separately hardcoded as pass-through keys in
+    /// <c>TerminalCanvas.IsAppPassthroughKey</c>/<c>ProcessCmdKey</c>, bypassing terminal chord
+    /// resolution entirely so the app's own <c>HotkeyManager</c> (which already binds those same
+    /// keys to the same commands) handles them directly - this is what makes F5-F8 work in the
+    /// terminal today, not this enum. Where this action DOES matter is a user rebinding it (via
+    /// TerminalKeyBindingsForm) to some other chord: that chord isn't in the hardcoded pass-through
+    /// list, so it resolves normally and reaches <c>AppCommandRequested</c>.</summary>
     AppCopy,
-    /// <summary>F6 — delegated to the app's Move/Rename command (file panel).</summary>
+    /// <summary>F6 by default (see <see cref="AppCopy"/>'s doc comment for why that default binding
+    /// itself never reaches this path) - delegates to the app's Move/Rename command.</summary>
     AppMove,
-    /// <summary>F7 — delegated to the app's MakeDir command (file panel).</summary>
+    /// <summary>F7 by default (see <see cref="AppCopy"/>) - delegates to the app's MakeDir command.</summary>
     AppMakeDir,
-    /// <summary>F8 — delegated to the app's Delete command (file panel).</summary>
+    /// <summary>F8 by default (see <see cref="AppCopy"/>) - delegates to the app's Delete command.</summary>
     AppDelete,
-    /// <summary>Ctrl+R — delegated to the app's Refresh command (file panel).</summary>
+    /// <summary>Ctrl+R by default (see <see cref="AppCopy"/>) - delegates to the app's Refresh command.</summary>
     AppRefresh,
-    /// <summary>Ctrl+L — delegated to the app's ChangeDir command (file panel).</summary>
+    /// <summary>Ctrl+L by default (see <see cref="AppCopy"/>) - delegates to the app's ChangeDir command.</summary>
     AppChangeDir,
 }

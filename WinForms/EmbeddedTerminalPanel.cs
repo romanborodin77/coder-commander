@@ -52,6 +52,15 @@ public sealed class EmbeddedTerminalPanel : Panel
     /// filesystem path - <c>MainForm</c> navigates the active file panel there.</summary>
     public event EventHandler<string>? ShowPathInPanelRequested;
 
+    /// <summary>Raised for one of the six <c>TerminalAction.App*</c> chords (Copy/Move/MakeDir/
+    /// Delete/Refresh/ChangeDir - F5/F6/F7/F8/Ctrl+R/Ctrl+L by default) - <c>MainForm</c> maps it
+    /// to the matching file-panel <c>CommandIds</c> entry, since this class deliberately has no
+    /// reference to <c>CommandEngine</c> itself. Internal, not public, like
+    /// <see cref="TerminalAction"/> itself - both stay same-assembly-only on purpose (the doc
+    /// comment on <see cref="TerminalAction"/> explains why terminal actions aren't routed through
+    /// the public CommandEngine surface).</summary>
+    internal event EventHandler<TerminalAction>? AppCommandRequested;
+
     public EmbeddedTerminalPanel()
     {
         InitializeComponents();
@@ -504,18 +513,34 @@ public sealed class EmbeddedTerminalPanel : Panel
         var menu = new ContextMenuStrip();
 #pragma warning restore CA2000
         menu.Closed += (_, _) => menu.Dispose();
-        menu.Items.Add(new ToolStripMenuItem(L.GetString("Input.Rename"), null, (_, _) =>
-        {
-            using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), tab.Name);
-            if (dlg.ShowDialog(FindForm()) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value) && dlg.Value != tab.Name)
-                _sessionManager.RenameTab(tabId, dlg.Value);
-        }));
+        menu.Items.Add(new ToolStripMenuItem(L.GetString("Input.Rename"), null, (_, _) => ShowRenameTabDialog(tabId, tab)));
         menu.Items.Add(new ToolStripMenuItem(L.GetString("Terminal.CopyPath"), null, (_, _) =>
         {
             if (!string.IsNullOrEmpty(session.CurrentPath))
                 ClipboardHelper.TrySetClipboard(session.CurrentPath);
         }));
         menu.Show(_tabControl, _tabControl.PointToClient(Cursor.Position));
+    }
+
+    /// <summary>Shared by the tab-strip right-click menu's "Rename" item and
+    /// <see cref="TerminalAction.RenameTab"/> (a user-rebindable chord - see
+    /// <see cref="OnCanvasActionRequested"/> - that previously had no handler at all: rename was
+    /// reachable only via right-click, even though the action was already offered for rebinding in
+    /// TerminalKeyBindingsForm).</summary>
+    private void ShowRenameTabDialog(Guid tabId, TerminalTab tab)
+    {
+        var L = LocalizationService.Current;
+        using var dlg = new InputDialogForm(L.GetString("Input.Rename"), L.GetString("Input.RenamePrompt"), tab.Name);
+        if (dlg.ShowDialog(FindForm()) == DialogResult.OK && !string.IsNullOrWhiteSpace(dlg.Value) && dlg.Value != tab.Name)
+            _sessionManager?.RenameTab(tabId, dlg.Value);
+    }
+
+    /// <summary>Renames whichever tab is currently active - what <see cref="TerminalAction.RenameTab"/>
+    /// needs, since a key chord (unlike a tab-strip right-click) carries no tab index of its own.</summary>
+    private void RenameActiveTab()
+    {
+        if (_sessionManager?.ActiveTab is not { } tab) return;
+        ShowRenameTabDialog(tab.Id, tab);
     }
 
     /// <summary>Handles a click on a tab's own close ("x") button - resolves the button strip
@@ -651,6 +676,20 @@ public sealed class EmbeddedTerminalPanel : Panel
             case TerminalAction.CloseTab: CloseTerminalTab(tabId); break;
             case TerminalAction.NextTab: NextTab(); break;
             case TerminalAction.PrevTab: PreviousTab(); break;
+            case TerminalAction.RenameTab: RenameActiveTab(); break;
+            // The six App* actions (F5/F6/F7/F8/Ctrl+R/Ctrl+L by default) delegate to the file
+            // panel's own commands - this class has no reference to CommandEngine/MainViewModel
+            // (the terminal is deliberately decoupled from the rest of the app's command wiring,
+            // per this enum's own doc comment), so it can only raise the action and let whoever
+            // owns both sides (MainForm) map it to a real command.
+            case TerminalAction.AppCopy:
+            case TerminalAction.AppMove:
+            case TerminalAction.AppMakeDir:
+            case TerminalAction.AppDelete:
+            case TerminalAction.AppRefresh:
+            case TerminalAction.AppChangeDir:
+                AppCommandRequested?.Invoke(this, action);
+                break;
             // Find/scroll navigation land in later phases. ClearBuffer/ResetTerminal/SelectAll
             // and the scroll actions are screen-local and handled directly inside
             // TerminalCanvas.DispatchAction - they never reach ActionRequested at all.

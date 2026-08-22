@@ -1254,6 +1254,7 @@ public sealed class MainForm : Form
 
         _terminalPanel.DirectoryChanged += OnTerminalDirectoryChanged;
         _terminalPanel.ShowPathInPanelRequested += OnShowPathInPanelRequested;
+        _terminalPanel.AppCommandRequested += OnTerminalAppCommand;
         _vm.LeftPanel.PropertyChanged += OnFilePanelPropertyChanged;
         _vm.RightPanel.PropertyChanged += OnFilePanelPropertyChanged;
 
@@ -1345,6 +1346,28 @@ public sealed class MainForm : Form
         {
             LogService.Error("Failed to show terminal path in panel", ex);
         }
+    }
+
+    /// <summary>Maps one of the terminal's six <c>App*</c> chords (F5/F6/F7/F8/Ctrl+R/Ctrl+L by
+    /// default - <see cref="EmbeddedTerminalPanel.AppCommandRequested"/>'s own doc comment) to the
+    /// matching file-panel command. Each doc-commented for exactly this delegation in
+    /// <c>Terminal.Input.TerminalAction</c> since that enum was written, but nothing ever executed
+    /// it - the chord reached <see cref="Terminal.Ui.TerminalCanvas"/>'s dispatcher and was
+    /// silently dropped.</summary>
+    private void OnTerminalAppCommand(object? sender, Terminal.Input.TerminalAction action)
+    {
+        var commandId = action switch
+        {
+            Terminal.Input.TerminalAction.AppCopy => CommandIds.Copy,
+            Terminal.Input.TerminalAction.AppMove => CommandIds.Move,
+            Terminal.Input.TerminalAction.AppMakeDir => CommandIds.MakeDir,
+            Terminal.Input.TerminalAction.AppDelete => CommandIds.Delete,
+            Terminal.Input.TerminalAction.AppRefresh => CommandIds.Refresh,
+            Terminal.Input.TerminalAction.AppChangeDir => CommandIds.ChangeDir,
+            _ => null
+        };
+        if (commandId != null)
+            _vm.Commands.Execute(commandId);
     }
 
     /// <summary>Push the active file panel's path into the terminal (default path for new tabs,
