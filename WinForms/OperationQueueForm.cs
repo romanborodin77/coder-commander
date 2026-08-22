@@ -130,6 +130,14 @@ public sealed class OperationQueueForm : ThemedForm
         };
 #pragma warning restore CA2000
 
+        if (queued.RequiresManualStart && op.State == OperationState.NotStarted)
+        {
+            var startItem = new ToolStripMenuItem(L.GetString("OpQueue.Start"));
+            startItem.Click += (_, _) => _ = _manager.StartQueuedAsync(queued.Id);
+            menu.Items.Add(startItem);
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
         if (op.SupportsPauseAndSkip && op.State is OperationState.Running or OperationState.Paused)
         {
             var pauseItem = new ToolStripMenuItem(op.State == OperationState.Paused
@@ -152,7 +160,12 @@ public sealed class OperationQueueForm : ThemedForm
         if (op.State is OperationState.Running or OperationState.Paused or OperationState.NotStarted)
         {
             var cancelItem = new ToolStripMenuItem(L.GetString("OpDlg.Cancel"));
-            cancelItem.Click += (_, _) => op.Cancel();
+            // Routed through the manager (not a bare op.Cancel()) so a held-but-not-yet-started
+            // entry (queued.RequiresManualStart) actually transitions to Canceled and is removed -
+            // FileOperation.Cancel() alone only sets a flag ExecuteAsync would have checked, which
+            // for an operation that was never started never runs. Also correctly dequeues a plain
+            // not-yet-started RunAsync entry, same as before.
+            cancelItem.Click += (_, _) => _manager.Cancel(queued.Id);
             menu.Items.Add(cancelItem);
         }
 
@@ -197,6 +210,7 @@ public sealed class OperationQueueForm : ThemedForm
                 OperationState.Completed => L.GetString("OpQueue.Status.Completed"),
                 OperationState.Canceled => L.GetString("OpQueue.Status.Canceled"),
                 OperationState.Failed => L.GetString("OpQueue.Status.Failed"),
+                OperationState.NotStarted when op.RequiresManualStart => L.GetString("OpQueue.Status.Held"),
                 _ => L.GetString("OpQueue.Status.Queued")
             };
 

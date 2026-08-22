@@ -207,6 +207,8 @@ public sealed class LocalizationService
         _strings["Menu.Commands.Terminal"] = "&Terminal";
         _strings["Menu.Commands.DirTree"] = "Directory &Tree";
         _strings["Menu.Commands.DiskInfo"] = "Disk &Info";
+        _strings["DiskInfo.Message"] = "{0}\n\nTotal: {1}\nUsed: {2}\nFree: {3} ({4}%)";
+        _strings["DiskInfo.Unavailable"] = "Disk space information is not available for this location.";
         _strings["Menu.Commands.OpQueue"] = "Operation &Queue";
         _strings["Menu.Commands.CalculateFolderSize"] = "Calculate &Folder Size";
 
@@ -362,6 +364,7 @@ public sealed class LocalizationService
         _strings["OpQueue.Title"] = "Operation Queue";
         _strings["OpQueue.Pause"] = "Pause";
         _strings["OpQueue.Resume"] = "Resume";
+        _strings["OpQueue.Start"] = "Start";
         _strings["OpQueue.CancelAll"] = "Cancel All";
         _strings["OpQueue.Clear"] = "Clear Completed";
         _strings["OpQueue.Close"] = "Close";
@@ -377,6 +380,7 @@ public sealed class LocalizationService
         _strings["OpQueue.Status.Canceled"] = "Canceled";
         _strings["OpQueue.Status.Failed"] = "Failed";
         _strings["OpQueue.Status.Queued"] = "Queued";
+        _strings["OpQueue.Status.Held"] = "Waiting to start";
         _strings["OpQueue.Type.Copy"] = "Copy";
         _strings["OpQueue.Type.Move"] = "Move";
         _strings["OpQueue.Type.Delete"] = "Delete";

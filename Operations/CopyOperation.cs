@@ -66,6 +66,15 @@ public sealed class TransferOptions
     /// <summary>Extensions <see cref="PackOperation"/> treats as already-compressed; null uses its
     /// own built-in default list.</summary>
     public IReadOnlyList<string>? AlreadyCompressedExtensions { get; set; }
+
+    /// <summary>Not read by any <see cref="IFileOperation"/> itself - a routing flag
+    /// <see cref="ViewModels.MainViewModel.ExecuteTransfer"/> checks to decide whether to submit
+    /// the built operation via <see cref="OperationManager.RunAsync"/> (starts immediately,
+    /// queuing behind whatever's already running) or <see cref="OperationManager.Enqueue"/> (added
+    /// to the queue but held until the user starts it from <c>OperationQueueForm</c>). Lets
+    /// <c>CopyMoveDialogForm</c>'s "Add to queue" checkbox thread through without a parameter
+    /// added to every method between it and <c>ExecuteTransfer</c>.</summary>
+    public bool AddToQueue { get; set; }
 }
 
 /// <summary>

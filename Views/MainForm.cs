@@ -252,6 +252,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.Checksum", "properties", "", CommandIds.Checksum));
         m.DropDownItems.Add(Mi("Menu.Commands.CalculateFolderSize", "properties", "Ctrl+Alt+Space", CommandIds.CalculateFolderSize));
+        m.DropDownItems.Add(Mi("Menu.Commands.DiskInfo", "properties", "", CommandIds.DiskInfo));
         m.DropDownItems.Add(Mi("Menu.Commands.Differ", "view", "", null, () => OpenDiffer()));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.OpQueue", "settings", "", null, () => OpenOperationQueue()));
@@ -1236,6 +1237,7 @@ public sealed class MainForm : Form
         _vm.SplitRequested += OnSplitRequested;
         _vm.CombineRequested += OnCombineRequested;
         _vm.OperationRejected += OnOperationRejected;
+        _vm.DiskInfoReady += OnDiskInfoReady;
         _vm.EditNewRequested += (_, _) => OpenEditorNew();
         _vm.ChecksumRequested += (_, _) => OpenChecksum();
         _vm.FindFilesRequested += (_, _) => OpenFindFiles();
@@ -1623,7 +1625,7 @@ public sealed class MainForm : Form
         using var dlg = new CopyMoveDialogForm(e.files, e.destPath, isMove: false);
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem);
+        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem, dlg.AddToQueue);
         _vm.ExecuteCopy(e.files, dlg.DestinationPath, options);
     }
 
@@ -1635,12 +1637,12 @@ public sealed class MainForm : Form
         LogService.Info($"OnMoveConfirm: dialog result={result}, destination={dlg.DestinationPath}");
         if (result != DialogResult.OK) return;
 
-        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem);
+        var options = BuildTransferOptions(dlg.OverwritePolicyIndex, dlg.CopyAttributes, dlg.CopyTimestamps, dlg.DestinationPath, _vm.ActivePanel.CurrentFileSystem, dlg.AddToQueue);
         LogService.Info($"OnMoveConfirm: calling ExecuteMove with dest={dlg.DestinationPath}");
         _vm.ExecuteMove(e.files, dlg.DestinationPath, options);
     }
 
-    private TransferOptions BuildTransferOptions(int policyIndex, bool copyAttrs, bool copyTs, string destinationPath, IFileSystem destFs)
+    private TransferOptions BuildTransferOptions(int policyIndex, bool copyAttrs, bool copyTs, string destinationPath, IFileSystem destFs, bool addToQueue = false)
     {
         var action = (OverwriteAction)policyIndex;
         var settings = SettingsService.Load();
@@ -1650,7 +1652,8 @@ public sealed class MainForm : Form
             CopyTimestamps = copyTs,
             Compression = ResolveCompressionForDestination(destinationPath, settings),
             SkipCompressionForCompressedFiles = settings.SkipCompressionForCompressedFiles,
-            AlreadyCompressedExtensions = settings.AlreadyCompressedExtensions.Count > 0 ? settings.AlreadyCompressedExtensions : null
+            AlreadyCompressedExtensions = settings.AlreadyCompressedExtensions.Count > 0 ? settings.AlreadyCompressedExtensions : null,
+            AddToQueue = addToQueue
         };
 
         switch (action)
@@ -2534,6 +2537,13 @@ public sealed class MainForm : Form
     {
         var L = LocalizationService.Current;
         StyledMessageBox.Show(L.GetString(reasonKey), L.GetString("Archive.Title"),
+            MsgBoxButtons.OK, MsgBoxIcon.Information, this);
+    }
+
+    private void OnDiskInfoReady(object? sender, string message)
+    {
+        var L = LocalizationService.Current;
+        StyledMessageBox.Show(message, StripMnemonic(L.GetString("Menu.Commands.DiskInfo")),
             MsgBoxButtons.OK, MsgBoxIcon.Information, this);
     }
 

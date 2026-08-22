@@ -123,6 +123,8 @@ public static class CommandIds
     public const string ShowProperties = "cm_ShowProperties";
     /// <summary>Recursively compute and display the total size of selected directories.</summary>
     public const string CalculateFolderSize = "cm_CalculateFolderSize";
+    /// <summary>Show free/total space for the active panel's current location.</summary>
+    public const string DiskInfo = "cm_DiskInfo";
     /// <summary>Show the About dialog.</summary>
     public const string About = "cm_About";
 }

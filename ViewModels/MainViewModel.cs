@@ -164,6 +164,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.About, _ => AboutRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ShowProperties, _ => ShowProperties());
         Commands.Register(CommandIds.CalculateFolderSize, _ => CalculateFolderSize());
+        Commands.Register(CommandIds.DiskInfo, p => { _ = SafeExecuteAsync(ShowDiskInfoAsync, "DiskInfo"); });
         Commands.Register(CommandIds.MultiRename, _ => MultiRename());
         Commands.Register(CommandIds.GoToRoot, _ => GoToRoot());
         Commands.Register(CommandIds.GoToHome, _ => GoToHome());
@@ -341,6 +342,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             // Not the shared Operations.RunAsync(op, ...) call at the bottom of this method - a
             // pack into an archive needs the extra step of syncing an already-attached panel lease
             // once the operation actually finishes, see RunPackAndSyncLeaseAsync's own doc comment.
+            // options.AddToQueue is deliberately not honored here: RunPackAndSyncLeaseAsync awaits
+            // RunAsync itself, so there is no equivalent "start later" hook to defer it to without
+            // also deferring the lease-sync step - packing into an archive always starts immediately.
             _ = RunPackAndSyncLeaseAsync(op, displayName, destArchive);
 #pragma warning restore CA2000
             return;
@@ -395,7 +399,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 : new CopyOperation(sourceFs, destFs, entries, sourceBase, destPath, options);
         }
 
-        _ = Operations.RunAsync(op, displayName);
+        if (options.AddToQueue)
+            Operations.Enqueue(op, displayName);
+        else
+            _ = Operations.RunAsync(op, displayName);
 #pragma warning restore CA2000
     }
 
@@ -718,6 +725,52 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             item.IsCalculatingSize = false;
             panel.RefreshDisplay();
         }
+    }
+
+    /// <summary>Raised once <see cref="ShowDiskInfoAsync"/> has a formatted message to show.</summary>
+    public event EventHandler<string>? DiskInfoReady;
+
+    /// <summary>
+    /// Reports free/used/total space for the active panel's current location via
+    /// <see cref="IFileSystem.GetDriveSpaceAsync"/> - works for a local disk the same way it works
+    /// for SFTP/SMB, both of which report genuine numbers. A provider with no real concept of
+    /// drive space (archives, WebDAV, FTP, MTP - see each one's own <c>GetDriveSpaceAsync</c>) is
+    /// told apart by its result (<c>total &lt;= 0</c>) rather than by provider type, since guessing
+    /// from <see cref="FileSystemCapabilities"/> would have to special-case exactly that same list
+    /// by hand for no better an answer.
+    /// </summary>
+    public async Task ShowDiskInfoAsync()
+    {
+        var panel = ActivePanel;
+        var fs = panel.CurrentFileSystem;
+        var path = panel.CurrentPath;
+
+        (long free, long total) space;
+        try
+        {
+            space = await fs.GetDriveSpaceAsync(path);
+        }
+        catch (Exception ex)
+        {
+            LogService.Warning($"DiskInfo failed for {path}: {ex.Message}");
+            space = (0, 0);
+        }
+
+        if (space.total <= 0)
+        {
+            OperationRejected?.Invoke(this, "DiskInfo.Unavailable");
+            return;
+        }
+
+        var used = Math.Max(0, space.total - space.free);
+        var percentFree = (double)space.free / space.total * 100.0;
+        var message = LocalizationService.Current.GetString("DiskInfo.Message",
+            path,
+            FormatUtils.FormatSize(space.total),
+            FormatUtils.FormatSize(used),
+            FormatUtils.FormatSize(space.free),
+            percentFree.ToString("0.#", System.Globalization.CultureInfo.CurrentCulture));
+        DiskInfoReady?.Invoke(this, message);
     }
 
     private static long ComputeDirectorySize(string path)

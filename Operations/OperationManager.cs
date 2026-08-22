@@ -13,6 +13,12 @@ public sealed class QueuedOperation
     /// <summary>Human-readable name shown in the progress UI.</summary>
     public string DisplayName { get; }
 
+    /// <summary>The id <see cref="OperationManager"/> tracks this entry under - what
+    /// <see cref="OperationManager.Cancel"/>/<see cref="OperationManager.StartQueuedAsync"/> take,
+    /// so a UI holding only this <see cref="QueuedOperation"/> (e.g. via a <c>ListViewItem.Tag</c>)
+    /// doesn't need a separate id lookup. Set once by <c>OperationManager.AddQueued</c>.</summary>
+    public Guid Id { get; internal set; }
+
     /// <summary>Time the operation started executing (set by <see cref="MarkStarted"/>).</summary>
     public DateTime StartTime { get; private set; }
 
@@ -21,6 +27,15 @@ public sealed class QueuedOperation
 
     /// <summary>Lets a still-queued (not yet started) operation be pulled out of the queue immediately.</summary>
     internal CancellationTokenSource QueueWaitCts { get; } = new();
+
+    /// <summary>True for an operation added via <see cref="OperationManager.Enqueue"/> that hasn't
+    /// had <see cref="OperationManager.StartQueuedAsync"/> called for it yet - it sits in
+    /// <see cref="OperationState.NotStarted"/> indefinitely, with nothing awaiting the queue lock on
+    /// its behalf, until something (the user, via <c>OperationQueueForm</c>'s "Start" action)
+    /// actually starts it. False for a plain <see cref="OperationManager.RunAsync"/> operation,
+    /// which is already waiting its turn the moment it's added - <see cref="OperationState.NotStarted"/>
+    /// there just means "hasn't reached the front of the queue yet", not "never started".</summary>
+    internal bool RequiresManualStart { get; set; }
 
     /// <summary>Guards <see cref="QueueWaitCts"/>'s Cancel() and Dispose() calls against each other -
     /// CancellationTokenSource documents that calling Cancel() concurrently with Dispose() from
@@ -66,8 +81,46 @@ public sealed class OperationManager : IDisposable
     /// <summary>Queues and executes an operation. Blocks if another operation is already running.</summary>
     public async Task RunAsync(IFileOperation operation, string displayName, CancellationToken externalCt = default)
     {
+        var id = AddQueued(operation, displayName);
+        await RunQueuedAsync(id, externalCt).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Adds an operation to the queue without starting it - it sits in
+    /// <see cref="OperationState.NotStarted"/>, visible in <c>OperationQueueForm</c>, until
+    /// <see cref="StartQueuedAsync"/> is called for its id. Used by <c>CopyMoveDialogForm</c>'s
+    /// "Add to queue" checkbox to let several transfers be gathered before any of them run - unlike
+    /// <see cref="RunAsync"/>, nothing here waits on the queue lock, so the operation does not
+    /// auto-start just because an earlier one finishes.
+    /// </summary>
+    /// <returns>The id to pass to <see cref="StartQueuedAsync"/>.</returns>
+    public Guid Enqueue(IFileOperation operation, string displayName)
+    {
+        var id = AddQueued(operation, displayName);
+        _operations[id].RequiresManualStart = true;
+        return id;
+    }
+
+    /// <summary>Starts an operation previously added via <see cref="Enqueue"/>. A no-op if the id is
+    /// unknown (already removed) or was not awaiting a manual start (already running, or a plain
+    /// <see cref="RunAsync"/> operation) - guards against a double click on "Start" running the
+    /// same operation's <see cref="IFileOperation.ExecuteAsync"/> twice.</summary>
+    public async Task StartQueuedAsync(Guid id, CancellationToken externalCt = default)
+    {
+        if (!_operations.TryGetValue(id, out var queued) || !queued.RequiresManualStart)
+            return;
+        queued.RequiresManualStart = false;
+        await RunQueuedAsync(id, externalCt).ConfigureAwait(true);
+    }
+
+    /// <summary>Registers a new operation and wires its progress/state events - shared by
+    /// <see cref="RunAsync"/> and <see cref="Enqueue"/>, which differ only in whether the queue-wait
+    /// tail (<see cref="RunQueuedAsync"/>) runs immediately or is deferred.</summary>
+    private Guid AddQueued(IFileOperation operation, string displayName)
+    {
         var queued = new QueuedOperation(operation, displayName);
         var id = Guid.NewGuid();
+        queued.Id = id;
         _operations[id] = queued;
 
         operation.ProgressChanged += (_, p) =>
@@ -123,6 +176,18 @@ public sealed class OperationManager : IDisposable
 
         Services.LogService.LogFileOperation(operation.GetType().Name, $"{displayName} -> queued");
         OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, queued, OperationChangeType.Added));
+
+        return id;
+    }
+
+    /// <summary>The queue-wait-then-execute tail shared by <see cref="RunAsync"/> (runs it
+    /// immediately after <see cref="AddQueued"/>) and <see cref="StartQueuedAsync"/> (runs it once
+    /// the user starts a previously <see cref="Enqueue"/>d operation). A no-op if <paramref name="id"/>
+    /// is no longer in the queue (already removed by a race with cancellation/disposal).</summary>
+    private async Task RunQueuedAsync(Guid id, CancellationToken externalCt)
+    {
+        if (!_operations.TryGetValue(id, out var queued)) return;
+        var operation = queued.Operation;
 
         try
         {
@@ -187,15 +252,35 @@ public sealed class OperationManager : IDisposable
     /// <summary>Cancels the operation with the given id.</summary>
     public void Cancel(Guid id)
     {
-        if (_operations.TryGetValue(id, out var q))
-            CancelQueued(q);
+        if (!_operations.TryGetValue(id, out var q)) return;
+
+        if (q.RequiresManualStart)
+        {
+            // Nothing is awaiting the queue lock on this operation's behalf yet (see
+            // RequiresManualStart's own doc comment) - CancelQueued's normal mechanism
+            // (cancelling QueueWaitCts) would have nobody to wake up, and the operation would sit
+            // in NotStarted forever. Finish it synchronously instead, the same way
+            // RunQueuedAsync's own cancel-before-start catch block does for a plain RunAsync
+            // operation cancelled while genuinely queued.
+            q.RequiresManualStart = false;
+            if (q.Operation is FileOperation fo)
+                fo.MarkCanceledWithoutRunning();
+            if (_operations.TryRemove(id, out _))
+            {
+                OperationChanged?.Invoke(this, new OperationManagerEventArgs(id, q, OperationChangeType.Removed));
+                (q.Operation as IDisposable)?.Dispose();
+            }
+            return;
+        }
+
+        CancelQueued(q);
     }
 
     /// <summary>Cancels all queued and running operations.</summary>
     public void CancelAll()
     {
-        foreach (var q in _operations.Values)
-            CancelQueued(q);
+        foreach (var id in _operations.Keys.ToList())
+            Cancel(id);
     }
 
     /// <summary>Cancels a queued/running operation, unblocking it immediately if it's still waiting for its turn.</summary>

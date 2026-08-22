@@ -14,6 +14,7 @@ public sealed class CopyMoveDialogForm : ThemedForm
     private readonly ThemedComboBox _overwriteCombo;
     private readonly ThemedCheckBox _copyAttrsCheck;
     private readonly ThemedCheckBox _copyTsCheck;
+    private readonly ThemedCheckBox _queueCheck;
     private readonly Button _okBtn;
     private readonly Button _cancelBtn;
     private readonly Label _fileCountLabel;
@@ -31,6 +32,11 @@ public sealed class CopyMoveDialogForm : ThemedForm
 
     /// <summary>Whether to preserve original timestamps.</summary>
     public bool CopyTimestamps => _copyTsCheck.Checked;
+
+    /// <summary>When true, the operation is added to the queue held (<see cref="OperationState.NotStarted"/>)
+    /// rather than started immediately - the user starts it later from <c>OperationQueueForm</c>,
+    /// letting several transfers be gathered first.</summary>
+    public bool AddToQueue => _queueCheck.Checked;
 
     /// <param name="items">Files to copy/move.</param>
     /// <param name="defaultDest">Default destination path.</param>
@@ -259,6 +265,10 @@ public sealed class CopyMoveDialogForm : ThemedForm
         _copyTsCheck.AutoSize = true;
         checksFlow.Controls.Add(_copyTsCheck);
 
+        _queueCheck = UiHelpers.CreateCheckBox(L.GetString("CopyMove.Queue"), false);
+        _queueCheck.AutoSize = true;
+        checksFlow.Controls.Add(_queueCheck);
+
         optionsPanel.Controls.Add(checksFlow, 1, row);
 
         mainLayout.Controls.Add(optionsPanel, 0, 2);
@@ -327,6 +337,7 @@ public sealed class CopyMoveDialogForm : ThemedForm
             _overwriteCombo?.Dispose();
             _copyAttrsCheck?.Dispose();
             _copyTsCheck?.Dispose();
+            _queueCheck?.Dispose();
             _fileCountLabel?.Dispose();
             _totalSizeLabel?.Dispose();
         }
