@@ -407,23 +407,23 @@ public sealed class MainForm : Form
             Renderer = new ThemeRenderer()
         };
 
-        // Routed through the command engine (audit finding G055), not a direct ActivePanel call -
-        // matching every other toolbar button here, and what makes Alt+Left/Alt+Right, the View
-        // menu entries, and DiagnosticCommandChannel (cm_GoBack/cm_GoForward) all reach the exact
-        // same code path instead of three independent ones.
-        _toolStrip.Items.Add(TbBtn("Toolbar.Back", "back", () => _vm.Commands.Execute(CommandIds.GoBack)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Forward", "forward", () => _vm.Commands.Execute(CommandIds.GoForward)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Up", "up", () => _ = _vm.ActivePanel.GoToParentAsync()));
-        _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
-        _toolStrip.Items.Add(TbBtn("Toolbar.Copy", "copy", () => _vm.Commands.Execute(CommandIds.Copy)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Move", "move", () => _vm.Commands.Execute(CommandIds.Move)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Delete", "delete", () => _vm.Commands.Execute(CommandIds.Delete)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.NewDir", "newdir", () => _vm.Commands.Execute(CommandIds.MakeDir)));
-        _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
-        _toolStrip.Items.Add(TbBtn("Toolbar.Search", "search", () => _vm.Commands.Execute(CommandIds.FindFiles)));
-        _toolStrip.Items.Add(TbBtn("Toolbar.Refresh", "refresh", () => _vm.Commands.Execute(CommandIds.Refresh)));
-        _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
-        _toolStrip.Items.Add(TbBtn("Toolbar.Settings", "settings", () => OpenSettings()));
+        // Layout is data-driven (F5.2, AppSettings.ToolbarButtons) - every button routes through
+        // the command engine (audit finding G055), matching Alt+Left/Alt+Right, the View menu
+        // entries, and DiagnosticCommandChannel, which all reach the exact same code path instead
+        // of independent ones. Empty settings = ToolbarButtonCatalog.DefaultToolbarLayout, so an
+        // un-customized toolbar looks exactly as it always has.
+        IReadOnlyList<string> layout = SettingsService.Load().ToolbarButtons;
+        if (layout.Count == 0) layout = ToolbarButtonCatalog.DefaultToolbarLayout;
+        foreach (var entry in layout)
+        {
+            if (entry == ToolbarButtonCatalog.Separator)
+            {
+                _toolStrip.Items.Add(new ToolStripSeparator { Margin = new Padding(6, 4, 6, 4) });
+                continue;
+            }
+            if (ToolbarButtonCatalog.FindToolbarCommand(entry) is { } spec)
+                _toolStrip.Items.Add(TbBtn(spec.LabelKey, spec.IconKey, () => _vm.Commands.Execute(spec.CommandId)));
+        }
 
         Controls.Add(_toolStrip);
     }
@@ -923,26 +923,21 @@ public sealed class MainForm : Form
             Renderer = new ThemeRenderer()
         };
 
-        var specs = new (string key, string iconKey, string? cmd, Action? custom)[]
-        {
-            ("Fn.View", "view", CommandIds.View, null),
-            ("Fn.Edit", "edit", CommandIds.Edit, null),
-            ("Fn.Copy", "copy", CommandIds.Copy, null),
-            ("Fn.Move", "move", CommandIds.Move, null),
-            ("Fn.MkDir", "newdir", CommandIds.MakeDir, null),
-            ("Fn.Delete", "delete", CommandIds.Delete, null),
-            ("Fn.Terminal", "terminal", CommandIds.ToggleTerminal, null),
-            ("Fn.Exit", "exit", CommandIds.Exit, null),
-        };
+        // Layout is data-driven (F5.2, AppSettings.FunctionBarButtons) - see BuildToolbar's own
+        // comment for the empty-means-default convention.
+        IReadOnlyList<string> layout = SettingsService.Load().FunctionBarButtons;
+        if (layout.Count == 0) layout = ToolbarButtonCatalog.DefaultFunctionBarLayout;
 
-        foreach (var (key, iconKey, cmd, custom) in specs)
+        foreach (var commandId in layout)
         {
+            if (ToolbarButtonCatalog.FindFunctionBarCommand(commandId) is not { } spec) continue;
+
             var btn = new ToolStripButton
             {
                 DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
-                Image = ToolbarIcons.Get(iconKey),
+                Image = ToolbarIcons.Get(spec.IconKey),
                 TextAlign = ContentAlignment.MiddleCenter,
-                Text = LocalizationService.Current.GetString(key),
+                Text = LocalizationService.Current.GetString(spec.LabelKey),
                 AutoSize = false,
                 Width = (int)Math.Round(118 * scale),
                 Height = (int)Math.Round(30 * scale),
@@ -950,14 +945,11 @@ public sealed class MainForm : Form
                 Margin = new Padding(2, 0, 2, 0),
                 ForeColor = p.HeaderForeground,
                 Font = p.GridFont,
-                Tag = iconKey
+                Tag = spec.IconKey
             };
-            if (cmd != null)
-                btn.Click += (_, _) => _vm.Commands.Execute(cmd);
-            else if (custom != null)
-                btn.Click += (_, _) => custom();
+            btn.Click += (_, _) => _vm.Commands.Execute(spec.CommandId);
 
-            var capturedKey = key;
+            var capturedKey = spec.LabelKey;
             _relocalizeActions.Add(() => btn.Text = LocalizationService.Current.GetString(capturedKey));
             _functionBar.Items.Add(btn);
         }
@@ -1284,6 +1276,7 @@ public sealed class MainForm : Form
         _vm.PreviousTerminalTabRequested += (_, _) => PreviousTerminalTab();
         _vm.ExitRequested += (_, _) => Close();
         _vm.AboutRequested += (_, _) => OpenAbout();
+        _vm.SettingsRequested += (_, _) => OpenSettings();
         _vm.ThemeChanged += (_, _) => ApplyTheme();
         _vm.ShowExtensionInNameChanged += (_, _) => OnShowExtensionInNameChanged();
         _vm.OperationStarted += OnOperationStarted;

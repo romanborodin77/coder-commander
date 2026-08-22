@@ -139,6 +139,10 @@ public static class CommandIds
     public const string DiskInfo = "cm_DiskInfo";
     /// <summary>Show the About dialog.</summary>
     public const string About = "cm_About";
+    /// <summary>Open the Settings dialog - previously only reachable via the toolbar's own direct
+    /// <c>OpenSettings()</c> call, not through the command engine (F5.2's customizable toolbar
+    /// needs every button to be a real command, this one included).</summary>
+    public const string OpenSettings = "cm_OpenSettings";
 }
 
 /// <summary>

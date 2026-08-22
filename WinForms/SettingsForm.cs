@@ -167,7 +167,7 @@ public sealed class SettingsForm : ThemedForm
         _nav = new SettingsNavControl { Dock = DockStyle.Fill };
 
         // ── Appearance section ──
-        var appearLayout = CreateSectionLayout(rows: 7, columns: 2);
+        var appearLayout = CreateSectionLayout(rows: 9, columns: 2);
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -199,6 +199,18 @@ public sealed class SettingsForm : ThemedForm
         _showToolbarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowToolbar", s.ShowToolbar);
         _showStatusBarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowStatusBar", s.ShowStatusBar);
         _showFnButtonsCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowFunctionButtons", s.ShowFunctionButtons);
+
+        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Toolbar.EditToolbar")), 0, row);
+        var editToolbarBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Toolbar.EditToolbar"));
+        editToolbarBtn.Click += (_, _) => OnEditToolbarLayout(isFunctionBar: false);
+        appearLayout.Controls.Add(editToolbarBtn, 1, row);
+        row++;
+
+        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Toolbar.EditFunctionBar")), 0, row);
+        var editFnBarBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Toolbar.EditFunctionBar"));
+        editFnBarBtn.Click += (_, _) => OnEditToolbarLayout(isFunctionBar: true);
+        appearLayout.Controls.Add(editFnBarBtn, 1, row);
+        row++;
 
         // UI/monospace fonts - working copies so Cancel discards a font picked via FontDialog,
         // same pattern as _workingCompression/_workingExtensions above. "" / 0 = built-in default
@@ -733,6 +745,12 @@ public sealed class SettingsForm : ThemedForm
         using var dlg = new TerminalKeyBindingsForm(_customKeyBindings);
         if (dlg.ShowDialog(this) == DialogResult.OK)
             _customKeyBindings = dlg.ResultBindings;
+    }
+
+    private void OnEditToolbarLayout(bool isFunctionBar)
+    {
+        using var dlg = new ToolbarButtonsForm(isFunctionBar);
+        dlg.ShowDialog(this);
     }
 
     private void OnManageCustomShells(object? sender, EventArgs e)

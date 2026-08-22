@@ -820,6 +820,16 @@ Settings.Terminal.CustomShells.Empty=No custom shells configured
 Settings.Terminal.CustomShells.Invalid.Name=Enter a name.
 Settings.Terminal.CustomShells.Invalid.Command=Enter a command.
 Settings.Terminal.CustomShells.RemoveConfirm=Remove custom shell "{0}"?
+Settings.Toolbar.EditToolbar=Customize Toolbar
+Settings.Toolbar.EditFunctionBar=Customize Function Bar
+Settings.Toolbar.Available=Available commands
+Settings.Toolbar.Current=Current layout
+Settings.Toolbar.Add=Add →
+Settings.Toolbar.Remove=← Remove
+Settings.Toolbar.AddSeparator=Add Separator
+Settings.Toolbar.Separator=— Separator —
+Settings.Toolbar.ResetDefault=Reset to Default
+Settings.Toolbar.RestartNotice=Restart Coder Commander for the new toolbar layout to take effect.
 Settings.ExtensionsInvalidChars=The extension contains invalid characters.
 
 Menu.Commands.Find=Search...

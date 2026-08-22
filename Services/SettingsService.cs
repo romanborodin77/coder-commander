@@ -81,6 +81,19 @@ public sealed class AppSettings
     /// over the network just to throw it away a moment later. Never consulted for a local path or
     /// an archive entry - those always preview.</summary>
     public bool QuickViewRemoteEnabled { get; set; }
+
+    /// <summary>Main-toolbar button layout as an ordered list of <c>CommandIds</c> values (plus
+    /// <c>Views.ToolbarButtonCatalog.Separator</c> for a divider) - F5.2. Empty means "use
+    /// <c>ToolbarButtonCatalog.DefaultToolbarLayout</c>", so a settings file from before this
+    /// feature existed shows the exact same toolbar it always did.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> ToolbarButtons { get; init; } = new();
+
+    /// <summary>Function (F-key) bar layout - see <see cref="ToolbarButtons"/>. No separator entries
+    /// (the function bar has never had one).</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> FunctionBarButtons { get; init; } = new();
+
     public bool ShowStatusBar { get; set; } = true;
     public bool ShowToolbar { get; set; } = true;
     public bool ShowFunctionButtons { get; set; } = true;
@@ -387,6 +400,22 @@ public static class SettingsService
         {
             var settings = Load();
             mutate(settings.TerminalCustomShells);
+            Save(settings);
+        }
+    }
+
+    /// <summary>Replaces <see cref="AppSettings.ToolbarButtons"/> or
+    /// <see cref="AppSettings.FunctionBarButtons"/> wholesale (F5.2's editor rebuilds the whole
+    /// ordered layout at once, unlike <see cref="MutateCustomShells"/>'s incremental add/edit/remove) -
+    /// same <see cref="Lock"/> discipline as every other settings mutation here.</summary>
+    public static void SaveToolbarLayout(bool isFunctionBar, IReadOnlyList<string> layout)
+    {
+        lock (Lock)
+        {
+            var settings = Load();
+            var target = isFunctionBar ? settings.FunctionBarButtons : settings.ToolbarButtons;
+            target.Clear();
+            target.AddRange(layout);
             Save(settings);
         }
     }

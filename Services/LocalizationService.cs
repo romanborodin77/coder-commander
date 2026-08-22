@@ -998,6 +998,16 @@ public sealed class LocalizationService
         _strings["Settings.Terminal.CustomShells.Invalid.Name"] = "Enter a name.";
         _strings["Settings.Terminal.CustomShells.Invalid.Command"] = "Enter a command.";
         _strings["Settings.Terminal.CustomShells.RemoveConfirm"] = "Remove custom shell \"{0}\"?";
+        _strings["Settings.Toolbar.EditToolbar"] = "Customize Toolbar";
+        _strings["Settings.Toolbar.EditFunctionBar"] = "Customize Function Bar";
+        _strings["Settings.Toolbar.Available"] = "Available commands";
+        _strings["Settings.Toolbar.Current"] = "Current layout";
+        _strings["Settings.Toolbar.Add"] = "Add →";
+        _strings["Settings.Toolbar.Remove"] = "← Remove";
+        _strings["Settings.Toolbar.AddSeparator"] = "Add Separator";
+        _strings["Settings.Toolbar.Separator"] = "— Separator —";
+        _strings["Settings.Toolbar.ResetDefault"] = "Reset to Default";
+        _strings["Settings.Toolbar.RestartNotice"] = "Restart Coder Commander for the new toolbar layout to take effect.";
 
         // ═══ Network browser ═══
         _strings["Network.Title"] = "Network";

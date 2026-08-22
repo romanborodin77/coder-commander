@@ -380,6 +380,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.SetTheme, param => SetTheme(param ?? "Dark"));
         Commands.Register(CommandIds.Exit, _ => ExitRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.About, _ => AboutRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.OpenSettings, _ => SettingsRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ShowProperties, _ => ShowProperties());
         Commands.Register(CommandIds.CalculateFolderSize, _ => CalculateFolderSize());
         Commands.Register(CommandIds.DiskInfo, p => { _ = SafeExecuteAsync(ShowDiskInfoAsync, "DiskInfo"); });
@@ -1372,6 +1373,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? ExitRequested;
     /// <summary>Raised when the user opens the About dialog.</summary>
     public event EventHandler? AboutRequested;
+
+    /// <summary>Raised by <see cref="CommandIds.OpenSettings"/> - the toolbar's own Settings
+    /// button routes through this instead of calling <c>MainForm.OpenSettings</c> directly, so
+    /// it's a real command like every other customizable toolbar button (F5.2).</summary>
+    public event EventHandler? SettingsRequested;
     /// <summary>Raised when a delete needs user confirmation before proceeding.</summary>
     public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? DeleteConfirmRequested;
     /// <summary>Raised when a wipe operation needs user confirmation before proceeding.</summary>

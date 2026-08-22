@@ -819,6 +819,16 @@ Settings.Terminal.CustomShells.Empty=Пользовательские оболо
 Settings.Terminal.CustomShells.Invalid.Name=Введите имя.
 Settings.Terminal.CustomShells.Invalid.Command=Введите команду.
 Settings.Terminal.CustomShells.RemoveConfirm=Удалить пользовательскую оболочку «{0}»?
+Settings.Toolbar.EditToolbar=Настроить панель инструментов
+Settings.Toolbar.EditFunctionBar=Настроить панель функций
+Settings.Toolbar.Available=Доступные команды
+Settings.Toolbar.Current=Текущий состав
+Settings.Toolbar.Add=Добавить →
+Settings.Toolbar.Remove=← Убрать
+Settings.Toolbar.AddSeparator=Добавить разделитель
+Settings.Toolbar.Separator=— Разделитель —
+Settings.Toolbar.ResetDefault=Сбросить по умолчанию
+Settings.Toolbar.RestartNotice=Перезапустите Coder Commander, чтобы новый состав панели вступил в силу.
 Settings.ExtensionsInvalidChars=Расширение содержит недопустимые символы.
 
 Menu.Commands.Find=Поиск файлов...
