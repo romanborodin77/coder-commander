@@ -317,7 +317,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.DeselectAll, _ => ActivePanel.DeselectAll());
         Commands.Register(CommandIds.InvertSelection, _ => ActivePanel.InvertSelection());
         Commands.Register(CommandIds.NewTab, _ => AddTabToActiveSide());
-        Commands.Register(CommandIds.CloseTab, _ => { _ = SafeExecuteAsync(CloseActiveTab, "CloseTab"); });
+        Commands.Register(CommandIds.CloseTab, p => { _ = SafeExecuteAsync(CloseActiveTab, "CloseTab"); });
         Commands.Register(CommandIds.NextTab, _ => NextTab());
         Commands.Register(CommandIds.PreviousTab, _ => PreviousTab());
         Commands.Register(CommandIds.SwapPanels, _ => SwapPanels());

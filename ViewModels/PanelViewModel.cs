@@ -597,7 +597,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
 
         if (FileSystem.ArchivePath.IsArchivePath(path))
         {
-            var archiveFile = FileSystem.ArchivePath.GetArchiveFile(path);
+            var archiveFile = FileSystem.VfsPath.GetArchiveFile(path);
 
             // Already browsing this exact archive (the ordinary in-archive navigation case, and
             // the interactive MainForm.EnterArchiveAsync entry path, which sets up _fs/the lease
