@@ -54,6 +54,8 @@ Menu.Commands.MultiRename=&Multi-Rename…
 Menu.Commands.SyncDirs=Synchronize &Dirs…
 Menu.Commands.SwapPanels=Swap &Panels
 Menu.Commands.SyncPanels=&Target = Source
+Menu.Commands.NewTab=&New Tab
+Menu.Commands.CloseTab=&Close Tab
 Menu.Commands.Terminal=&Terminal
 Menu.Commands.DirTree=Directory &Tree
 Menu.Commands.DiskInfo=Disk &Info

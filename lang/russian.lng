@@ -54,6 +54,8 @@ Menu.Commands.MultiRename=&Групповое переименование…
 Menu.Commands.SyncDirs=Синхронизация &каталогов…
 Menu.Commands.SwapPanels=По&менять панели
 Menu.Commands.SyncPanels=&Цель = Источник
+Menu.Commands.NewTab=&Новая вкладка
+Menu.Commands.CloseTab=&Закрыть вкладку
 Menu.Commands.Terminal=&Терминал
 Menu.Commands.DirTree=Дерево &каталогов
 Menu.Commands.DiskInfo=Информация о &диске

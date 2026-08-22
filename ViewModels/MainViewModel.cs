@@ -48,6 +48,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// just closed) that must not silently skip a background tab.</summary>
     public IEnumerable<PanelViewModel> AllPanels => _leftTabs.Tabs.Concat(_rightTabs.Tabs);
 
+    /// <summary>Every tab on the left side, in display order - for tab-strip UI and settings
+    /// persistence. Use <see cref="LeftPanel"/> for "the currently active one."</summary>
+    public IReadOnlyList<PanelViewModel> LeftTabs => _leftTabs.Tabs;
+
+    /// <summary>Right-side counterpart of <see cref="LeftTabs"/>.</summary>
+    public IReadOnlyList<PanelViewModel> RightTabs => _rightTabs.Tabs;
+
+    /// <summary>Index of <see cref="LeftPanel"/> within <see cref="LeftTabs"/> - for settings
+    /// persistence (which tab was active when the window closed).</summary>
+    public int LeftActiveTabIndex => _leftTabs.ActiveIndex;
+
+    /// <summary>Right-side counterpart of <see cref="LeftActiveTabIndex"/>.</summary>
+    public int RightActiveTabIndex => _rightTabs.ActiveIndex;
+
     /// <summary>Which side currently has focus - <see cref="ActivePanel"/> resolves against this
     /// plus whichever tab is active on that side, so switching tabs on the focused side keeps
     /// <see cref="ActivePanel"/> pointing at the right instance without every command handler that
@@ -89,8 +103,14 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         // Every tab (not just the active one) stays subscribed for its whole lifetime - see
         // PanelTabSet's own doc comment for why re-wiring on activation switch isn't needed.
-        _leftTabs.TabAdded += (_, panel) => WirePanelEvents(panel);
-        _rightTabs.TabAdded += (_, panel) => WirePanelEvents(panel);
+        // TabCreated also fires for the two ctor-time tabs below, but MainForm has nothing
+        // subscribed to it yet at that point (it constructs this ViewModel first, then wires its
+        // own events) - harmless, since MainForm's WireEvents sets ConfirmArchiveWriteBack/
+        // ArchiveWriteBackFailed on those two tabs directly via a one-time loop over AllPanels.
+        // TabCreated exists purely for tabs created AFTER that point (AddTab, tab restore), which
+        // have no such loop to fall back on.
+        _leftTabs.TabAdded += (_, panel) => { WirePanelEvents(panel); TabCreated?.Invoke(this, panel); };
+        _rightTabs.TabAdded += (_, panel) => { WirePanelEvents(panel); TabCreated?.Invoke(this, panel); };
         _leftTabs.TabRemoving += (_, panel) => UnwirePanelEvents(panel);
         _rightTabs.TabRemoving += (_, panel) => UnwirePanelEvents(panel);
         // ActiveChanged fires for a tab switch on EITHER side - LeftPanel/RightPanel always need
@@ -152,6 +172,93 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdateStatus();
     }
 
+    /// <summary>Raised right after a new tab is created and fully wired (see
+    /// <see cref="WirePanelEvents"/>) - lets <c>MainForm</c> set the per-panel UI-level delegates
+    /// (<see cref="PanelViewModel.ConfirmArchiveWriteBack"/>/<see cref="PanelViewModel.ArchiveWriteBackFailed"/>)
+    /// it would otherwise only ever set once, at startup, on the two panels that existed then.</summary>
+    public event EventHandler<PanelViewModel>? TabCreated;
+
+    /// <summary>Opens a new tab on <paramref name="left"/>'s side, starting at whatever path that
+    /// side's currently-active tab is showing (mirrors the "duplicate this tab" convention most
+    /// tabbed apps use) - empty for a panel that hasn't navigated anywhere yet, which just leaves
+    /// the new tab unnavigated too, same as the two ctor-time tabs before <c>MainForm.InitializeAsync</c>
+    /// first calls <c>NavigateAsync</c> on them.</summary>
+    public PanelViewModel AddTab(bool left)
+    {
+        var currentPath = (left ? LeftPanel : RightPanel).CurrentPath;
+        var vm = new PanelViewModel(FileSystem);
+        (left ? _leftTabs : _rightTabs).AddTab(vm);
+        if (!string.IsNullOrEmpty(currentPath))
+            _ = vm.NavigateAsync(currentPath);
+        return vm;
+    }
+
+    /// <summary>Opens a new tab on whichever side currently has focus - the <c>Ctrl+T</c> command.</summary>
+    public void AddTabToActiveSide() => AddTab(_isLeftActive);
+
+    /// <summary>Restores a persisted tab set on one side at startup. <paramref name="paths"/> must
+    /// be non-empty (the caller falls back to a single default path otherwise - see
+    /// <c>MainForm.InitializeAsync</c>). The side's existing ctor-time tab is reused for the first
+    /// path rather than closed and replaced, so the UI-level delegates <c>MainForm.WireEvents</c>
+    /// already set on it via its startup loop over <see cref="AllPanels"/> keep working unmodified;
+    /// only additional entries create genuinely new tabs, which go through <see cref="TabCreated"/>
+    /// like any other <see cref="AddTab"/> call. Paths are navigated sequentially, matching how the
+    /// pre-tabs single-path restore already awaited the left panel before starting the right one.</summary>
+    public async Task RestoreTabsAsync(bool left, IReadOnlyList<string> paths, int activeIndex)
+    {
+        if (paths.Count == 0) return;
+        var set = left ? _leftTabs : _rightTabs;
+
+        await set.Tabs[0].NavigateAsync(paths[0]).ConfigureAwait(true);
+        for (var i = 1; i < paths.Count; i++)
+        {
+            var vm = new PanelViewModel(FileSystem);
+            set.AddTab(vm);
+            await vm.NavigateAsync(paths[i]).ConfigureAwait(true);
+        }
+
+        set.SetActive(Math.Clamp(activeIndex, 0, set.Tabs.Count - 1));
+    }
+
+    /// <summary>Closes <paramref name="panel"/>'s tab - a no-op if it's the last tab on its side
+    /// (see <see cref="PanelTabSet.CloseTab"/>'s own doc comment for why that's gated here, not
+    /// inside the tab set) or if it isn't a currently-open tab on either side at all (already
+    /// closed, or a stale reference). If the tab holds a dirty archive lease, offers the same
+    /// write-back confirmation an ordinary navigation-away-from-the-archive would
+    /// (<see cref="PanelViewModel.ReleaseArchiveLeaseAsync"/>) before the tab and its lease are
+    /// torn down - closing a tab must not be a quieter way to discard edits than leaving the
+    /// archive normally is.</summary>
+    public async Task CloseTabAsync(PanelViewModel panel)
+    {
+        var set = _leftTabs.IndexOf(panel) >= 0 ? _leftTabs
+            : _rightTabs.IndexOf(panel) >= 0 ? _rightTabs
+            : null;
+        if (set == null || set.Tabs.Count <= 1) return;
+
+        if (panel.HasArchiveLease)
+            await panel.ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+
+        set.CloseTab(set.IndexOf(panel));
+    }
+
+    /// <summary>Closes the currently focused tab - the <c>Ctrl+W</c> command.</summary>
+    public Task CloseActiveTab() => CloseTabAsync(ActivePanel);
+
+    /// <summary>Switches to the next/previous tab on whichever side has focus, wrapping around -
+    /// the <c>Ctrl+PageDown</c>/<c>Ctrl+PageUp</c> commands.</summary>
+    public void NextTab() => StepActiveTab(1);
+
+    /// <summary>See <see cref="NextTab"/>.</summary>
+    public void PreviousTab() => StepActiveTab(-1);
+
+    private void StepActiveTab(int direction)
+    {
+        var set = _isLeftActive ? _leftTabs : _rightTabs;
+        if (set.Tabs.Count <= 1) return;
+        var next = ((set.ActiveIndex + direction) % set.Tabs.Count + set.Tabs.Count) % set.Tabs.Count;
+        set.SetActive(next);
+    }
+
     /// <summary>Swaps the paths of the left and right panels asynchronously.</summary>
     public void SwapPanels()
     {
@@ -209,6 +316,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.SelectAll, _ => ActivePanel.SelectAll());
         Commands.Register(CommandIds.DeselectAll, _ => ActivePanel.DeselectAll());
         Commands.Register(CommandIds.InvertSelection, _ => ActivePanel.InvertSelection());
+        Commands.Register(CommandIds.NewTab, _ => AddTabToActiveSide());
+        Commands.Register(CommandIds.CloseTab, _ => { _ = SafeExecuteAsync(CloseActiveTab, "CloseTab"); });
+        Commands.Register(CommandIds.NextTab, _ => NextTab());
+        Commands.Register(CommandIds.PreviousTab, _ => PreviousTab());
         Commands.Register(CommandIds.SwapPanels, _ => SwapPanels());
         Commands.Register(CommandIds.TargetEqualSource, _ => TargetEqualSource());
         Commands.Register(CommandIds.SyncDirs, _ => SyncDirs());

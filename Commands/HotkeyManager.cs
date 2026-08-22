@@ -179,6 +179,16 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.Home, CommandIds.GoToHome); // Ctrl+Home
         Register(Keys.Control | Keys.G, CommandIds.ChangeDir); // Ctrl+G
 
+        // Panel tabs - plain Ctrl+T/Ctrl+W are free at the app level (the embedded terminal keeps
+        // Ctrl+Shift+T/Ctrl+Shift+W for its own tabs specifically so a shell in focus keeps plain
+        // Ctrl+T/Ctrl+W for its own use, e.g. readline's Ctrl+T transpose-chars - see the terminal
+        // tab registrations below). Next/Previous use Ctrl+PageDown/PageUp, not Ctrl+Tab - that's
+        // already NextTerminalTab.
+        Register(Keys.Control | Keys.T, CommandIds.NewTab);
+        Register(Keys.Control | Keys.W, CommandIds.CloseTab);
+        Register(Keys.Control | Keys.Next, CommandIds.NextTab); // Ctrl+PageDown
+        Register(Keys.Control | Keys.Prior, CommandIds.PreviousTab); // Ctrl+PageUp
+
         // Panel
         Register(Keys.Control | Keys.U, CommandIds.SwapPanels);
         Register(Keys.Control | Keys.OemPeriod, CommandIds.ToggleHidden); // Ctrl+.

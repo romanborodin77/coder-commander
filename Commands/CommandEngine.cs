@@ -78,6 +78,15 @@ public static class CommandIds
     public const string DeselectGroup = "cm_DeselectGroup";
 
     // Panel
+    /// <summary>Open a new tab on whichever panel side has focus (Ctrl+T).</summary>
+    public const string NewTab = "cm_NewTab";
+    /// <summary>Close the focused panel side's active tab (Ctrl+W) - a no-op on a side with only
+    /// one tab, since (unlike a terminal tab) a panel side must always show something.</summary>
+    public const string CloseTab = "cm_CloseTab";
+    /// <summary>Switch to the next tab on the focused panel side (Ctrl+PageDown).</summary>
+    public const string NextTab = "cm_NextTab";
+    /// <summary>Switch to the previous tab on the focused panel side (Ctrl+PageUp).</summary>
+    public const string PreviousTab = "cm_PreviousTab";
     /// <summary>Swap the source and target panels (Ctrl+U).</summary>
     public const string SwapPanels = "cm_SwapPanels";
     /// <summary>Set the target panel path equal to the source panel path.</summary>

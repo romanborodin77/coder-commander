@@ -500,7 +500,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (!isVirtualPath)
             path = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
-        if (!AdoptFileSystemFor(path)) return;
+        if (!await AdoptFileSystemFor(path).ConfigureAwait(true)) return;
 
         // Claim "newest navigation" before the await below, not after: two overlapping
         // NavigateAsync calls (fast double-click into folder A then quickly into folder B, or a
@@ -569,8 +569,9 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// method's business.</para>
     /// </summary>
     /// <returns><c>false</c> when the navigation must not proceed - a remote path whose connection
-    /// is not open. Continuing would hand the path to whatever filesystem happened to be there.</returns>
-    private bool AdoptFileSystemFor(string path)
+    /// is not open, or an archive path whose container can no longer be opened. Continuing would
+    /// hand the path to whatever filesystem happened to be there.</returns>
+    private async Task<bool> AdoptFileSystemFor(string path)
     {
         if (FileSystem.RemotePath.IsRemote(path))
         {
@@ -594,9 +595,47 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             return true;
         }
 
-        // An archive path is served by the filesystem that was installed when the archive was
-        // entered; that machinery swaps it back on the way out and is none of this method's business.
-        if (FileSystem.ArchivePath.IsArchivePath(path)) return true;
+        if (FileSystem.ArchivePath.IsArchivePath(path))
+        {
+            var archiveFile = FileSystem.ArchivePath.GetArchiveFile(path);
+
+            // Already browsing this exact archive (the ordinary in-archive navigation case, and
+            // the interactive MainForm.EnterArchiveAsync entry path, which sets up _fs/the lease
+            // itself before ever calling NavigateAsync) - nothing to do.
+            if (_archiveLease != null && string.Equals(_archiveLease.LocalPath, archiveFile, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Reaching here means a path INSIDE an archive was navigated to directly with nothing
+            // already open for it - a typed/pasted path (Ctrl+G), or a persisted tab being
+            // restored on startup. A MaterializedFile's LocalPath for a non-local-origin archive
+            // is a per-session temp file that never outlives the app run that created it, so
+            // there is nothing to recover for that case - it fails the same way a closed
+            // connection does below, not a crash or a silent wrong-filesystem navigation.
+            if (!File.Exists(archiveFile)) return false;
+
+            var format = Archives.ArchiveFormatRegistry.Detect(archiveFile);
+            if (format == null) return false;
+
+            try
+            {
+                var materialized = await MaterializeAsync(new FileSystem.LocalFileSystem(), archiveFile,
+                    FileSystem.Materialization.MaterializeOptions.ForArchiveRead, CancellationToken.None).ConfigureAwait(true);
+                IFileSystem archiveFs = format.CreateFileSystem(materialized.LocalPath)
+                    ?? throw new InvalidOperationException($"Archive format '{format.Id}' could not open '{materialized.LocalPath}'.");
+                if (!materialized.IsPassthrough)
+                    archiveFs = new FileSystem.DirtyTrackingFileSystem(archiveFs, materialized.MarkDirty);
+
+                await AttachArchiveLeaseAsync(materialized).ConfigureAwait(true);
+                _fs = archiveFs;
+            }
+            catch (Exception ex)
+            {
+                LogService.Warning($"Failed to open archive for path '{path}': {ex.Message}");
+                return false;
+            }
+
+            return true;
+        }
 
         // Leaving a connection for an ordinary path. Keyed off the filesystem being one the
         // connection manager has open - not off the current path, which is the mistake that made

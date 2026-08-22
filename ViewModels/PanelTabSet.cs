@@ -35,6 +35,10 @@ public sealed class PanelTabSet : IDisposable
     /// the two-field version always started with a non-null panel.</summary>
     public PanelViewModel Active => _tabs[_activeIndex];
 
+    /// <summary>Index of <paramref name="panel"/> within <see cref="Tabs"/>, or -1 if this set
+    /// doesn't own it (it belongs to the other side, or was already closed).</summary>
+    public int IndexOf(PanelViewModel panel) => _tabs.IndexOf(panel);
+
     /// <summary>Raised right after a new tab is added and appended to <see cref="Tabs"/>, so a
     /// caller can wire its own per-panel event subscriptions before the tab does anything (e.g. its
     /// constructor's initial navigation).</summary>

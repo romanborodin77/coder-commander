@@ -247,6 +247,9 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Commands.SwapPanels", "syncdirs", "Ctrl+U", CommandIds.SwapPanels));
         m.DropDownItems.Add(Mi("Menu.Commands.SyncPanels", "syncdirs", "", CommandIds.TargetEqualSource));
         m.DropDownItems.Add(new ToolStripSeparator());
+        m.DropDownItems.Add(Mi("Menu.Commands.NewTab", "view", "Ctrl+T", CommandIds.NewTab));
+        m.DropDownItems.Add(Mi("Menu.Commands.CloseTab", "view", "Ctrl+W", CommandIds.CloseTab));
+        m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.DirTree", "view", "", null, () => OpenDirectoryTree()));
         m.DropDownItems.Add(Mi("Menu.Commands.Terminal", "terminal", "F9", CommandIds.ToggleTerminal));
         m.DropDownItems.Add(new ToolStripSeparator());
@@ -1213,14 +1216,18 @@ public sealed class MainForm : Form
 
     private void WireEvents()
     {
-        // AllPanels: every tab, not just the two active at startup. A tab created later (once
-        // tab-management UI exists) must get these same two delegates set at creation time too -
-        // see wherever a new PanelViewModel is constructed for a tab.
+        // AllPanels: every tab, not just the two active at startup. A tab created later gets the
+        // same two delegates set via MainViewModel.TabCreated below, subscribed a few lines down.
         foreach (var panel in _vm.AllPanels)
         {
             panel.ConfirmArchiveWriteBack = ConfirmArchiveWriteBack;
             panel.ArchiveWriteBackFailed = OnArchiveWriteBackFailed;
         }
+        _vm.TabCreated += (_, panel) =>
+        {
+            panel.ConfirmArchiveWriteBack = ConfirmArchiveWriteBack;
+            panel.ArchiveWriteBackFailed = OnArchiveWriteBackFailed;
+        };
 
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.DeleteConfirmRequested += OnDeleteConfirm;
@@ -2848,6 +2855,16 @@ public sealed class MainForm : Form
             s.WindowMaximized = WindowState == FormWindowState.Maximized;
         s.LeftPath = _vm.LeftPanel.CurrentPath;
         s.RightPath = _vm.RightPanel.CurrentPath;
+        // "0|" - flags first (reserved, unused today) then path, matching OpenTerminalTabs' own
+        // ShellId-first shape. Flags-first (not path-first) matters here specifically because a
+        // path can itself contain '|' (an archive path, archive.zip|inner) - restoring always
+        // parses with Split('|', 2), never a bare Split('|').
+        s.LeftPanelTabs.Clear();
+        s.LeftPanelTabs.AddRange(_vm.LeftTabs.Select(p => "0|" + p.CurrentPath));
+        s.LeftActiveTabIndex = _vm.LeftActiveTabIndex;
+        s.RightPanelTabs.Clear();
+        s.RightPanelTabs.AddRange(_vm.RightTabs.Select(p => "0|" + p.CurrentPath));
+        s.RightActiveTabIndex = _vm.RightActiveTabIndex;
         s.ShowHidden = _vm.ActivePanel.ShowHidden;
         s.ShowSystem = _vm.ActivePanel.ShowSystem;
         s.FlatView = _vm.ActivePanel.IsFlatView;
@@ -2917,17 +2934,41 @@ public sealed class MainForm : Form
         // Accept VFS paths (archive|, scheme://) for session restore — Directory.Exists only
         // works for local paths; for remote/archive paths, trust the saved value and let
         // NavigateAsync/AdoptFileSystemFor validate it on access.
-        var leftPath = !string.IsNullOrEmpty(s.LeftPath) &&
-            (FileSystem.VfsPath.IsArchive(s.LeftPath) || FileSystem.RemotePath.IsRemote(s.LeftPath) || Directory.Exists(s.LeftPath))
+        static bool IsRestorablePath(string p) =>
+            FileSystem.VfsPath.IsArchive(p) || FileSystem.RemotePath.IsRemote(p) || Directory.Exists(p);
+
+        var leftPath = !string.IsNullOrEmpty(s.LeftPath) && IsRestorablePath(s.LeftPath)
             ? s.LeftPath
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var rightPath = !string.IsNullOrEmpty(s.RightPath) &&
-            (FileSystem.VfsPath.IsArchive(s.RightPath) || FileSystem.RemotePath.IsRemote(s.RightPath) || Directory.Exists(s.RightPath))
+        var rightPath = !string.IsNullOrEmpty(s.RightPath) && IsRestorablePath(s.RightPath)
             ? s.RightPath
             : Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
 
-        await _vm.LeftPanel.NavigateAsync(leftPath);
-        await _vm.RightPanel.NavigateAsync(rightPath);
+        // A settings file with saved tabs (LeftPanelTabs/RightPanelTabs, Ф3) restores the full tab
+        // set; one from before tabs existed - or where every saved tab entry failed validation
+        // (a deleted archive, a connection that's no longer open) - falls back to the single
+        // leftPath/rightPath restore that predates tabs, same as today.
+        var leftTabPaths = s.LeftPanelTabs
+            .Select(entry => entry.Split('|', 2))
+            .Where(parts => parts.Length == 2 && IsRestorablePath(parts[1]))
+            .Select(parts => parts[1])
+            .ToList();
+        var rightTabPaths = s.RightPanelTabs
+            .Select(entry => entry.Split('|', 2))
+            .Where(parts => parts.Length == 2 && IsRestorablePath(parts[1]))
+            .Select(parts => parts[1])
+            .ToList();
+
+        if (leftTabPaths.Count > 0)
+            await _vm.RestoreTabsAsync(left: true, leftTabPaths, s.LeftActiveTabIndex);
+        else
+            await _vm.LeftPanel.NavigateAsync(leftPath);
+
+        if (rightTabPaths.Count > 0)
+            await _vm.RestoreTabsAsync(left: false, rightTabPaths, s.RightActiveTabIndex);
+        else
+            await _vm.RightPanel.NavigateAsync(rightPath);
+
         _vm.SetActivePanel(_vm.LeftPanel);
 
         _terminalPanel.DefaultPath = s.LastTerminalPath;

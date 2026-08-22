@@ -204,6 +204,8 @@ public sealed class LocalizationService
         _strings["Menu.Commands.SyncDirs"] = "Synchronize &Dirs…";
         _strings["Menu.Commands.SwapPanels"] = "Swap &Panels";
         _strings["Menu.Commands.SyncPanels"] = "&Target = Source";
+        _strings["Menu.Commands.NewTab"] = "&New Tab";
+        _strings["Menu.Commands.CloseTab"] = "&Close Tab";
         _strings["Menu.Commands.Terminal"] = "&Terminal";
         _strings["Menu.Commands.DirTree"] = "Directory &Tree";
         _strings["Menu.Commands.DiskInfo"] = "Disk &Info";

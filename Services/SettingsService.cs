@@ -14,6 +14,26 @@ public sealed class AppSettings
     public bool ShowSystem { get; set; } = false;
     public string LeftPath { get; set; } = "";
     public string RightPath { get; set; } = "";
+
+    /// <summary>Every open tab on the left side, in display order, as <c>"{flags}|{path}"</c>
+    /// entries - flags first (not the path) because a path can itself contain <c>|</c> (an archive
+    /// path, <c>archive.zip|inner</c>), so parsing must always be <c>Split('|', 2)</c>, never a
+    /// bare <c>Split('|')</c>. <c>flags</c> is <c>"0"</c> for every tab today; reserved so a future
+    /// locked-tab flag doesn't need a settings-format version bump. Empty on a settings file from
+    /// before tabs existed (or if the user never opened a second tab) - <see cref="LeftPath"/>
+    /// remains the fallback single-tab restore path for that case.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> LeftPanelTabs { get; init; } = new();
+
+    /// <summary>Right-side counterpart of <see cref="LeftPanelTabs"/>.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<string> RightPanelTabs { get; init; } = new();
+
+    /// <summary>Index into <see cref="LeftPanelTabs"/> that was active when the window closed.</summary>
+    public int LeftActiveTabIndex { get; set; }
+
+    /// <summary>Index into <see cref="RightPanelTabs"/> that was active when the window closed.</summary>
+    public int RightActiveTabIndex { get; set; }
     public int WindowWidth { get; set; } = 1200;
     public int WindowHeight { get; set; } = 800;
     public bool WindowMaximized { get; set; }
