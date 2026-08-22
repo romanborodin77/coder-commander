@@ -8,12 +8,13 @@ namespace CoderCommander.WinForms.Viewers;
 /// HTML "browser mode" content - back/forward/refresh/stop over whatever page navigation the user
 /// (or a relative link within the mapped folder - see <see cref="HtmlViewerFormat"/>'s own doc
 /// comment) drives, plus the one security-relevant per-format toggle: whether script execution is
-/// allowed at all (<c>AppSettings.ViewerHtmlAllowScripts</c>, off by default). "Show source" and
-/// text search are deliberately not implemented for this format in this pass - both would need a
-/// second navigable surface (a plain-text rendering of the raw markup) the way
-/// <c>MarkdownViewerContent</c> has one, and HTML's "expose the file's own real directory" mapping
-/// (rather than an isolated temp copy) makes writing that surface into the same mapped folder the
-/// wrong move; see that content's own doc comment for the approach this format doesn't take.
+/// allowed at all (<c>AppSettings.ViewerHtmlAllowScripts</c>, off by default). "Show source" is
+/// deliberately not implemented for this format - it would need a second navigable surface (a
+/// plain-text rendering of the raw markup) the way <c>MarkdownViewerContent</c> has one, and
+/// HTML's "expose the file's own real directory" mapping (rather than an isolated temp copy)
+/// makes writing that surface into the same mapped folder the wrong move. Text search inherits
+/// the base class's default (none) for a related but distinct reason - see
+/// <see cref="WebFileViewerContentBase"/>'s own doc comment.
 /// </summary>
 internal sealed class HtmlViewerContent : WebFileViewerContentBase
 {

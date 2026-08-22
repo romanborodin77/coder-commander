@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading;
 using CoderCommander.Services;
 using CoderCommander.Viewers;
@@ -10,14 +11,20 @@ namespace CoderCommander.WinForms.Viewers;
 /// a full reload (delimiter change, via <see cref="ViewerContentContext.Reload"/>); toggling
 /// "first row is header" re-interprets the already-parsed <see cref="CsvPayload.Rows"/> in place,
 /// no reload needed.
+///
+/// Also doubles as the <see cref="IViewerSearchTarget"/> the shared find bar drives - row-level
+/// only (a plain <see cref="ListView"/> has no per-cell selection to highlight an exact match
+/// within a row), searching only what's actually visible/selectable (respects
+/// <see cref="MaxDisplayRows"/> the same way the grid itself does).
 /// </summary>
-internal sealed class CsvViewerContent : IViewerContent
+internal sealed class CsvViewerContent : IViewerContent, IViewerSearchTarget
 {
     private const int MaxDisplayRows = 5000;
 
     private readonly ListView _listView;
     private readonly AppSettings _settings;
     private readonly ViewerContentContext _ctx;
+    private readonly ToolStripButton _findBtn;
     private readonly ToolStripButton _hasHeaderBtn;
     private readonly ToolStripButton _autosizeBtn;
     private readonly ToolStripDropDownButton _delimiterBtn;
@@ -28,9 +35,15 @@ internal sealed class CsvViewerContent : IViewerContent
     private IReadOnlyList<string[]> _rows = [];
     private char _delimiter = ',';
 
+    // Built lazily from the ListView (not from _rows directly) so a search match always
+    // corresponds exactly to what the user can actually see and have selected - cleared whenever
+    // PopulateListView rebuilds the grid.
+    private string? _searchText;
+    private readonly List<int> _rowStartOffsets = new();
+
     public Control View => _listView;
     public IReadOnlyList<ToolStripItem> ToolbarItems => _toolbarItems;
-    public IViewerSearchTarget? SearchTarget => null; // table search deferred - see plan
+    public IViewerSearchTarget? SearchTarget => this;
     public string? StatusText { get; private set; }
     public event EventHandler? StatusChanged { add { } remove { } } // never changes outside RenderAsync
 
@@ -67,6 +80,8 @@ internal sealed class CsvViewerContent : IViewerContent
                 _overlay = ListViewScrollbarOverlay.Attach(_listView);
         };
 
+        _findBtn = ViewerToolbarFactory.CreateToolButton("View.Search", "search", (_, _) => ctx.ShowFindBar());
+
         _hasHeaderBtn = new ToolStripButton(L.GetString("View.Csv.HasHeader"))
         {
             CheckOnClick = true,
@@ -89,7 +104,7 @@ internal sealed class CsvViewerContent : IViewerContent
         AddDelimiterOption(L, "View.Csv.Delimiter.Pipe", "|");
         RefreshDelimiterChecks();
 
-        _toolbarItems = [_hasHeaderBtn, _autosizeBtn, _delimiterBtn];
+        _toolbarItems = [_findBtn, _hasHeaderBtn, _autosizeBtn, _delimiterBtn];
     }
 
     private void AddDelimiterOption(LocalizationService L, string labelKey, string settingValue)
@@ -147,6 +162,8 @@ internal sealed class CsvViewerContent : IViewerContent
     private void PopulateListView()
     {
         var L = LocalizationService.Current;
+        _searchText = null;
+        _rowStartOffsets.Clear();
         _listView.BeginUpdate();
         _listView.Items.Clear();
         _listView.Columns.Clear();
@@ -204,6 +221,66 @@ internal sealed class CsvViewerContent : IViewerContent
         NativeControlThemer.ThemeListViewHeader(_listView);
     }
 
+    // ── IViewerSearchTarget ─────────────────────────────────────────────────────────────────
+    // Cells within a row are tab-joined and rows are newline-joined, mirroring plain-text CSV
+    // shape closely enough that a search for e.g. "42,Smith" still reads naturally, without
+    // actually needing to match the file's real delimiter.
+
+    public string GetSearchText()
+    {
+        if (_searchText != null) return _searchText;
+
+        var sb = new StringBuilder();
+        _rowStartOffsets.Clear();
+        foreach (ListViewItem item in _listView.Items)
+        {
+            _rowStartOffsets.Add(sb.Length);
+            sb.Append(item.Text);
+            for (var i = 1; i < item.SubItems.Count; i++)
+            {
+                sb.Append('\t');
+                sb.Append(item.SubItems[i].Text);
+            }
+            sb.Append('\n');
+        }
+        _searchText = sb.ToString();
+        return _searchText;
+    }
+
+    /// <summary>Start offset of the currently selected row, so re-running a search after the user
+    /// manually clicked a different row continues from there - same "resume from the caret" idea
+    /// <see cref="TextViewerContent"/> gets for free from <c>RichTextBox.SelectionStart</c>, just
+    /// keyed off row selection instead of a text caret.</summary>
+    public int CurrentOffset
+    {
+        get
+        {
+            GetSearchText(); // ensures _rowStartOffsets is populated even if never queried yet
+            var selected = _listView.SelectedIndices.Count > 0 ? _listView.SelectedIndices[0] : -1;
+            return selected >= 0 && selected < _rowStartOffsets.Count ? _rowStartOffsets[selected] : 0;
+        }
+    }
+
+    public void SelectRange(int start, int length)
+    {
+        GetSearchText(); // ensures _rowStartOffsets matches the text these offsets were found in
+        if (_rowStartOffsets.Count == 0) return;
+
+        // _rowStartOffsets is sorted ascending by construction (each row starts after the
+        // previous one ends) - binary search for the last row whose start is <= start.
+        var idx = _rowStartOffsets.BinarySearch(start);
+        if (idx < 0) idx = ~idx - 1;
+        if (idx < 0 || idx >= _listView.Items.Count) return;
+
+        _listView.SelectedIndices.Clear();
+        var item = _listView.Items[idx];
+        item.Selected = true;
+        item.Focused = true;
+        item.EnsureVisible();
+    }
+
+    public void FocusContent() => _listView.Focus();
+
     // ── Disposal ─────────────────────────────────────────────────────────────────────────────
     // _listView/toolbar items are owned transitively by ViewerForm's own Controls/ToolStrip.Items
     // collections (same accepted CA2213 pattern as the other contents). _overlay is a free-standing
@@ -213,6 +290,7 @@ internal sealed class CsvViewerContent : IViewerContent
     {
         _overlay?.Dispose();
         _listView.Dispose();
+        _findBtn.Dispose();
         _autosizeBtn.Dispose();
         _hasHeaderBtn.Dispose();
         _delimiterBtn.Dispose();

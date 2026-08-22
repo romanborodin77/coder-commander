@@ -12,6 +12,16 @@ namespace CoderCommander.WinForms.Viewers;
 /// folder and navigated between exactly the way <c>MarkdownViewerContent</c>'s render/source
 /// toggle works - no re-mapping, just a fresh <c>NavigateAndWaitAsync</c> to a sibling file already
 /// sitting in the same mapped folder.
+///
+/// <para><b>No search target.</b> Unlike <c>MarkdownViewerContent</c> (which searches its own
+/// plain <see cref="Viewers.MarkdownPayload.SourceText"/> against a single flat <c>&lt;pre&gt;</c>
+/// that decodes back to identical character offsets), the OOXML/ODF converters
+/// (<c>Viewers.Office.*</c>) emit real structural HTML - headings, tables, runs, inline images -
+/// with no accompanying flat-text-with-offsets representation to search against, and each page is
+/// its own separately-navigated document. Reliably mapping a plain-text search hit back onto that
+/// nested markup (across whichever page currently happens to be shown) would need each converter
+/// to additionally emit an offset index alongside its HTML, which none of them do today - a
+/// bigger, separate undertaking than adding a find bar here.</para>
 /// </summary>
 internal sealed class OfficeViewerContent : IViewerContent
 {

@@ -12,6 +12,16 @@ namespace CoderCommander.WinForms.Viewers;
 /// than sharing one; only the underlying <see cref="WebViewHost.Control"/> is shared, reparented
 /// into whichever format's wrapper is active via <see cref="WebViewHost.AttachTo"/> - see that
 /// class's own doc comment for why (one browser process per window, not five).
+///
+/// <para><b>No search target</b> (default, overridable per format): Pdf already gets Ctrl+F for
+/// free from Edge's own embedded PDF viewer chrome, and Media has no text content to search at
+/// all. Html could in principle search its own DOM the way <c>MarkdownViewerContent</c> does over
+/// a flat <c>&lt;pre&gt;</c> - but an arbitrary HTML page's real, nested markup has no single
+/// text node an offset maps onto 1:1 the way Markdown's does, and the page the user is looking at
+/// can change out from under a cached search index at any time (this format lets the user
+/// navigate via links, unlike Markdown's fixed render/source pair) - a correct implementation
+/// needs a live multi-node DOM walk kept in sync with navigation, not the offset scheme this
+/// interface otherwise assumes; a bigger, separate undertaking than the fix here covers.</para>
 /// </summary>
 internal abstract class WebFileViewerContentBase : IViewerContent
 {
