@@ -136,6 +136,10 @@ public sealed class FilePanelUserControl : UserControl
     /// those without touching the disk.</summary>
     public event EventHandler<FileSystemItem>? CreateHardlinkRequested;
 
+    /// <summary>Raised from the context menu's "Open With…" item, only shown for a native-path,
+    /// non-directory item - same restriction Explorer's own "Open with" applies.</summary>
+    public event EventHandler<FileSystemItem>? OpenWithRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -1206,6 +1210,13 @@ public sealed class FilePanelUserControl : UserControl
 
         CtxItem(menu, "Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ViewRequested?.Invoke(this, item); });
         CtxItem(menu, "Ctx.Edit", "edit", () => { if (_vm.SelectedItem is { IsParent: false } item) EditRequested?.Invoke(this, item); });
+        // "Open With…" only for a native-path, non-directory item - same restriction Explorer's
+        // own "Open with" applies (an archive entry/remote file has no real path an outside
+        // process could open, and "open with" on a folder isn't a thing Explorer offers either).
+        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } openWithItem && HasNativePaths)
+        {
+            CtxItem(menu, "Ctx.OpenWith", "view", () => OpenWithRequested?.Invoke(this, openWithItem));
+        }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));

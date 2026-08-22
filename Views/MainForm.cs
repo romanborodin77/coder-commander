@@ -603,6 +603,21 @@ public sealed class MainForm : Form
         panel.VerifyChecksumRequested += (_, item) => OnVerifyChecksum(panel, item);
         panel.CreateSymlinkRequested += (_, item) => OnCreateSymlink(panel, item);
         panel.CreateHardlinkRequested += (_, item) => OnCreateHardlink(panel, item);
+        panel.OpenWithRequested += (_, item) => OnOpenWith(item);
+    }
+
+    private void OnOpenWith(FileSystemItem item)
+    {
+        var L = LocalizationService.Current;
+        try
+        {
+            OpenWithHelper.Show(Handle, item.FullPath);
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Open With failed for {item.FullPath}", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
     }
 
     /// <summary>Creates a symbolic link next to <paramref name="item"/>, pointing at it. Needs
