@@ -88,6 +88,10 @@ Menu.Config.Settings=&Settings…
 Menu.Config.Bookmarks=&Bookmarks…
 Menu.Help=&Help
 Menu.Help.About=&About
+Menu.Help.OpenLog=&Open Log File
+Menu.Help.ClearLog=&Clear Log
+Help.LogNotFound=No log file has been written yet.
+Help.ClearLogConfirm=Delete the current log file and start a new one?
 
 # ═══ Toolbar ═══
 Toolbar.Back=Back
@@ -432,6 +436,7 @@ Edit.GoToLinePrompt=Line number:
 Edit.Toolbar.New=New
 Edit.Toolbar.Open=Open
 Edit.Toolbar.Save=Save
+Edit.Toolbar.SaveAs=Save As
 Edit.Toolbar.SaveAll=Save All
 Edit.Toolbar.Undo=Undo
 Edit.Toolbar.Redo=Redo

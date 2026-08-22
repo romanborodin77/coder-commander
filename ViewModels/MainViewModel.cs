@@ -153,6 +153,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.InvertSelection, _ => ActivePanel.InvertSelection());
         Commands.Register(CommandIds.SwapPanels, _ => SwapPanels());
         Commands.Register(CommandIds.TargetEqualSource, _ => TargetEqualSource());
+        Commands.Register(CommandIds.SyncDirs, _ => SyncDirs());
         Commands.Register(CommandIds.ToggleHidden, _ => ActivePanel.ShowHidden = !ActivePanel.ShowHidden);
         Commands.Register(CommandIds.ToggleFlatView, _ => ActivePanel.IsFlatView = !ActivePanel.IsFlatView);
         Commands.Register(CommandIds.ToggleQuickFilter, _ => QuickFilterToggleRequested?.Invoke(this, EventArgs.Empty));

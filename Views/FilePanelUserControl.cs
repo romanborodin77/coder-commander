@@ -1229,8 +1229,9 @@ public sealed class FilePanelUserControl : UserControl
         var copyPathMenu = new ToolStripMenuItem(L.GetString("Ctx.CopyPath"), ToolbarIcons.Get("copy"));
         var cpFull = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Full"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.FullPath ?? ""));
         var cpName = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Name"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.Name ?? ""));
+        var cpNoExt = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.NoExt"), null, (_, _) => CopyToClipboard(FullPathWithoutExtension(_vm.SelectedItem)));
 #pragma warning restore CA2000
-        copyPathMenu.DropDownItems.AddRange([cpFull, cpName]);
+        copyPathMenu.DropDownItems.AddRange([cpFull, cpName, cpNoExt]);
         menu.Items.Add(copyPathMenu);
 
         menu.Items.Add(new ToolStripSeparator());
@@ -1251,6 +1252,18 @@ public sealed class FilePanelUserControl : UserControl
     /// <see cref="Services.ChecksumService"/> exports/parses.</summary>
     private static bool IsChecksumFileExtension(string extension) =>
         extension is ".sfv" or ".md5" or ".sha1" or ".sha256";
+
+    /// <summary>The item's full path with its own extension (if any) trimmed off the end - what
+    /// "Copy Path ▸ Path Without Extension" puts on the clipboard. A directory (empty
+    /// <see cref="FileSystemItem.Extension"/>) is returned unchanged.</summary>
+    private static string FullPathWithoutExtension(FileSystemItem? item)
+    {
+        if (item == null) return "";
+        var ext = item.Extension;
+        return ext.Length > 0 && item.FullPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
+            ? item.FullPath[..^ext.Length]
+            : item.FullPath;
+    }
 
     private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action)
     {

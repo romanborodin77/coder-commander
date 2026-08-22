@@ -112,6 +112,7 @@ public sealed class EditorForm : ThemedForm
         _toolStrip.Items.Add(CreateToolButton("New", "newdir", (_, _) => NewTab()));
         _toolStrip.Items.Add(CreateToolButton("Open", "view", (_, _) => OpenFile()));
         _toolStrip.Items.Add(CreateToolButton("Save", "copy", (_, _) => SaveCurrentFile()));
+        _toolStrip.Items.Add(CreateToolButton("SaveAs", "copy", (_, _) => SaveCurrentFileAs()));
         _toolStrip.Items.Add(CreateToolButton("SaveAll", "copy", (_, _) => SaveAllFiles()));
         _toolStrip.Items.Add(new ToolStripSeparator());
 
@@ -506,6 +507,45 @@ public sealed class EditorForm : ThemedForm
         }
     }
 
+    /// <summary>Prompts for a new local path and saves the current tab's buffer there, re-targeting
+    /// the tab to it (see <see cref="EditorTab.SaveFileAsync"/>'s <c>targetFs</c> parameter) -
+    /// unlike plain Save, this works even when the tab's own file is read-only (an archive entry,
+    /// a read-only remote share), since the destination is always a fresh local file.</summary>
+    private void SaveCurrentFileAs()
+    {
+        var tab = GetCurrentTab();
+        if (tab == null) return;
+
+        using var dlg = new SaveFileDialog
+        {
+            Filter = "All files (*.*)|*.*|Text files (*.txt)|*.txt",
+            FileName = tab.FileName
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        _ = SaveTabAsAsync(tab, dlg.FileName);
+    }
+
+    private async Task SaveTabAsAsync(EditorTab tab, string newPath)
+    {
+        try
+        {
+            // SaveFileDialog always returns a real local path - write through a fresh
+            // LocalFileSystem rather than the tab's own (possibly archive/remote) one, the same
+            // "a SaveFileDialog result is always local" pattern ChecksumForm.ExportAsync and
+            // MultiRenameForm's export path already use.
+            await tab.SaveFileAsync(newPath, targetFs: new LocalFileSystem()).ConfigureAwait(true);
+            UpdateTabTitle(tab);
+            UpdateTitle();
+            UpdateStatusBar();
+            UpdateFileSizeLabel();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"SaveTabAsAsync failed: {ex.Message}", ex);
+        }
+    }
+
     private void SaveAllFiles()
     {
         _ = SaveAllFilesAsync();
@@ -648,8 +688,6 @@ public sealed class EditorForm : ThemedForm
 
     private void ShowFind()
     {
-        // Stub until the find/replace-bar milestone lands; kept as its own method so the
-        // toolbar/hotkey call sites don't need to change shape again later.
         GetCurrentTab()?.Editor.ShowFindBar(withReplace: false);
     }
 
@@ -688,7 +726,12 @@ public sealed class EditorForm : ThemedForm
         {
             switch (keyData & ~Keys.Control & ~Keys.Shift)
             {
-                case Keys.S: SaveCurrentFile(); return true;
+                case Keys.S:
+                    // Ctrl+S vs Ctrl+Shift+S - Shift is masked out of the switch above (along with
+                    // Control) for every other chord, so this one case has to check it explicitly.
+                    if ((keyData & Keys.Shift) == Keys.Shift) SaveCurrentFileAs();
+                    else SaveCurrentFile();
+                    return true;
                 case Keys.N: NewTab(); return true;
                 case Keys.O: OpenFile(); return true;
                 case Keys.W: CloseCurrentTab(); return true;

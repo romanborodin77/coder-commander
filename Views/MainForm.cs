@@ -243,7 +243,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Commands.FindDuplicates", "search", "", CommandIds.FindDuplicates));
         m.DropDownItems.Add(Mi("Menu.Commands.MultiRename", "multirename", "Ctrl+M", CommandIds.MultiRename));
         m.DropDownItems.Add(new ToolStripSeparator());
-        m.DropDownItems.Add(Mi("Menu.Commands.SyncDirs", "syncdirs", "", null, () => OnSyncDirs(this, (_vm.LeftPanel.CurrentPath, _vm.RightPanel.CurrentPath))));
+        m.DropDownItems.Add(Mi("Menu.Commands.SyncDirs", "syncdirs", "", CommandIds.SyncDirs));
         m.DropDownItems.Add(Mi("Menu.Commands.SwapPanels", "syncdirs", "Ctrl+U", CommandIds.SwapPanels));
         m.DropDownItems.Add(Mi("Menu.Commands.SyncPanels", "syncdirs", "", CommandIds.TargetEqualSource));
         m.DropDownItems.Add(new ToolStripSeparator());
@@ -320,7 +320,42 @@ public sealed class MainForm : Form
         var L = LocalizationService.Current;
         var m = new ToolStripMenuItem(L.GetString("Menu.Help"));
         m.DropDownItems.Add(Mi("Menu.Help.About", "view", "", CommandIds.About));
+        m.DropDownItems.Add(new ToolStripSeparator());
+        // LogService.GetLogPath()/ClearLog() were both fully implemented with no UI entry point
+        // anywhere in the app.
+        m.DropDownItems.Add(Mi("Menu.Help.OpenLog", "view", "", null, () => OpenLogFile()));
+        m.DropDownItems.Add(Mi("Menu.Help.ClearLog", "delete", "", null, () => ClearLogFile()));
         _menuStrip.Items.Add(m);
+    }
+
+    private void OpenLogFile()
+    {
+        var L = LocalizationService.Current;
+        var path = LogService.GetLogPath();
+        if (!File.Exists(path))
+        {
+            StyledMessageBox.Show(L.GetString("Help.LogNotFound"), L.GetString("Menu.Help.OpenLog"),
+                MsgBoxButtons.OK, MsgBoxIcon.Information, this);
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            LogService.Error("Failed to open log file", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
+    }
+
+    private void ClearLogFile()
+    {
+        var L = LocalizationService.Current;
+        var result = StyledMessageBox.Show(L.GetString("Help.ClearLogConfirm"), L.GetString("Menu.Help.ClearLog"),
+            MsgBoxButtons.YesNo, MsgBoxIcon.Question, this);
+        if (result != MsgBoxResult.Yes) return;
+        LogService.ClearLog();
     }
 
     private ToolStripMenuItem Mi(string textKey, string iconKey, string shortcut,

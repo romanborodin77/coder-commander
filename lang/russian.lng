@@ -85,6 +85,10 @@ Menu.Config.Settings=&Настройки…
 Menu.Config.Bookmarks=&Закладки…
 Menu.Help=&Справка
 Menu.Help.About=&О программе
+Menu.Help.OpenLog=&Открыть файл журнала
+Menu.Help.ClearLog=&Очистить журнал
+Help.LogNotFound=Файл журнала ещё не создан.
+Help.ClearLogConfirm=Удалить текущий файл журнала и начать новый?
 
 # ═══ Тулбар ═══
 Toolbar.Back=Назад
@@ -590,6 +594,7 @@ Op.Title.Combine=Сборка
 Edit.Toolbar.New=Создать
 Edit.Toolbar.Open=Открыть
 Edit.Toolbar.Save=Сохранить
+Edit.Toolbar.SaveAs=Сохранить как
 Edit.Toolbar.SaveAll=Сохранить всё
 Edit.Toolbar.Undo=Отменить
 Edit.Toolbar.Redo=Повторить

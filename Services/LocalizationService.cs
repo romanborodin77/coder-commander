@@ -238,6 +238,10 @@ public sealed class LocalizationService
 
         _strings["Menu.Help"] = "&Help";
         _strings["Menu.Help.About"] = "&About";
+        _strings["Menu.Help.OpenLog"] = "&Open Log File";
+        _strings["Menu.Help.ClearLog"] = "&Clear Log";
+        _strings["Help.LogNotFound"] = "No log file has been written yet.";
+        _strings["Help.ClearLogConfirm"] = "Delete the current log file and start a new one?";
 
         // ═══ Toolbar ═══
         _strings["Toolbar.Back"] = "Back";
@@ -739,6 +743,7 @@ public sealed class LocalizationService
         _strings["Edit.Toolbar.New"] = "New";
         _strings["Edit.Toolbar.Open"] = "Open";
         _strings["Edit.Toolbar.Save"] = "Save";
+        _strings["Edit.Toolbar.SaveAs"] = "Save As";
         _strings["Edit.Toolbar.SaveAll"] = "Save All";
         _strings["Edit.Toolbar.Undo"] = "Undo";
         _strings["Edit.Toolbar.Redo"] = "Redo";

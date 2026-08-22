@@ -18,7 +18,10 @@ namespace CoderCommander.WinForms;
 /// </summary>
 public sealed class EditorTab : IDisposable
 {
-    private readonly IFileSystem _fs;
+    /// <summary>Not readonly - <see cref="SaveFileAsync"/>'s <c>targetFs</c> parameter re-targets
+    /// this to a new filesystem on a successful "Save As", so a subsequent plain Ctrl+S saves back
+    /// to the new location rather than silently reverting to the tab's original one.</summary>
+    private IFileSystem _fs;
 
     /// <summary>Gets or sets the full file-system path associated with this tab. Empty for new/unsaved files.</summary>
     public string FilePath { get; set; }
@@ -131,20 +134,28 @@ public sealed class EditorTab : IDisposable
     /// silently overwritten; the user can still type, and will find out it can't be saved.</para>
     /// </summary>
     /// <param name="path">Destination path, or <c>null</c>/<see cref="string.Empty"/> to save to <see cref="FilePath"/>.</param>
+    /// <param name="targetFs">"Save As" to a different filesystem than the one this tab was opened
+    /// from (always local, in practice - see this class's own doc comment) - the <see cref="IsReadOnly"/>
+    /// refusal below is specifically about not silently overwriting a read-only ORIGIN, which does
+    /// not apply when the destination is a different filesystem entirely. On success this tab
+    /// re-targets to <paramref name="targetFs"/> (see <see cref="_fs"/>'s own doc comment), so a
+    /// plain <c>null</c> here still means "save to <see cref="FilePath"/> on whatever filesystem
+    /// this tab currently points at".</param>
     /// <returns><c>true</c> if the save actually completed; <c>false</c> on refusal (read-only,
     /// empty path) or failure (shown to the user via a dialog either way). Callers that close a tab
     /// or the window after "save and continue" must check this - previously the return type was
     /// <c>void</c>/<c>Task</c>, so a failed save (network drop, auth expiry, disk full) still let
     /// the caller proceed to discard the buffer as though the save had succeeded.</returns>
-    public async Task<bool> SaveFileAsync(string? path = null, CancellationToken ct = default)
+    public async Task<bool> SaveFileAsync(string? path = null, CancellationToken ct = default, IFileSystem? targetFs = null)
     {
         var savePath = path ?? FilePath;
         if (string.IsNullOrEmpty(savePath))
             return false;
 
         var L = LocalizationService.Current;
+        var fs = targetFs ?? _fs;
 
-        if (IsReadOnly)
+        if (targetFs == null && IsReadOnly)
         {
             StyledMessageBox.Show(L.GetString("Edit.ErrorSaving", L.GetString("Edit.ReadOnlyFile")),
                 L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
@@ -153,7 +164,7 @@ public sealed class EditorTab : IDisposable
 
         try
         {
-            if (_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
+            if (fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
             {
                 // Write-then-replace so a crash, power loss, or full disk mid-write can't leave the
                 // file truncated/corrupted - the same pattern every other user-data write in the
@@ -203,13 +214,13 @@ public sealed class EditorTab : IDisposable
                 try
                 {
                     using (var ms = new MemoryStream(bytes))
-                        await _fs.CopyFromStreamAsync(sidecar, ms, ct).ConfigureAwait(true);
+                        await fs.CopyFromStreamAsync(sidecar, ms, ct).ConfigureAwait(true);
 
-                    var uploaded = await _fs.GetFileInfoAsync(sidecar, ct).ConfigureAwait(true);
+                    var uploaded = await fs.GetFileInfoAsync(sidecar, ct).ConfigureAwait(true);
                     if (uploaded == null || uploaded.Size != bytes.LongLength)
                         throw new IOException($"Save of \"{savePath}\" did not complete: uploaded size did not match.");
 
-                    await _fs.MoveAsync(sidecar, savePath, overwrite: true, CancellationToken.None).ConfigureAwait(true);
+                    await fs.MoveAsync(sidecar, savePath, overwrite: true, CancellationToken.None).ConfigureAwait(true);
                 }
                 catch
                 {
@@ -221,12 +232,12 @@ public sealed class EditorTab : IDisposable
                     // is the only surviving copy. Only delete it when the origin is confirmed still
                     // present; otherwise keep it and say where it is.
                     FileEntry? originStillThere;
-                    try { originStillThere = await _fs.GetFileInfoAsync(savePath, CancellationToken.None).ConfigureAwait(true); }
+                    try { originStillThere = await fs.GetFileInfoAsync(savePath, CancellationToken.None).ConfigureAwait(true); }
                     catch { originStillThere = null; }
 
                     if (originStillThere is not null)
                     {
-                        try { await _fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(true); }
+                        try { await fs.DeleteAsync(sidecar, recursive: false, CancellationToken.None).ConfigureAwait(true); }
                         catch { /* best-effort cleanup of the sidecar; the original exception is what matters */ }
                         throw;
                     }
@@ -240,6 +251,11 @@ public sealed class EditorTab : IDisposable
 
             FilePath = savePath;
             IsModified = false;
+            if (targetFs != null)
+            {
+                _fs = targetFs;
+                IsReadOnly = !_fs.Capabilities.HasFlag(FileSystemCapabilities.Writable);
+            }
             return true;
         }
         catch (Exception ex)
@@ -256,7 +272,8 @@ public sealed class EditorTab : IDisposable
         Editor.ApplyTheme();
     }
 
-    /// <summary>No-op until the syntax-highlighting milestone wires real tokenizing into Editor.Language.</summary>
+    /// <summary>Re-applies syntax highlighting for the tab's current <see cref="Language"/> -
+    /// SyntaxHighlighter.Tokenize (invoked from CodeEditorCanvas) does the real tokenizing.</summary>
     public void ApplySyntaxHighlighting()
     {
         Editor.Language = Language;

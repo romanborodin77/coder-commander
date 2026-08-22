@@ -82,6 +82,8 @@ public static class CommandIds
     public const string SwapPanels = "cm_SwapPanels";
     /// <summary>Set the target panel path equal to the source panel path.</summary>
     public const string TargetEqualSource = "cm_TargetEqualSource";
+    /// <summary>Open the directory-synchronize dialog for both panels' current paths.</summary>
+    public const string SyncDirs = "cm_SyncDirs";
     /// <summary>Toggle visibility of hidden/system files (Ctrl+.).</summary>
     public const string ToggleHidden = "cm_ToggleHidden";
     /// <summary>Toggle flat (recursive) view mode (Ctrl+P).</summary>
