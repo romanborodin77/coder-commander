@@ -1,14 +1,18 @@
 using System.Diagnostics;
 using Microsoft.Win32;
+using CoderCommander.Models;
 using CoderCommander.Services;
 
 namespace CoderCommander.Terminal.Shells;
 
 /// <summary>
 /// Discovers every shell this machine can actually run: cmd.exe, Windows PowerShell 5.1, pwsh
-/// (PowerShell 7+), Git Bash, and one entry per installed WSL distribution. Memoized for the
-/// process lifetime (shells don't get installed/uninstalled mid-session) and cheap enough to
-/// pre-warm at startup so the shell-picker dialog never blocks on it.
+/// (PowerShell 7+), Git Bash, one entry per installed WSL distribution, plus any user-defined
+/// <see cref="AppSettings.TerminalCustomShells"/> entries. Memoized for the process lifetime
+/// (autodetected shells don't get installed/uninstalled mid-session) and cheap enough to pre-warm
+/// at startup so the shell-picker dialog never blocks on it. <see cref="InvalidateCache"/> forces
+/// a re-scan - needed after <see cref="AppSettings.TerminalCustomShells"/> changes, since those
+/// aren't fixed for the process lifetime the way the autodetected shells are.
 /// <para>
 /// Every built-in shell resolves through an absolute, known install location - never through
 /// <c>%PATH%</c> - so a poisoned or user-writable PATH entry can't substitute a different binary
@@ -48,6 +52,8 @@ internal static class ShellCatalog
                 LogService.Warning($"ShellCatalog: WSL discovery failed: {ex.Message}");
             }
 
+            result.AddRange(ResolveCustomShells());
+
             _cached = result;
             LogService.Info($"ShellCatalog: discovered {result.Count} shell(s): {string.Join(", ", result.Select(s => s.Id))}");
             return result;
@@ -58,8 +64,36 @@ internal static class ShellCatalog
         }
     }
 
-    /// <summary>Test/diagnostic hook - forces the next <see cref="DiscoverAsync"/> to re-scan.</summary>
-    internal static void ResetCacheForTests() => _cached = null;
+    /// <summary>Forces the next <see cref="DiscoverAsync"/> call to re-scan - called after
+    /// <see cref="AppSettings.TerminalCustomShells"/> is edited in Settings, and by tests.</summary>
+    internal static void InvalidateCache() => _cached = null;
+
+    /// <summary>Resolves each configured custom shell via <see cref="PathResolver.Which"/> -
+    /// absolute path or PATH lookup only, never the current working directory. An entry with a
+    /// blank command, or one that fails to resolve, is skipped with a warning rather than aborting
+    /// the whole catalog (the same "don't let one bad entry break discovery" shape
+    /// <see cref="FindWslDistrosAsync"/> already uses for a failed WSL probe).</summary>
+    private static IEnumerable<ShellDescriptor> ResolveCustomShells()
+    {
+        var customShells = SettingsService.Load().TerminalCustomShells;
+        foreach (var custom in customShells)
+        {
+            if (string.IsNullOrWhiteSpace(custom.Command))
+                continue;
+
+            var resolved = PathResolver.Which(custom.Command);
+            if (resolved == null)
+            {
+                LogService.Warning($"ShellCatalog: custom shell \"{custom.Name}\" command \"{custom.Command}\" could not be resolved - skipped");
+                continue;
+            }
+
+            var arguments = custom.Arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var displayName = string.IsNullOrWhiteSpace(custom.Name) ? custom.Command : custom.Name;
+            yield return new ShellDescriptor(
+                ShellIds.CustomPrefix + custom.Id, "Terminal.Shell.Custom", displayName, resolved, arguments, ShellFamily.Custom);
+        }
+    }
 
     private static void AddIfFound(List<ShellDescriptor> list, ShellDescriptor? descriptor)
     {

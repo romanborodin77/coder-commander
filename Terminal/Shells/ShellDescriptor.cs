@@ -8,7 +8,14 @@ public enum ShellFamily
     WindowsPowerShell,
     PowerShellCore,
     Bash,
-    Wsl
+    Wsl,
+
+    /// <summary>A user-configured custom shell (<see cref="Models.CustomShellDefinition"/>) -
+    /// arbitrary executable, unknown prompt protocol. Every family-specific mechanism
+    /// (<see cref="ShellBootstrap"/>'s cwd-sync injection, <see cref="ShellCwdQuoting"/>'s
+    /// panel-&gt;terminal <c>cd</c> push) treats this as its default/no-op case rather than
+    /// guessing at a protocol the shell was never confirmed to support.</summary>
+    Custom
 }
 
 /// <summary>
@@ -35,6 +42,9 @@ public static class ShellIds
 
     /// <summary>Prefix for a per-distro WSL id: <c>"wsl:" + distroName</c>.</summary>
     public const string WslPrefix = "wsl:";
+
+    /// <summary>Prefix for a custom-shell id: <c>"custom:" + CustomShellDefinition.Id</c>.</summary>
+    public const string CustomPrefix = "custom:";
 
     /// <summary>Extracts the distro name from a WSL shell id (<c>"wsl:Ubuntu-22.04"</c> -&gt;
     /// <c>"Ubuntu-22.04"</c>). Falls back to the id unchanged if it's missing the expected prefix

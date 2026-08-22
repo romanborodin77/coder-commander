@@ -938,6 +938,7 @@ public sealed class LocalizationService
         _strings["Terminal.Shell.PowerShellCore"] = "PowerShell 7";
         _strings["Terminal.Shell.GitBash"] = "Git Bash";
         _strings["Terminal.Shell.Wsl"] = "WSL: {0}";
+        _strings["Terminal.Shell.Custom"] = "{0}";
         _strings["Terminal.UnsupportedOs"] = "The embedded terminal needs Windows 10 version 1809 (build 17763) or later.";
         _strings["Terminal.Ctx.OpenLink"] = "Open Link";
         _strings["Terminal.Ctx.CopyLink"] = "Copy Link Address";
@@ -974,6 +975,19 @@ public sealed class LocalizationService
         _strings["Settings.Terminal.KeyBindings.ResetAll"] = "Reset All to Defaults";
         _strings["Settings.Terminal.KeyBindings.PressKeys"] = "Press a key combination…";
         _strings["Settings.Terminal.KeyBindings.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
+        _strings["Settings.Terminal.CustomShells"] = "Custom shells:";
+        _strings["Settings.Terminal.CustomShells.Manage"] = "Manage Custom Shells…";
+        _strings["Settings.Terminal.CustomShells.Title"] = "Custom Shells";
+        _strings["Settings.Terminal.CustomShells.Name"] = "Name";
+        _strings["Settings.Terminal.CustomShells.Command"] = "Command";
+        _strings["Settings.Terminal.CustomShells.Arguments"] = "Arguments";
+        _strings["Settings.Terminal.CustomShells.CommandHint"] = "Absolute path to the executable, or a command name resolved via PATH.";
+        _strings["Settings.Terminal.CustomShells.ExeFilter"] = "Executable files (*.exe)|*.exe|All files (*.*)|*.*";
+        _strings["Settings.Terminal.CustomShells.EditTitle"] = "Custom Shell";
+        _strings["Settings.Terminal.CustomShells.Empty"] = "No custom shells configured";
+        _strings["Settings.Terminal.CustomShells.Invalid.Name"] = "Enter a name.";
+        _strings["Settings.Terminal.CustomShells.Invalid.Command"] = "Enter a command.";
+        _strings["Settings.Terminal.CustomShells.RemoveConfirm"] = "Remove custom shell \"{0}\"?";
 
         // ═══ Network browser ═══
         _strings["Network.Title"] = "Network";

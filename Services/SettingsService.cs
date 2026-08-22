@@ -233,6 +233,12 @@ public sealed class AppSettings
     /// pre-rewrite pipe-based terminal shipped, and this rewrite exists specifically to fix that.</summary>
     public bool TerminalLoadShellProfile { get; set; } = true;
 
+    /// <summary>User-defined shells (Settings ▸ Terminal ▸ Custom Shells), merged by
+    /// <see cref="Terminal.Shells.ShellCatalog"/> into the discovered list alongside the built-in
+    /// ones. See <see cref="Models.CustomShellDefinition"/> for the resolution/security model.</summary>
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public List<Models.CustomShellDefinition> TerminalCustomShells { get; } = new();
+
     /// <summary>Saved remote connections. Contains no secrets by construction - see
     /// <see cref="Models.ConnectionProfile"/>; passwords live in <see cref="CredentialStore"/>,
     /// keyed by profile id, because this file is plain text.</summary>
@@ -340,6 +346,20 @@ public static class SettingsService
         {
             var settings = Load();
             mutate(settings.Connections);
+            Save(settings);
+        }
+    }
+
+    /// <summary>Thread-safe mutation of <see cref="AppSettings.TerminalCustomShells"/> - same
+    /// shape as <see cref="MutateConnections"/>. Does not itself invalidate
+    /// <see cref="Terminal.Shells.ShellCatalog"/>'s cache - callers editing shells interactively
+    /// (<c>CustomShellsForm</c>) do that themselves once the dialog closes.</summary>
+    public static void MutateCustomShells(Action<List<Models.CustomShellDefinition>> mutate)
+    {
+        lock (Lock)
+        {
+            var settings = Load();
+            mutate(settings.TerminalCustomShells);
             Save(settings);
         }
     }

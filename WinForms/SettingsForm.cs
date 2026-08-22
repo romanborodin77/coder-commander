@@ -519,7 +519,7 @@ public sealed class SettingsForm : ThemedForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 5,
+            RowCount = 6,
             Padding = new Padding(16),
             BackColor = p.Background
         };
@@ -532,6 +532,7 @@ public sealed class SettingsForm : ThemedForm
         // much height that needs depends on the current language's label widths. Two earlier
         // fixed values (56px, 70px) each left the wrapped line clipped or overlapping.
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         terminalLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -576,6 +577,11 @@ public sealed class SettingsForm : ThemedForm
         _loadShellProfileCheck.Dock = DockStyle.Fill;
         terminalLayout.Controls.Add(_loadShellProfileCheck, 0, 3);
         terminalLayout.SetColumnSpan(_loadShellProfileCheck, 2);
+
+        terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.CustomShells")), 0, 4);
+        var manageShellsBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Terminal.CustomShells.Manage"));
+        manageShellsBtn.Click += OnManageCustomShells;
+        terminalLayout.Controls.Add(manageShellsBtn, 1, 4);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Terminal"), terminalLayout, "Settings.Nav.Terminal"));
 
@@ -727,6 +733,18 @@ public sealed class SettingsForm : ThemedForm
         using var dlg = new TerminalKeyBindingsForm(_customKeyBindings);
         if (dlg.ShowDialog(this) == DialogResult.OK)
             _customKeyBindings = dlg.ResultBindings;
+    }
+
+    private void OnManageCustomShells(object? sender, EventArgs e)
+    {
+        using var dlg = new CustomShellsForm();
+        dlg.ShowDialog(this);
+        // The Default Shell combo may now need to gain/lose/rename an entry - re-populate against
+        // whatever's currently selected, same as the initial call at dialog construction.
+        var currentId = _defaultShellCombo.SelectedIndex >= 0 && _defaultShellCombo.SelectedIndex < _availableShells.Count
+            ? _availableShells[_defaultShellCombo.SelectedIndex].Id
+            : SettingsService.Load().DefaultShellType;
+        PopulateShellComboAsync(currentId);
     }
 
     private void OnCustomizeHotkeys(object? sender, EventArgs e)
