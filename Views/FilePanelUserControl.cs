@@ -50,7 +50,10 @@ public sealed class PanelDropEventArgs : EventArgs
 /// </summary>
 public sealed class FilePanelUserControl : UserControl
 {
-    private readonly PanelViewModel _vm;
+    // Not readonly - RebindViewModel() re-points an already-constructed control at a different
+    // PanelViewModel (Ф3, panel tabs: one FilePanelUserControl per side, re-bound per tab rather
+    // than one control per tab).
+    private PanelViewModel _vm;
 
     private Panel _borderPanel = null!;
     private TextBox _pathBar = null!;
@@ -503,6 +506,63 @@ public sealed class FilePanelUserControl : UserControl
         _vm.ItemsChanged += OnItemsChanged;
         _vm.PropertyChanged += OnVmPropertyChanged;
         UpdatePathDisplay();
+    }
+
+    private void UnwireViewModel()
+    {
+        _vm.ItemsChanged -= OnItemsChanged;
+        _vm.PropertyChanged -= OnVmPropertyChanged;
+    }
+
+    /// <summary>
+    /// Re-points this already-constructed control at a different <see cref="PanelViewModel"/>
+    /// instance, without recreating any WinForms control - used when switching which tab is active
+    /// on this side (Ф3, panel tabs), so the file list/drive bar/breadcrumb/status strip are never
+    /// torn down and rebuilt, just repainted from a different model. A no-op if <paramref name="newVm"/>
+    /// is already the bound instance.
+    ///
+    /// <para><b>Ordering is deliberate and must not be reshuffled.</b> This class already carries a
+    /// live crash history from exactly this class of bug - <see cref="SyncSelectionFromVm"/>'s own
+    /// doc comment documents a reproduced <see cref="ArgumentOutOfRangeException"/> from
+    /// <c>_fileList.VirtualListSize</c> lagging <c>_vm.Items.Count</c> by one UI-thread turn - and a
+    /// rebind is the same hazard with a much bigger delta: every cached row, every selection index,
+    /// the drive bar, the breadcrumb are all keyed off the OLD vm and have to be invalidated before
+    /// anything reads the NEW one. Order: <see cref="_updatingItems"/> = true (blocks
+    /// <see cref="SyncSelectionFromVm"/>/<see cref="SyncAllSelectionFromModel"/>, the two methods
+    /// that class of bug lives in, from touching the ListView mid-transition) → drop the
+    /// virtualized row cache and zero <c>VirtualListSize</c> (nothing left referencing the old
+    /// model's indices) → unsubscribe from the old vm → swap the field → subscribe to the new vm
+    /// (also re-reads the path/breadcrumb) → sync the quick-filter box/bar from the new vm's own
+    /// <see cref="PanelViewModel.Filter"/> (never force-cleared: a tab switched away from mid-filter
+    /// and back to must show its own filter again, not lose it to whichever tab was active most
+    /// recently) → refresh drive bar/active-state chrome → <see cref="RebuildList"/> (which sets
+    /// <see cref="_updatingItems"/> back to false itself once the new model's rows/selection are
+    /// fully applied) → status bar.
+    /// </para>
+    /// </summary>
+    public void RebindViewModel(PanelViewModel newVm)
+    {
+        if (ReferenceEquals(newVm, _vm)) return;
+
+        _updatingItems = true;
+        _virtualCache = null;
+        _hoveredIndex = null;
+        _fileList.SelectedIndices.Clear();
+        _fileList.VirtualListSize = 0;
+
+        UnwireViewModel();
+        _vm = newVm;
+        WireViewModel();
+
+        _filterBox.Text = _vm.Filter;
+        _filterBar.Visible = _vm.Filter.Length > 0;
+
+        PopulateDriveBar();
+        UpdateDriveBarHighlight();
+        ApplyActiveState();
+
+        RebuildList();
+        UpdateStatus();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
