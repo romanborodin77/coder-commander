@@ -29,6 +29,13 @@ public sealed class UnpackOperation : FileOperation
     public override OperationType Type => OperationType.Unpack;
     public override string Title => "Unpack";
 
+    /// <summary>Wired into both extraction loops below (random-access and forward-only-scan). Safe
+    /// at full per-entry granularity, unlike <see cref="PackOperation"/>: the archive is only ever
+    /// READ here, so a skip mid-entry can only leave a truncated file at the destination (the same
+    /// accepted outcome <see cref="CopyOperation"/> already has for its own skip) - the archive
+    /// itself is never mutated and so can never be corrupted by an abandoned extraction.</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _archiveFs;
     private readonly string _archivePath;
     private readonly IReadOnlyList<FileEntry> _items;
@@ -165,6 +172,8 @@ public sealed class UnpackOperation : FileOperation
                 foreach (var record in selected)
                 {
                     ct.ThrowIfCancellationRequested();
+                    await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
                     Stream? content = null;
                     if (!record.IsDirectory)
                     {
@@ -184,7 +193,26 @@ public sealed class UnpackOperation : FileOperation
                             continue;
                         }
                     }
-                    await ProcessRecordAsync(record, content, extracted, ct).ConfigureAwait(false);
+
+                    var fileCts = BeginFile(ct);
+                    try
+                    {
+                        await ProcessRecordAsync(record, content, extracted, fileCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        // fileCts fired but the operation's own ct didn't - a Skip request for this
+                        // entry specifically. ProcessRecordAsync only advances _filesProcessed/
+                        // reports progress once it actually finishes a branch, which it never
+                        // reached here - do it ourselves so the progress bar still moves on.
+                        LogService.Info($"Unpack: skipped {record.FullName} by user request");
+                        _filesProcessed++;
+                        ReportProgress(VfsPath.GetName(Relativize(record.FullName)));
+                    }
+                    finally
+                    {
+                        EndFile(fileCts);
+                    }
                 }
             }
             else
@@ -204,9 +232,33 @@ public sealed class UnpackOperation : FileOperation
                             continue;
                         }
 
-                        await ProcessRecordAsync(item.Entry, item.Entry.IsDirectory ? null : item.Content, extracted, ct).ConfigureAwait(false);
-                        if (item.Entry.IsDirectory)
-                            item.Content.Dispose();
+                        await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
+                        // Deliberately NOT fileCts.Token into ScanAsync's own driving ct above -
+                        // that token drives the single shared forward pass across every entry, so
+                        // cancelling it for one skipped entry would abort the whole scan. Only the
+                        // per-entry extraction (this file's own read-from-stream + write-to-
+                        // destination copy, via ProcessRecordAsync -> ExtractAsync) is skippable;
+                        // NonDisposingStream's drain-on-dispose (see its own doc comment) is what
+                        // keeps the shared reader correctly positioned for the *next* entry
+                        // regardless of whether this one was fully read or abandoned partway.
+                        var fileCts = BeginFile(ct);
+                        try
+                        {
+                            await ProcessRecordAsync(item.Entry, item.Entry.IsDirectory ? null : item.Content, extracted, fileCts.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                        {
+                            LogService.Info($"Unpack: skipped {item.Entry.FullName} by user request");
+                            _filesProcessed++;
+                            ReportProgress(VfsPath.GetName(Relativize(item.Entry.FullName)));
+                        }
+                        finally
+                        {
+                            EndFile(fileCts);
+                            if (item.Entry.IsDirectory)
+                                item.Content.Dispose();
+                        }
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException && wanted.Count > 0)
@@ -515,6 +567,9 @@ public sealed class UnpackOperation : FileOperation
             using (var counting = new ProgressStream(content, chunk =>
             {
                 _bytesProcessed += chunk;
+                // Mid-file, not just between whole entries - the common case for extracting a
+                // single large entry would otherwise never give Pause a chance to take effect.
+                WaitIfPausedSync(ct);
                 ReportThrottled(() => ReportProgress(record.FullName));
             }))
             {

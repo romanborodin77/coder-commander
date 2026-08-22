@@ -11,6 +11,14 @@ public sealed class MoveOperation : FileOperation
     public override OperationType Type => OperationType.Move;
     public override string Title => "Move";
 
+    /// <summary>Wired into the per-file loop below, same shape as <see cref="CopyOperation"/> -
+    /// pause/resume between files, skip abandons whichever file/directory is currently being
+    /// renamed or transferred-and-deleted (its <c>fileCts.Token</c> is threaded into both the
+    /// in-place rename attempt and the cross-provider <see cref="TransferAndDeleteAsync"/>
+    /// fallback, so a skip mid-fallback also cancels the inner <see cref="CopyOperation"/> it's
+    /// using rather than only stopping between whole files).</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _sourceFs;
     private readonly IFileSystem _destFs;
     private readonly IReadOnlyList<FileEntry> _files;
@@ -80,29 +88,44 @@ public sealed class MoveOperation : FileOperation
         foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
+            await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
             var destFullPath = VfsPath.Combine(_destPath, VfsPath.GetRelative(_sourceBasePath, file.FullPath));
             LogService.Info($"Move: processing {file.FullPath} -> {destFullPath}");
 
-            var renamed = false;
-            if (CanRenameInPlace)
+            var fileCts = BeginFile(ct);
+            try
             {
-                try
+                var renamed = false;
+                if (CanRenameInPlace)
                 {
-                    await MoveEntryWithResolver(file, destFullPath, ct).ConfigureAwait(false);
-                    renamed = true;
-                    LogService.Info($"Move: renamed {file.Name}");
+                    try
+                    {
+                        await MoveEntryWithResolver(file, destFullPath, fileCts.Token).ConfigureAwait(false);
+                        renamed = true;
+                        LogService.Info($"Move: renamed {file.Name}");
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        LogService.Warning($"Move: rename failed for {file.FullPath}, falling back to copy: {ex.Message}");
+                    }
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+
+                if (!renamed)
                 {
-                    LogService.Warning($"Move: rename failed for {file.FullPath}, falling back to copy: {ex.Message}");
+                    LogService.Info($"Move: using TransferAndDelete for {file.Name}");
+                    await TransferAndDeleteAsync(file, destFullPath, fileCts.Token).ConfigureAwait(false);
                 }
             }
-
-            if (!renamed)
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                LogService.Info($"Move: using TransferAndDelete for {file.Name}");
-                await TransferAndDeleteAsync(file, destFullPath, ct).ConfigureAwait(false);
+                // fileCts fired but the operation's own ct didn't - a Skip request for this file
+                // specifically, not a cancellation of the whole move.
+                LogService.Info($"Move: skipped {file.FullPath} by user request");
+            }
+            finally
+            {
+                EndFile(fileCts);
             }
 
             _filesProcessed++;

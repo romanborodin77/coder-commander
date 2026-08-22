@@ -12,6 +12,13 @@ public sealed class DeleteOperation : FileOperation
     public override OperationType Type => OperationType.Delete;
     public override string Title => "Delete";
 
+    /// <summary>Wired into both per-file loops below (the Recycle-Bin-fallback remainder, and the
+    /// plain per-file path for a provider with neither Recycle Bin nor batch delete) - not the
+    /// single-shot Recycle Bin call or <see cref="IBatchDeletableFileSystem.DeleteBatchAsync"/>,
+    /// which have no per-file interruption point of their own to pause/skip within, same as
+    /// <see cref="CopyOperation"/>'s own batch-archive-source path.</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _fs;
     private readonly IReadOnlyList<FileEntry> _files;
 
@@ -83,14 +90,25 @@ public sealed class DeleteOperation : FileOperation
                 foreach (var file in remaining)
                 {
                     ct.ThrowIfCancellationRequested();
+                    await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
+                    var fileCts = BeginFile(ct);
                     try
                     {
-                        await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                        await _fs.DeleteAsync(file.FullPath, recursive: true, fileCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        LogService.Info($"Delete: skipped {file.FullPath} by user request");
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         LogService.Warning($"Delete: cannot remove {file.FullPath}: {ex.Message}");
                         failures.Add(file.FullPath);
+                    }
+                    finally
+                    {
+                        EndFile(fileCts);
                     }
                     _filesProcessed++;
                     Report(new OperationProgress
@@ -139,14 +157,25 @@ public sealed class DeleteOperation : FileOperation
             foreach (var file in _files)
             {
                 ct.ThrowIfCancellationRequested();
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
+                var fileCts = BeginFile(ct);
                 try
                 {
-                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct).ConfigureAwait(false);
+                    await _fs.DeleteAsync(file.FullPath, recursive: true, fileCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    LogService.Info($"Delete: skipped {file.FullPath} by user request");
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     LogService.Warning($"Delete: failed for {file.FullPath}: {ex.Message}");
                     failures.Add(file.Name);
+                }
+                finally
+                {
+                    EndFile(fileCts);
                 }
                 _filesProcessed++;
                 Report(new OperationProgress
@@ -173,6 +202,15 @@ public sealed class WipeOperation : FileOperation
 {
     public override OperationType Type => OperationType.Wipe;
     public override string Title => "Wipe";
+
+    /// <summary>Pause checks mid-file (<see cref="WipeFile"/>'s own write loop), not just between
+    /// whole files - the common case for Wipe is one very large file. Skip is between-files only:
+    /// skipping a file whose overwrite pass is already partway through leaves it exactly where the
+    /// overwrite got to - neither deleted (its data may be partially destroyed, which is the safe
+    /// direction to fail in for a secure wipe) nor recorded as a failure (a deliberate skip is not
+    /// an error), matching this class's own "never silently downgrade to an unwiped delete"
+    /// contract.</summary>
+    public override bool SupportsPauseAndSkip => true;
 
     private readonly IFileSystem _fs;
     private readonly IReadOnlyList<FileEntry> _files;
@@ -218,23 +256,36 @@ public sealed class WipeOperation : FileOperation
         foreach (var file in _files)
         {
             ct.ThrowIfCancellationRequested();
+            await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
-            if (file.IsDirectory)
+            var fileCts = BeginFile(ct);
+            try
             {
-                var directoryOk = await WipeDirectory(file.FullPath, ct, failures);
-                if (directoryOk)
-                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
-            }
-            else if (await _fs.ExistsAsync(file.FullPath, ct))
-            {
-                if (await WipeFile(file.FullPath, ct))
-                    await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
+                if (file.IsDirectory)
+                {
+                    var directoryOk = await WipeDirectory(file.FullPath, fileCts.Token, failures);
+                    if (directoryOk)
+                        await _fs.DeleteAsync(file.FullPath, recursive: true, fileCts.Token);
+                }
+                else if (await _fs.ExistsAsync(file.FullPath, fileCts.Token))
+                {
+                    if (await WipeFile(file.FullPath, fileCts.Token))
+                        await _fs.DeleteAsync(file.FullPath, recursive: true, fileCts.Token);
+                    else
+                        failures.Add(file.FullPath);
+                }
                 else
-                    failures.Add(file.FullPath);
+                {
+                    await _fs.DeleteAsync(file.FullPath, recursive: true, fileCts.Token);
+                }
             }
-            else
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                await _fs.DeleteAsync(file.FullPath, recursive: true, ct);
+                LogService.Info($"Wipe: skipped {file.FullPath} by user request");
+            }
+            finally
+            {
+                EndFile(fileCts);
             }
 
             _filesProcessed++;
@@ -292,8 +343,11 @@ public sealed class WipeOperation : FileOperation
     /// <summary>Overwrites the file's content with zeros. Returns false (never throws, except
     /// for cancellation) if the overwrite failed for any reason - a locked file, a permission
     /// error, a disk I/O failure - so the caller can leave the file undeleted instead of quietly
-    /// treating a failed wipe the same as a successful one.</summary>
-    private static async Task<bool> WipeFile(string path, CancellationToken ct)
+    /// treating a failed wipe the same as a successful one. Instance method (not static) so its
+    /// write loop can check <see cref="WaitIfPausedSync"/> mid-file - the common case for Wipe is
+    /// one very large file, where "between files" alone would never give Pause a chance to take
+    /// effect.</summary>
+    private async Task<bool> WipeFile(string path, CancellationToken ct)
     {
         try
         {
@@ -333,6 +387,7 @@ public sealed class WipeOperation : FileOperation
             while (written < length)
             {
                 ct.ThrowIfCancellationRequested();
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
                 var toWrite = (int)Math.Min(buffer.Length, length - written);
                 await fs.WriteAsync(new ReadOnlyMemory<byte>(buffer, 0, toWrite), ct);
                 written += toWrite;

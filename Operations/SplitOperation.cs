@@ -20,6 +20,15 @@ public sealed class SplitOperation : FileOperation
     public override OperationType Type => OperationType.Split;
     public override string Title => "Split";
 
+    /// <summary>Pause checks mid-file (the tracking read stream's own callback), not just between
+    /// whole files - the common case for Split is one very large file, where "between files" alone
+    /// would never give Pause a chance to take effect. Skip is between-files only: it cancels the
+    /// whole of <see cref="SplitFileAsync"/> for whichever file is current, which its own
+    /// <c>catch (Exception)</c> already cleans up by deleting every part written so far, so (unlike
+    /// <see cref="CopyOperation"/>'s accepted truncated-file outcome) a skipped file leaves nothing
+    /// partial behind at all.</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _fs;
     private readonly IReadOnlyList<FileEntry> _files;
     private readonly string _destDir;
@@ -89,15 +98,29 @@ public sealed class SplitOperation : FileOperation
         foreach (var file in targets)
         {
             ct.ThrowIfCancellationRequested();
+            await WaitIfPausedAsync(ct).ConfigureAwait(false);
+
+            var fileCts = BeginFile(ct);
             try
             {
-                await SplitFileAsync(file, ct).ConfigureAwait(false);
+                await SplitFileAsync(file, fileCts.Token).ConfigureAwait(false);
                 splitOk.Add(file);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // fileCts fired but the operation's own ct didn't - a Skip request for this file
+                // specifically. SplitFileAsync's own cleanup already removed any parts it had
+                // written before the cancellation reached it.
+                LogService.Info($"Split: skipped {file.FullPath} by user request");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 LogService.Warning($"Split: cannot split {file.FullPath}: {ex.Message}");
                 failures.Add(file.Name);
+            }
+            finally
+            {
+                EndFile(fileCts);
             }
             _filesProcessed++;
         }
@@ -156,6 +179,10 @@ public sealed class SplitOperation : FileOperation
                 using var tracking = new TrackingReadStream(bounded, crc, chunk =>
                 {
                     _bytesProcessed += chunk;
+                    // Mid-file, not just between whole files - the common case for Split is one
+                    // very large file, where "between files" alone would never give Pause a chance
+                    // to take effect at all.
+                    WaitIfPausedSync(ct);
                     ReportThrottled(() => ReportProgress(file.Name));
                 });
 

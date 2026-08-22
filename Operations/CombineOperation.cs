@@ -18,6 +18,13 @@ public sealed partial class CombineOperation : FileOperation
     public override OperationType Type => OperationType.Combine;
     public override string Title => "Combine";
 
+    /// <summary>Wired for Pause only (via <see cref="FileOperation.WaitIfPausedSync"/> in the
+    /// reassembly stream's chunk callback below) - unlike every other operation here, a combine
+    /// reassembles ONE logical output file from its parts, so there is no "next file" for Skip to
+    /// move on to; <see cref="FileOperation.RequestSkip"/> is a harmless no-op for this operation
+    /// (nothing ever calls <see cref="FileOperation.BeginFile"/>, so it has nothing to cancel).</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private static readonly Regex PartNameRegex = BuildPartNameRegex();
 
     [GeneratedRegex(@"^(?<base>.+)\.(?<num>\d{3,})$", RegexOptions.CultureInvariant)]
@@ -64,6 +71,7 @@ public sealed partial class CombineOperation : FileOperation
             {
                 crc?.Append(chunk.Span);
                 _bytesProcessed += chunk.Length;
+                WaitIfPausedSync(ct);
                 ReportThrottled(() => ReportProgress(baseName));
             }, ct))
             {

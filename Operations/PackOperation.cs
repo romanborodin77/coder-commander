@@ -29,6 +29,15 @@ public sealed class PackOperation : FileOperation
     public override OperationType Type => OperationType.Pack;
     public override string Title => "Pack";
 
+    /// <summary>Wired into the per-file loop below, same shape and the same accepted risk profile
+    /// as <see cref="CopyOperation"/>: skipping a file whose archive entry write is already
+    /// underway leaves that one entry truncated (fewer bytes than its declared size) rather than
+    /// cleanly rolled back - the underlying <c>ZipArchive</c>/<c>System.Formats.Tar</c> writers
+    /// finalize whatever was written on a cancelled stream instead of corrupting the container as
+    /// a whole, the same way <see cref="CopyOperation"/> already leaves a truncated destination
+    /// file behind on a skip rather than deleting it.</summary>
+    public override bool SupportsPauseAndSkip => true;
+
     private readonly IFileSystem _sourceFs;
     private readonly IReadOnlyList<FileEntry> _files;
     private readonly string _sourceBasePath;
@@ -131,6 +140,7 @@ public sealed class PackOperation : FileOperation
             foreach (var item in plan)
             {
                 ct.ThrowIfCancellationRequested();
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
                 if (item.IsDirectory)
                 {
@@ -141,18 +151,29 @@ public sealed class PackOperation : FileOperation
                     continue;
                 }
 
+                var fileCts = BeginFile(ct);
                 try
                 {
-                    if (await WriteFileAsync(writer, item, existing, deletedNames, ct).ConfigureAwait(false))
+                    if (await WriteFileAsync(writer, item, existing, deletedNames, fileCts.Token).ConfigureAwait(false))
                     {
                         written++;
                         writtenPaths.Add(item.Source!.FullPath);
                     }
                 }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    // fileCts fired but the operation's own ct didn't - a Skip request for this
+                    // file specifically, not a cancellation of the whole pack.
+                    LogService.Info($"Pack: skipped {item.Source?.FullPath} by user request");
+                }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     LogService.Error($"Pack: failed to add {item.Source?.FullPath}: {ex.Message}", ex);
                     packFailures.Add($"{item.Source?.Name}: {ex.Message}");
+                }
+                finally
+                {
+                    EndFile(fileCts);
                 }
 
                 _filesProcessed++;
@@ -299,6 +320,9 @@ public sealed class PackOperation : FileOperation
         using (var counting = new ProgressStream(src, chunk =>
         {
             _bytesProcessed += chunk;
+            // Mid-file, not just between whole files - the common case for packing a single large
+            // file would otherwise never give Pause a chance to take effect.
+            WaitIfPausedSync(ct);
             ReportThrottled(() => ReportProgress(source.Name));
         }))
         {
