@@ -570,6 +570,25 @@ public sealed class MainForm : Form
         _leftPanel.MtpDeviceActivated += OnMtpDeviceActivated;
         _rightPanel.MtpDeviceActivated += OnMtpDeviceActivated;
 
+        // Panel tab strip (Ф3) - the strip itself has no PanelTabSet reference, so it only
+        // reports which index was clicked; these translate that into real MainViewModel calls.
+        // The resulting title/highlight refresh happens separately, in WireEvents (LeftTabsChanged/
+        // RightTabsChanged/PanelPathChanged), since it also has to happen for a switch/close/path
+        // change that didn't originate from a strip click at all (a hotkey, the diagnostic channel,
+        // tab restore at startup).
+        _leftPanel.TabSelected += (_, idx) => _vm.SetActiveTabIndex(left: true, idx);
+        _rightPanel.TabSelected += (_, idx) => _vm.SetActiveTabIndex(left: false, idx);
+        _leftPanel.TabCloseRequested += (_, idx) =>
+        {
+            if (idx >= 0 && idx < _vm.LeftTabs.Count) _ = _vm.CloseTabAsync(_vm.LeftTabs[idx]);
+        };
+        _rightPanel.TabCloseRequested += (_, idx) =>
+        {
+            if (idx >= 0 && idx < _vm.RightTabs.Count) _ = _vm.CloseTabAsync(_vm.RightTabs[idx]);
+        };
+        _leftPanel.NewTabRequested += (_, _) => _vm.AddTab(left: true);
+        _rightPanel.NewTabRequested += (_, _) => _vm.AddTab(left: false);
+
         // Wire context menu events from panels to commands
         WirePanelContextMenu(_leftPanel);
         WirePanelContextMenu(_rightPanel);
@@ -1277,6 +1296,8 @@ public sealed class MainForm : Form
         // direct subscription taken once here would silently stop tracking the moment a tab switch
         // changed which instance they point to.
         _vm.PanelPathChanged += OnFilePanelPathChanged;
+        _vm.LeftTabsChanged += (_, _) => RefreshTabStrip(left: true);
+        _vm.RightTabsChanged += (_, _) => RefreshTabStrip(left: false);
 
         _deviceWatcher.DevicesChanged += OnDevicesChanged;
         MtpDeviceCatalog.Instance.Changed += OnMtpDevicesChanged;
@@ -1304,6 +1325,17 @@ public sealed class MainForm : Form
             BeginInvoke(() => _lblStatus.Text = _vm.StatusText);
         else if (e.PropertyName == nameof(MainViewModel.OperationQueueText))
             BeginInvoke(() => _lblQueue.Text = _vm.OperationQueueText);
+        // LeftPanel/RightPanel change whenever a tab switch (or restore) makes a different
+        // PanelViewModel the active one on that side - RebindViewModel is what actually re-points
+        // the already-built FilePanelUserControl at it (Ф3). Queued via BeginInvoke like every
+        // other branch here, so it runs before ActivePanel's own handler below, which reads
+        // _leftPanel.ViewModel/_rightPanel.ViewModel expecting them already up to date - LeftPanel's
+        // OnPropertyChanged always fires before ActivePanel's in MainViewModel's own ActiveChanged
+        // handler, and BeginInvoke preserves that ordering.
+        else if (e.PropertyName == nameof(MainViewModel.LeftPanel))
+            BeginInvoke(() => _leftPanel.RebindViewModel(_vm.LeftPanel));
+        else if (e.PropertyName == nameof(MainViewModel.RightPanel))
+            BeginInvoke(() => _rightPanel.RebindViewModel(_vm.RightPanel));
         else if (e.PropertyName == nameof(MainViewModel.ActivePanel))
             BeginInvoke(() =>
             {
@@ -1326,6 +1358,29 @@ public sealed class MainForm : Form
 
         if (sender == _vm.ActivePanel)
             PushActivePathToTerminal();
+
+        // A tab's title is its current folder's name - any tab navigating (not just the active
+        // one; a background tab's title should update too) needs the strip on its own side
+        // refreshed, not just LeftTabsChanged/RightTabsChanged (add/close/switch - a plain
+        // navigation within an already-selected tab fires neither of those).
+        if (sender is not PanelViewModel panel) return;
+        if (_vm.LeftTabs.Contains(panel)) RefreshTabStrip(left: true);
+        else if (_vm.RightTabs.Contains(panel)) RefreshTabStrip(left: false);
+    }
+
+    private static string TabTitle(PanelViewModel p) => FileSystem.VfsPath.GetName(p.CurrentPath);
+
+    /// <summary>Rebuilds one side's tab strip from its current <c>PanelTabSet</c> state - titles
+    /// (current folder name per tab) and which one is highlighted as active. Called whenever that
+    /// state could have changed: <see cref="MainViewModel.LeftTabsChanged"/>/<c>RightTabsChanged</c>
+    /// (add/close/switch) and <see cref="OnFilePanelPathChanged"/> (a tab navigated within itself,
+    /// which changes its title without changing the tab set's shape).</summary>
+    private void RefreshTabStrip(bool left)
+    {
+        if (left)
+            _leftPanel.SetTabs(_vm.LeftTabs.Select(TabTitle).ToList(), _vm.LeftActiveTabIndex);
+        else
+            _rightPanel.SetTabs(_vm.RightTabs.Select(TabTitle).ToList(), _vm.RightActiveTabIndex);
     }
 
     private async void OnTerminalDirectoryChanged(object? sender, EmbeddedTerminalPanel.DirectoryChangedEventArgs e)

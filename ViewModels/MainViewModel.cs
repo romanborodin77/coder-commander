@@ -62,6 +62,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Right-side counterpart of <see cref="LeftActiveTabIndex"/>.</summary>
     public int RightActiveTabIndex => _rightTabs.ActiveIndex;
 
+    /// <summary>Raised whenever the left side's tab set changes shape or its active tab switches -
+    /// a tab-strip UI redraws its buttons/highlight from <see cref="LeftTabs"/>/
+    /// <see cref="LeftActiveTabIndex"/> in response. Does <em>not</em> fire when a tab merely
+    /// navigates to a different path within itself - see <see cref="PanelPathChanged"/> for that.</summary>
+    public event EventHandler? LeftTabsChanged;
+
+    /// <summary>Right-side counterpart of <see cref="LeftTabsChanged"/>.</summary>
+    public event EventHandler? RightTabsChanged;
+
+    /// <summary>Activates the tab at <paramref name="index"/> on one side - what a tab-strip click
+    /// ultimately calls. Out-of-range or already-active is a no-op (<see cref="PanelTabSet.SetActive"/>'s
+    /// own guard).</summary>
+    public void SetActiveTabIndex(bool left, int index) => (left ? _leftTabs : _rightTabs).SetActive(index);
+
     /// <summary>Which side currently has focus - <see cref="ActivePanel"/> resolves against this
     /// plus whichever tab is active on that side, so switching tabs on the focused side keeps
     /// <see cref="ActivePanel"/> pointing at the right instance without every command handler that
@@ -117,15 +131,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // to re-announce themselves (something may be bound to that specific side regardless of
         // focus), but ActivePanel/InactivePanel only actually changed if the switch happened on
         // whichever side currently has focus.
+        // Also the one signal a tab-strip UI needs to know its tab count/order/active-highlight
+        // changed (LeftTabsChanged/RightTabsChanged below) - ActiveChanged already fires for every
+        // mutation (AddTab and CloseTab both end with it, not just SetActive), so there's no need
+        // for a second event per kind of change.
         _leftTabs.ActiveChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(LeftPanel));
             if (_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+            LeftTabsChanged?.Invoke(this, EventArgs.Empty);
         };
         _rightTabs.ActiveChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(RightPanel));
             if (!_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+            RightTabsChanged?.Invoke(this, EventArgs.Empty);
         };
 
         _leftTabs.AddTab(new PanelViewModel(FileSystem));

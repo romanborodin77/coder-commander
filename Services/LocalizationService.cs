@@ -280,6 +280,8 @@ public sealed class LocalizationService
         _strings["Panel.Dir"] = "<DIR>";
         _strings["Panel.Parent"] = "..";
         _strings["Panel.Filter"] = "Filter";
+        _strings["Panel.Tab.New"] = "New Tab";
+        _strings["Panel.Tab.Close"] = "Close Tab";
         _strings["Panel.Selected"] = "{0} selected";
         _strings["Panel.Items"] = "{0} items";
         _strings["Panel.FileInfo"] = "{0}  {1}  {2}";

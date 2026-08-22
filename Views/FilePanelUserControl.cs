@@ -70,6 +70,19 @@ public sealed class FilePanelUserControl : UserControl
     private ToolStrip _driveBar = null!;
     private ListViewScrollbarOverlay? _scrollOverlay;
 
+    // Panel tab strip (Ф3) - one FilePanelUserControl per side hosts N tabs, so this strip only
+    // ever renders buttons and reports clicks; it has no PanelTabSet reference of its own (that
+    // lives in MainViewModel), so MainForm is what turns TabSelected/TabCloseRequested/
+    // NewTabRequested into real PanelTabSet calls and feeds titles back in via SetTabs().
+    private ThemedTabControl _tabStrip = null!;
+    // Every ThemedTabPage.Content must be non-null, but this strip (OwnsPageContent=false) never
+    // actually shows a page's content - the real content (drive bar, file list, etc. below) is
+    // this control's own layout, unrelated to which tab is selected. All pages share this one
+    // never-shown Panel instead of each allocating (and never disposing) their own.
+    private Panel _tabStripDummyContent = null!;
+    private RoundedButton _addTabButton = null!;
+    private readonly ToolTip _addTabTooltip = new();
+
     private readonly List<ToolStripButton> _driveButtons = new();
 
     private bool _suppressSelectionEvent;
@@ -166,6 +179,18 @@ public sealed class FilePanelUserControl : UserControl
 
     /// <summary>Raised when an MTP device button is clicked. EventArgs = device ID.</summary>
     public event EventHandler<string>? MtpDeviceActivated;
+
+    /// <summary>Raised when the user clicks a tab button to switch tabs. EventArgs = tab index.
+    /// This control does not switch anything itself - MainForm decides what "tab index N" means
+    /// (via <c>MainViewModel.SetActiveTabIndex</c>) and feeds the result back through
+    /// <see cref="RebindViewModel"/>/<see cref="SetTabs"/>.</summary>
+    public event EventHandler<int>? TabSelected;
+
+    /// <summary>Raised when the user clicks a tab's close ("x") button. EventArgs = tab index.</summary>
+    public event EventHandler<int>? TabCloseRequested;
+
+    /// <summary>Raised when the user clicks the "+" button to open a new tab on this side.</summary>
+    public event EventHandler? NewTabRequested;
 
     /// <summary>
     /// Whether what this panel is showing lives at real paths on this machine.
@@ -327,6 +352,44 @@ public sealed class FilePanelUserControl : UserControl
         };
         _breadcrumbBar.Click += (_, _) => BeginEditPath();
 
+        // Tab strip (Ф3) — sits above the breadcrumb/drive bar, one FilePanelUserControl per side.
+        // OwnsPageContent=false: this strip exists purely for its button row and never hosts real
+        // content of its own (see _tabStripDummyContent's own doc comment) - RebindViewModel, not
+        // this control, is what actually changes what the rest of the panel shows.
+        _tabStripDummyContent = new Panel { Visible = false };
+        _tabStrip = new ThemedTabControl
+        {
+            Dock = DockStyle.Top,
+            Height = 34,
+            OwnsPageContent = false,
+            CloseButtonTooltip = LocalizationService.Current.GetString("Panel.Tab.Close"),
+        };
+        _tabStrip.SelectedIndexChanged += (_, _) => TabSelected?.Invoke(this, _tabStrip.SelectedIndex);
+        _tabStrip.TabCloseClicked += (_, idx) => TabCloseRequested?.Invoke(this, idx);
+
+        // A drawn "+" rather than the "+" character - mirrors EmbeddedTerminalPanel's own new-tab
+        // button exactly (same size/role/icon), just scoped to this panel's tabs instead of the
+        // terminal's.
+        _addTabButton = new RoundedButton
+        {
+            Width = 30,
+            Height = 30,
+            Image = ToolbarIcons.Get("plus"),
+            Cursor = Cursors.Hand,
+            Margin = new Padding(6, 1, 0, 1),
+            CornerRadius = 4,
+            UseGradient = false,
+            DrawShadow = false,
+            TabStop = false,
+            AccessibleName = LocalizationService.Current.GetString("Panel.Tab.New"),
+            AccessibleRole = AccessibleRole.PushButton,
+            Name = $"{Name}.NewTabButton",
+        };
+        _addTabButton.Role = ThemeRole.ToolbarButton;
+        _addTabButton.Click += (_, _) => NewTabRequested?.Invoke(this, EventArgs.Empty);
+        _addTabTooltip.SetToolTip(_addTabButton, LocalizationService.Current.GetString("Panel.Tab.New"));
+        _tabStrip.SetTrailingControl(_addTabButton);
+
         // Drive bar — ToolStrip with rounded drive buttons
         var toolbarScale = GetToolbarScale();
         var iconSize = (int)Math.Round(16 * toolbarScale);
@@ -482,6 +545,10 @@ public sealed class FilePanelUserControl : UserControl
         content.Controls.Add(_driveBar);
         content.Controls.Add(_pathBar);
         content.Controls.Add(_breadcrumbBar);
+        // Added last among the Top-docked controls, so it lands visually topmost (WinForms lays
+        // out docked children from the last-added Controls index down to the first) - a tab strip
+        // belongs above the breadcrumb/drive bar, not between them.
+        content.Controls.Add(_tabStrip);
         content.Controls.Add(_filterBar);
         content.Controls.Add(_statusStrip);
         _borderPanel.Controls.Add(content);
@@ -563,6 +630,24 @@ public sealed class FilePanelUserControl : UserControl
 
         RebuildList();
         UpdateStatus();
+    }
+
+    /// <summary>Rebuilds the tab strip from <paramref name="titles"/>, highlighting
+    /// <paramref name="activeIndex"/>. Called by MainForm whenever this side's <c>PanelTabSet</c>
+    /// changes shape (add/close/switch) or any of its tabs navigates (title = current folder name) -
+    /// this control has no reference to <c>PanelTabSet</c> itself, only whichever
+    /// <see cref="PanelViewModel"/> is currently bound, so it can't derive this on its own. The
+    /// close ("x") glyph is only shown once there's more than one tab - closing the sole tab on a
+    /// side is always a no-op downstream (<c>PanelTabSet.CloseTab</c>), so a clickable close button
+    /// that can never do anything would just be a dead end.</summary>
+    public void SetTabs(IReadOnlyList<string> titles, int activeIndex)
+    {
+        _tabStrip.ShowCloseButtons = titles.Count > 1;
+        _tabStrip.ClearPages();
+        foreach (var title in titles)
+            _tabStrip.AddPage(new ThemedTabPage(title, _tabStripDummyContent));
+        if (activeIndex >= 0 && activeIndex < titles.Count)
+            _tabStrip.SelectedIndex = activeIndex;
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1390,6 +1475,12 @@ public sealed class FilePanelUserControl : UserControl
         // No context-menu rebuild needed here anymore - BuildContextMenu() runs fresh on every
         // right-click (see the call site in OnFileListMouseDown) and always reads the current
         // language at that point.
+
+        _tabStrip.CloseButtonTooltip = L.GetString("Panel.Tab.Close");
+        _tabStrip.RefreshTabStrip();
+        var newTabText = L.GetString("Panel.Tab.New");
+        _addTabButton.AccessibleName = newTabText;
+        _addTabTooltip.SetToolTip(_addTabButton, newTabText);
     }
 
     // -- Drive bar --
@@ -2085,6 +2176,14 @@ public sealed class FilePanelUserControl : UserControl
             _fileList?.Dispose();
             _pathBar?.Dispose();
             _breadcrumbBar?.Dispose();
+            // _tabStrip has OwnsPageContent=false, so disposing it never touches
+            // _tabStripDummyContent (its pages' shared, never-shown content) - dispose that
+            // separately. _addTabButton is the strip's trailing control, not a page's content;
+            // ThemedTabControl.Dispose() doesn't own it either, so it needs disposing here too.
+            _tabStrip?.Dispose();
+            _tabStripDummyContent?.Dispose();
+            _addTabButton?.Dispose();
+            _addTabTooltip.Dispose();
             _filterBar?.Dispose();
             _filterBox?.Dispose();
             _filterLabel?.Dispose();
