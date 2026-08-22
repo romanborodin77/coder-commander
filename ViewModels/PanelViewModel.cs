@@ -152,6 +152,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool IsVirtual => !_fs.Capabilities.HasFlag(FileSystem.FileSystemCapabilities.NativePaths);
 
+    /// <summary>True while this panel is holding a materialized archive lease (see
+    /// <see cref="_archiveLease"/>) - exposed so tab-management code can tell, without reaching
+    /// into a private field, whether closing or backgrounding this panel still needs the same
+    /// write-back handling <see cref="ReleaseArchiveLeaseAsync"/> already provides.</summary>
+    public bool HasArchiveLease => _archiveLease != null;
+
     /// <summary>
     /// Takes ownership of a newly-materialized archive's temp copy, releasing whatever this panel
     /// was previously holding first - re-entering a different remote archive (or the same one
@@ -343,7 +349,13 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     partial void OnCurrentPathChanged(string value)
     {
         PathChanged?.Invoke(this, EventArgs.Empty);
-        StartWatcher(value);
+        // A suspended (background-tab) panel's watcher stays down until Resume() explicitly
+        // restarts it - starting one here regardless would leave _suspended true while a live
+        // watcher is actually running, an inconsistent state Resume()'s own no-op guard doesn't
+        // expect. Suspend() itself never changes CurrentPath, so this only matters for a caller
+        // that navigates a backgrounded tab directly (e.g. restoring persisted tabs on startup).
+        if (!_suspended)
+            StartWatcher(value);
     }
 
     partial void OnSelectedItemChanged(FileSystemItem? value)
@@ -1052,6 +1064,42 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (selected.Count > 0) return selected;
         if (SelectedItem != null && !SelectedItem.IsParent) return [SelectedItem];
         return [];
+    }
+
+    // ── Tab suspend/resume ──
+
+    /// <summary>True after <see cref="Suspend"/> and before the next <see cref="Resume"/>.</summary>
+    private bool _suspended;
+
+    /// <summary>
+    /// Releases this panel's <see cref="FileSystemWatcher"/> and debounce timers (via the same
+    /// <see cref="StopWatcher"/> an ordinary navigation already uses when swapping to a new
+    /// directory) so a panel sitting in a background tab doesn't keep watching/polling a directory
+    /// nobody is looking at. Deliberately does NOT clear <see cref="_allItems"/>/<see cref="Items"/> -
+    /// re-fetching those from a possibly-slow network share on every tab switch would defeat the
+    /// point of tabs being instant to switch between; the already-loaded listing simply goes stale
+    /// until <see cref="Resume"/> re-establishes the watcher and refreshes once. Idempotent.
+    /// </summary>
+    public void Suspend()
+    {
+        if (_suspended) return;
+        _suspended = true;
+        StopWatcher();
+    }
+
+    /// <summary>
+    /// Re-establishes the watcher <see cref="Suspend"/> tore down and refreshes once to pick up
+    /// whatever changed while this tab was in the background - a <see cref="FileSystemWatcher"/>
+    /// only reports events that occur while it is actively watching, nothing queues up for it to
+    /// replay once restarted. Idempotent (a no-op if this panel was never suspended).
+    /// </summary>
+    public void Resume()
+    {
+        if (!_suspended) return;
+        _suspended = false;
+        if (string.IsNullOrEmpty(CurrentPath)) return;
+        StartWatcher(CurrentPath);
+        _ = RefreshAsync();
     }
 
     // ── FileSystemWatcher ──

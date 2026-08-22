@@ -74,19 +74,35 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>
     private void OnThemeChanged(object? sender, EventArgs e) => RefreshTheme();
 
-    /// <summary>Unsubscribes from the <see cref="ThemeService.ThemeChanged"/> event and disposes
-    /// every page's content - not just the selected one. Only the selected page's Content is ever
-    /// parented into _contentPanel.Controls (see UpdateTabs()), so base.Dispose()'s recursive walk
-    /// alone would leak the content of every other page. Control.Dispose() is idempotent, so
-    /// disposing the (already-parented) selected page's content here too is harmless.</summary>
+    /// <summary>
+    /// When true (the default, preserving every existing host's behavior - EditorForm/ViewerForm/
+    /// SettingsForm, none of which set this), each <see cref="ThemedTabPage.Content"/> is uniquely
+    /// owned by its page and this control disposes every one of them on teardown. Set to false for
+    /// a host where multiple pages can share (or repoint to) the same underlying control instance -
+    /// a single reused <c>FilePanelUserControl</c> re-bound to a different <c>PanelViewModel</c> per
+    /// tab, rather than one control per tab - whose lifetime that host manages itself; this control
+    /// would otherwise dispose a still-live, still-owned control out from under it (harmlessly
+    /// idempotent if it happens to be the currently-selected page's content, since Control.Dispose()
+    /// tolerates being called twice, but genuinely wrong for a page whose content the host still
+    /// needs after this tab strip itself is torn down).
+    /// </summary>
+    public bool OwnsPageContent { get; init; } = true;
+
+    /// <summary>Unsubscribes from the <see cref="ThemeService.ThemeChanged"/> event and, when
+    /// <see cref="OwnsPageContent"/> is true, disposes every page's content - not just the selected
+    /// one. Only the selected page's Content is ever parented into _contentPanel.Controls (see
+    /// UpdateTabs()), so base.Dispose()'s recursive walk alone would leak the content of every
+    /// other page. Control.Dispose() is idempotent, so disposing the (already-parented) selected
+    /// page's content here too is harmless.</summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             ThemeService.ThemeChanged -= OnThemeChanged;
             _closeButtonTip.Dispose();
-            foreach (var page in _pages)
-                page.Content.Dispose();
+            if (OwnsPageContent)
+                foreach (var page in _pages)
+                    page.Content.Dispose();
             _buttonPanel?.Dispose();
             _contentPanel?.Dispose();
         }
