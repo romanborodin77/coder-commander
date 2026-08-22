@@ -305,6 +305,10 @@ public sealed class EmbeddedTerminalPanel : Panel
         tab.CurrentPath = path;
         SweepExpiredCwdGuards();
         _suppressCwdReport[tab.Id] = (NormalizePath(path), DateTime.UtcNow + CwdReportSuppressWindow);
+        // command always ends with a trailing \r (TryBuildCd's own documented contract) - strip it
+        // before arming echo suppression, so only the literal typed-looking text ("cd /d ...")
+        // disappears and the shell's own newline-to-new-prompt transition renders normally.
+        session.SuppressNextEcho(command[..^1]);
         session.SendInput(System.Text.Encoding.UTF8.GetBytes(command));
         return true;
     }

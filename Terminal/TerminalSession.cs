@@ -48,6 +48,11 @@ internal sealed class TerminalSession : IAsyncDisposable
     private volatile string _currentPath = "";
     private volatile bool _isExited;
 
+    /// <summary>Set by <see cref="SuppressNextEcho"/>, consumed incrementally by
+    /// <see cref="FeedToParser"/> - guarded by <see cref="Screen"/>'s own <c>SyncRoot</c>, the same
+    /// lock <see cref="OnPtyOutput"/> already holds for every Screen/parser mutation.</summary>
+    private string? _suppressedEchoRemaining;
+
     public Guid Id { get; } = Guid.NewGuid();
     public ShellDescriptor Shell => _shell;
     public TerminalScreen Screen { get; }
@@ -172,6 +177,31 @@ internal sealed class TerminalSession : IAsyncDisposable
     /// <summary>Sends raw bytes (already VT-encoded) to the shell's stdin.</summary>
     public void SendInput(ReadOnlySpan<byte> bytes) => _pty?.Write(bytes);
 
+    /// <summary>
+    /// Arms echo suppression for the next <paramref name="text"/> characters the shell echoes
+    /// back - used by the panel-&gt;terminal cwd push (<c>EmbeddedTerminalPanel.TrySendCd</c>) so a
+    /// <c>cd /d "..."</c> typed on the user's behalf doesn't visibly interrupt whatever they were
+    /// looking at every time they click a different folder. Call this immediately before
+    /// <see cref="SendInput"/> writes the corresponding command, with the command's own visible
+    /// text (no trailing CR - the shell's own newline handling for Enter is left alone, so only
+    /// the literal typed-looking text disappears, not the following blank line/new prompt).
+    ///
+    /// <para><b>Best-effort, not a real PTY feature.</b> A real console's echo is controlled by the
+    /// child process reading with <c>ENABLE_ECHO_INPUT</c>, not by us as the "typist" - there is no
+    /// way to tell the shell "don't echo this one line" without its cooperation. This instead
+    /// matches the echoed characters as they stream back in <see cref="FeedToParser"/> and simply
+    /// never hands them to the parser, so they never reach the visible screen buffer. If what comes
+    /// back doesn't match (a race with real output, a shell that doesn't echo verbatim), matching
+    /// stops immediately and whatever didn't match renders normally - a failed match degrades to
+    /// today's fully-visible behavior, never to corrupted or dropped legitimate output.</para>
+    /// </summary>
+    public void SuppressNextEcho(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        lock (Screen.SyncRoot)
+            _suppressedEchoRemaining = text;
+    }
+
     public void Resize(int cols, int rows)
     {
         if (cols == _cols && rows == _rows) return;
@@ -189,7 +219,33 @@ internal sealed class TerminalSession : IAsyncDisposable
         // The UI thread reads Screen concurrently (painting, cursor, scrollback) - every mutation
         // here must go through Screen.SyncRoot, which the UI layer takes around its own reads.
         lock (Screen.SyncRoot)
-            _decoder.Decode(bytes.Span, _decodeScratch, chars => _parser.Parse(chars, Screen));
+            _decoder.Decode(bytes.Span, _decodeScratch, FeedToParser);
+    }
+
+    /// <summary>Consumes a prefix of <paramref name="chars"/> that matches
+    /// <see cref="_suppressedEchoRemaining"/> (see <see cref="SuppressNextEcho"/>) without handing
+    /// it to <see cref="_parser"/>, then parses whatever's left normally. Always called with
+    /// <see cref="Screen"/>.SyncRoot already held (from <see cref="OnPtyOutput"/>).</summary>
+    private void FeedToParser(ReadOnlySpan<char> chars)
+    {
+        if (_suppressedEchoRemaining is { Length: > 0 } expected)
+        {
+            var matchLen = Math.Min(expected.Length, chars.Length);
+            if (chars[..matchLen].SequenceEqual(expected.AsSpan(0, matchLen)))
+            {
+                _suppressedEchoRemaining = matchLen < expected.Length ? expected[matchLen..] : null;
+                chars = chars[matchLen..];
+            }
+            else
+            {
+                // Doesn't match what we expected to see echoed back - give up rather than risk
+                // swallowing real output; everything from here on renders normally.
+                _suppressedEchoRemaining = null;
+            }
+        }
+
+        if (!chars.IsEmpty)
+            _parser.Parse(chars, Screen);
     }
 
     private void OnCwdReported(string path) => CurrentPath = path;
