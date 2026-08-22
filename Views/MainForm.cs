@@ -601,6 +601,72 @@ public sealed class MainForm : Form
         panel.SplitRequested += (_, _) => _vm.Commands.Execute(CommandIds.SplitFile);
         panel.CombineRequested += (_, _) => _vm.Commands.Execute(CommandIds.CombineFiles);
         panel.VerifyChecksumRequested += (_, item) => OnVerifyChecksum(panel, item);
+        panel.CreateSymlinkRequested += (_, item) => OnCreateSymlink(panel, item);
+        panel.CreateHardlinkRequested += (_, item) => OnCreateHardlink(panel, item);
+    }
+
+    /// <summary>Creates a symbolic link next to <paramref name="item"/>, pointing at it. Needs
+    /// <c>SeCreateSymbolicLinkPrivilege</c> (an admin process has it implicitly; a standard user
+    /// needs Developer Mode enabled) - <see cref="File.CreateSymbolicLink(string, string)"/>/
+    /// <see cref="Directory.CreateSymbolicLink(string, string)"/> throw when that's missing, caught
+    /// here and shown as a plain message instead of an unhandled exception.</summary>
+    private void OnCreateSymlink(FilePanelUserControl panel, FileSystemItem item)
+    {
+        var L = LocalizationService.Current;
+        using var dlg = new InputDialogForm(L.GetString("Input.CreateSymlink"), L.GetString("Input.CreateSymlinkPrompt"), item.Name);
+        if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrEmpty(dlg.Value)) return;
+
+        try
+        {
+            var linkPath = VfsPath.Combine(VfsPath.GetParent(item.FullPath), dlg.Value);
+            if (item.IsDirectory)
+                Directory.CreateSymbolicLink(linkPath, item.FullPath);
+            else
+                File.CreateSymbolicLink(linkPath, item.FullPath);
+            _ = panel.ViewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Failed to create symlink for {item.FullPath}", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
+    }
+
+    /// <summary>Creates a hard link next to <paramref name="item"/>, pointing at the same file
+    /// content. NTFS itself refuses this for a directory or across a volume boundary - checked up
+    /// front so the failure is a clear localized message instead of a raw Win32 error code.</summary>
+    private void OnCreateHardlink(FilePanelUserControl panel, FileSystemItem item)
+    {
+        var L = LocalizationService.Current;
+
+        if (item.IsDirectory)
+        {
+            StyledMessageBox.Show(L.GetString("Link.HardlinkDirectory"), L.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        using var dlg = new InputDialogForm(L.GetString("Input.CreateHardlink"), L.GetString("Input.CreateHardlinkPrompt"), item.Name);
+        if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrEmpty(dlg.Value)) return;
+
+        var linkPath = VfsPath.Combine(VfsPath.GetParent(item.FullPath), dlg.Value);
+        if (!string.Equals(Path.GetPathRoot(linkPath), Path.GetPathRoot(item.FullPath), StringComparison.OrdinalIgnoreCase))
+        {
+            StyledMessageBox.Show(L.GetString("Link.HardlinkCrossVolume"), L.GetString("Common.Error"),
+                MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+            return;
+        }
+
+        try
+        {
+            FileSystem.LinkHelper.CreateHardLink(linkPath, item.FullPath);
+            _ = panel.ViewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            LogService.Error($"Failed to create hard link for {item.FullPath}", ex);
+            StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+        }
     }
 
     /// <summary>Opens <see cref="ChecksumVerifyForm"/> for a <c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/

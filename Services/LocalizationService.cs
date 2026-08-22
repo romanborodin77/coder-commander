@@ -570,6 +570,12 @@ public sealed class LocalizationService
         _strings["Input.BookmarkPath"] = "Path:";
         _strings["Input.ChangeDirPrompt"] = "Path:";
         _strings["Input.SelectPattern"] = "Pattern (e.g. *.txt):";
+        _strings["Input.CreateSymlink"] = "Create Symbolic Link";
+        _strings["Input.CreateSymlinkPrompt"] = "Link name:";
+        _strings["Input.CreateHardlink"] = "Create Hard Link";
+        _strings["Input.CreateHardlinkPrompt"] = "Link name:";
+        _strings["Link.HardlinkDirectory"] = "Hard links cannot point at a folder - use a symbolic link instead.";
+        _strings["Link.HardlinkCrossVolume"] = "Hard links only work within the same drive/volume.";
         _strings["Menu.Commands.ChangeDir"] = "Change &Directory…";
 
         // ═══ Confirmations ═══

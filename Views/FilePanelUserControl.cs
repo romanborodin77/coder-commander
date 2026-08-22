@@ -126,6 +126,16 @@ public sealed class FilePanelUserControl : UserControl
     /// export/parse (<c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/<c>.sha256</c>).</summary>
     public event EventHandler<FileSystemItem>? VerifyChecksumRequested;
 
+    /// <summary>Raised from the context menu's "Create Link ▸ Symbolic Link…" item, only shown for
+    /// a native-path filesystem.</summary>
+    public event EventHandler<FileSystemItem>? CreateSymlinkRequested;
+
+    /// <summary>Raised from the context menu's "Create Link ▸ Hard Link…" item, only shown for a
+    /// native-path filesystem. The handler still has to validate same-volume/file-not-directory -
+    /// unlike the extension check gating "Verify checksums…", nothing here can cheaply confirm
+    /// those without touching the disk.</summary>
+    public event EventHandler<FileSystemItem>? CreateHardlinkRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -1219,6 +1229,20 @@ public sealed class FilePanelUserControl : UserControl
             IsChecksumFileExtension(checksumItem.Extension))
         {
             CtxItem(menu, "Ctx.VerifyChecksum", "properties", () => VerifyChecksumRequested?.Invoke(this, checksumItem));
+        }
+        // "Create Link" submenu - only for a native-path filesystem: a symlink/hardlink needs a
+        // real path the OS can resolve, which an archive entry or remote file has none of.
+        if (_vm.SelectedItem is { IsParent: false } linkItem && HasNativePaths)
+        {
+#pragma warning disable CA2000
+            var linkMenu = new ToolStripMenuItem(L.GetString("Ctx.CreateLink"), ToolbarIcons.Get("newdir"));
+            var symlinkMenuItem = new ToolStripMenuItem(L.GetString("Ctx.CreateSymlink"), null,
+                (_, _) => CreateSymlinkRequested?.Invoke(this, linkItem));
+            var hardlinkMenuItem = new ToolStripMenuItem(L.GetString("Ctx.CreateHardlink"), null,
+                (_, _) => CreateHardlinkRequested?.Invoke(this, linkItem));
+#pragma warning restore CA2000
+            linkMenu.DropDownItems.AddRange([symlinkMenuItem, hardlinkMenuItem]);
+            menu.Items.Add(linkMenu);
         }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));

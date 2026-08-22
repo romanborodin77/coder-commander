@@ -373,6 +373,12 @@ Input.BookmarkName=Bookmark name:
 Input.BookmarkPath=Path:
 Input.ChangeDirPrompt=Path:
 Input.SelectPattern=Pattern (e.g. *.txt):
+Input.CreateSymlink=Create Symbolic Link
+Input.CreateSymlinkPrompt=Link name:
+Input.CreateHardlink=Create Hard Link
+Input.CreateHardlinkPrompt=Link name:
+Link.HardlinkDirectory=Hard links cannot point at a folder - use a symbolic link instead.
+Link.HardlinkCrossVolume=Hard links only work within the same drive/volume.
 
 # ═══ Confirmations ═══
 Confirm.Delete=Delete {0} item(s)?

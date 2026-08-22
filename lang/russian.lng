@@ -394,6 +394,12 @@ Input.BookmarkName=Имя закладки:
 Input.BookmarkPath=Путь:
 Input.ChangeDirPrompt=Путь:
 Input.SelectPattern=Шаблон (например, *.txt):
+Input.CreateSymlink=Создание символической ссылки
+Input.CreateSymlinkPrompt=Имя ссылки:
+Input.CreateHardlink=Создание жёсткой ссылки
+Input.CreateHardlinkPrompt=Имя ссылки:
+Link.HardlinkDirectory=Жёсткая ссылка не может указывать на папку — используйте символическую ссылку.
+Link.HardlinkCrossVolume=Жёсткие ссылки работают только в пределах одного диска/тома.
 Menu.Commands.ChangeDir=&Сменить каталог…
 
 # ═══ Подтверждения ═══
