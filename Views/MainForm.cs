@@ -1264,8 +1264,12 @@ public sealed class MainForm : Form
         _terminalPanel.DirectoryChanged += OnTerminalDirectoryChanged;
         _terminalPanel.ShowPathInPanelRequested += OnShowPathInPanelRequested;
         _terminalPanel.AppCommandRequested += OnTerminalAppCommand;
-        _vm.LeftPanel.PropertyChanged += OnFilePanelPropertyChanged;
-        _vm.RightPanel.PropertyChanged += OnFilePanelPropertyChanged;
+        // Routed through MainViewModel.PanelPathChanged (forwarded from PanelViewModel.PathChanged,
+        // wired per tab for its whole lifetime) rather than subscribing to LeftPanel/RightPanel
+        // directly - those are computed properties that resolve to whichever tab is active, so a
+        // direct subscription taken once here would silently stop tracking the moment a tab switch
+        // changed which instance they point to.
+        _vm.PanelPathChanged += OnFilePanelPathChanged;
 
         _deviceWatcher.DevicesChanged += OnDevicesChanged;
         MtpDeviceCatalog.Instance.Changed += OnMtpDevicesChanged;
@@ -1302,16 +1306,13 @@ public sealed class MainForm : Form
             });
     }
 
-    private void OnFilePanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnFilePanelPathChanged(object? sender, EventArgs e)
     {
-        if (e.PropertyName != nameof(PanelViewModel.CurrentPath))
-            return;
-
         // PanelViewModel.NavigateAsync sets CurrentPath after an await with ConfigureAwait(false),
         // so this event can arrive on a non-UI thread.
         if (InvokeRequired)
         {
-            BeginInvoke(() => OnFilePanelPropertyChanged(sender, e));
+            BeginInvoke(() => OnFilePanelPathChanged(sender, e));
             return;
         }
         if (!IsHandleCreated) return;
@@ -2212,13 +2213,19 @@ public sealed class MainForm : Form
             return;
         }
 
-        var originFs = panel.ViewModel.CurrentFileSystem;
+        // Captured once, before any await below - panel.ViewModel is a live pointer to
+        // whichever tab is currently active in this panel side, and RebindViewModel can swap it
+        // out from under us the moment control yields (a tab switch mid-download). Every use
+        // below goes through this local so a materializing archive always attaches to the tab it
+        // was started from, never to whatever tab happens to be active when the await resumes.
+        var vm = panel.ViewModel;
+        var originFs = vm.CurrentFileSystem;
         // Stamped before any await below - if materialization takes long enough (a large/remote
         // archive) for the user to navigate this same panel elsewhere in the meantime, that
         // manual navigation must win instead of being silently overwritten once the download
         // finally finishes. See PanelViewModel.NavSeq's own doc comment for why NavigateAsync's
         // own sequence guard can't catch this by itself.
-        var navSeqAtStart = panel.ViewModel.NavSeq;
+        var navSeqAtStart = vm.NavSeq;
         FileSystem.Materialization.MaterializedFile materialized;
 
         MaterializingWaitForm? waitForm = null;
@@ -2250,7 +2257,7 @@ public sealed class MainForm : Form
                 waitForm.Show(this);
             }
 
-            materialized = await panel.ViewModel.MaterializeAsync(
+            materialized = await vm.MaterializeAsync(
                 originFs, item.FullPath, FileSystem.Materialization.MaterializeOptions.ForArchiveRead, cts.Token);
         }
         // Was `catch (IOException ex)` only - the caller (OnArchiveEntered) is async void, so
@@ -2297,7 +2304,7 @@ public sealed class MainForm : Form
         if (!materialized.IsPassthrough)
             archiveFs = new DirtyTrackingFileSystem(archiveFs, materialized.MarkDirty);
 
-        if (panel.ViewModel.NavSeq != navSeqAtStart)
+        if (vm.NavSeq != navSeqAtStart)
         {
             // The panel navigated elsewhere (Backspace, a bookmark, a typed path...) while this
             // archive was being materialized/detected - committing now would silently teleport
@@ -2309,18 +2316,18 @@ public sealed class MainForm : Form
 
         try
         {
-            await panel.ViewModel.AttachArchiveLeaseAsync(materialized);
-            panel.ViewModel.CurrentFileSystem = archiveFs;
+            await vm.AttachArchiveLeaseAsync(materialized);
+            vm.CurrentFileSystem = archiveFs;
             var archivePath = ArchivePath.MakePath(materialized.LocalPath, "");
-            await panel.ViewModel.NavigateAsync(archivePath);
+            await vm.NavigateAsync(archivePath);
         }
         catch (Exception ex)
         {
             // NavigateAsync failed — roll back the filesystem and lease so the panel isn't left
             // with an archive FS pointing at a stale path. Without this, the next navigation
             // would go through the archive FS for a non-archive path.
-            panel.ViewModel.CurrentFileSystem = originFs;
-            await panel.ViewModel.ReleaseArchiveLeaseAsync().ConfigureAwait(true);
+            vm.CurrentFileSystem = originFs;
+            await vm.ReleaseArchiveLeaseAsync().ConfigureAwait(true);
             LogService.Error($"Failed to enter archive: {item.FullPath}", ex);
             StyledMessageBox.Show(ex.Message, L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
         }

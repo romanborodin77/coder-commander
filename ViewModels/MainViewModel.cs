@@ -1298,11 +1298,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Raised with a localization key when a requested transfer is not possible.</summary>
     public event EventHandler<string>? OperationRejected;
 
+    /// <summary>Forwards <see cref="PanelViewModel.PathChanged"/> for whichever tab raised it -
+    /// <c>sender</c> is the originating <see cref="PanelViewModel"/>. Subscribed once, for the
+    /// view's whole lifetime, via <see cref="WirePanelEvents"/>/<see cref="UnwirePanelEvents"/>
+    /// per tab; a consumer that binds directly to <c>LeftPanel</c>/<c>RightPanel</c> instead would
+    /// go stale the moment a tab switch changes which instance those properties resolve to (see
+    /// <see cref="LeftPanel"/>'s own doc comment) - this is the one place to subscribe to stay
+    /// correct across tab switches.</summary>
+    public event EventHandler? PanelPathChanged;
+
     // ── Internal handlers ──
 
     private void OnPanelPathChanged(object? sender, EventArgs e)
     {
         UpdateStatus();
+        PanelPathChanged?.Invoke(sender, e);
     }
 
     private readonly Dictionary<PanelViewModel, string> _lastGitStatusPath = new();
