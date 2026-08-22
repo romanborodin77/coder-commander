@@ -87,6 +87,9 @@ public static class CommandIds
     public const string NextTab = "cm_NextTab";
     /// <summary>Switch to the previous tab on the focused panel side (Ctrl+PageUp).</summary>
     public const string PreviousTab = "cm_PreviousTab";
+    /// <summary>Toggle Quick View on the inactive panel (Ctrl+Q) - previews whatever is currently
+    /// selected in the active panel, without opening a separate F3 window.</summary>
+    public const string ToggleQuickView = "cm_ToggleQuickView";
     /// <summary>Swap the source and target panels (Ctrl+U).</summary>
     public const string SwapPanels = "cm_SwapPanels";
     /// <summary>Set the target panel path equal to the source panel path.</summary>

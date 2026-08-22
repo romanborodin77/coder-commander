@@ -74,6 +74,13 @@ public sealed class AppSettings
     /// this to false before every non-HTML format navigates regardless of this setting; only HTML
     /// format's own explicit toolbar toggle reads and writes it.</summary>
     public bool ViewerHtmlAllowScripts { get; set; }
+
+    /// <summary>Whether Quick View (Ctrl+Q, Ф4) previews a file on a remote connection
+    /// (FTP/SFTP/WebDAV). Off by default - unlike a deliberate F3 open, Quick View triggers on
+    /// every arrow-key tick while browsing, and each one would materialize a fresh remote file
+    /// over the network just to throw it away a moment later. Never consulted for a local path or
+    /// an archive entry - those always preview.</summary>
+    public bool QuickViewRemoteEnabled { get; set; }
     public bool ShowStatusBar { get; set; } = true;
     public bool ShowToolbar { get; set; } = true;
     public bool ShowFunctionButtons { get; set; } = true;

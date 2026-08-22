@@ -3,7 +3,9 @@ using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
+using CoderCommander.Viewers;
 using CoderCommander.WinForms;
+using CoderCommander.WinForms.Viewers;
 using System.Drawing.Drawing2D;
 
 namespace CoderCommander.Views;
@@ -82,6 +84,24 @@ public sealed class FilePanelUserControl : UserControl
     private Panel _tabStripDummyContent = null!;
     private RoundedButton _addTabButton = null!;
     private readonly ToolTip _addTabTooltip = new();
+
+    // Quick View (Ф4, Ctrl+Q) - previews whatever is selected in the ACTIVE panel, shown in the
+    // OTHER (inactive) panel in place of its own file list. Lazy by construction: nothing here
+    // exists until SetQuickView(true), and the host itself isn't built until the first file
+    // actually worth previewing comes in (RefreshQuickViewPreview may be called many times with
+    // nothing to show - a directory, an MTP path, an oversized file).
+    private ViewerHostControl? _quickViewHost;
+    private IFileSystem? _quickViewHostFs;
+    private System.Windows.Forms.Timer? _quickViewDebounce;
+    private string? _quickViewLastPath;
+    private FileSystemItem? _pendingQuickViewItem;
+    private IFileSystem? _pendingQuickViewFs;
+    private bool _quickViewRemoteEnabled;
+    private const int QuickViewDebounceMs = 300;
+
+    /// <summary>Whether this panel is currently showing a Quick View preview instead of its own
+    /// file list.</summary>
+    public bool IsQuickViewActive { get; private set; }
 
     private readonly List<ToolStripButton> _driveButtons = new();
 
@@ -648,6 +668,112 @@ public sealed class FilePanelUserControl : UserControl
             _tabStrip.AddPage(new ThemedTabPage(title, _tabStripDummyContent));
         if (activeIndex >= 0 && activeIndex < titles.Count)
             _tabStrip.SelectedIndex = activeIndex;
+    }
+
+    // ── Quick View (Ф4, Ctrl+Q) ──────────────────────────────────────────────────────────────
+
+    /// <summary>Turns Quick View on/off for this panel. On: hides this panel's own file list (the
+    /// panel keeps its own path/drive bar/breadcrumb/tab strip - only its content area changes;
+    /// see <see cref="RefreshQuickViewPreview"/> for whose file gets shown there and why). Off:
+    /// tears the preview host down - disposed, not just hidden, so its WebView2 process (if the
+    /// last-shown format needed one) doesn't sit idle - and restores the file list.</summary>
+    public void SetQuickView(bool enabled)
+    {
+        if (enabled == IsQuickViewActive) return;
+        IsQuickViewActive = enabled;
+
+        if (enabled)
+        {
+            _quickViewRemoteEnabled = SettingsService.Load().QuickViewRemoteEnabled;
+            _quickViewLastPath = null;
+            _fileList.Visible = false;
+        }
+        else
+        {
+            _quickViewDebounce?.Stop();
+            _quickViewLastPath = null;
+            DisposeQuickViewHost();
+            _fileList.Visible = true;
+        }
+    }
+
+    /// <summary>Called by MainForm whenever the ACTIVE panel's selection might have changed
+    /// (<c>MainViewModel.ActiveSelectionChanged</c>) - a no-op unless this panel currently has
+    /// Quick View on. This panel previews whatever is selected in the ACTIVE panel, not its own
+    /// selection: Quick View replaces this panel's own file list, so it has nothing of its own
+    /// left to browse with arrow keys - the active panel is what the user is actually browsing,
+    /// exactly the way Total Commander's own Quick View works.</summary>
+    public void RefreshQuickViewPreview(FileSystemItem? item, IFileSystem sourceFs)
+    {
+        if (!IsQuickViewActive) return;
+
+        _pendingQuickViewItem = item;
+        _pendingQuickViewFs = sourceFs;
+        _quickViewDebounce ??= CreateQuickViewDebounceTimer();
+        _quickViewDebounce.Stop();
+        _quickViewDebounce.Start();
+    }
+
+    private System.Windows.Forms.Timer CreateQuickViewDebounceTimer()
+    {
+        var timer = new System.Windows.Forms.Timer { Interval = QuickViewDebounceMs };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            ApplyQuickViewPreview(_pendingQuickViewItem, _pendingQuickViewFs);
+        };
+        return timer;
+    }
+
+    /// <summary>Applies (or refuses) a preview after the debounce settles. Every refusal check is
+    /// answered from data the panel already has (capability flags, the listing's own cached
+    /// <see cref="FileSystemItem.Size"/>) - never by attempting a read first and catching failure,
+    /// so a folder full of oversized/remote files costs nothing to arrow through.</summary>
+    private void ApplyQuickViewPreview(FileSystemItem? item, IFileSystem? sourceFs)
+    {
+        if (!IsQuickViewActive || sourceFs == null) return;
+
+        var refused = item is null || item.IsDirectory || item.IsParent
+            || item.Size > ViewerLimits.QuickViewMaxBytes
+            || MtpConnectionRegistry.IsMtpFileSystem(sourceFs)
+            || (!_quickViewRemoteEnabled && ConnectionManager.Instance.IsConnectionFileSystem(sourceFs));
+
+        var newPath = !refused && item is not null ? item.FullPath : null;
+        if (newPath == _quickViewLastPath) return; // unchanged - e.g. a FileSystemWatcher tick
+        _quickViewLastPath = newPath;
+
+        if (newPath == null)
+        {
+            DisposeQuickViewHost();
+            return;
+        }
+
+        if (_quickViewHost == null || !ReferenceEquals(_quickViewHostFs, sourceFs))
+        {
+            DisposeQuickViewHost();
+            _quickViewHost = new ViewerHostControl(sourceFs, newPath, null, 0, SettingsService.Load())
+            {
+                Dock = DockStyle.Fill,
+                CompactMode = true,
+            };
+            _quickViewHostFs = sourceFs;
+            _fileList.Parent!.Controls.Add(_quickViewHost);
+        }
+        else
+        {
+            _quickViewHost.LoadPath(newPath);
+        }
+
+        _ = _quickViewHost.LoadCurrentAsync();
+    }
+
+    private void DisposeQuickViewHost()
+    {
+        if (_quickViewHost == null) return;
+        _quickViewHost.Parent?.Controls.Remove(_quickViewHost);
+        _quickViewHost.Dispose();
+        _quickViewHost = null;
+        _quickViewHostFs = null;
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -2184,6 +2310,9 @@ public sealed class FilePanelUserControl : UserControl
             _tabStripDummyContent?.Dispose();
             _addTabButton?.Dispose();
             _addTabTooltip.Dispose();
+            _quickViewDebounce?.Stop();
+            _quickViewDebounce?.Dispose();
+            DisposeQuickViewHost();
             _filterBar?.Dispose();
             _filterBox?.Dispose();
             _filterLabel?.Dispose();

@@ -138,13 +138,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _leftTabs.ActiveChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(LeftPanel));
-            if (_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+            if (_isLeftActive)
+            {
+                OnPropertyChanged(nameof(ActivePanel));
+                OnPropertyChanged(nameof(InactivePanel));
+                ActiveSelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
             LeftTabsChanged?.Invoke(this, EventArgs.Empty);
         };
         _rightTabs.ActiveChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(RightPanel));
-            if (!_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+            if (!_isLeftActive)
+            {
+                OnPropertyChanged(nameof(ActivePanel));
+                OnPropertyChanged(nameof(InactivePanel));
+                ActiveSelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
             RightTabsChanged?.Invoke(this, EventArgs.Empty);
         };
 
@@ -190,7 +200,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActivePanel));
         OnPropertyChanged(nameof(InactivePanel));
         UpdateStatus();
+        ActiveSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Raised whenever the active panel's <see cref="PanelViewModel.SelectedItem"/> might
+    /// have changed - either its own selection moved, or a different panel/tab became active.
+    /// Quick View (Ф4, <c>FilePanelUserControl.RefreshQuickViewPreview</c>) uses this to preview
+    /// whatever the ACTIVE panel currently has selected inside whichever OTHER panel has Quick
+    /// View turned on - matching Total Commander's own convention of "the passive panel previews
+    /// what's selected in the active one," which is also what keeps the file list's own keyboard
+    /// focus (and arrow-key browsing) working normally in the panel actually being browsed.</summary>
+    public event EventHandler? ActiveSelectionChanged;
+
+    /// <summary>Raised by the <c>Ctrl+Q</c> command - <c>MainForm</c> decides which panel that
+    /// means (always the currently inactive one, never the one being browsed) and calls
+    /// <c>FilePanelUserControl.SetQuickView</c>.</summary>
+    public event EventHandler? QuickViewToggleRequested;
+
+    /// <summary>Toggles Quick View on the inactive panel - the <c>Ctrl+Q</c> command.</summary>
+    public void ToggleQuickView() => QuickViewToggleRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Raised right after a new tab is created and fully wired (see
     /// <see cref="WirePanelEvents"/>) - lets <c>MainForm</c> set the per-panel UI-level delegates
@@ -340,6 +368,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.CloseTab, p => { _ = SafeExecuteAsync(CloseActiveTab, "CloseTab"); });
         Commands.Register(CommandIds.NextTab, _ => NextTab());
         Commands.Register(CommandIds.PreviousTab, _ => PreviousTab());
+        Commands.Register(CommandIds.ToggleQuickView, _ => ToggleQuickView());
         Commands.Register(CommandIds.SwapPanels, _ => SwapPanels());
         Commands.Register(CommandIds.TargetEqualSource, _ => TargetEqualSource());
         Commands.Register(CommandIds.SyncDirs, _ => SyncDirs());
@@ -1506,6 +1535,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (e.PropertyName is nameof(PanelViewModel.SelectedCount) or nameof(PanelViewModel.SelectedBytes)
             or nameof(PanelViewModel.CursorInfo) or nameof(PanelViewModel.FreeSpaceDisplay))
             UpdateStatus();
+
+        // Only the ACTIVE panel's own selection drives Quick View in the other panel - a
+        // background tab's cursor moving (e.g. a FileSystemWatcher-triggered re-sync) is not
+        // something the user is "browsing" right now.
+        if (e.PropertyName == nameof(PanelViewModel.SelectedItem) && ReferenceEquals(sender, ActivePanel))
+            ActiveSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnOperationChanged(object? sender, OperationManagerEventArgs e)

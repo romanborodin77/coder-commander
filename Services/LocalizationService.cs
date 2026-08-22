@@ -206,6 +206,7 @@ public sealed class LocalizationService
         _strings["Menu.Commands.SyncPanels"] = "&Target = Source";
         _strings["Menu.Commands.NewTab"] = "&New Tab";
         _strings["Menu.Commands.CloseTab"] = "&Close Tab";
+        _strings["Menu.Commands.QuickView"] = "&Quick View";
         _strings["Menu.Commands.Terminal"] = "&Terminal";
         _strings["Menu.Commands.DirTree"] = "Directory &Tree";
         _strings["Menu.Commands.DiskInfo"] = "Disk &Info";

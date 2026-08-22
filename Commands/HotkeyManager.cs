@@ -189,6 +189,8 @@ public sealed class HotkeyManager
         Register(Keys.Control | Keys.Next, CommandIds.NextTab); // Ctrl+PageDown
         Register(Keys.Control | Keys.Prior, CommandIds.PreviousTab); // Ctrl+PageUp
 
+        Register(Keys.Control | Keys.Q, CommandIds.ToggleQuickView);
+
         // Panel
         Register(Keys.Control | Keys.U, CommandIds.SwapPanels);
         Register(Keys.Control | Keys.OemPeriod, CommandIds.ToggleHidden); // Ctrl+.

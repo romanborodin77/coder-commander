@@ -84,6 +84,16 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
     /// nothing at all), so this control never closes anything on its own.</summary>
     public event EventHandler? CloseRequested;
 
+    /// <summary>When true, a load failure that would normally pop a modal <c>StyledMessageBox</c>
+    /// (<see cref="ViewerErrorPayload.Modal"/> - a format's loader saying "this needs the user's
+    /// attention", e.g. a password-protected archive or an unsupported/corrupt file) instead
+    /// renders inline like any other error, same as it already does for a non-modal one. Off by
+    /// default (F3's own behavior, unchanged) - Quick View sets this, since a modal dialog on
+    /// every arrow-key tick through a folder with one broken image would make browsing unusable.
+    /// Set once, at construction (<c>init</c>) - this control is never toggled between the two
+    /// uses after the fact, F3 and Quick View each construct their own instance.</summary>
+    public bool CompactMode { get; init; }
+
     /// <summary>
     /// Builds the toolbar, content surface and status bar, and resolves the initial format for
     /// <paramref name="path"/> - does not start loading it; the embedder calls
@@ -276,14 +286,16 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
 
     /// <summary>Resolves the format to open the initial file in: a matched format (Image today)
     /// always wins for a file it recognizes; otherwise the last-used universal format preference
-    /// from settings, falling back to Text if that preference is stale/unknown. Runs once, at
-    /// construction - <see cref="NavigateFile"/> deliberately does not re-run this (see its own
-    /// doc comment).</summary>
+    /// from settings, falling back to Text if that preference is stale/unknown. Runs at
+    /// construction, and again from <see cref="LoadPath"/> (Quick View retargeting at a whole
+    /// different file wants a fresh natural-format decision each time) - <see cref="NavigateFile"/>
+    /// (F3's own Prev/Next within one folder) deliberately does not re-run this, see its own doc
+    /// comment for why sticky is right there.</summary>
     private string ResolveInitialFormat()
     {
         UpdateMatchedFormatForCurrentFile();
 
-        var matched = ViewerFormatRegistry.Detect(_path, ReadOnlySpan<byte>.Empty);
+        var matched = DetectMatchedFormat(ReadOnlySpan<byte>.Empty);
         if (matched != null) return matched.Id;
 
         var last = _settings.ViewerLastMode;
@@ -341,7 +353,7 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
     /// there.</para></summary>
     private void UpdateMatchedFormatForCurrentFile(ReadOnlySpan<byte> header = default)
     {
-        var detected = ViewerFormatRegistry.Detect(_path, header);
+        var detected = DetectMatchedFormat(header);
 
         foreach (var (id, btn) in _matchedButtons)
             btn.Visible = detected != null && id == detected.Id;
@@ -354,6 +366,18 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
             _matchedButtons[fmt.Id] = btn;
             _toolStrip.Items.Insert(_toolStrip.Items.IndexOf(_firstUniversalButton), btn);
         }
+    }
+
+    /// <summary>Format-detection choke point for both <see cref="UpdateMatchedFormatForCurrentFile"/>
+    /// and <see cref="ResolveInitialFormat"/> - in <see cref="CompactMode"/> (Quick View), Media
+    /// never wins the "what is this file" match: a video/audio file's own player format would
+    /// autoplay the instant its button becomes active, which arrow-key browsing would trigger on
+    /// every file. Universal formats (Text/ASCII/Binary/Hex) are unaffected - only the dynamic
+    /// matched-format button/initial-format selection is filtered.</summary>
+    private IViewerFormat? DetectMatchedFormat(ReadOnlySpan<byte> header)
+    {
+        var detected = ViewerFormatRegistry.Detect(_path, header);
+        return CompactMode && detected?.Id == MediaViewerFormat.Instance.Id ? null : detected;
     }
 
     private void SetNavigationEnabled(bool enabled)
@@ -426,6 +450,23 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
         UpdateMatchedFormatForCurrentFile();
         PathChanged?.Invoke(this, EventArgs.Empty);
         _ = LoadCurrentAsync();
+    }
+
+    /// <summary>Retargets this control at an entirely different file - unlike
+    /// <see cref="NavigateFile"/> (F3's own Prev/Next within one already-open folder, format stays
+    /// sticky), this re-resolves the format fresh, the same as a brand new file opened for the
+    /// first time. Used by Quick View when the panel's cursor moves to a different file, so each
+    /// one opens in its own natural format (an image after a text file shows as an image, not
+    /// forced into whatever format the previous file happened to be showing). Does not itself
+    /// start loading - the caller still calls <see cref="LoadCurrentAsync"/>.</summary>
+    public void LoadPath(string path, List<string>? files = null, int currentIndex = 0)
+    {
+        _path = path;
+        _files = files ?? new List<string>();
+        _currentIndex = currentIndex;
+        _activeFormatId = ResolveInitialFormat();
+        UpdateModeButtonHighlight();
+        PathChanged?.Invoke(this, EventArgs.Empty);
     }
 
     // ── Async loading ────────────────────────────────────────────────────────────────────────
@@ -504,6 +545,14 @@ public sealed class ViewerHostControl : UserControl, ISelfThemedControl
             if (ct != _loadCts?.Token) return;
 
             payload = await Task.Run(() => loader.LoadAsync(source, ct), ct);
+            // CompactMode: a loader's "this needs the user's attention" modal error (password-
+            // protected, corrupt, unsupported) would otherwise pop a StyledMessageBox from inside
+            // RenderAsync - fine once, for a deliberate F3 open, but Quick View calls this on every
+            // arrow-key tick, and a broken file in the middle of a folder would mean a dialog per
+            // keystroke. Downgraded to the same inline rendering a non-modal error already gets;
+            // the eight loader classes that can return Modal:true stay untouched.
+            if (CompactMode && payload is ViewerErrorPayload { Modal: true } modalError)
+                payload = modalError with { Modal = false };
             // A newer LoadCurrentAsync call may have already superseded this one while the
             // Task.Run was finishing up (GDI+ decode/File I/O isn't reliably cancellable
             // mid-operation) - discard a result that arrives after it's no longer current, rather

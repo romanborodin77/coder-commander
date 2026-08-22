@@ -18,4 +18,12 @@ internal static class ViewerLimits
     /// short of it stops "F3 a multi-GB remote video" from reading the whole thing into a
     /// <c>byte[]</c> before ever cancelling.</summary>
     public const long MaterializeMaxBytes = 256 * 1024 * 1024; // 256MB
+
+    /// <summary>Above this, Quick View (Ф4) refuses to preview at all rather than loading -
+    /// checked against the size the panel already has from its own directory listing, before any
+    /// read of the file's bytes. Deliberately lower than <see cref="TextSizeLimit"/>/
+    /// <see cref="ImageMaxFileBytes"/>: those are "don't hang decoding this" ceilings for a
+    /// deliberate F3 open; this one is "don't even start" for an incidental preview the user may
+    /// arrow past a moment later.</summary>
+    public const long QuickViewMaxBytes = 32 * 1024 * 1024; // 32MB
 }

@@ -249,6 +249,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.NewTab", "view", "Ctrl+T", CommandIds.NewTab));
         m.DropDownItems.Add(Mi("Menu.Commands.CloseTab", "view", "Ctrl+W", CommandIds.CloseTab));
+        m.DropDownItems.Add(Mi("Menu.Commands.QuickView", "view", "Ctrl+Q", CommandIds.ToggleQuickView));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.DirTree", "view", "", null, () => OpenDirectoryTree()));
         m.DropDownItems.Add(Mi("Menu.Commands.Terminal", "terminal", "F9", CommandIds.ToggleTerminal));
@@ -1298,6 +1299,27 @@ public sealed class MainForm : Form
         _vm.PanelPathChanged += OnFilePanelPathChanged;
         _vm.LeftTabsChanged += (_, _) => RefreshTabStrip(left: true);
         _vm.RightTabsChanged += (_, _) => RefreshTabStrip(left: false);
+
+        // Quick View (Ф4, Ctrl+Q) - the toggle always targets the currently INACTIVE panel (the
+        // one not being browsed), previewing whatever the active panel has selected. Both panels
+        // get every ActiveSelectionChanged tick; each is a no-op unless it's the one currently in
+        // Quick View mode (FilePanelUserControl.RefreshQuickViewPreview's own guard).
+        _vm.QuickViewToggleRequested += (_, _) =>
+        {
+            var target = ReferenceEquals(_vm.InactivePanel, _vm.LeftPanel) ? _leftPanel : _rightPanel;
+            target.SetQuickView(!target.IsQuickViewActive);
+            // Turning it on doesn't itself change ActivePanel.SelectedItem, so nothing would
+            // otherwise trigger ActiveSelectionChanged - without this, Quick View would stay blank
+            // until the user's very next cursor move in the active panel.
+            if (target.IsQuickViewActive)
+                target.RefreshQuickViewPreview(_vm.ActivePanel.SelectedItem, _vm.ActivePanel.CurrentFileSystem);
+        };
+        _vm.ActiveSelectionChanged += (_, _) =>
+        {
+            var active = _vm.ActivePanel;
+            _leftPanel.RefreshQuickViewPreview(active.SelectedItem, active.CurrentFileSystem);
+            _rightPanel.RefreshQuickViewPreview(active.SelectedItem, active.CurrentFileSystem);
+        };
 
         _deviceWatcher.DevicesChanged += OnDevicesChanged;
         MtpDeviceCatalog.Instance.Changed += OnMtpDevicesChanged;
