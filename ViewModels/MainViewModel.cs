@@ -26,14 +26,44 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Maps keyboard shortcuts to <see cref="Commands"/> entries.</summary>
     public HotkeyManager Hotkeys { get; }
 
-    /// <summary>Left file panel ViewModel.</summary>
-    public PanelViewModel LeftPanel { get; }
+    /// <summary>Every tab on the left side - <see cref="LeftPanel"/> is <c>_leftTabs.Active</c>.
+    /// A single-tab set until Ф3's tab UI (Ctrl+T et al.) actually adds more; every existing
+    /// caller of <see cref="LeftPanel"/> keeps working unmodified against whichever tab is active.</summary>
+    private readonly PanelTabSet _leftTabs = new();
 
-    /// <summary>Right file panel ViewModel.</summary>
-    public PanelViewModel RightPanel { get; }
+    /// <summary>Every tab on the right side - see <see cref="_leftTabs"/>' own doc comment.</summary>
+    private readonly PanelTabSet _rightTabs = new();
 
-    /// <summary>Currently focused panel (left or right).</summary>
-    [ObservableProperty] private PanelViewModel _activePanel;
+    /// <summary>Left panel ViewModel - resolves to whichever tab is currently active on the left
+    /// side (see <see cref="PanelTabSet"/>), so a tab switch is transparent to every one of this
+    /// property's many existing readers.</summary>
+    public PanelViewModel LeftPanel => _leftTabs.Active;
+
+    /// <summary>Right panel ViewModel - see <see cref="LeftPanel"/>'s own doc comment.</summary>
+    public PanelViewModel RightPanel => _rightTabs.Active;
+
+    /// <summary>Every panel across both sides, across every tab - not just the two currently
+    /// active ones (<see cref="LeftPanel"/>/<see cref="RightPanel"/>). Used by maintenance sweeps
+    /// (archive-lease dirty marking after a pack/unpack, evicting a panel from a connection that
+    /// just closed) that must not silently skip a background tab.</summary>
+    public IEnumerable<PanelViewModel> AllPanels => _leftTabs.Tabs.Concat(_rightTabs.Tabs);
+
+    /// <summary>Which side currently has focus - <see cref="ActivePanel"/> resolves against this
+    /// plus whichever tab is active on that side, so switching tabs on the focused side keeps
+    /// <see cref="ActivePanel"/> pointing at the right instance without every command handler that
+    /// reads it needing to re-subscribe to anything.</summary>
+    private bool _isLeftActive = true;
+
+    /// <summary>Currently focused panel (left or right). Not <c>[ObservableProperty]</c>-backed -
+    /// a plain computed property so it can never itself go stale the way a stored reference would
+    /// the moment the focused side's active tab changes; <see cref="SetActivePanel"/> and the tab
+    /// sets' own <c>ActiveChanged</c> (wired in the constructor) raise
+    /// <see cref="ObservableObject.OnPropertyChanged(string?)"/> for it manually, matching what the
+    /// source generator used to do automatically.</summary>
+    public PanelViewModel ActivePanel => _isLeftActive ? LeftPanel : RightPanel;
+
+    /// <summary>The panel that is <em>not</em> currently focused — used as the transfer destination.</summary>
+    public PanelViewModel InactivePanel => _isLeftActive ? RightPanel : LeftPanel;
 
     /// <summary>Text shown in the main status bar (cursor info, selection, free space).</summary>
     [ObservableProperty] private string _statusText = "";
@@ -49,9 +79,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// against the ListView reading them on the UI thread.</summary>
     private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
 
-    /// <summary>The panel that is <em>not</em> currently focused — used as the transfer destination.</summary>
-    public PanelViewModel InactivePanel => ActivePanel == LeftPanel ? RightPanel : LeftPanel;
-
     /// <summary>Initialises the file system, operation manager, command engine and both panels.</summary>
     public MainViewModel()
     {
@@ -60,20 +87,32 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands = new CommandEngine();
         Hotkeys = new HotkeyManager(Commands);
 
-        LeftPanel = new PanelViewModel(FileSystem);
-        RightPanel = new PanelViewModel(FileSystem);
-        ActivePanel = LeftPanel;
+        // Every tab (not just the active one) stays subscribed for its whole lifetime - see
+        // PanelTabSet's own doc comment for why re-wiring on activation switch isn't needed.
+        _leftTabs.TabAdded += (_, panel) => WirePanelEvents(panel);
+        _rightTabs.TabAdded += (_, panel) => WirePanelEvents(panel);
+        _leftTabs.TabRemoving += (_, panel) => UnwirePanelEvents(panel);
+        _rightTabs.TabRemoving += (_, panel) => UnwirePanelEvents(panel);
+        // ActiveChanged fires for a tab switch on EITHER side - LeftPanel/RightPanel always need
+        // to re-announce themselves (something may be bound to that specific side regardless of
+        // focus), but ActivePanel/InactivePanel only actually changed if the switch happened on
+        // whichever side currently has focus.
+        _leftTabs.ActiveChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(LeftPanel));
+            if (_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+        };
+        _rightTabs.ActiveChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(RightPanel));
+            if (!_isLeftActive) { OnPropertyChanged(nameof(ActivePanel)); OnPropertyChanged(nameof(InactivePanel)); }
+        };
+
+        _leftTabs.AddTab(new PanelViewModel(FileSystem));
+        _rightTabs.AddTab(new PanelViewModel(FileSystem));
 
         LeftPanel.IsActive = true;
         RightPanel.IsActive = false;
-
-        // Wire panel activation
-        LeftPanel.PathChanged += OnPanelPathChanged;
-        RightPanel.PathChanged += OnPanelPathChanged;
-        LeftPanel.PropertyChanged += OnPanelPropertyChanged;
-        RightPanel.PropertyChanged += OnPanelPropertyChanged;
-        LeftPanel.ItemsChanged += OnPanelItemsChanged;
-        RightPanel.ItemsChanged += OnPanelItemsChanged;
 
         // Wire operation manager events
         Operations.OperationChanged += OnOperationChanged;
@@ -82,15 +121,34 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Hotkeys.Reload(SettingsService.Load().CustomHotkeys);
     }
 
+    private void WirePanelEvents(PanelViewModel panel)
+    {
+        panel.PathChanged += OnPanelPathChanged;
+        panel.PropertyChanged += OnPanelPropertyChanged;
+        panel.ItemsChanged += OnPanelItemsChanged;
+    }
+
+    private void UnwirePanelEvents(PanelViewModel panel)
+    {
+        panel.PathChanged -= OnPanelPathChanged;
+        panel.PropertyChanged -= OnPanelPropertyChanged;
+        panel.ItemsChanged -= OnPanelItemsChanged;
+    }
+
     // ── Panel management ──
 
-    /// <summary>Makes <paramref name="panel"/> the active panel, deactivating the other.</summary>
+    /// <summary>Makes <paramref name="panel"/> the active (focused) side's panel, deactivating the
+    /// other side. <paramref name="panel"/> must be the CURRENT <see cref="LeftPanel"/> or
+    /// <see cref="RightPanel"/> instance - whichever one it reference-equals decides which side
+    /// gains focus.</summary>
     public void SetActivePanel(PanelViewModel panel)
     {
-        if (ActivePanel == panel) return;
+        if (ReferenceEquals(panel, ActivePanel)) return;
         ActivePanel.IsActive = false;
-        ActivePanel = panel;
+        _isLeftActive = ReferenceEquals(panel, LeftPanel);
         ActivePanel.IsActive = true;
+        OnPropertyChanged(nameof(ActivePanel));
+        OnPropertyChanged(nameof(InactivePanel));
         UpdateStatus();
     }
 
@@ -422,8 +480,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             await Operations.RunAsync(op, displayName).ConfigureAwait(true);
             if (op.State != OperationState.Completed) return;
 
-            LeftPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
-            RightPanel.MarkArchiveLeaseDirtyIfMatches(destArchive);
+            foreach (var panel in AllPanels)
+                panel.MarkArchiveLeaseDirtyIfMatches(destArchive);
         }
         catch (Exception ex)
         {
@@ -1361,19 +1419,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         StatusText = text;
     }
 
-    /// <summary>Unsubscribes event handlers and disposes both panels and the operation manager.</summary>
+    /// <summary>Unsubscribes event handlers and disposes every tab on both sides and the
+    /// operation manager. <see cref="PanelTabSet.Dispose"/> itself raises <see cref="PanelTabSet.TabRemoving"/>
+    /// for each tab before disposing it, which is what actually unwinds the per-panel
+    /// <see cref="WirePanelEvents"/> subscriptions - no separate unwiring loop needed here.</summary>
     public void Dispose()
     {
         _disposed = true;
         Operations.OperationChanged -= OnOperationChanged;
-        LeftPanel.PathChanged -= OnPanelPathChanged;
-        RightPanel.PathChanged -= OnPanelPathChanged;
-        LeftPanel.PropertyChanged -= OnPanelPropertyChanged;
-        RightPanel.PropertyChanged -= OnPanelPropertyChanged;
-        LeftPanel.ItemsChanged -= OnPanelItemsChanged;
-        RightPanel.ItemsChanged -= OnPanelItemsChanged;
-        LeftPanel.Dispose();
-        RightPanel.Dispose();
+        _leftTabs.Dispose();
+        _rightTabs.Dispose();
         Operations.Dispose();
     }
 }

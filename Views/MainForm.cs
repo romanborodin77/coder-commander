@@ -1143,7 +1143,11 @@ public sealed class MainForm : Form
     /// </summary>
     private void EvictPanelsFromClosedConnections()
     {
-        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        // AllPanels, not just the two currently-active tabs - a background tab still showing the
+        // closed connection would otherwise be left frozen (its next refresh throws
+        // ObjectDisposedException, silently, with nothing indicating why) until the user happens
+        // to switch to it.
+        foreach (var panel in _vm.AllPanels)
         {
             if (!FileSystem.RemotePath.IsRemote(panel.CurrentPath)) continue;
             // MTP connections are tracked in MtpConnectionRegistry, not ConnectionManager —
@@ -1209,7 +1213,10 @@ public sealed class MainForm : Form
 
     private void WireEvents()
     {
-        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        // AllPanels: every tab, not just the two active at startup. A tab created later (once
+        // tab-management UI exists) must get these same two delegates set at creation time too -
+        // see wherever a new PanelViewModel is constructed for a tab.
+        foreach (var panel in _vm.AllPanels)
         {
             panel.ConfirmArchiveWriteBack = ConfirmArchiveWriteBack;
             panel.ArchiveWriteBackFailed = OnArchiveWriteBackFailed;
@@ -2802,7 +2809,7 @@ public sealed class MainForm : Form
         }
 
         var liveDeviceIds = MtpDeviceCatalog.Instance.Current.Select(d => d.DeviceId).ToHashSet();
-        foreach (var panel in new[] { _vm.LeftPanel, _vm.RightPanel })
+        foreach (var panel in _vm.AllPanels)
         {
             var path = panel.CurrentPath;
             if (!RemotePath.IsRemote(path)) continue;
