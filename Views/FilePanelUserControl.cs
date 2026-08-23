@@ -591,7 +591,12 @@ public sealed class FilePanelUserControl : UserControl
             BorderStyle = BorderStyle.None,
             Font = p.GridFont,
             BackColor = p.HeaderBackground,
-            ForeColor = p.HeaderForeground
+            ForeColor = p.HeaderForeground,
+            // A single-line TextBox stretched taller than its own text (Dock=Fill inside a bar
+            // taller than one line) does not auto-center its text the way Label's TextAlign does -
+            // it renders a couple px above vertical center, visibly offset from the sibling
+            // _filterLabel. Nudge down to match, same fix shape as _pathBar's own Padding below.
+            Padding = new Padding(0, 3, 0, 0)
         };
         _filterBox.TextChanged += (_, _) => _vm.Filter = _filterBox.Text;
         _filterBox.KeyDown += (_, e) =>
