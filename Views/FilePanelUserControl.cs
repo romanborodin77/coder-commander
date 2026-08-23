@@ -587,16 +587,17 @@ public sealed class FilePanelUserControl : UserControl
         };
         _filterBox = new TextBox
         {
-            Dock = DockStyle.Fill,
+            // Not Dock=Fill: a native single-line Edit control doesn't auto-center its text when
+            // stretched taller than one line the way Label's TextAlign does, and TextBox.Padding
+            // has no effect on that either (confirmed live - adding it left the text exactly where
+            // it was). Anchored instead, sized to its own PreferredHeight and centered manually in
+            // the Layout handler below - _filterLabel.Right already accounts for the panel's own
+            // Padding since Dock=Left resolves within the padded client rectangle.
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             BorderStyle = BorderStyle.None,
             Font = p.GridFont,
             BackColor = p.HeaderBackground,
-            ForeColor = p.HeaderForeground,
-            // A single-line TextBox stretched taller than its own text (Dock=Fill inside a bar
-            // taller than one line) does not auto-center its text the way Label's TextAlign does -
-            // it renders a couple px above vertical center, visibly offset from the sibling
-            // _filterLabel. Nudge down to match, same fix shape as _pathBar's own Padding below.
-            Padding = new Padding(0, 3, 0, 0)
+            ForeColor = p.HeaderForeground
         };
         _filterBox.TextChanged += (_, _) => _vm.Filter = _filterBox.Text;
         _filterBox.KeyDown += (_, e) =>
@@ -618,6 +619,18 @@ public sealed class FilePanelUserControl : UserControl
         };
         _filterBar.Controls.Add(_filterBox);
         _filterBar.Controls.Add(_filterLabel);
+        _filterBar.Layout += (_, _) =>
+        {
+            var left = _filterLabel.Right;
+            var width = _filterBar.ClientSize.Width - left - _filterBar.Padding.Right;
+            _filterBox.Height = _filterBox.PreferredHeight;
+            // -2: PreferredHeight-centering alone still measured 2px low against the sibling
+            // Label's baseline on a live screenshot - the native Edit control reserves a couple px
+            // of its own internal top margin even at its exact PreferredHeight, which centering by
+            // bounding-box height alone doesn't account for.
+            var top = (_filterBar.ClientSize.Height - _filterBox.Height) / 2 - 2;
+            _filterBox.SetBounds(left, top, Math.Max(0, width), _filterBox.Height);
+        };
 
         content.Controls.Add(_fileList);
         content.Controls.Add(_driveBar);
