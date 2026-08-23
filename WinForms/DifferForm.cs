@@ -60,7 +60,11 @@ public sealed class DifferForm : ThemedForm
             Dock = DockStyle.Top,
             ColumnCount = 4,
             RowCount = 2,
-            // 2 rows * 32 + Padding(8+8) = 72 exactly - zero slack for any font/DPI growth.
+            // Height(88) - Padding(8+8) = 72 available for the two rows below - RowStyles must sum
+            // to exactly that, or TableLayoutPanel dumps the leftover into the LAST row alone: at
+            // the old 32+32=64 (an 8px-short leftover from when this was still 72 total, before it
+            // grew to 88 without the row math following), the Right row's "Browse…" button rendered
+            // visibly taller than the Left row's - measured 34px vs 26px on a live screenshot.
             Height = 88,
             BackColor = p.Background,
             Padding = new Padding(16, 8, 16, 8)
@@ -72,8 +76,8 @@ public sealed class DifferForm : ThemedForm
         // silently truncated it to "Bro...").
         topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
 
         topBar.Controls.Add(UiHelpers.CreateLabel(L.GetString("Differ.Left")), 0, 0);
         _leftPathBox = UiHelpers.CreateTextBox(leftPath ?? "");
