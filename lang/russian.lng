@@ -443,6 +443,8 @@ Ctx.NewFolder=Новая папка…
 Ctx.NewFile=Новый файл…
 Ctx.Refresh=Обновить
 Ctx.FolderProperties=Свойства
+Ctx.OpenInExplorer=Открыть в Проводнике
+Ctx.ShellProperties=Свойства Windows
 
 # ═══ Ошибки ═══
 Err.PathNotFound=Путь не найден: {0}

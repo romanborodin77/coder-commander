@@ -411,4 +411,15 @@ public sealed class LocalFileSystem : IFileSystem
     }
 
     public string GetRootPath(string path) => Path.GetPathRoot(path) ?? path;
+
+    /// <summary>The path itself, stripped of any <c>\\?\</c> long-path prefix - shell APIs
+    /// (SHParseDisplayName, ShellExecute, DataFormats.FileDrop) reject that prefix. Guards against
+    /// an archive/remote-shaped string reaching here despite this filesystem's own paths normally
+    /// being plain Windows paths - the same defensive check <c>MainForm.OnItemActivated</c>
+    /// (audit finding, "isNative disagreeing with the path" bug) already needed once for a stale
+    /// capability read.</summary>
+    public string? GetShellPath(string path) =>
+        !VfsPath.IsArchive(path) && !RemotePath.IsRemote(path) && Path.IsPathRooted(path)
+            ? LongPath.StripPrefix(path)
+            : null;
 }

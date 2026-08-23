@@ -47,6 +47,9 @@ public sealed class FtpFileSystem : IFileSystem, IDisposable
 
     public string GetRootPath(string path) => RemotePath.Make("ftp", _authority);
 
+    /// <summary>No shell path exists - an FTP entry has no local Windows path at all.</summary>
+    public string? GetShellPath(string path) => null;
+
     // ── Path mapping ────────────────────────────────────────────────────────────────────────
 
     /// <summary>

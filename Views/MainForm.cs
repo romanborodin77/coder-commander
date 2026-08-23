@@ -7,6 +7,7 @@ using CoderCommander.Operations;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
 using CoderCommander.WinForms;
+using CoderCommander.WinForms.Shell;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -632,6 +633,21 @@ public sealed class MainForm : Form
         panel.NewFileRequested += (_, _) => _vm.Commands.Execute(CommandIds.EditNew);
         panel.RefreshRequested += (_, _) => _vm.Commands.Execute(CommandIds.Refresh);
         panel.FolderPropertiesRequested += (_, _) => _ = OnFolderPropertiesAsync(panel);
+        panel.OpenInExplorerRequested += (_, paths) => OnOpenInExplorer(paths);
+        panel.ShellPropertiesRequested += (_, path) => ExplorerHelper.ShowProperties(Handle, path);
+    }
+
+    /// <summary>A single directory target opens its own contents (matches Explorer's own
+    /// behavior for right-clicking a folder and picking "Open in Explorer" - and is exactly what
+    /// the background/empty-space menu's "Open in Explorer" always is, since that's always one
+    /// path: the current folder). Anything else - a file, or more than one target - selects the
+    /// given paths within their parent folder(s) instead.</summary>
+    private static void OnOpenInExplorer(IReadOnlyList<string> shellPaths)
+    {
+        if (shellPaths.Count == 1 && Directory.Exists(shellPaths[0]))
+            ExplorerHelper.OpenFolder(shellPaths[0]);
+        else
+            ExplorerHelper.OpenAndSelect(shellPaths);
     }
 
     /// <summary>Handles the background (empty-space) context menu's "Properties" item - unlike

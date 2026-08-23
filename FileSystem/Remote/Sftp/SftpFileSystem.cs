@@ -50,6 +50,9 @@ public sealed class SftpFileSystem : IFileSystem, IDisposable
 
     public string GetRootPath(string path) => RemotePath.Make("sftp", _authority);
 
+    /// <summary>No shell path exists - an SFTP entry has no local Windows path at all.</summary>
+    public string? GetShellPath(string path) => null;
+
     // ── Path mapping ────────────────────────────────────────────────────────────────────────
 
     /// <summary>

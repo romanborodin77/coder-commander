@@ -57,6 +57,9 @@ public sealed class WebDavFileSystem : IFileSystem, IDisposable
 
     public string GetRootPath(string path) => RemotePath.Make("dav", _authority);
 
+    /// <summary>No shell path exists - a WebDAV entry has no local Windows path at all.</summary>
+    public string? GetShellPath(string path) => null;
+
     // ── Path mapping ────────────────────────────────────────────────────────────────────────
 
     /// <summary>App path to request URL. Each segment is percent-encoded individually, so a name

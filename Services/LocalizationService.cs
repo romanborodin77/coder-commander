@@ -619,6 +619,8 @@ public sealed class LocalizationService
         _strings["Ctx.NewFile"] = "New File…";
         _strings["Ctx.Refresh"] = "Refresh";
         _strings["Ctx.FolderProperties"] = "Properties";
+        _strings["Ctx.OpenInExplorer"] = "Open in Explorer";
+        _strings["Ctx.ShellProperties"] = "Windows Properties";
 
         // ═══ Errors ═══
         _strings["Err.PathNotFound"] = "Path not found: {0}";

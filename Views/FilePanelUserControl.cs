@@ -191,6 +191,16 @@ public sealed class FilePanelUserControl : UserControl
     /// non-directory item - same restriction Explorer's own "Open with" applies.</summary>
     public event EventHandler<FileSystemItem>? OpenWithRequested;
 
+    /// <summary>Raised from the item menu's "Open in Explorer" - carries the real Windows paths
+    /// (already resolved via <see cref="ShellPathOf"/>), not <see cref="FileSystemItem"/>, since
+    /// that's all <see cref="WinForms.Shell.ExplorerHelper"/> needs and it keeps this event usable
+    /// from the background menu too (where there is no item, only a folder path).</summary>
+    public event EventHandler<IReadOnlyList<string>>? OpenInExplorerRequested;
+
+    /// <summary>Raised from the item menu's "Windows Properties" - single target only (Phase 5
+    /// upgrades this to the real multi-item property sheet via the <c>IContextMenu</c> host).</summary>
+    public event EventHandler<string>? ShellPropertiesRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -237,6 +247,17 @@ public sealed class FilePanelUserControl : UserControl
     /// for the "dav" URL scheme.
     /// </summary>
     private bool HasNativePaths => _vm.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.NativePaths);
+
+    /// <summary>The real Windows path for <paramref name="item"/>, or null when this panel's
+    /// filesystem has none (archive entry, or FTP/SFTP/WebDAV/MTP connection) - what every
+    /// shell-integration context menu item (Open in Explorer, clipboard Copy/Cut, the system
+    /// menu) gates on. Unlike <see cref="HasNativePaths"/>, this is shown for SMB.</summary>
+    private string? ShellPathOf(FileSystemItem item) => _vm.CurrentFileSystem.GetShellPath(item.FullPath);
+
+    /// <summary>The real Windows path of the folder this panel is currently showing, or null when
+    /// there isn't one - what the background (empty-space) context menu's shell items target,
+    /// since there is no <see cref="FileSystemItem"/> under the cursor there.</summary>
+    private string? CurrentShellFolder => _vm.CurrentFileSystem.GetShellPath(_vm.CurrentPath);
 
     /// <summary>Creates the panel UI and wires up the ViewModel, context menu and drag-and-drop.</summary>
     /// <param name="vm">ViewModel providing data for this panel.</param>
@@ -1396,11 +1417,11 @@ public sealed class FilePanelUserControl : UserControl
         var data = new DataObject();
         data.SetData(PanelDragPayload.Format, new PanelDragPayload(this, items));
 
-        var shellPaths = HasNativePaths
-            ? items.Where(i => !VfsPath.IsArchive(i.FullPath) && !RemotePath.IsRemote(i.FullPath))
-                   .Select(i => i.FullPath)
-                   .ToArray()
-            : [];
+        // Was HasNativePaths-gated (items.Where(...).Select(i => i.FullPath)), which meant an SMB
+        // panel could never drag out to Explorer at all - GetShellPath answers both "can this
+        // leave the app" and "what does it look like once it does" in one call, so an SMB path
+        // correctly turns into "\\host\share\..." here instead of being suppressed outright.
+        var shellPaths = items.Select(ShellPathOf).OfType<string>().ToArray();
         if (shellPaths.Length > 0)
             data.SetData(DataFormats.FileDrop, shellPaths);
 
@@ -1545,6 +1566,14 @@ public sealed class FilePanelUserControl : UserControl
             var openWithItem = single;
             CtxItem(menu, "Ctx.OpenWith", "view", () => OpenWithRequested?.Invoke(this, openWithItem));
         }
+        // "Open in Explorer" - shown for every target with a real Windows path (local disk, SMB;
+        // hidden for an archive entry, FTP/SFTP/WebDAV, MTP - see IFileSystem.GetShellPath).
+        // Unlike Open With, this is a whole-selection action.
+        var explorerPaths = targets.Select(ShellPathOf).OfType<string>().ToList();
+        if (explorerPaths.Count > 0)
+        {
+            CtxItem(menu, "Ctx.OpenInExplorer", "explorer", () => OpenInExplorerRequested?.Invoke(this, explorerPaths));
+        }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
@@ -1582,6 +1611,12 @@ public sealed class FilePanelUserControl : UserControl
         }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
+        // Native Windows Properties sheet - single target only for now (Phase 5 upgrades this to
+        // the real multi-item sheet via the IContextMenu host, the way Explorer's own does).
+        if (single != null && ShellPathOf(single) is { } shellPropPath)
+        {
+            CtxItem(menu, "Ctx.ShellProperties", "properties", () => ShellPropertiesRequested?.Invoke(this, shellPropPath));
+        }
 
         // Copy path submenu. Sub-items go into copyPathMenu.DropDownItems below, which goes into
         // menu.Items - menu.Dispose() (via the caller's Closed handler) walks both levels. Joined
@@ -1616,11 +1651,21 @@ public sealed class FilePanelUserControl : UserControl
         CtxItem(menu, "Ctx.NewFolder", "newdir", () => MakeDirRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.NewFile", "editnew", () => NewFileRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add(new ToolStripSeparator());
+        // "Open in Explorer" here opens the folder itself (no item under the cursor to select) -
+        // hidden inside an archive/FTP/SFTP/WebDAV/MTP, shown for local disk and SMB.
+        if (CurrentShellFolder is { } folderShellPath)
+        {
+            CtxItem(menu, "Ctx.OpenInExplorer", "explorer", () => OpenInExplorerRequested?.Invoke(this, new[] { folderShellPath }));
+        }
         CtxItem(menu, "Ctx.Refresh", "refresh", () => RefreshRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.SelectAll", "selectall", () => _vm.SelectAll());
         CtxItem(menu, "Ctx.InvertSelection", "invert", () => _vm.InvertSelection());
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.FolderProperties", "properties", () => FolderPropertiesRequested?.Invoke(this, EventArgs.Empty));
+        if (CurrentShellFolder is { } shellPropPath)
+        {
+            CtxItem(menu, "Ctx.ShellProperties", "properties", () => ShellPropertiesRequested?.Invoke(this, shellPropPath));
+        }
 
         return menu;
     }

@@ -1393,4 +1393,8 @@ public sealed class ZipArchiveFileSystem : IFileSystem, IBatchDeletableFileSyste
 
     /// <inheritdoc/>
     public string GetRootPath(string path) => CoderCommander.FileSystem.ArchivePath.MakePath(_archivePath, "");
+
+    /// <summary>No shell path exists - an archive entry is a purely virtual location, not
+    /// something the shell can be handed a path for.</summary>
+    public string? GetShellPath(string path) => null;
 }

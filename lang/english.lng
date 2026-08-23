@@ -421,6 +421,8 @@ Ctx.NewFolder=New Folder…
 Ctx.NewFile=New File…
 Ctx.Refresh=Refresh
 Ctx.FolderProperties=Properties
+Ctx.OpenInExplorer=Open in Explorer
+Ctx.ShellProperties=Windows Properties
 
 # ═══ Errors ═══
 Err.PathNotFound=Path not found: {0}

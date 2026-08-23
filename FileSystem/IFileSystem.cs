@@ -55,6 +55,23 @@ public interface IFileSystem
 
     /// <summary>Returns the root path (drive root or archive root) that contains <paramref name="path"/>.</summary>
     string GetRootPath(string path);
+
+    /// <summary>
+    /// The real Windows path for <paramref name="path"/>, or <c>null</c> when this provider has
+    /// none. Deliberately not a <see cref="FileSystemCapabilities"/> flag: SMB genuinely differs
+    /// on both halves of the question a flag could only answer half of - its paths are not native
+    /// (<c>System.IO</c> side channels like <c>File.SetLastWriteTimeUtc</c> fail on
+    /// "smb://host/share/x"), yet it has a perfectly good Windows path
+    /// ("\\host\share\x") that Explorer, <c>IContextMenu</c>, <c>ShellExecute</c> and
+    /// <c>DataFormats.FileDrop</c> all accept unchanged. A capability flag could only say "yes
+    /// there is one"; the caller would still need to know how to build it, which is exactly the
+    /// per-provider type-sniffing this whole abstraction exists to avoid (see
+    /// <see cref="FileSystemCapabilities"/>'s own doc comment). Declared here rather than behind
+    /// an optional interface for the same reason <see cref="Capabilities"/> itself is declared
+    /// directly: every provider has an answer (seven of them <c>null</c>), and a missing
+    /// implementation should be a compile error, not a silent "supports nothing".
+    /// </summary>
+    string? GetShellPath(string path);
 }
 
 /// <summary>

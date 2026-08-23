@@ -50,6 +50,11 @@ public sealed class DirtyTrackingFileSystem : IFileSystem, IBatchDeletableFileSy
 
     public string GetRootPath(string path) => _inner.GetRootPath(path);
 
+    /// <summary>Delegates to <c>_inner</c> - a materialized archive's own paths (archive.zip|inner)
+    /// are never shell paths; <c>_inner</c> (the temp copy's own filesystem) correctly answers
+    /// null for those regardless.</summary>
+    public string? GetShellPath(string path) => _inner.GetShellPath(path);
+
     /// <summary>Marks dirty — while every current provider treats SetAttributes as a no-op or
     /// best-effort cosmetic step, a future writable provider might actually persist attribute
     /// changes into the archive, and those should be offered for write-back.</summary>

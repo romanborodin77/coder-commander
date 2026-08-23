@@ -400,6 +400,10 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public string GetRootPath(string path) =>
         RemotePath.Make("mtp", _deviceId);
 
+    /// <summary>No shell path exists - an MTP device's entries live behind the Windows Portable
+    /// Devices COM API, not a filesystem path the shell can resolve.</summary>
+    public string? GetShellPath(string path) => null;
+
     // ── IDisposable ──
 
     public void Dispose()

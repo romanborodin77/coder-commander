@@ -125,6 +125,15 @@ internal sealed class SmbFileSystem : IFileSystem, IDisposable
     public string GetRootPath(string path) =>
         RemotePath.Make("smb", _host);
 
+    /// <summary>Translates back to the UNC form the Windows shell actually understands - the
+    /// reverse of what every other method here does (translating UNC into "smb://" for the rest
+    /// of the app to see). This is the one shell-facing capability SMB has despite lacking
+    /// <see cref="FileSystemCapabilities.NativePaths"/>: its own paths are not native (System.IO
+    /// side channels fail on "smb://..."), but the real UNC path underneath is exactly what
+    /// Explorer/IContextMenu/ShellExecute expect.</summary>
+    public string? GetShellPath(string path) =>
+        RemotePath.SchemeOf(path) == "smb" ? ToUnc(path) : null;
+
     // ── IDisposable ──
 
     [DllImport("mpr.dll", CharSet = CharSet.Unicode, SetLastError = true)]
