@@ -28,6 +28,7 @@ public static class NativeControlThemer
     private const int LVM_GETHEADER = 0x101F;
     private const int LVM_SETEXTENDEDLISTVIEWSTYLE = 0x1036;
     private const int LVS_EX_DOUBLEBUFFER = 0x00010000;
+    private const int WM_THEMECHANGED = 0x031A;
 
     /// <summary>Applies (or removes) the immersive dark title bar on a top-level window.</summary>
     public static void ApplyDarkTitleBar(IntPtr handle)
@@ -46,6 +47,13 @@ public static class NativeControlThemer
         if (c.IsHandleCreated)
         {
             SetWindowTheme(c.Handle, ThemeService.IsDark ? "DarkMode_Explorer" : "Explorer", null);
+            // RichTextBox (RichEdit) doesn't repaint its scrollbar off SetWindowTheme alone the
+            // way plain Edit/ListView/TreeView do - confirmed live (Quick View/F3 text content
+            // kept a light-mode scrollbar against dark content until this was added). Nudging it
+            // with its own "theme changed" notification is what makes it actually pick up the new
+            // theme; harmless to send unconditionally to every control type here, since it's just
+            // asking an already-themed control to repaint itself.
+            SendMessage(c.Handle, WM_THEMECHANGED, IntPtr.Zero, IntPtr.Zero);
 
             // Some composite controls implement part of their native chrome as a separate child
             // Control with its own HWND that theming the parent's handle doesn't reach - e.g.

@@ -16,6 +16,7 @@ namespace CoderCommander.WinForms.Viewers;
 internal sealed class TextViewerContent : IViewerContent, IViewerSearchTarget
 {
     private readonly RichTextBox _textView;
+    private RichTextBoxScrollbarOverlay? _scrollOverlay;
     private readonly ToolStripButton _findBtn;
     private readonly ToolStripButton _wordWrapBtn;
     private readonly ToolStripDropDownButton? _encodingBtn;
@@ -58,6 +59,17 @@ internal sealed class TextViewerContent : IViewerContent, IViewerSearchTarget
             HideSelection = false,
             ScrollBars = RichTextBoxScrollBars.Both,
             Visible = false
+        };
+        // SetWindowTheme's dark-scrollbar trick (NativeControlThemer.ApplyDarkScrollbars, used
+        // for every other native-scrollbar control in the app) does not darken a RichEdit
+        // control's scrollbar - confirmed live, regardless of when it's called. RichTextBoxScrollbarOverlay
+        // covers the native bar with a themed sibling instead (same technique
+        // ListViewScrollbarOverlay already uses for the file list's ListView) - deferred until the
+        // handle exists and the control is actually parented, same as that overlay's own wiring.
+        _textView.HandleCreated += (_, _) =>
+        {
+            if (_scrollOverlay == null && _textView.Parent != null)
+                _scrollOverlay = new RichTextBoxScrollbarOverlay(_textView);
         };
 
         _findBtn = ViewerToolbarFactory.CreateToolButton("View.Search", "search", (_, _) => ctx.ShowFindBar());
@@ -150,9 +162,11 @@ internal sealed class TextViewerContent : IViewerContent, IViewerSearchTarget
     // collections at construction time and disposed transitively when the form closes - the
     // same already-accepted CA2213 ownership pattern documented in CoderCommander.csproj (a
     // control owned by a parent collection doesn't need a second, redundant Dispose() call here).
-    // Nothing else in this class owns an unmanaged or GDI+ resource.
+    // _scrollOverlay is the one thing here that DOES need an explicit Dispose (it owns a polling
+    // Timer, not just Controls) - stopped before _textView itself goes away.
     public void Dispose()
     {
+        _scrollOverlay?.Dispose();
         _textView.Dispose();
         _findBtn.Dispose();
         _wordWrapBtn.Dispose();
