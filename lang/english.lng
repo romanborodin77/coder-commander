@@ -417,6 +417,10 @@ Ctx.CopyPath.NoExt=Path Without Extension
 Ctx.SelectAll=Select All
 Ctx.InvertSelection=Invert Selection
 Ctx.OpenWith=Open With…
+Ctx.NewFolder=New Folder…
+Ctx.NewFile=New File…
+Ctx.Refresh=Refresh
+Ctx.FolderProperties=Properties
 
 # ═══ Errors ═══
 Err.PathNotFound=Path not found: {0}

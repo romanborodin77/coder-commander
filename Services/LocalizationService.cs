@@ -615,6 +615,10 @@ public sealed class LocalizationService
         _strings["Ctx.SelectAll"] = "Select All";
         _strings["Ctx.InvertSelection"] = "Invert Selection";
         _strings["Ctx.OpenWith"] = "Open With…";
+        _strings["Ctx.NewFolder"] = "New Folder…";
+        _strings["Ctx.NewFile"] = "New File…";
+        _strings["Ctx.Refresh"] = "Refresh";
+        _strings["Ctx.FolderProperties"] = "Properties";
 
         // ═══ Errors ═══
         _strings["Err.PathNotFound"] = "Path not found: {0}";

@@ -439,6 +439,10 @@ Ctx.CopyPath.NoExt=Путь без расширения
 Ctx.SelectAll=Выделить всё
 Ctx.InvertSelection=Инвертировать
 Ctx.OpenWith=Открыть с помощью…
+Ctx.NewFolder=Новая папка…
+Ctx.NewFile=Новый файл…
+Ctx.Refresh=Обновить
+Ctx.FolderProperties=Свойства
 
 # ═══ Ошибки ═══
 Err.PathNotFound=Путь не найден: {0}

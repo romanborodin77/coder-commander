@@ -628,6 +628,24 @@ public sealed class MainForm : Form
         panel.CreateSymlinkRequested += (_, item) => OnCreateSymlink(panel, item);
         panel.CreateHardlinkRequested += (_, item) => OnCreateHardlink(panel, item);
         panel.OpenWithRequested += (_, item) => OnOpenWith(item);
+        panel.MakeDirRequested += (_, _) => _vm.Commands.Execute(CommandIds.MakeDir);
+        panel.NewFileRequested += (_, _) => _vm.Commands.Execute(CommandIds.EditNew);
+        panel.RefreshRequested += (_, _) => _vm.Commands.Execute(CommandIds.Refresh);
+        panel.FolderPropertiesRequested += (_, _) => _ = OnFolderPropertiesAsync(panel);
+    }
+
+    /// <summary>Handles the background (empty-space) context menu's "Properties" item - unlike
+    /// <see cref="OnProperties"/>, there is no item selection to act on here, so a
+    /// <see cref="FileSystemItem"/> is built for the panel's own current directory.</summary>
+    private async Task OnFolderPropertiesAsync(FilePanelUserControl panel)
+    {
+        var vm = panel.ViewModel;
+        var fs = vm.CurrentFileSystem;
+        var entry = await fs.GetFileInfoAsync(vm.CurrentPath).ConfigureAwait(true);
+        if (entry == null) return;
+
+        using var dlg = new PropertiesForm(fs, new[] { new FileSystemItem(entry) });
+        dlg.ShowDialog(this);
     }
 
     private void OnOpenWith(FileSystemItem item)

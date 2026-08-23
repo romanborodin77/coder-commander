@@ -157,6 +157,21 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when Properties is requested from context menu.</summary>
     public event EventHandler? PropertiesRequested;
 
+    /// <summary>Raised from the background (empty-space) context menu's "New Folder…" item.</summary>
+    public event EventHandler? MakeDirRequested;
+
+    /// <summary>Raised from the background context menu's "New File…" item.</summary>
+    public event EventHandler? NewFileRequested;
+
+    /// <summary>Raised from the background context menu's "Refresh" item.</summary>
+    public event EventHandler? RefreshRequested;
+
+    /// <summary>Raised from the background context menu's "Properties" item - distinct from
+    /// <see cref="PropertiesRequested"/>, which acts on the item selection: this one has no
+    /// selection to act on (empty space was right-clicked) and targets the panel's own current
+    /// directory instead.</summary>
+    public event EventHandler? FolderPropertiesRequested;
+
     /// <summary>Raised from the context menu's "Verify checksums" item, only shown when the
     /// selected item's extension is one of the formats <see cref="Services.ChecksumService"/> can
     /// export/parse (<c>.sfv</c>/<c>.md5</c>/<c>.sha1</c>/<c>.sha256</c>).</summary>
@@ -1189,21 +1204,46 @@ public sealed class FilePanelUserControl : UserControl
         if (e.Button == MouseButtons.Right)
         {
             var info = _fileList.HitTest(e.Location);
-            if (info.Item != null)
+            ContextMenuStrip menu;
+            if (info.Item?.Tag is FileSystemItem { IsParent: false } fsItem)
             {
-                _suppressSelectionEvent = true;
-                _fileList.SelectedIndices.Clear();
-                _fileList.SelectedIndices.Add(info.Item.Index);
+                // Explorer's own rule: right-clicking a row that is already part of the current
+                // selection preserves the whole selection (so the menu acts on all of it);
+                // right-clicking a row outside it collapses the selection down to that row.
+                // Deliberately NOT wrapped in _suppressSelectionEvent - letting
+                // OnSelectedIndexChanged run is what keeps FileSystemItem.IsSelected (what
+                // PanelViewModel.GetSelectedOrActive, and therefore every CommandIds-routed menu
+                // item, reads) in step with the highlight. The old suppressed version left the
+                // two disagreeing for exactly the lifetime of the menu: the highlight showed one
+                // row while a marked multi-selection underneath it was still what Copy/Move/
+                // Delete would act on.
+                var idx = info.Item.Index;
+                if (!_fileList.SelectedIndices.Contains(idx))
+                {
+                    _fileList.SelectedIndices.Clear();
+                    _fileList.SelectedIndices.Add(idx);
+                }
                 _fileList.FocusedItem = info.Item;
-                _suppressSelectionEvent = false;
-                if (info.Item.Tag is FileSystemItem fsItem)
-                    _vm.SelectedItem = fsItem;
-            }
-            // The analyzer can't trace ownership across the BuildContextMenu() call boundary -
-            // disposal happens via AutoDisposeOnClose wired immediately below.
+                _vm.SelectedItem = fsItem;
+
+                var targets = ResolveContextTargets();
+                if (targets.Count == 0) return;
+                // The analyzer can't trace ownership across the BuildItemContextMenu() call
+                // boundary - disposal happens via AutoDisposeOnClose wired immediately below.
 #pragma warning disable CA2000
-            var menu = BuildContextMenu();
+                menu = BuildItemContextMenu(targets);
 #pragma warning restore CA2000
+            }
+            else
+            {
+                // Empty space below the list, or ".." - a distinct folder-scoped menu, not the
+                // item menu acting on whatever was selected before this click (the previous
+                // behavior: BuildContextMenu() was called unconditionally here, so it silently
+                // operated on a stale selection with no item under the cursor at all).
+#pragma warning disable CA2000
+                menu = BuildBackgroundContextMenu();
+#pragma warning restore CA2000
+            }
             // Not menu.Closed += (_, _) => menu.Dispose() - disposing synchronously inside Closed
             // crashes the app (ObjectDisposedException from SetVisibleCore continuing to touch
             // Handle after Dispose already tore it down); see UiHelpers.AutoDisposeOnClose. Same
@@ -1212,6 +1252,25 @@ public sealed class FilePanelUserControl : UserControl
             UiHelpers.AutoDisposeOnClose(menu, this);
             menu.Show(_fileList, e.Location);
         }
+    }
+
+    /// <summary>
+    /// The items the item-level context menu acts on, resolved from the ListView's own
+    /// <c>SelectedIndices</c> right after the right-click handler has reconciled it per Explorer's
+    /// rule above - the highlight and <see cref="FileSystemItem.IsSelected"/> agree by
+    /// construction at this point (see the right-click branch's own comment), so reading either
+    /// one here would give the same answer; <c>SelectedIndices</c> is used because it's what
+    /// <see cref="OnFileListItemDrag"/> already established as the VirtualMode-safe way to read a
+    /// ListView selection (<c>SelectedItems</c> throws in VirtualMode).
+    /// </summary>
+    private IReadOnlyList<FileSystemItem> ResolveContextTargets()
+    {
+        var result = new List<FileSystemItem>();
+        var vmItems = _vm.Items;
+        foreach (int idx in _fileList.SelectedIndices)
+            if (idx >= 0 && idx < vmItems.Count && vmItems[idx] is { IsParent: false } item)
+                result.Add(item);
+        return result;
     }
 
     private void OnFileListMouseMove(object? sender, MouseEventArgs e)
@@ -1464,80 +1523,76 @@ public sealed class FilePanelUserControl : UserControl
     /// mouse click or item click, however carefully the dispose was ordered - only never keeping a
     /// stale instance around at all sidesteps the whole class of bug.
     /// </summary>
-    private ContextMenuStrip BuildContextMenu()
+    private ContextMenuStrip BuildItemContextMenu(IReadOnlyList<FileSystemItem> targets)
     {
         var L = LocalizationService.Current;
+        var single = targets.Count == 1 ? targets[0] : null;
         // The analyzer can't trace disposal happening via the caller's Closed handler.
 #pragma warning disable CA2000
-        var menu = new ContextMenuStrip
-        {
-            BackColor = ThemeService.Current.HeaderBackground,
-            ForeColor = ThemeService.Current.Foreground,
-            Font = ThemeService.Current.GridFont,
-            ImageScalingSize = new Size(16, 16),
-            Renderer = new ThemeRenderer()
-        };
+        var menu = NewThemedMenu();
 #pragma warning restore CA2000
 
-        CtxItem(menu, "Ctx.View", "view", () => { if (_vm.SelectedItem is { IsParent: false } item) ViewRequested?.Invoke(this, item); });
-        CtxItem(menu, "Ctx.Edit", "edit", () => { if (_vm.SelectedItem is { IsParent: false } item) EditRequested?.Invoke(this, item); });
+        // View/Edit/Open With are inherently single-file actions - gated to a single target
+        // rather than acting on targets[0] of a larger selection, which would silently ignore
+        // the rest of what the user right-clicked.
+        CtxItem(menu, "Ctx.View", "view", single != null, () => { if (single != null) ViewRequested?.Invoke(this, single); });
+        CtxItem(menu, "Ctx.Edit", "edit", single != null, () => { if (single != null) EditRequested?.Invoke(this, single); });
         // "Open With…" only for a native-path, non-directory item - same restriction Explorer's
         // own "Open with" applies (an archive entry/remote file has no real path an outside
         // process could open, and "open with" on a folder isn't a thing Explorer offers either).
-        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } openWithItem && HasNativePaths)
+        if (single is { IsDirectory: false } && HasNativePaths)
         {
+            var openWithItem = single;
             CtxItem(menu, "Ctx.OpenWith", "view", () => OpenWithRequested?.Invoke(this, openWithItem));
         }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
-        CtxItem(menu, "Ctx.Rename", "rename", () => RenameRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.Rename", "rename", single != null, () => RenameRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Delete", "delete", () => DeleteRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add(new ToolStripSeparator());
-        CtxItem(menu, "Ctx.Split", "split", () => SplitRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.Split", "split", single != null, () => SplitRequested?.Invoke(this, EventArgs.Empty));
         // "Combine from parts..." only makes sense when the selection actually looks like a split
         // part - showing it unconditionally would just error out for every other file/folder.
         // Informational check only (same as MainForm's own preview regex before it opens
         // CombineDialogForm) - the authoritative missing-part validation stays inside
         // Operations.CombineOperation, which re-discovers the sequence itself when it runs.
-        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } selected &&
-            SplitPartNameRegex.IsMatch(selected.Name))
+        if (single is { IsDirectory: false } && SplitPartNameRegex.IsMatch(single.Name))
         {
             CtxItem(menu, "Ctx.Combine", "combine", () => CombineRequested?.Invoke(this, EventArgs.Empty));
         }
         // "Verify checksums..." only for a recognized checksum-file extension - showing it
         // unconditionally would just error out parsing an unrelated file.
-        if (_vm.SelectedItem is { IsParent: false, IsDirectory: false } checksumItem &&
-            IsChecksumFileExtension(checksumItem.Extension))
+        if (single is { IsDirectory: false } && IsChecksumFileExtension(single.Extension))
         {
+            var checksumItem = single;
             CtxItem(menu, "Ctx.VerifyChecksum", "properties", () => VerifyChecksumRequested?.Invoke(this, checksumItem));
         }
         // "Create Link" submenu - only for a native-path filesystem: a symlink/hardlink needs a
         // real path the OS can resolve, which an archive entry or remote file has none of.
-        if (_vm.SelectedItem is { IsParent: false } linkItem && HasNativePaths)
+        if (single != null && HasNativePaths)
         {
+            var linkItem = single;
 #pragma warning disable CA2000
             var linkMenu = new ToolStripMenuItem(L.GetString("Ctx.CreateLink"), ToolbarIcons.Get("newdir"));
-            var symlinkMenuItem = new ToolStripMenuItem(L.GetString("Ctx.CreateSymlink"), null,
-                (_, _) => CreateSymlinkRequested?.Invoke(this, linkItem));
-            var hardlinkMenuItem = new ToolStripMenuItem(L.GetString("Ctx.CreateHardlink"), null,
-                (_, _) => CreateHardlinkRequested?.Invoke(this, linkItem));
 #pragma warning restore CA2000
-            linkMenu.DropDownItems.AddRange([symlinkMenuItem, hardlinkMenuItem]);
+            CtxSubItem(linkMenu, "Ctx.CreateSymlink", () => CreateSymlinkRequested?.Invoke(this, linkItem));
+            CtxSubItem(linkMenu, "Ctx.CreateHardlink", () => CreateHardlinkRequested?.Invoke(this, linkItem));
             menu.Items.Add(linkMenu);
         }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Properties", "properties", () => PropertiesRequested?.Invoke(this, EventArgs.Empty));
 
-        // Copy path submenu. cpFull/cpName go into copyPathMenu.DropDownItems below, which goes
-        // into menu.Items - menu.Dispose() (via the caller's Closed handler) walks both levels.
+        // Copy path submenu. Sub-items go into copyPathMenu.DropDownItems below, which goes into
+        // menu.Items - menu.Dispose() (via the caller's Closed handler) walks both levels. Joined
+        // with CRLF for a multi-target selection - the same convention Explorer's own "Copy as
+        // path" uses for more than one selected item.
 #pragma warning disable CA2000
         var copyPathMenu = new ToolStripMenuItem(L.GetString("Ctx.CopyPath"), ToolbarIcons.Get("copy"));
-        var cpFull = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Full"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.FullPath ?? ""));
-        var cpName = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.Name"), null, (_, _) => CopyToClipboard(_vm.SelectedItem?.Name ?? ""));
-        var cpNoExt = new ToolStripMenuItem(L.GetString("Ctx.CopyPath.NoExt"), null, (_, _) => CopyToClipboard(FullPathWithoutExtension(_vm.SelectedItem)));
 #pragma warning restore CA2000
-        copyPathMenu.DropDownItems.AddRange([cpFull, cpName, cpNoExt]);
+        CtxSubItem(copyPathMenu, "Ctx.CopyPath.Full", () => CopyToClipboard(string.Join(Environment.NewLine, targets.Select(t => t.FullPath))));
+        CtxSubItem(copyPathMenu, "Ctx.CopyPath.Name", () => CopyToClipboard(string.Join(Environment.NewLine, targets.Select(t => t.Name))));
+        CtxSubItem(copyPathMenu, "Ctx.CopyPath.NoExt", () => CopyToClipboard(string.Join(Environment.NewLine, targets.Select(FullPathWithoutExtension))));
         menu.Items.Add(copyPathMenu);
 
         menu.Items.Add(new ToolStripSeparator());
@@ -1546,6 +1601,41 @@ public sealed class FilePanelUserControl : UserControl
 
         return menu;
     }
+
+    /// <summary>
+    /// The folder-scoped context menu shown when right-clicking empty space below the list, or
+    /// ".." - there is no <see cref="FileSystemItem"/> under the cursor here, so every item acts
+    /// on the panel's current directory rather than a selection.
+    /// </summary>
+    private ContextMenuStrip BuildBackgroundContextMenu()
+    {
+#pragma warning disable CA2000
+        var menu = NewThemedMenu();
+#pragma warning restore CA2000
+
+        CtxItem(menu, "Ctx.NewFolder", "newdir", () => MakeDirRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.NewFile", "editnew", () => NewFileRequested?.Invoke(this, EventArgs.Empty));
+        menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.Refresh", "refresh", () => RefreshRequested?.Invoke(this, EventArgs.Empty));
+        CtxItem(menu, "Ctx.SelectAll", "selectall", () => _vm.SelectAll());
+        CtxItem(menu, "Ctx.InvertSelection", "invert", () => _vm.InvertSelection());
+        menu.Items.Add(new ToolStripSeparator());
+        CtxItem(menu, "Ctx.FolderProperties", "properties", () => FolderPropertiesRequested?.Invoke(this, EventArgs.Empty));
+
+        return menu;
+    }
+
+    /// <summary>Builds an empty, themed <see cref="ContextMenuStrip"/> shell shared by both context
+    /// menu builders - colors/font/renderer read fresh at call time so a theme switch since the
+    /// last right-click is reflected immediately.</summary>
+    private static ContextMenuStrip NewThemedMenu() => new()
+    {
+        BackColor = ThemeService.Current.HeaderBackground,
+        ForeColor = ThemeService.Current.Foreground,
+        Font = ThemeService.Current.GridFont,
+        ImageScalingSize = new Size(16, 16),
+        Renderer = new ThemeRenderer()
+    };
 
     /// <summary>Matches a split-part file name (<c>&lt;base&gt;.NNN</c>, 3+ digits) - same pattern
     /// as <see cref="Operations.CombineOperation"/>'s own, used here only to decide whether to show
@@ -1571,12 +1661,26 @@ public sealed class FilePanelUserControl : UserControl
             : item.FullPath;
     }
 
-    private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action)
+    private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, Action action) =>
+        CtxItem(menu, key, iconKey, enabled: true, action);
+
+    private static void CtxItem(ContextMenuStrip menu, string key, string iconKey, bool enabled, Action action)
     {
         var L = LocalizationService.Current;
-        var item = new ToolStripMenuItem(L.GetString(key), ToolbarIcons.Get(iconKey));
+        var item = new ToolStripMenuItem(L.GetString(key), ToolbarIcons.Get(iconKey)) { Enabled = enabled };
         item.Click += (_, _) => action();
         menu.Items.Add(item);
+    }
+
+    /// <summary>Adds one entry to an already-created submenu header (e.g. "Create Link ▸", "Copy
+    /// Path ▸") - the submenu-building counterpart to <see cref="CtxItem"/> above.</summary>
+    private static void CtxSubItem(ToolStripMenuItem parent, string key, Action action)
+    {
+        var L = LocalizationService.Current;
+#pragma warning disable CA2000 // owned by parent.DropDownItems, walked by menu.Dispose()
+        var item = new ToolStripMenuItem(L.GetString(key), null, (_, _) => action());
+#pragma warning restore CA2000
+        parent.DropDownItems.Add(item);
     }
 
     private static void CopyToClipboard(string text)
