@@ -138,6 +138,9 @@ public static class CommandIds
     public const string NextTerminalTab = "cm_NextTerminalTab";
     /// <summary>Switch to the previous terminal tab (Ctrl+Shift+Tab).</summary>
     public const string PreviousTerminalTab = "cm_PreviousTerminalTab";
+    /// <summary>Panel context menu's "Open terminal here" - opens (or reuses) an embedded
+    /// terminal tab in the target folder, with no shell-picker dialog.</summary>
+    public const string OpenTerminalHere = "cm_OpenTerminalHere";
     /// <summary>Rename the active terminal tab. Not wired through
     /// <see cref="CommandEngine"/> — use right-click context menu instead.</summary>
     public const string RenameTerminalTab = "cm_RenameTerminalTab";

@@ -212,6 +212,11 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised from the background menu's "Paste" (or Ctrl+V).</summary>
     public event EventHandler? ClipboardPasteRequested;
 
+    /// <summary>Raised from either context menu's "Open terminal here" - carries the target
+    /// folder's real Windows path (a single directory target's own path in the item menu, the
+    /// panel's current directory in the background menu or when the target isn't a folder).</summary>
+    public event EventHandler<string>? OpenTerminalHereRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -1585,6 +1590,16 @@ public sealed class FilePanelUserControl : UserControl
         {
             CtxItem(menu, "Ctx.OpenInExplorer", "explorer", () => OpenInExplorerRequested?.Invoke(this, explorerPaths));
         }
+        // A single directory target opens a terminal there; anything else (a file, or more than
+        // one target) falls back to the panel's own current directory - same target resolution
+        // "Open in Explorer" would apply, but there's no per-file terminal to open.
+        if (CurrentShellFolder is { } terminalFolder)
+        {
+            var terminalTarget = single is { IsDirectory: true } dirTarget
+                ? ShellPathOf(dirTarget) ?? terminalFolder
+                : terminalFolder;
+            CtxItem(menu, "Ctx.TerminalHere", "terminal", () => OpenTerminalHereRequested?.Invoke(this, terminalTarget));
+        }
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
@@ -1682,6 +1697,7 @@ public sealed class FilePanelUserControl : UserControl
         if (CurrentShellFolder is { } folderShellPath)
         {
             CtxItem(menu, "Ctx.OpenInExplorer", "explorer", () => OpenInExplorerRequested?.Invoke(this, new[] { folderShellPath }));
+            CtxItem(menu, "Ctx.TerminalHere", "terminal", () => OpenTerminalHereRequested?.Invoke(this, folderShellPath));
         }
         CtxItem(menu, "Ctx.Refresh", "refresh", () => RefreshRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.SelectAll", "selectall", () => _vm.SelectAll());

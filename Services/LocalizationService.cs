@@ -624,6 +624,7 @@ public sealed class LocalizationService
         _strings["Ctx.ClipboardCopy"] = "Copy to clipboard";
         _strings["Ctx.ClipboardCut"] = "Cut to clipboard";
         _strings["Ctx.ClipboardPaste"] = "Paste";
+        _strings["Ctx.TerminalHere"] = "Open terminal here";
 
         // ═══ Errors ═══
         _strings["Err.PathNotFound"] = "Path not found: {0}";

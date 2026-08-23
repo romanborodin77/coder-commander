@@ -6,6 +6,7 @@ using CoderCommander.Models;
 using CoderCommander.Operations;
 using CoderCommander.Services;
 using CoderCommander.ViewModels;
+using CoderCommander.Terminal.Shells;
 using CoderCommander.WinForms;
 using CoderCommander.WinForms.Shell;
 using System.Diagnostics;
@@ -638,6 +639,7 @@ public sealed class MainForm : Form
         panel.ClipboardCopyRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardCopy);
         panel.ClipboardCutRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardCut);
         panel.ClipboardPasteRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardPaste);
+        panel.OpenTerminalHereRequested += (_, path) => OpenTerminalHere(path);
     }
 
     /// <summary>A single directory target opens its own contents (matches Explorer's own
@@ -1103,6 +1105,36 @@ public sealed class MainForm : Form
         _terminalPanel?.ShowNewTabDialog();
     }
 
+    /// <summary>
+    /// The context menu's "Open terminal here" - deliberately never
+    /// <see cref="EmbeddedTerminalPanel.ShowNewTabDialog"/> (the picker
+    /// <see cref="CreateTerminalTabWithDefaults"/> uses): that dialog is a confirmed
+    /// UI-automation/self-deadlock hazard (see the debugging-infra memory note) and, more to the
+    /// point here, the user asked for this to just work without a picker. If a tab is already
+    /// open, this pushes a live <c>cd</c> the same way the panel→terminal cwd-sync feature already
+    /// does (<see cref="PushActivePathToTerminal"/>); otherwise it opens one directly with
+    /// <see cref="AppSettings.DefaultShellType"/> (or the first discovered shell if that id is no
+    /// longer available) as its starting directory - no dialog, no extra click.
+    /// </summary>
+    private async void OpenTerminalHere(string shellFolderPath)
+    {
+        if (!_terminalVisible) ToggleTerminal();
+        _terminalPanel.DefaultPath = shellFolderPath;
+
+        if (_terminalPanel.SessionManager?.ActiveTab != null)
+        {
+            _terminalPanel.SetWorkingDirectory(shellFolderPath);
+            return;
+        }
+
+        var shells = await ShellCatalog.DiscoverAsync().ConfigureAwait(true);
+        if (shells.Count == 0) return; // nothing installed to open - same silent no-op ToggleTerminal's own paths already accept for an empty catalog
+
+        var preferredId = SettingsService.Load().DefaultShellType;
+        var shell = shells.FirstOrDefault(s => s.Id == preferredId) ?? shells[0];
+        _terminalPanel.AddTerminalTab(shell, shellFolderPath);
+    }
+
     private void CloseTerminalTab()
     {
         if (_terminalPanel?.Visible == true)
@@ -1332,6 +1364,12 @@ public sealed class MainForm : Form
         _vm.EditRequested += OnEdit;
         _vm.PropertiesRequested += OnProperties;
         _vm.ClipboardPasteRequested += (_, _) => OnPaste();
+        _vm.OpenTerminalHereRequested += (_, _) =>
+        {
+            var active = _vm.ActivePanel;
+            if (active.CurrentFileSystem.GetShellPath(active.CurrentPath) is { } path)
+                OpenTerminalHere(path);
+        };
         _vm.MultiRenameRequested += OnMultiRename;
         _vm.ChangeDirRequested += OnChangeDir;
         _vm.SelectGroupRequested += OnSelectGroup;

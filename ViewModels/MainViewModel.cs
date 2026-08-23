@@ -356,6 +356,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.ClipboardCopy, _ => ClipboardCopy(cut: false));
         Commands.Register(CommandIds.ClipboardCut, _ => ClipboardCopy(cut: true));
         Commands.Register(CommandIds.ClipboardPaste, _ => ClipboardPasteRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.OpenTerminalHere, _ => OpenTerminalHereRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.Delete, _ => Delete());
         Commands.Register(CommandIds.Wipe, _ => Wipe());
         Commands.Register(CommandIds.MakeDir, _ => MakeDir());
@@ -469,6 +470,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// background context menu) - handled in <c>MainForm.OnPaste</c>, which needs the UI-owned
     /// overwrite-confirmation dialog that <see cref="MainViewModel"/> itself doesn't build.</summary>
     public event EventHandler? ClipboardPasteRequested;
+
+    /// <summary>Raised by <see cref="CommandIds.OpenTerminalHere"/> with no specific target - the
+    /// general form reachable from a hotkey or (unlike the context menu's own same-named panel
+    /// event, which always carries a resolved path) the diagnostic command channel; the handler
+    /// resolves the active panel's own current directory.</summary>
+    public event EventHandler? OpenTerminalHereRequested;
 
     /// <summary>Moves selected items to the inactive panel's directory, respecting overwrite settings.</summary>
     public void Move()
