@@ -151,6 +151,11 @@ public sealed class HotkeyManager
         Register(Keys.F10, CommandIds.Exit);
         Register(Keys.Alt | Keys.X, CommandIds.Exit);
 
+        // System clipboard (Explorer-interop Copy/Cut/Paste - distinct from panel-to-panel F5/F6)
+        Register(Keys.Control | Keys.C, CommandIds.ClipboardCopy, description: "Copy to clipboard");
+        Register(Keys.Control | Keys.X, CommandIds.ClipboardCut, description: "Cut to clipboard");
+        Register(Keys.Control | Keys.V, CommandIds.ClipboardPaste, description: "Paste from clipboard");
+
         // Navigation
         Register(Keys.Alt | Keys.Left, CommandIds.GoBack);
         Register(Keys.Alt | Keys.Right, CommandIds.GoForward);

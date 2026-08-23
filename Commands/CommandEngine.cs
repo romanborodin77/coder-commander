@@ -22,6 +22,16 @@ public static class CommandIds
     public const string Delete = "cm_Delete";
     /// <summary>Securely wipe selected files (Shift+F8).</summary>
     public const string Wipe = "cm_Wipe";
+    /// <summary>Copy selected files to the system clipboard as a shell file-drop, interoperable
+    /// with Explorer's own Copy/Paste (Ctrl+C) - distinct from <see cref="Copy"/> (F5), which
+    /// copies panel-to-panel directly.</summary>
+    public const string ClipboardCopy = "cm_ClipboardCopy";
+    /// <summary>Cut selected files to the system clipboard (Ctrl+X) - same shell interop as
+    /// <see cref="ClipboardCopy"/>, marked as a move.</summary>
+    public const string ClipboardCut = "cm_ClipboardCut";
+    /// <summary>Pastes a shell file-drop from the system clipboard into the active panel's
+    /// current directory (Ctrl+V).</summary>
+    public const string ClipboardPaste = "cm_ClipboardPaste";
 
     // Batch operations
     /// <summary>Multi-file rename dialog (Ctrl+M).</summary>

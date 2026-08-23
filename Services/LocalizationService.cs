@@ -621,6 +621,9 @@ public sealed class LocalizationService
         _strings["Ctx.FolderProperties"] = "Properties";
         _strings["Ctx.OpenInExplorer"] = "Open in Explorer";
         _strings["Ctx.ShellProperties"] = "Windows Properties";
+        _strings["Ctx.ClipboardCopy"] = "Copy to clipboard";
+        _strings["Ctx.ClipboardCut"] = "Cut to clipboard";
+        _strings["Ctx.ClipboardPaste"] = "Paste";
 
         // ═══ Errors ═══
         _strings["Err.PathNotFound"] = "Path not found: {0}";

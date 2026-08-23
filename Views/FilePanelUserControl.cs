@@ -201,6 +201,17 @@ public sealed class FilePanelUserControl : UserControl
     /// upgrades this to the real multi-item property sheet via the <c>IContextMenu</c> host).</summary>
     public event EventHandler<string>? ShellPropertiesRequested;
 
+    /// <summary>Raised from the item menu's "Copy to clipboard" (or Ctrl+C) - puts the current
+    /// selection on the system clipboard as a real shell file-drop.</summary>
+    public event EventHandler? ClipboardCopyRequested;
+
+    /// <summary>Raised from the item menu's "Cut to clipboard" (or Ctrl+X) - same as
+    /// <see cref="ClipboardCopyRequested"/>, marked as a move.</summary>
+    public event EventHandler? ClipboardCutRequested;
+
+    /// <summary>Raised from the background menu's "Paste" (or Ctrl+V).</summary>
+    public event EventHandler? ClipboardPasteRequested;
+
     /// <summary>Raised when "Split into parts..." is requested from the context menu.</summary>
     public event EventHandler? SplitRequested;
 
@@ -1577,6 +1588,13 @@ public sealed class FilePanelUserControl : UserControl
         menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.Copy", "copy", () => CopyRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Move", "move", () => MoveRequested?.Invoke(this, EventArgs.Empty));
+        // System-clipboard Copy/Cut - distinct from Ctx.Copy/Ctx.Move above (panel-to-panel F5/F6,
+        // no clipboard involved). Gated the same as Open in Explorer: a real Windows path only.
+        if (explorerPaths.Count > 0)
+        {
+            CtxItem(menu, "Ctx.ClipboardCopy", "copy", () => ClipboardCopyRequested?.Invoke(this, EventArgs.Empty));
+            CtxItem(menu, "Ctx.ClipboardCut", "cut", () => ClipboardCutRequested?.Invoke(this, EventArgs.Empty));
+        }
         CtxItem(menu, "Ctx.Rename", "rename", single != null, () => RenameRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.Delete", "delete", () => DeleteRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add(new ToolStripSeparator());
@@ -1648,6 +1666,14 @@ public sealed class FilePanelUserControl : UserControl
         var menu = NewThemedMenu();
 #pragma warning restore CA2000
 
+        // Enabled state is the cheap IsClipboardFormatAvailable probe - never GetDataObject()
+        // here, which would OLE round-trip to the clipboard's owning process and could hang this
+        // menu build if that process is busy or unresponsive. Greyed rather than hidden, matching
+        // Explorer's own "Paste" - a vanished item would look like the feature doesn't exist.
+        CtxItem(menu, "Ctx.ClipboardPaste", "paste",
+            _vm.CurrentFileSystem.Capabilities.HasFlag(FileSystemCapabilities.Writable) && ClipboardHelper.ContainsFileDrop(),
+            () => ClipboardPasteRequested?.Invoke(this, EventArgs.Empty));
+        menu.Items.Add(new ToolStripSeparator());
         CtxItem(menu, "Ctx.NewFolder", "newdir", () => MakeDirRequested?.Invoke(this, EventArgs.Empty));
         CtxItem(menu, "Ctx.NewFile", "editnew", () => NewFileRequested?.Invoke(this, EventArgs.Empty));
         menu.Items.Add(new ToolStripSeparator());

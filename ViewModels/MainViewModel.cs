@@ -6,6 +6,7 @@ using CoderCommander.Operations;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ClipboardHelper = CoderCommander.WinForms.ClipboardHelper;
 
 namespace CoderCommander.ViewModels;
 
@@ -352,6 +353,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         Commands.Register(CommandIds.Copy, _ => Copy());
         Commands.Register(CommandIds.Move, _ => Move());
+        Commands.Register(CommandIds.ClipboardCopy, _ => ClipboardCopy(cut: false));
+        Commands.Register(CommandIds.ClipboardCut, _ => ClipboardCopy(cut: true));
+        Commands.Register(CommandIds.ClipboardPaste, _ => ClipboardPasteRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.Delete, _ => Delete());
         Commands.Register(CommandIds.Wipe, _ => Wipe());
         Commands.Register(CommandIds.MakeDir, _ => MakeDir());
@@ -441,6 +445,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <param name="options">Transfer behaviour flags (overwrite, timestamps, compression).</param>
     public void ExecuteCopy(IReadOnlyList<Models.FileSystemItem> files, string destPath, TransferOptions options)
         => StartTransfer(files, destPath, options, move: false);
+
+    /// <summary>Puts the active panel's selected items on the system clipboard as a real shell
+    /// file-drop (<see cref="ClipboardHelper.TrySetFileDrop"/>) - interoperable with Explorer's
+    /// own Copy/Cut/Paste, distinct from <see cref="Copy"/>/<see cref="Move"/> (F5/F6), which
+    /// transfer directly between panels with no clipboard involved. Items with no
+    /// <see cref="IFileSystem.GetShellPath"/> (an archive entry, or a file on FTP/SFTP/WebDAV/MTP)
+    /// are silently skipped rather than aborting the whole selection - the same partial-tolerance
+    /// shape every other multi-item action in this codebase already uses.</summary>
+    private void ClipboardCopy(bool cut)
+    {
+        var files = ActivePanel.GetSelectedOrActive();
+        if (files.Count == 0) return;
+
+        var fs = ActivePanel.CurrentFileSystem;
+        var shellPaths = files.Select(f => fs.GetShellPath(f.FullPath)).OfType<string>().ToList();
+        if (shellPaths.Count == 0) return;
+
+        ClipboardHelper.TrySetFileDrop(shellPaths, cut);
+    }
+
+    /// <summary>Raised by <see cref="CommandIds.ClipboardPaste"/> (Ctrl+V, or the panel's
+    /// background context menu) - handled in <c>MainForm.OnPaste</c>, which needs the UI-owned
+    /// overwrite-confirmation dialog that <see cref="MainViewModel"/> itself doesn't build.</summary>
+    public event EventHandler? ClipboardPasteRequested;
 
     /// <summary>Moves selected items to the inactive panel's directory, respecting overwrite settings.</summary>
     public void Move()

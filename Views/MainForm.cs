@@ -635,6 +635,9 @@ public sealed class MainForm : Form
         panel.FolderPropertiesRequested += (_, _) => _ = OnFolderPropertiesAsync(panel);
         panel.OpenInExplorerRequested += (_, paths) => OnOpenInExplorer(paths);
         panel.ShellPropertiesRequested += (_, path) => ExplorerHelper.ShowProperties(Handle, path);
+        panel.ClipboardCopyRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardCopy);
+        panel.ClipboardCutRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardCut);
+        panel.ClipboardPasteRequested += (_, _) => _vm.Commands.Execute(CommandIds.ClipboardPaste);
     }
 
     /// <summary>A single directory target opens its own contents (matches Explorer's own
@@ -763,8 +766,29 @@ public sealed class MainForm : Form
         var destPanel = (FilePanelUserControl?)sender;
         var destFs = destPanel?.ViewModel.CurrentFileSystem ?? _vm.ActivePanel.CurrentFileSystem;
 
+        if (e.SourcePanel != null)
+        {
+            var source = e.SourcePanel.ViewModel;
+            var entries = e.Items.Where(i => !i.IsParent).Select(i => i.Entry).ToList();
+            if (entries.Count == 0) return;
+
+            var options = BuildTransferOptions(destination, destFs);
+            _vm.ExecuteTransfer(source.CurrentFileSystem, source.CurrentPath, entries,
+                destination, options, move: !e.IsCopy);
+            return;
+        }
+
+        TransferExternalPaths(e.ExternalPaths, destination, destFs, move: !e.IsCopy);
+    }
+
+    /// <summary>Builds the same <see cref="TransferOptions"/> every drag-drop/paste transfer into
+    /// <paramref name="destination"/> uses - split out of <see cref="OnItemsDropped"/> so
+    /// <see cref="TransferExternalPaths"/> (drag-drop's external branch, and the clipboard "Paste"
+    /// item) can share it too.</summary>
+    private TransferOptions BuildTransferOptions(string destination, IFileSystem destFs)
+    {
         var settings = SettingsService.Load();
-        var options = new TransferOptions
+        return new TransferOptions
         {
             CopyAttributes = settings.CopyAttributes,
             CopyTimestamps = settings.CopyTimestamps,
@@ -774,21 +798,22 @@ public sealed class MainForm : Form
             OverwriteResolver = settings.ConfirmOverwrite ? CreateOverwriteResolver(destFs) : null,
             Overwrite = !settings.ConfirmOverwrite
         };
+    }
 
-        if (e.SourcePanel != null)
-        {
-            var source = e.SourcePanel.ViewModel;
-            var entries = e.Items.Where(i => !i.IsParent).Select(i => i.Entry).ToList();
-            if (entries.Count == 0) return;
-
-            _vm.ExecuteTransfer(source.CurrentFileSystem, source.CurrentPath, entries,
-                destination, options, move: !e.IsCopy);
-            return;
-        }
-
-        // External drop: group by owning folder so relative paths stay intact.
+    /// <summary>
+    /// Transfers real on-disk paths that came from outside the app - an external drag-drop
+    /// (originally the only caller) or a shell clipboard paste (<see cref="OnPaste"/>) - into
+    /// <paramref name="destination"/>. Grouped by owning folder so relative sub-paths stay intact
+    /// and so each group can go through its own <see cref="MainViewModel.ExecuteTransfer"/> call,
+    /// which takes a single source base path. <paramref name="destination"/> is a VFS path and
+    /// does not itself need to be a real Windows path - <c>ExecuteTransfer</c> already routes into
+    /// <c>PackOperation</c>/a remote copy when it isn't, which is what makes pasting into an
+    /// archive panel or onto an FTP/SFTP/WebDAV connection work with no extra code here.
+    /// </summary>
+    private void TransferExternalPaths(IReadOnlyList<string> paths, string destination, IFileSystem destFs, bool move)
+    {
         var external = new List<FileEntry>();
-        foreach (var path in e.ExternalPaths)
+        foreach (var path in paths)
         {
             try
             {
@@ -800,16 +825,35 @@ public sealed class MainForm : Form
             }
             catch (Exception ex)
             {
-                LogService.Error($"Drag-drop: cannot access {path}: {ex.Message}", ex);
+                LogService.Error($"Cannot access {path}: {ex.Message}", ex);
             }
         }
+        if (external.Count == 0) return;
 
+        var options = BuildTransferOptions(destination, destFs);
         foreach (var group in external.GroupBy(en => VfsPath.GetParent(en.FullPath), StringComparer.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(group.Key)) continue;
             _vm.ExecuteTransfer(_vm.FileSystem, group.Key, group.ToList(),
-                destination, options, move: !e.IsCopy);
+                destination, options, move: move);
         }
+    }
+
+    /// <summary>Handles the "Paste" context menu item - reads a shell file-drop off the clipboard
+    /// and routes it through the same <see cref="TransferExternalPaths"/> an external drag-drop
+    /// uses. A cut is consumed on paste (the clipboard is cleared right after the transfer is
+    /// dispatched, matching Explorer's own convention) - not after the transfer actually finishes,
+    /// since <c>ExecuteTransfer</c> is fire-and-forget and returns no handle to await; a second
+    /// paste issued before the first move completes would simply start a second transfer of
+    /// whatever the first hasn't moved yet, not lose anything.</summary>
+    private void OnPaste()
+    {
+        var paths = ClipboardHelper.TryGetFileDrop(out var cut);
+        if (paths.Count == 0) return;
+
+        var destPanel = _vm.ActivePanel;
+        TransferExternalPaths(paths, destPanel.CurrentPath, destPanel.CurrentFileSystem, move: cut);
+        if (cut) Clipboard.Clear();
     }
 
     /// <summary>
@@ -1287,6 +1331,7 @@ public sealed class MainForm : Form
         _vm.ViewRequested += OnView;
         _vm.EditRequested += OnEdit;
         _vm.PropertiesRequested += OnProperties;
+        _vm.ClipboardPasteRequested += (_, _) => OnPaste();
         _vm.MultiRenameRequested += OnMultiRename;
         _vm.ChangeDirRequested += OnChangeDir;
         _vm.SelectGroupRequested += OnSelectGroup;
