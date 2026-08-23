@@ -60,7 +60,12 @@ public sealed class CustomShellEditForm : ThemedForm
         };
         commandRow.SetRole(ThemeRole.Background);
         commandRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        commandRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        // AutoSize, not a fixed Absolute width: CreateThemedButton sizes the button itself to fit
+        // its localized text ("Browse…"/"Обзор…" plus the button's own padding), and a fixed
+        // column narrower than that clipped it to "Brow..."/"Обзо..." in both languages - the same
+        // fixed-width-column-vs-auto-sized-button mismatch already fixed elsewhere (see DifferForm's
+        // own Browse column, which sidesteps it with a wide-enough Absolute value instead).
+        commandRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         _commandBox = UiHelpers.CreateTextBox();
         _commandBox.Dock = DockStyle.Fill;
         _commandBox.Text = _draft.Command;
