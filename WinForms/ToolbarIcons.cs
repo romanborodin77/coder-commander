@@ -136,6 +136,8 @@ public static class ToolbarIcons
         ["root"] = new("M 2.5 2.5 H 13.5 M 8 13.5 V 6", Fill: "M 8 4 L 4.75 8.5 H 11.25 Z"),
         // Folder + an external-link arrow in the top-right corner - "Open in Explorer".
         ["explorer"] = new(Folder + " M 10 3.5 H 13.5 V 7 M 13.5 3.5 L 9.5 7.5", Tint.Accent),
+        // Four-pane Windows-logo-like glyph - "Windows menu" (the real shell IContextMenu).
+        ["shellmenu"] = new("M 2.5 2.5 H 7 V 7 H 2.5 Z M 9 2.5 H 13.5 V 7 H 9 Z M 2.5 9 H 7 V 13.5 H 2.5 Z M 9 9 H 13.5 V 13.5 H 9 Z", Tint.Accent),
         ["home"] = new("M 2.5 7.25 L 8 2.5 L 13.5 7.25 M 4 6.5 V 13.5 H 12 V 6.5 M 6.5 13.5 V 9.5 H 9.5 V 13.5",
                         Tint.Accent),
 

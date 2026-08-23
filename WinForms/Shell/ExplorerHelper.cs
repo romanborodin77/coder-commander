@@ -49,7 +49,7 @@ internal static class ExplorerHelper
     /// background (empty-space) context menu's "Open in Explorer" and the folder-target case.</summary>
     public static void OpenFolder(string shellFolder)
     {
-        using var folderPidl = ParseDisplayName(shellFolder);
+        using var folderPidl = ShellPaths.ParseDisplayName(shellFolder);
         if (folderPidl == null)
         {
             OpenFolderFallback(shellFolder);
@@ -63,7 +63,7 @@ internal static class ExplorerHelper
 
     private static void OpenAndSelectOneFolder(string folder, IReadOnlyList<string> items)
     {
-        using var folderPidl = ParseDisplayName(folder);
+        using var folderPidl = ShellPaths.ParseDisplayName(folder);
         if (folderPidl == null)
         {
             OpenFolderFallback(folder);
@@ -79,7 +79,7 @@ internal static class ExplorerHelper
             var apidl = new List<IntPtr>();
             foreach (var item in items)
             {
-                var itemPidl = ParseDisplayName(item);
+                var itemPidl = ShellPaths.ParseDisplayName(item);
                 if (itemPidl == null) continue;
                 ownedPidls.Add(itemPidl);
                 apidl.Add(ShellNative.ILFindLastID(itemPidl.DangerousGetHandle()));
@@ -110,12 +110,6 @@ internal static class ExplorerHelper
         {
             LogService.Error($"Open in Explorer fallback failed for {folder}: {ex.Message}", ex);
         }
-    }
-
-    private static SafePidlHandle? ParseDisplayName(string path)
-    {
-        var hr = ShellNative.SHParseDisplayName(path, IntPtr.Zero, out var pidl, 0, out _);
-        return hr == 0 && pidl != IntPtr.Zero ? new SafePidlHandle(pidl) : null;
     }
 
     /// <summary>Opens the native Windows Properties sheet for one item - <c>SEE_MASK_INVOKEIDLIST</c>

@@ -427,6 +427,8 @@ Ctx.ClipboardCopy=Copy to clipboard
 Ctx.ClipboardCut=Cut to clipboard
 Ctx.ClipboardPaste=Paste
 Ctx.TerminalHere=Open terminal here
+Ctx.ShellMenu=Windows menu…
+Shell.MenuFailed=The Windows system menu could not be shown.
 
 # ═══ Errors ═══
 Err.PathNotFound=Path not found: {0}

@@ -5,6 +5,7 @@ using CoderCommander.Services;
 using CoderCommander.ViewModels;
 using CoderCommander.Viewers;
 using CoderCommander.WinForms;
+using CoderCommander.WinForms.Shell;
 using CoderCommander.WinForms.Viewers;
 using System.Drawing.Drawing2D;
 
@@ -1240,6 +1241,10 @@ public sealed class FilePanelUserControl : UserControl
         // Right-click selects the item under cursor and shows context menu
         if (e.Button == MouseButtons.Right)
         {
+            // Captured now, not inside a menu item's click handler - by the time any menu item
+            // fires, the user has long since released Shift.
+            var extendedVerbs = (Control.ModifierKeys & Keys.Shift) != 0;
+            var screenPoint = _fileList.PointToScreen(e.Location);
             var info = _fileList.HitTest(e.Location);
             ContextMenuStrip menu;
             if (info.Item?.Tag is FileSystemItem { IsParent: false } fsItem)
@@ -1265,10 +1270,21 @@ public sealed class FilePanelUserControl : UserControl
 
                 var targets = ResolveContextTargets();
                 if (targets.Count == 0) return;
+
+                // Shift+right-click - Explorer's own "skip straight to the extended system menu"
+                // gesture. Bypasses our menu entirely rather than adding a step on top of it.
+                if (extendedVerbs)
+                {
+                    var shellPaths = targets.Select(ShellPathOf).OfType<string>().ToList();
+                    if (shellPaths.Count > 0 && SharesOneParent(shellPaths))
+                        ShellContextMenuHost.Show(this, shellPaths, screenPoint, extendedVerbs: true);
+                    return;
+                }
+
                 // The analyzer can't trace ownership across the BuildItemContextMenu() call
                 // boundary - disposal happens via AutoDisposeOnClose wired immediately below.
 #pragma warning disable CA2000
-                menu = BuildItemContextMenu(targets);
+                menu = BuildItemContextMenu(targets, screenPoint);
 #pragma warning restore CA2000
             }
             else
@@ -1277,8 +1293,14 @@ public sealed class FilePanelUserControl : UserControl
                 // item menu acting on whatever was selected before this click (the previous
                 // behavior: BuildContextMenu() was called unconditionally here, so it silently
                 // operated on a stale selection with no item under the cursor at all).
+                if (extendedVerbs)
+                {
+                    if (CurrentShellFolder is { } shiftFolder)
+                        ShellContextMenuHost.ShowForFolder(this, shiftFolder, screenPoint, extendedVerbs: true);
+                    return;
+                }
 #pragma warning disable CA2000
-                menu = BuildBackgroundContextMenu();
+                menu = BuildBackgroundContextMenu(screenPoint);
 #pragma warning restore CA2000
             }
             // Not menu.Closed += (_, _) => menu.Dispose() - disposing synchronously inside Closed
@@ -1560,7 +1582,7 @@ public sealed class FilePanelUserControl : UserControl
     /// mouse click or item click, however carefully the dispose was ordered - only never keeping a
     /// stale instance around at all sidesteps the whole class of bug.
     /// </summary>
-    private ContextMenuStrip BuildItemContextMenu(IReadOnlyList<FileSystemItem> targets)
+    private ContextMenuStrip BuildItemContextMenu(IReadOnlyList<FileSystemItem> targets, Point screenPoint)
     {
         var L = LocalizationService.Current;
         var single = targets.Count == 1 ? targets[0] : null;
@@ -1667,15 +1689,37 @@ public sealed class FilePanelUserControl : UserControl
         CtxItem(menu, "Ctx.SelectAll", "selectall", () => _vm.SelectAll());
         CtxItem(menu, "Ctx.InvertSelection", "invert", () => _vm.InvertSelection());
 
+        menu.Items.Add(new ToolStripSeparator());
+        var shellMenuPaths = targets.Select(ShellPathOf).OfType<string>().ToList();
+        var canShowShellMenu = shellMenuPaths.Count > 0 && SharesOneParent(shellMenuPaths);
+        CtxItem(menu, "Ctx.ShellMenu", "shellmenu", canShowShellMenu, () =>
+        {
+            // Deferred for the same reason UiHelpers.AutoDisposeOnClose defers its own dispose:
+            // TrackPopupMenuEx starts its own modal loop, and starting it synchronously from this
+            // click handler races ToolStripManager's still-unwinding modal filter for our own
+            // just-closed menu - the native menu can appear and be instantly dismissed, or eat
+            // input until the next click.
+            BeginInvoke(new Action(() => ShellContextMenuHost.Show(this, shellMenuPaths, screenPoint, extendedVerbs: false)));
+        });
+
         return menu;
     }
+
+    /// <summary>Whether every path in <paramref name="shellPaths"/> shares one parent folder -
+    /// <c>IShellFolder.GetUIObjectOf</c> requires it, and a Flat View selection isn't guaranteed
+    /// to have it. Checked here (not just left to the shell to reject) so the gate can grey out
+    /// the "Windows menu…" item instead of silently acting on a subset.</summary>
+    private static bool SharesOneParent(IReadOnlyList<string> shellPaths) =>
+        shellPaths.Select(p => Path.GetDirectoryName(p) ?? p)
+                  .Distinct(StringComparer.OrdinalIgnoreCase)
+                  .Count() == 1;
 
     /// <summary>
     /// The folder-scoped context menu shown when right-clicking empty space below the list, or
     /// ".." - there is no <see cref="FileSystemItem"/> under the cursor here, so every item acts
     /// on the panel's current directory rather than a selection.
     /// </summary>
-    private ContextMenuStrip BuildBackgroundContextMenu()
+    private ContextMenuStrip BuildBackgroundContextMenu(Point screenPoint)
     {
 #pragma warning disable CA2000
         var menu = NewThemedMenu();
@@ -1708,6 +1752,16 @@ public sealed class FilePanelUserControl : UserControl
         {
             CtxItem(menu, "Ctx.ShellProperties", "properties", () => ShellPropertiesRequested?.Invoke(this, shellPropPath));
         }
+
+        menu.Items.Add(new ToolStripSeparator());
+        var backgroundShellFolder = CurrentShellFolder;
+        CtxItem(menu, "Ctx.ShellMenu", "shellmenu", backgroundShellFolder != null, () =>
+        {
+            // Same BeginInvoke deferral as the item menu's own "Windows menu…" - see that one's
+            // comment for why.
+            if (backgroundShellFolder != null)
+                BeginInvoke(new Action(() => ShellContextMenuHost.ShowForFolder(this, backgroundShellFolder, screenPoint, extendedVerbs: false)));
+        });
 
         return menu;
     }

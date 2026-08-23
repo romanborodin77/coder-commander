@@ -34,6 +34,41 @@ internal static class ShellNative
     [DllImport("shell32.dll")]
     internal static extern int SHOpenFolderAndSelectItems(IntPtr pidlFolder, uint cidl, [In] IntPtr[]? apidl, uint dwFlags);
 
+    // ── System-menu host (IContextMenu) ──
+
+    /// <summary>Splits an absolute PIDL into its parent <c>IShellFolder</c> and the child-relative
+    /// PIDL for the last item - <c>ppidlLast</c> is an <b>interior pointer</b> into
+    /// <paramref name="pidl"/>, never freed separately.</summary>
+    [DllImport("shell32.dll")]
+    internal static extern int SHBindToParent(IntPtr pidl, ref Guid riid, out IntPtr ppv, out IntPtr ppidlLast);
+
+    /// <summary>The root of the shell namespace - every <c>SHParseDisplayName</c> PIDL is already
+    /// relative to this, which is what makes <c>desktop.BindToObject(pidl, ...)</c> work directly
+    /// on an "absolute" PIDL without any further walking.</summary>
+    [DllImport("shell32.dll")]
+    internal static extern int SHGetDesktopFolder(out IntPtr ppshf);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyMenu(IntPtr hMenu);
+
+    /// <summary>Declared returning <c>int</c>, not the header's nominal <c>BOOL</c> - with
+    /// <see cref="ShellMenuConstants.TpmReturnCmd"/> set, the return value is the selected menu
+    /// command id (0 for "the user dismissed the menu"), not a boolean.</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int TrackPopupMenuEx(IntPtr hmenu, uint fuFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
     // ── Windows Properties (ShellExecuteEx "properties" verb) ──
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

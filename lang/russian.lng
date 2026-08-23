@@ -449,6 +449,8 @@ Ctx.ClipboardCopy=Копировать в буфер обмена
 Ctx.ClipboardCut=Вырезать в буфер обмена
 Ctx.ClipboardPaste=Вставить
 Ctx.TerminalHere=Открыть терминал здесь
+Ctx.ShellMenu=Меню Windows…
+Shell.MenuFailed=Не удалось показать системное меню Windows.
 
 # ═══ Ошибки ═══
 Err.PathNotFound=Путь не найден: {0}
