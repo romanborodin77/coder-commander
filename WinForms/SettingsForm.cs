@@ -911,6 +911,11 @@ public sealed class SettingsForm : ThemedForm
         changeBtn.Margin = new Padding(0, 0, 8, 0);
         changeBtn.Click += (_, _) => onChange();
         var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Font.Reset"));
+        // Control's stock Margin is (3,3,3,3); changeBtn zeroes its top/bottom above so the two
+        // buttons share the same 32px height at the same Y - leaving resetBtn's default 3px top
+        // margin unset here pushed it 3px lower than changeBtn in the FlowLayoutPanel (measured
+        // pixel-for-pixel on a live screenshot, not assumed).
+        resetBtn.Margin = new Padding(0);
         resetBtn.Click += (_, _) => onReset();
         EqualizeWidths(changeBtn, resetBtn);
         buttonRow.Controls.Add(changeBtn);
