@@ -42,6 +42,22 @@ internal static class LayoutEditHighlight
             ControlPaint.FillReversibleRectangle(r, Color.Lime);
     }
 
+    /// <summary>Same as <see cref="Show(Control)"/>, for a <see cref="Services.LayoutEditModeService.SelectedItem"/>
+    /// - a <see cref="ToolStripItem"/> has no window of its own, so its screen position is computed
+    /// via its owning <see cref="ToolStrip"/>'s <see cref="Control.PointToScreen"/> instead of its
+    /// own. Deliberately draws no resize handles: an AutoSize ToolStripItem (the overwhelming common
+    /// case) has no independent Size to resize, so there is nothing for a handle to do - leaving
+    /// <see cref="_handleRects"/> null/empty here also means <see cref="TryHitTestHandle"/> can never
+    /// misfire against a stale handle rect from a previously-selected Control after switching to a
+    /// ToolStripItem.</summary>
+    public static void Show(ToolStripItem target)
+    {
+        Clear();
+        if (target.Owner is not { } owner) return;
+        _current = new Rectangle(owner.PointToScreen(target.Bounds.Location), target.Bounds.Size);
+        ControlPaint.DrawReversibleFrame(_current.Value, Color.Lime, FrameStyle.Thick);
+    }
+
     /// <summary>Erases the currently-drawn frame and handles, if any. Safe to call when nothing is shown.</summary>
     public static void Clear()
     {

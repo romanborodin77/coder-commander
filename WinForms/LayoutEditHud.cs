@@ -75,7 +75,7 @@ internal sealed class LayoutEditHud : ThemedForm
 
         Controls.Add(layout);
 
-        UpdateFor(null);
+        UpdateFor((Control?)null);
     }
 
     /// <summary>Explicit disposal of the label fields (CA2213) - same accepted pattern as every
@@ -138,4 +138,24 @@ internal sealed class LayoutEditHud : ThemedForm
     private static string DescribeStyle(SizeType type, float value) => type == SizeType.Absolute
         ? $"Absolute {value}px"
         : $"{type} - not nudgeable";
+
+    /// <summary>Same job as <see cref="UpdateFor(Control?)"/>, for a
+    /// <see cref="Services.LayoutEditModeService.SelectedItem"/> - a ToolStripItem has no Dock/
+    /// Anchor/TableLayoutPanel cell concept, so those rows are blanked instead of populated.</summary>
+    public void UpdateFor(ToolStripItem? selected)
+    {
+        if (selected is null)
+        {
+            UpdateFor((Control?)null);
+            return;
+        }
+
+        _typeLabel.Text = $"Type: {selected.GetType().Name} (ToolStripItem)";
+        _nameLabel.Text = $"Name: {(string.IsNullOrEmpty(selected.Name) ? "(none)" : selected.Name)}";
+        _boundsLabel.Text = $"Bounds: {selected.Bounds.X},{selected.Bounds.Y} {selected.Bounds.Width}x{selected.Bounds.Height}";
+        _marginLabel.Text = $"Margin: {selected.Margin.Left},{selected.Margin.Top},{selected.Margin.Right},{selected.Margin.Bottom}";
+        _paddingLabel.Text = $"Padding: {selected.Padding.Left},{selected.Padding.Top},{selected.Padding.Right},{selected.Padding.Bottom}";
+        _dockAnchorLabel.Text = "No Dock/Anchor - positioned by the ToolStrip's own layout";
+        _tableLabel.Text = "";
+    }
 }

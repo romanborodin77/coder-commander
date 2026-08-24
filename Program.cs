@@ -311,6 +311,16 @@ internal sealed class LayoutEditModeMessageFilter : IMessageFilter
         int dx = key switch { Keys.Left => -step, Keys.Right => step, _ => 0 };
         int dy = key switch { Keys.Up => -step, Keys.Down => step, _ => 0 };
 
+        if (LayoutEditModeService.SelectedItem != null)
+        {
+            // A ToolStripItem has no TableLayoutPanel cell/Dock=None Location to nudge - Margin and
+            // Padding are all it has (see LayoutEditModeService.SelectedItem's own doc comment).
+            // Alt+Arrow (table row/column resize) simply doesn't apply and is a silent no-op here.
+            if (ctrl) LayoutEditModeService.NudgeItemPadding(dx, dy);
+            else if (!alt) LayoutEditModeService.NudgeItemMargin(dx, dy);
+            return true;
+        }
+
         if (alt)
         {
             if (dx != 0) LayoutEditModeService.NudgeTableColumn(dx);
@@ -348,8 +358,11 @@ internal sealed class LayoutEditModeMessageFilter : IMessageFilter
     {
         var screenPt = ScreenPointOf(hwnd, lParam);
 
-        if (LayoutEditModeService.Selected != null &&
-            LayoutEditHighlight.TryHitTestHandle(screenPt, out var handle))
+        // Handle-rect hit-test is safe unconditionally: TryHitTestHandle's backing dict is
+        // null/empty whenever the current selection is a ToolStripItem (LayoutEditHighlight never
+        // draws handles for one) or nothing at all, so this can never misfire against a stale
+        // handle left over from a previous Control selection after switching away from it.
+        if (LayoutEditHighlight.TryHitTestHandle(screenPt, out var handle))
         {
             LayoutEditModeService.BeginDrag(handle, isBodyMove: false, screenPt);
             return true;
@@ -358,6 +371,29 @@ internal sealed class LayoutEditModeMessageFilter : IMessageFilter
         var control = Control.FromHandle(hwnd);
         if (control is null || control.FindForm() is LayoutEditHud)
             return false; // let clicks on the HUD itself (its Copy button) through normally
+
+        // ToolStripButton/Label/etc. have no Win32 window of their own - a click anywhere inside a
+        // ToolStrip/MenuStrip/StatusStrip always resolves here to the STRIP itself via
+        // Control.FromHandle, never the individual item under the cursor. Resolve the real item
+        // before falling through to "select the whole strip as if it were one big control", which
+        // made switching between two different toolbar buttons look like nothing happened (the
+        // highlight/HUD kept showing the same strip-wide Bounds no matter which icon was clicked).
+        if (control is ToolStrip strip)
+        {
+            var item = strip.GetItemAt(strip.PointToClient(screenPt));
+            if (item is not null)
+            {
+                if (ReferenceEquals(item, LayoutEditModeService.SelectedItem))
+                {
+                    LayoutEditModeService.BeginDrag(HandleKind.None, isBodyMove: true, screenPt);
+                    return true; // body drag on the already-selected item - move, not reselect
+                }
+                LayoutEditModeService.SelectToolStripItem(item);
+                return true;
+            }
+            // click landed on empty strip background (no item there) - fall through to selecting
+            // the strip itself, same as clicking empty space in any other plain container.
+        }
 
         if (control == LayoutEditModeService.Selected)
         {

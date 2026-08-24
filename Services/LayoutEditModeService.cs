@@ -29,6 +29,17 @@ public static class LayoutEditModeService
     public static bool IsActive { get; private set; }
     public static Control? Selected { get; private set; }
 
+    /// <summary>A selected <see cref="ToolStripItem"/> (toolbar/menu/status-strip button etc.) -
+    /// mutually exclusive with <see cref="Selected"/>. These have no Win32 window handle of their
+    /// own (<c>Control.FromHandle</c> for a click inside a <see cref="ToolStrip"/> always resolves
+    /// to the strip itself, never the individual button under the cursor - the strip owns one HWND
+    /// for its whole client area), so they need this parallel selection path rather than reusing
+    /// <see cref="Selected"/>. Only <c>Margin</c>/<c>Padding</c> are nudgeable - <c>Bounds</c>/
+    /// <c>Size</c> are computed by the strip's own layout engine for an AutoSize item (the
+    /// overwhelming common case for a toolbar button), so there's no independent size lever the way
+    /// a Control's Dock=None Size is, and no resize handles are ever drawn for one.</summary>
+    public static ToolStripItem? SelectedItem { get; private set; }
+
     /// <summary>Whether a mouse drag (move or resize) is currently in progress - the message
     /// filter needs this to decide whether to swallow WM_MOUSEMOVE/WM_LBUTTONUP at all, since those
     /// fire constantly for ordinary mouse traffic elsewhere in the app while merely
@@ -37,6 +48,7 @@ public static class LayoutEditModeService
 
     private static LayoutEditHud? _hud;
     private static Snapshot? _baseline;
+    private static ToolStripItemSnapshot? _itemBaseline;
     private static Control? _watchedTopLevel;
 
     private static bool _dragActive;
@@ -49,6 +61,10 @@ public static class LayoutEditModeService
     private sealed record Snapshot(
         Padding Margin, Padding Padding, Point Location, Size Size,
         int? RowIndex, float? RowHeight, int? ColIndex, float? ColWidth);
+
+    /// <summary>Baseline for a <see cref="SelectedItem"/> - only Margin/Padding, since that's all a
+    /// ToolStripItem has to offer (see <see cref="SelectedItem"/>'s own doc comment).</summary>
+    private sealed record ToolStripItemSnapshot(Padding Margin, Padding Padding);
 
     /// <summary>Flips edit mode on/off. Turning off clears selection, highlight and the HUD.</summary>
     public static void Toggle()
@@ -75,6 +91,8 @@ public static class LayoutEditModeService
     public static void Select(Control control)
     {
         UnwatchTopLevel();
+        SelectedItem = null;
+        _itemBaseline = null;
         Selected = control;
         _baseline = CaptureSnapshot(control);
         LayoutEditHighlight.Show(control);
@@ -82,14 +100,30 @@ public static class LayoutEditModeService
         _hud?.UpdateFor(control);
     }
 
-    /// <summary>Deselects the current control, if any, and erases its highlight.</summary>
+    /// <summary>Selects a <see cref="ToolStripItem"/> - the parallel path <see cref="Select"/> can't
+    /// cover, see <see cref="SelectedItem"/>'s own doc comment for why.</summary>
+    public static void SelectToolStripItem(ToolStripItem item)
+    {
+        UnwatchTopLevel();
+        Selected = null;
+        _baseline = null;
+        SelectedItem = item;
+        _itemBaseline = new ToolStripItemSnapshot(item.Margin, item.Padding);
+        LayoutEditHighlight.Show(item);
+        if (item.Owner is { } owner) WatchTopLevel(owner);
+        _hud?.UpdateFor(item);
+    }
+
+    /// <summary>Deselects the current control or ToolStripItem, if any, and erases its highlight.</summary>
     public static void ClearSelection()
     {
         UnwatchTopLevel();
         Selected = null;
         _baseline = null;
+        SelectedItem = null;
+        _itemBaseline = null;
         LayoutEditHighlight.Clear();
-        _hud?.UpdateFor(null);
+        _hud?.UpdateFor((Control?)null);
     }
 
     public static void NudgeMargin(int dx, int dy) => Nudge((c, x, y) =>
@@ -118,6 +152,32 @@ public static class LayoutEditModeService
     /// position to nudge for a freely-positioned control.</summary>
     public static void NudgeLocation(int dx, int dy) => Nudge((c, x, y) =>
         c.Location = new Point(c.Location.X + x, c.Location.Y + y), dx, dy);
+
+    /// <summary>Margin nudge for a <see cref="SelectedItem"/> - same clamp/sign convention as
+    /// <see cref="NudgeMargin"/>, just operating on a ToolStripItem instead of a Control (the two
+    /// don't share a common base with Margin/Padding, so this can't just be an overload).</summary>
+    public static void NudgeItemMargin(int dx, int dy) => NudgeItem((it, x, y) =>
+    {
+        var m = it.Margin;
+        int left = m.Left, top = m.Top, right = m.Right, bottom = m.Bottom;
+        if (x < 0) left = Math.Max(0, left + x);
+        else if (x > 0) right = Math.Max(0, right + x);
+        if (y < 0) top = Math.Max(0, top + y);
+        else if (y > 0) bottom = Math.Max(0, bottom + y);
+        it.Margin = new Padding(left, top, right, bottom);
+    }, dx, dy);
+
+    /// <summary>Padding nudge for a <see cref="SelectedItem"/> - see <see cref="NudgeItemMargin"/>.</summary>
+    public static void NudgeItemPadding(int dx, int dy) => NudgeItem((it, x, y) =>
+    {
+        var p = it.Padding;
+        int left = p.Left, top = p.Top, right = p.Right, bottom = p.Bottom;
+        if (x < 0) left = Math.Max(0, left + x);
+        else if (x > 0) right = Math.Max(0, right + x);
+        if (y < 0) top = Math.Max(0, top + y);
+        else if (y > 0) bottom = Math.Max(0, bottom + y);
+        it.Padding = new Padding(left, top, right, bottom);
+    }, dx, dy);
 
     /// <summary>Adjusts the selected control's TableLayoutPanel row's Absolute height, if
     /// applicable. No-op (logged, not thrown) otherwise.</summary>
@@ -238,6 +298,21 @@ public static class LayoutEditModeService
         _hud?.UpdateFor(c);
     }
 
+    /// <summary>Same shape as <see cref="Nudge"/>, for a <see cref="SelectedItem"/> instead of
+    /// <see cref="Selected"/> - no parent PerformLayout/Update call, the owning ToolStrip's own
+    /// layout runs synchronously off the Margin/Padding setter already (unlike a Control's Margin,
+    /// which needs an explicit parent PerformLayout to take visible effect).</summary>
+    private static void NudgeItem(Action<ToolStripItem, int, int> apply, int dx, int dy)
+    {
+        if (SelectedItem is not { } it) return;
+
+        LayoutEditHighlight.Clear();
+        apply(it, dx, dy);
+        it.Owner?.Update();
+        LayoutEditHighlight.Show(it);
+        _hud?.UpdateFor(it);
+    }
+
     /// <summary>Diffs the selected control's current geometry against the snapshot taken at
     /// <see cref="Select"/> time and copies a C# snippet for the properties that actually changed.
     /// Uses the control's own <see cref="Control.Name"/> as the snippet's receiver when set,
@@ -248,6 +323,12 @@ public static class LayoutEditModeService
     /// alone was not enough to identify which of a dialog's several unnamed buttons this was.</summary>
     public static void ExportToClipboard()
     {
+        if (SelectedItem is { } item && _itemBaseline is { } itemBaseline)
+        {
+            ExportToolStripItemToClipboard(item, itemBaseline);
+            return;
+        }
+
         if (Selected is not { } c || _baseline is not { } baseline) return;
 
         var receiver = string.IsNullOrEmpty(c.Name) ? "<selected>" : c.Name;
@@ -332,6 +413,46 @@ public static class LayoutEditModeService
         return string.Join(" > ", parts);
     }
 
+    /// <summary>Same job as <see cref="ExportToClipboard"/>, for a <see cref="SelectedItem"/> -
+    /// separate method rather than a branch inside the Control version since a ToolStripItem only
+    /// ever has Margin/Padding to diff (see <see cref="SelectedItem"/>'s own doc comment).</summary>
+    private static void ExportToolStripItemToClipboard(ToolStripItem item, ToolStripItemSnapshot baseline)
+    {
+        var receiver = string.IsNullOrEmpty(item.Name) ? "<selected>" : item.Name;
+        var lines = new List<string> { $"// {DescribeToolStripItemLocation(item)}" };
+
+        if (item.Margin != baseline.Margin)
+            lines.Add($"{receiver}.Margin = new Padding({item.Margin.Left}, {item.Margin.Top}, {item.Margin.Right}, {item.Margin.Bottom}); " +
+                      $"// was ({baseline.Margin.Left}, {baseline.Margin.Top}, {baseline.Margin.Right}, {baseline.Margin.Bottom})");
+
+        if (item.Padding != baseline.Padding)
+            lines.Add($"{receiver}.Padding = new Padding({item.Padding.Left}, {item.Padding.Top}, {item.Padding.Right}, {item.Padding.Bottom}); " +
+                      $"// was ({baseline.Padding.Left}, {baseline.Padding.Top}, {baseline.Padding.Right}, {baseline.Padding.Bottom})");
+
+        if (lines.Count == 1) // just the locator comment, no actual diff lines
+        {
+            LogService.Debug("Layout edit: nothing changed since selection, nothing copied", "LayoutEdit");
+            return;
+        }
+
+        Clipboard.SetText(string.Join(Environment.NewLine, lines));
+        LogService.Debug($"Layout edit: copied {lines.Count} line(s) to clipboard", "LayoutEdit");
+    }
+
+    /// <summary>Same job as <see cref="DescribeLocation"/> for a ToolStripItem - reuses that method
+    /// for the owning ToolStrip's own ancestor chain (a ToolStrip is a real Control, so it walks the
+    /// same way any other control does), then appends the item's own type/Name-or-Text.</summary>
+    private static string DescribeToolStripItemLocation(ToolStripItem item)
+    {
+        var label = item.GetType().Name;
+        if (!string.IsNullOrEmpty(item.Name))
+            label += $" \"{item.Name}\"";
+        else if (!string.IsNullOrEmpty(item.Text) && item.Text.Length <= 40)
+            label += $" \"{item.Text}\"";
+
+        return item.Owner is { } owner ? $"{DescribeLocation(owner)} > {label}" : label;
+    }
+
     /// <summary>Called from MainForm's FormClosed - erases any live highlight and disposes the HUD
     /// so app shutdown never leaves a stray always-on-top window or an un-erased XOR frame.</summary>
     public static void Shutdown()
@@ -344,6 +465,8 @@ public static class LayoutEditModeService
         IsActive = false;
         Selected = null;
         _baseline = null;
+        SelectedItem = null;
+        _itemBaseline = null;
     }
 
     /// <summary>Starts a mouse drag on the currently-selected control - <paramref name="handle"/>
@@ -357,7 +480,7 @@ public static class LayoutEditModeService
     /// would stop receiving WM_MOUSEMOVE/WM_LBUTTONUP entirely.</summary>
     public static void BeginDrag(HandleKind handle, bool isBodyMove, Point screenPoint)
     {
-        if (Selected is null) return;
+        if (Selected is null && SelectedItem is null) return;
         _dragActive = true;
         _dragIsMove = isBodyMove;
         _dragHandle = handle;
@@ -375,11 +498,25 @@ public static class LayoutEditModeService
     /// meaning the keyboard's Alt+Arrow already has.</summary>
     public static void ContinueDrag(Point screenPoint)
     {
-        if (!_dragActive || Selected is not { } c) return;
+        if (!_dragActive) return;
 
-        int dx = screenPoint.X - _dragLastScreenPoint.X;
-        int dy = screenPoint.Y - _dragLastScreenPoint.Y;
-        if (dx == 0 && dy == 0) return;
+        int dx0 = screenPoint.X - _dragLastScreenPoint.X;
+        int dy0 = screenPoint.Y - _dragLastScreenPoint.Y;
+        if (dx0 == 0 && dy0 == 0) return;
+
+        if (SelectedItem is not null)
+        {
+            _dragLastScreenPoint = screenPoint;
+            // Body-move only, via Margin - a ToolStripItem has no resize handles (see
+            // LayoutEditHighlight.Show's ToolStripItem overload), so a handle-drag can never reach
+            // this branch in the first place.
+            if (_dragIsMove) NudgeItemMargin(dx0, dy0);
+            return;
+        }
+
+        if (Selected is not { } c) return;
+
+        int dx = dx0, dy = dy0;
         _dragLastScreenPoint = screenPoint;
 
         var fillInTable = c.Dock == DockStyle.Fill && c.Parent is TableLayoutPanel;
@@ -483,6 +620,7 @@ public static class LayoutEditModeService
     private static void OnTopLevelMovedOrResized(object? sender, EventArgs e)
     {
         if (Selected is { } c) LayoutEditHighlight.Show(c);
+        else if (SelectedItem is { } it) LayoutEditHighlight.Show(it);
     }
 
     private static void OnTopLevelClosing(object? sender, EventArgs e) => ClearSelection();
