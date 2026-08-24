@@ -15,19 +15,34 @@ namespace CoderCommander.Services;
 /// Margin/Padding/RowStyle value, edit source, rebuild (~10s), screenshot again, re-measure -
 /// sometimes 2-3 iterations per bug. This turns that loop into: click, nudge, copy.</para>
 ///
-/// <para><b>Deliberately out of scope</b> (see the approved plan): no drag-and-drop, no new
-/// controls, no auto-applying changes to source files (clipboard only - the developer decides where
-/// a snippet belongs), no multi-step undo (Export always diffs against the snapshot taken at
-/// <see cref="Select"/> time, not the previous nudge).</para>
+/// <para>Also supports mouse drag: dragging the selected control's body moves it, dragging one of
+/// the 8 handles <see cref="LayoutEditHighlight"/> draws around it resizes it - see
+/// <see cref="BeginDrag"/>/<see cref="ContinueDrag"/>/<see cref="EndDrag"/>.</para>
+///
+/// <para><b>Deliberately out of scope</b> (see the approved plan): no new controls, no
+/// auto-applying changes to source files (clipboard only - the developer decides where a snippet
+/// belongs), no multi-step undo (Export always diffs against the snapshot taken at
+/// <see cref="Select"/> time, not the previous nudge/drag).</para>
 /// </summary>
 public static class LayoutEditModeService
 {
     public static bool IsActive { get; private set; }
     public static Control? Selected { get; private set; }
 
+    /// <summary>Whether a mouse drag (move or resize) is currently in progress - the message
+    /// filter needs this to decide whether to swallow WM_MOUSEMOVE/WM_LBUTTONUP at all, since those
+    /// fire constantly for ordinary mouse traffic elsewhere in the app while merely
+    /// <see cref="IsActive"/> and not dragging.</summary>
+    public static bool IsDragging => _dragActive;
+
     private static LayoutEditHud? _hud;
     private static Snapshot? _baseline;
     private static Control? _watchedTopLevel;
+
+    private static bool _dragActive;
+    private static bool _dragIsMove;
+    private static HandleKind _dragHandle = HandleKind.None;
+    private static Point _dragLastScreenPoint;
 
     /// <summary>Immutable geometry read at <see cref="Select"/> time - <see cref="ExportToClipboard"/>
     /// always diffs the control's current state against this, never against the previous nudge.</summary>
@@ -48,6 +63,7 @@ public static class LayoutEditModeService
         }
         else
         {
+            EndDrag();
             ClearSelection();
             _hud?.Dispose();
             _hud = null;
@@ -139,6 +155,72 @@ public static class LayoutEditModeService
         _hud?.UpdateFor(Selected);
     }
 
+    /// <summary>Mouse-move-only: shifts a Dock=Fill TableLayoutPanel child within its cell while
+    /// preserving its size - grows the margin on the leading side and shrinks the trailing side by
+    /// the same (clamped) amount, so <c>CellWidth - Left - Right</c> (the Dock=Fill width formula)
+    /// stays constant while the box visually slides. Not reachable from the keyboard (arrow keys
+    /// keep their original single-edge "nudge one margin value" behavior via <see cref="NudgeMargin"/>
+    /// unchanged) - this is deliberately a mouse-drag-only refinement so existing, already-verified
+    /// keyboard nudging never changes behavior.</summary>
+    public static void NudgeMoveFill(int dx, int dy) => Nudge((c, x, y) =>
+    {
+        var m = c.Margin;
+        int left = m.Left, top = m.Top, right = m.Right, bottom = m.Bottom;
+        if (x > 0) { var d = Math.Min(x, right); left += d; right -= d; }
+        else if (x < 0) { var d = Math.Min(-x, left); left -= d; right += d; }
+        if (y > 0) { var d = Math.Min(y, bottom); top += d; bottom -= d; }
+        else if (y < 0) { var d = Math.Min(-y, top); top -= d; bottom += d; }
+        c.Margin = new Padding(left, top, right, bottom);
+    }, dx, dy);
+
+    /// <summary>Mouse-resize-handle-only: grows/shrinks a Dock=Fill TableLayoutPanel child from the
+    /// dragged edge, matching ordinary drag-resize intuition (dragging the East edge rightward grows
+    /// the control by shrinking its Right margin, not growing it). Deliberately a separate method
+    /// from <see cref="NudgeMargin"/> rather than reusing it: that method's arrow-key semantics
+    /// (Right always increases Margin.Right, e.g. to widen a *gap*) are the opposite of what a resize
+    /// handle needs on the trailing edges, and reusing it under the arrow-key sign convention would
+    /// make dragging a control's right/bottom edge outward visibly shrink it.</summary>
+    public static void NudgeResizeMargin(HandleKind handle, int dx, int dy) => Nudge((c, x, y) =>
+    {
+        var m = c.Margin;
+        int left = m.Left, top = m.Top, right = m.Right, bottom = m.Bottom;
+        switch (handle)
+        {
+            case HandleKind.W: left = Math.Max(0, left + x); break;
+            case HandleKind.E: right = Math.Max(0, right - x); break;
+            case HandleKind.N: top = Math.Max(0, top + y); break;
+            case HandleKind.S: bottom = Math.Max(0, bottom - y); break;
+            case HandleKind.NW: left = Math.Max(0, left + x); top = Math.Max(0, top + y); break;
+            case HandleKind.NE: right = Math.Max(0, right - x); top = Math.Max(0, top + y); break;
+            case HandleKind.SW: left = Math.Max(0, left + x); bottom = Math.Max(0, bottom - y); break;
+            case HandleKind.SE: right = Math.Max(0, right - x); bottom = Math.Max(0, bottom - y); break;
+        }
+        c.Margin = new Padding(left, top, right, bottom);
+    }, dx, dy);
+
+    /// <summary>Mouse-resize-handle-only: grows/shrinks a Dock=None control's own Bounds from the
+    /// dragged edge - there's no independent size lever for a Dock=None control other than its own
+    /// Size, regardless of what kind of parent it sits in (TableLayoutPanel/FlowLayoutPanel/plain
+    /// Panel all leave a Dock=None child's Size alone). North/West-side handles also shift Location
+    /// by the same delta the opposite edge grows by, so the anchored (opposite) edge stays put -
+    /// the standard "drag the top-left handle" resize convention.</summary>
+    public static void NudgeBounds(HandleKind handle, int dx, int dy) => Nudge((c, x, y) =>
+    {
+        var (dxLoc, dyLoc, dw, dh) = handle switch
+        {
+            HandleKind.E => (0, 0, x, 0),
+            HandleKind.W => (x, 0, -x, 0),
+            HandleKind.S => (0, 0, 0, y),
+            HandleKind.N => (0, y, 0, -y),
+            HandleKind.SE => (0, 0, x, y),
+            HandleKind.SW => (x, 0, -x, y),
+            HandleKind.NE => (0, y, x, -y),
+            HandleKind.NW => (x, y, -x, -y),
+            _ => (0, 0, 0, 0),
+        };
+        c.SetBounds(c.Left + dxLoc, c.Top + dyLoc, Math.Max(1, c.Width + dw), Math.Max(1, c.Height + dh));
+    }, dx, dy);
+
     /// <summary>Shared nudge plumbing: erase highlight at the old rect, mutate via
     /// <paramref name="apply"/>, re-layout the immediate parent (the parent always owns both
     /// Margin's interpretation and its own RowStyles/ColumnStyles - no deeper ancestor call is
@@ -216,6 +298,7 @@ public static class LayoutEditModeService
     /// so app shutdown never leaves a stray always-on-top window or an un-erased XOR frame.</summary>
     public static void Shutdown()
     {
+        EndDrag();
         UnwatchTopLevel();
         LayoutEditHighlight.Clear();
         _hud?.Dispose();
@@ -223,6 +306,82 @@ public static class LayoutEditModeService
         IsActive = false;
         Selected = null;
         _baseline = null;
+    }
+
+    /// <summary>Starts a mouse drag on the currently-selected control - <paramref name="handle"/>
+    /// is <see cref="HandleKind.None"/> for a body drag (move) or the specific handle for a resize
+    /// drag, with <paramref name="isBodyMove"/> disambiguating the two (a body click still resolves
+    /// to <see cref="HandleKind.None"/> from the hit-test, so the caller has to say which one this
+    /// is explicitly). Captures the mouse on the HUD - always alive while <see cref="IsActive"/>,
+    /// so it's a stable target - because the triggering WM_LBUTTONDOWN was swallowed by the message
+    /// filter before any real control's WndProc ran, meaning no implicit <c>Control.Capture</c> ever
+    /// happened; without this, a fast drag that crosses outside the target dialog's window bounds
+    /// would stop receiving WM_MOUSEMOVE/WM_LBUTTONUP entirely.</summary>
+    public static void BeginDrag(HandleKind handle, bool isBodyMove, Point screenPoint)
+    {
+        if (Selected is null) return;
+        _dragActive = true;
+        _dragIsMove = isBodyMove;
+        _dragHandle = handle;
+        _dragLastScreenPoint = screenPoint;
+        if (_hud is { IsDisposed: false }) _hud.Capture = true;
+    }
+
+    /// <summary>Applies the mouse-move delta since the last call (or since <see cref="BeginDrag"/>)
+    /// to the selected control's geometry - move or resize, per the mode <see cref="BeginDrag"/> was
+    /// started with. Routes through <see cref="Selected"/>'s Dock/Parent exactly the way the
+    /// keyboard's arrow-key handling does for move (unchanged, see <c>LayoutEditModeMessageFilter.
+    /// HandleKey</c> in Program.cs), plus the new Dock=Fill-in-TableLayoutPanel and Dock=None resize
+    /// paths this drag feature adds. Holding Alt while resizing a TableLayoutPanel child's cell
+    /// (any Dock, not just Fill) resizes that row/column's Absolute size instead - the same Alt
+    /// meaning the keyboard's Alt+Arrow already has.</summary>
+    public static void ContinueDrag(Point screenPoint)
+    {
+        if (!_dragActive || Selected is not { } c) return;
+
+        int dx = screenPoint.X - _dragLastScreenPoint.X;
+        int dy = screenPoint.Y - _dragLastScreenPoint.Y;
+        if (dx == 0 && dy == 0) return;
+        _dragLastScreenPoint = screenPoint;
+
+        var fillInTable = c.Dock == DockStyle.Fill && c.Parent is TableLayoutPanel;
+
+        if (_dragIsMove)
+        {
+            if (fillInTable) NudgeMoveFill(dx, dy);
+            else if (c.Parent is TableLayoutPanel or FlowLayoutPanel) NudgeMargin(dx, dy);
+            else if (c.Dock == DockStyle.None) NudgeLocation(dx, dy);
+            // else: position is Dock-computed on a plain container - not directly draggable,
+            // matching the keyboard's own gap for the same case.
+        }
+        else
+        {
+            var alt = (Control.ModifierKeys & Keys.Alt) != 0;
+            if (alt && c.Parent is TableLayoutPanel)
+            {
+                if (dx != 0) NudgeTableColumn(dx);
+                if (dy != 0) NudgeTableRow(dy);
+            }
+            else if (fillInTable)
+            {
+                NudgeResizeMargin(_dragHandle, dx, dy);
+            }
+            else if (c.Dock == DockStyle.None)
+            {
+                NudgeBounds(_dragHandle, dx, dy);
+            }
+            // else: no handles are ever shown for this control (see LayoutEditHighlight - handle
+            // drawing is unconditional today; the resize-unsupported case simply no-ops here).
+        }
+    }
+
+    /// <summary>Ends the current drag (if any) and releases the mouse capture <see cref="BeginDrag"/>
+    /// took. Safe to call with no drag in progress.</summary>
+    public static void EndDrag()
+    {
+        _dragActive = false;
+        _dragHandle = HandleKind.None;
+        if (_hud is { IsDisposed: false }) _hud.Capture = false;
     }
 
     private static Snapshot CaptureSnapshot(Control c)

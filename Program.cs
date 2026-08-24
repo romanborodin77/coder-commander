@@ -249,20 +249,33 @@ internal sealed class UiDumpMessageFilter : IMessageFilter
 /// <para>Alt+arrow arrives as <c>WM_SYSKEYDOWN</c>, not <c>WM_KEYDOWN</c> - handled explicitly and
 /// always swallowed while active, otherwise it falls through to <c>DefWindowProc</c> and activates
 /// the system menu / produces an error beep instead of nudging a TableLayoutPanel row/column.</para>
+///
+/// <para>Mouse drag (move the selected control's body, resize via one of its 8 handles) needs
+/// WM_MOUSEMOVE/WM_LBUTTONUP too, not just WM_LBUTTONDOWN - but only swallowed while a drag is
+/// actually in progress (<see cref="LayoutEditModeService.BeginDrag"/> was called), so idle mouse
+/// traffic elsewhere in the app is never touched by this filter.</para>
 /// </summary>
 internal sealed class LayoutEditModeMessageFilter : IMessageFilter
 {
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_LBUTTONUP = 0x0202;
+    private const int WM_MOUSEMOVE = 0x0200;
 
     public bool PreFilterMessage(ref Message m)
     {
         if (m.Msg is WM_KEYDOWN or WM_SYSKEYDOWN)
             return HandleKey((Keys)m.WParam.ToInt32());
-        if (LayoutEditModeService.IsActive && m.Msg == WM_LBUTTONDOWN)
-            return HandleClick(m.HWnd);
-        return false;
+        if (!LayoutEditModeService.IsActive)
+            return false;
+        return m.Msg switch
+        {
+            WM_LBUTTONDOWN => HandleMouseDown(m.HWnd, m.LParam),
+            WM_MOUSEMOVE => HandleMouseMove(m.HWnd, m.LParam),
+            WM_LBUTTONUP => HandleMouseUp(),
+            _ => false,
+        };
     }
 
     private static bool HandleKey(Keys key)
@@ -319,13 +332,54 @@ internal sealed class LayoutEditModeMessageFilter : IMessageFilter
         return true;
     }
 
-    private static bool HandleClick(IntPtr hwnd)
+    /// <summary>Decodes a mouse message's client-relative point from its LParam (exact at the
+    /// instant Windows generated the message, unlike <c>Cursor.Position</c> which is read slightly
+    /// later when this filter processes it) and converts it to screen coordinates via the window
+    /// the message was actually sent to.</summary>
+    private static Point ScreenPointOf(IntPtr hwnd, IntPtr lParam)
     {
+        var raw = unchecked((int)(long)lParam);
+        var clientPt = new Point(unchecked((short)raw), unchecked((short)(raw >> 16)));
+        var control = Control.FromHandle(hwnd);
+        return control?.PointToScreen(clientPt) ?? Cursor.Position;
+    }
+
+    private static bool HandleMouseDown(IntPtr hwnd, IntPtr lParam)
+    {
+        var screenPt = ScreenPointOf(hwnd, lParam);
+
+        if (LayoutEditModeService.Selected != null &&
+            LayoutEditHighlight.TryHitTestHandle(screenPt, out var handle))
+        {
+            LayoutEditModeService.BeginDrag(handle, isBodyMove: false, screenPt);
+            return true;
+        }
+
         var control = Control.FromHandle(hwnd);
         if (control is null || control.FindForm() is LayoutEditHud)
             return false; // let clicks on the HUD itself (its Copy button) through normally
 
+        if (control == LayoutEditModeService.Selected)
+        {
+            LayoutEditModeService.BeginDrag(HandleKind.None, isBodyMove: true, screenPt);
+            return true; // body drag on the already-selected control - move, not reselect
+        }
+
         LayoutEditModeService.Select(control);
         return true; // swallow - a real click on the target would also focus/press/toggle it
+    }
+
+    private static bool HandleMouseMove(IntPtr hwnd, IntPtr lParam)
+    {
+        if (!LayoutEditModeService.IsDragging) return false;
+        LayoutEditModeService.ContinueDrag(ScreenPointOf(hwnd, lParam));
+        return true;
+    }
+
+    private static bool HandleMouseUp()
+    {
+        if (!LayoutEditModeService.IsDragging) return false;
+        LayoutEditModeService.EndDrag();
+        return true;
     }
 }
