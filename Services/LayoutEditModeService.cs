@@ -248,35 +248,45 @@ public static class LayoutEditModeService
         return new Snapshot(c.Margin, c.Padding, c.Location, rowIdx, rowH, colIdx, colW);
     }
 
-    /// <summary>Defensive highlight clearing (see <see cref="LayoutEditHighlight"/>'s own doc
-    /// comment on XOR fragility): the selected control's top-level window moving, resizing,
-    /// losing activation, or closing all invalidate the drawn frame's premise, so all four just
-    /// drop it rather than try to track/repair it.</summary>
+    /// <summary>
+    /// Keeps the XOR highlight valid across the selected control's top-level window moving or
+    /// resizing (its screen position changed, so the frame is redrawn at the new spot - not
+    /// dropped, the selection itself is still perfectly valid) and drops the selection outright
+    /// only on FormClosing (the window is being destroyed, nothing left to highlight).
+    ///
+    /// <para>An earlier version also cleared on <c>Deactivate</c>, reasoning that losing window
+    /// activation invalidates the highlight the same way. In practice this fired far more often
+    /// than a genuine "user clicked away to another window" - clicking a control and immediately
+    /// pressing an arrow key or Ctrl+C could observe <see cref="Selected"/> already cleared,
+    /// silently no-opping the nudge/export the user just asked for. Since a stale highlight while
+    /// the window is merely inactive is a minor, self-correcting cosmetic gap (any next click on
+    /// any control redraws it), not clearing on Deactivate at all is the better trade - see the
+    /// bug report this fixed.</para>
+    /// </summary>
     private static void WatchTopLevel(Control c)
     {
         _watchedTopLevel = c.TopLevelControl;
         if (_watchedTopLevel is not { } top) return;
-        top.Move += OnTopLevelInvalidated;
-        top.Resize += OnTopLevelInvalidated;
+        top.Move += OnTopLevelMovedOrResized;
+        top.Resize += OnTopLevelMovedOrResized;
         if (top is Form f)
-        {
-            f.Deactivate += OnTopLevelInvalidated;
-            f.FormClosing += OnTopLevelInvalidated;
-        }
+            f.FormClosing += OnTopLevelClosing;
     }
 
     private static void UnwatchTopLevel()
     {
         if (_watchedTopLevel is not { } top) { _watchedTopLevel = null; return; }
-        top.Move -= OnTopLevelInvalidated;
-        top.Resize -= OnTopLevelInvalidated;
+        top.Move -= OnTopLevelMovedOrResized;
+        top.Resize -= OnTopLevelMovedOrResized;
         if (top is Form f)
-        {
-            f.Deactivate -= OnTopLevelInvalidated;
-            f.FormClosing -= OnTopLevelInvalidated;
-        }
+            f.FormClosing -= OnTopLevelClosing;
         _watchedTopLevel = null;
     }
 
-    private static void OnTopLevelInvalidated(object? sender, EventArgs e) => ClearSelection();
+    private static void OnTopLevelMovedOrResized(object? sender, EventArgs e)
+    {
+        if (Selected is { } c) LayoutEditHighlight.Show(c);
+    }
+
+    private static void OnTopLevelClosing(object? sender, EventArgs e) => ClearSelection();
 }
