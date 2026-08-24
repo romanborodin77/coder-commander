@@ -8,6 +8,7 @@ using CoderCommander.Archives.SharpCompress;
 using CoderCommander.Archives.Tar;
 using CoderCommander.Archives.Zip;
 using CoderCommander.Services;
+using CoderCommander.WinForms;
 using CoderCommander.ViewModels;
 using CoderCommander.Views;
 using CoderCommander.Viewers;
@@ -101,6 +102,11 @@ internal static class Program
         if (Environment.GetEnvironmentVariable(DiagnosticCommandChannel.EnvironmentVariable) == "1")
             Application.AddMessageFilter(new UiDumpMessageFilter());
 
+        // Live layout tuning (F11) - click a control in the active dialog, nudge its geometry with
+        // arrow keys, Ctrl+C a ready-to-paste snippet. Same debug-mode gate as everything else here.
+        if (Environment.GetEnvironmentVariable(DiagnosticCommandChannel.EnvironmentVariable) == "1")
+            Application.AddMessageFilter(new LayoutEditModeMessageFilter());
+
         ApplicationConfiguration.Initialize();
 
         // Apply theme
@@ -129,6 +135,7 @@ internal static class Program
         // debug-mode launch.
         DiagnosticCommandChannel.Start(vm, mainForm);
         mainForm.FormClosed += (_, _) => DiagnosticCommandChannel.Stop();
+        mainForm.FormClosed += (_, _) => LayoutEditModeService.Shutdown();
 
         Application.Run(mainForm);
     }
@@ -225,5 +232,100 @@ internal sealed class UiDumpMessageFilter : IMessageFilter
         if (m.Msg == WM_KEYDOWN && (Keys)m.WParam.ToInt32() == Keys.F12)
             UiDumpService.DumpActiveFormToFile();
         return false;
+    }
+}
+
+/// <summary>
+/// Drives <see cref="LayoutEditModeService"/> from raw window messages - see Program.Main for the
+/// debug-mode env var gate. F11 toggles regardless of active state; every other key only acts while
+/// active, and clicks are only intercepted while active.
+///
+/// <para>Selection uses <c>Control.FromHandle(m.HWnd)</c> rather than a hand-rolled recursive
+/// point-to-control walk: Windows has already resolved <c>m.HWnd</c> to the exact, z-order-correct
+/// child window under the cursor before this filter ever sees the message (almost every control in
+/// this app - Label, Button, Panel, TableLayoutPanel, RoundedButton, ... - owns its own native HWND),
+/// so there is nothing left to hit-test.</para>
+///
+/// <para>Alt+arrow arrives as <c>WM_SYSKEYDOWN</c>, not <c>WM_KEYDOWN</c> - handled explicitly and
+/// always swallowed while active, otherwise it falls through to <c>DefWindowProc</c> and activates
+/// the system menu / produces an error beep instead of nudging a TableLayoutPanel row/column.</para>
+/// </summary>
+internal sealed class LayoutEditModeMessageFilter : IMessageFilter
+{
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_LBUTTONDOWN = 0x0201;
+
+    public bool PreFilterMessage(ref Message m)
+    {
+        if (m.Msg is WM_KEYDOWN or WM_SYSKEYDOWN)
+            return HandleKey((Keys)m.WParam.ToInt32());
+        if (LayoutEditModeService.IsActive && m.Msg == WM_LBUTTONDOWN)
+            return HandleClick(m.HWnd);
+        return false;
+    }
+
+    private static bool HandleKey(Keys key)
+    {
+        if (key == Keys.F11)
+        {
+            LayoutEditModeService.Toggle();
+            return true;
+        }
+        if (!LayoutEditModeService.IsActive)
+            return false;
+
+        if (key == Keys.Escape)
+        {
+            LayoutEditModeService.Toggle();
+            return true;
+        }
+
+        var mods = Control.ModifierKeys;
+        var ctrl = (mods & Keys.Control) != 0;
+        var alt = (mods & Keys.Alt) != 0;
+        var step = (mods & Keys.Shift) != 0 ? 10 : 1;
+
+        if (ctrl && key == Keys.C)
+        {
+            LayoutEditModeService.ExportToClipboard();
+            return true;
+        }
+
+        if (key is not (Keys.Up or Keys.Down or Keys.Left or Keys.Right))
+            return false;
+
+        int dx = key switch { Keys.Left => -step, Keys.Right => step, _ => 0 };
+        int dy = key switch { Keys.Up => -step, Keys.Down => step, _ => 0 };
+
+        if (alt)
+        {
+            if (dx != 0) LayoutEditModeService.NudgeTableColumn(dx);
+            if (dy != 0) LayoutEditModeService.NudgeTableRow(dy);
+        }
+        else if (ctrl)
+        {
+            LayoutEditModeService.NudgePadding(dx, dy);
+        }
+        else
+        {
+            var sel = LayoutEditModeService.Selected;
+            if (sel?.Parent is TableLayoutPanel or FlowLayoutPanel)
+                LayoutEditModeService.NudgeMargin(dx, dy);
+            else if (sel != null && sel.Dock == DockStyle.None)
+                LayoutEditModeService.NudgeLocation(dx, dy);
+            // else: position is Dock-computed on a plain container - not directly nudgeable.
+        }
+        return true;
+    }
+
+    private static bool HandleClick(IntPtr hwnd)
+    {
+        var control = Control.FromHandle(hwnd);
+        if (control is null || control.FindForm() is LayoutEditHud)
+            return false; // let clicks on the HUD itself (its Copy button) through normally
+
+        LayoutEditModeService.Select(control);
+        return true; // swallow - a real click on the target would also focus/press/toggle it
     }
 }
