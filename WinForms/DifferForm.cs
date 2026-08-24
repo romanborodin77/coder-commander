@@ -85,6 +85,7 @@ public sealed class DifferForm : ThemedForm
         topBar.Controls.Add(_leftPathBox, 1, 0);
         _leftBrowseBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
         _leftBrowseBtn.Dock = DockStyle.Fill;
+        _leftBrowseBtn.Margin = new Padding(4, 3, 4, 7);
         _leftBrowseBtn.Click += (_, _) => Browse(_leftPathBox, fs => _leftFs = fs);
         topBar.Controls.Add(_leftBrowseBtn, 2, 0);
 
