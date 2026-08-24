@@ -59,7 +59,7 @@ public static class LayoutEditModeService
     /// <summary>Immutable geometry read at <see cref="Select"/> time - <see cref="ExportToClipboard"/>
     /// always diffs the control's current state against this, never against the previous nudge.</summary>
     private sealed record Snapshot(
-        Padding Margin, Padding Padding, Point Location, Size Size,
+        Padding Margin, Padding Padding, Point Location, Size Size, bool AutoSize, bool? ParentAutoSize,
         int? RowIndex, float? RowHeight, int? ColIndex, float? ColWidth);
 
     /// <summary>Baseline for a <see cref="SelectedItem"/> - only Margin/Padding, since that's all a
@@ -128,6 +128,7 @@ public static class LayoutEditModeService
 
     public static void NudgeMargin(int dx, int dy) => Nudge((c, x, y) =>
     {
+        FreezeAutoSizeParent(c);
         var m = c.Margin;
         int left = m.Left, top = m.Top, right = m.Right, bottom = m.Bottom;
         if (x < 0) left = Math.Max(0, left + x);
@@ -152,6 +153,42 @@ public static class LayoutEditModeService
     /// position to nudge for a freely-positioned control.</summary>
     public static void NudgeLocation(int dx, int dy) => Nudge((c, x, y) =>
         c.Location = new Point(c.Location.X + x, c.Location.Y + y), dx, dy);
+
+    /// <summary>Mouse-drag-only: moves a non-Fill TableLayoutPanel/FlowLayoutPanel child by shifting
+    /// only <c>Margin.Left</c>/<c>Top</c> (clamped &gt;= 0) - for a control that ISN'T Dock=Fill,
+    /// those two are the ONLY margin sides that affect its own rendered position at all (Right/Bottom
+    /// only add trailing gap after it, they never move IT). Deliberately NOT <see cref="NudgeMargin"/>:
+    /// that method's keyboard convention grows Margin.RIGHT for a rightward nudge, which for a child
+    /// of a Dock=Right FlowLayoutPanel (this app's own right-aligned button-row convention, see
+    /// CLAUDE.md) pushes the control AWAY from the panel's right edge - i.e. visibly LEFT, the exact
+    /// opposite of the drag direction. A direct 1:1 Left/Top-margin shift has no such inversion for
+    /// any flow/table orientation, since it's the one axis WinForms always reads as "my own leading
+    /// edge offset," never "gap after me."</summary>
+    public static void NudgeMovePosition(int dx, int dy) => Nudge((c, x, y) =>
+    {
+        FreezeAutoSizeParent(c);
+        var m = c.Margin;
+        c.Margin = new Padding(Math.Max(0, m.Left + x), Math.Max(0, m.Top + y), m.Right, m.Bottom);
+    }, dx, dy);
+
+    /// <summary>Turns off <see cref="Control.AutoSize"/> on <paramref name="c"/>'s immediate parent
+    /// if it was on - an AutoSize parent (this app's own right-aligned FlowLayoutPanel button rows,
+    /// e.g. DifferForm's Close/Compare row, are exactly this: <c>AutoSize=true</c> AND
+    /// <c>Dock=Right</c>) recomputes its own required size from the SUM of its children's Margin+Size
+    /// on every layout pass. Growing a child's own Margin.Left to move it right also grows the
+    /// parent's own required width by the same amount - and since the parent is edge-docked, THAT
+    /// growth shifts the parent's own near edge the opposite way by the same amount, exactly
+    /// cancelling the child's intended on-screen movement (verified live: Margin.Left went 0→30,
+    /// PointToScreen didn't move a single pixel). Freezing the parent's Size the moment a drag/nudge
+    /// starts touching a child's Margin is what makes that Margin change actually visible - the same
+    /// "AutoSize silently reverts a manual geometry edit" fix <see cref="NudgeBounds"/> already
+    /// applies to the control being resized, just one level up the tree for the control being moved.
+    /// <see cref="ExportToClipboard"/> reports this flip too, for the same reason it reports the
+    /// selected control's own AutoSize flip.</summary>
+    private static void FreezeAutoSizeParent(Control c)
+    {
+        if (c.Parent is { AutoSize: true } parent) parent.AutoSize = false;
+    }
 
     /// <summary>Margin nudge for a <see cref="SelectedItem"/> - same clamp/sign convention as
     /// <see cref="NudgeMargin"/>, just operating on a ToolStripItem instead of a Control (the two
@@ -263,9 +300,19 @@ public static class LayoutEditModeService
     /// Size, regardless of what kind of parent it sits in (TableLayoutPanel/FlowLayoutPanel/plain
     /// Panel all leave a Dock=None child's Size alone). North/West-side handles also shift Location
     /// by the same delta the opposite edge grows by, so the anchored (opposite) edge stays put -
-    /// the standard "drag the top-left handle" resize convention.</summary>
+    /// the standard "drag the top-left handle" resize convention.
+    ///
+    /// <para>Turns off <see cref="Control.AutoSize"/> first if it was on - <c>CreateThemedButton</c>
+    /// (<see cref="ThemedForm"/>) sets it true on every button in this codebase, and an AutoSize
+    /// control recomputes its own preferred Size on the very next layout pass, silently reverting
+    /// whatever <see cref="Control.SetBounds"/> just set - "resize does nothing" was exactly this,
+    /// not a hit-testing problem. <see cref="ExportToClipboard"/> reports the AutoSize flip alongside
+    /// the Size change so the pasted-back snippet doesn't immediately get overridden the same way.</para>
+    /// </summary>
     public static void NudgeBounds(HandleKind handle, int dx, int dy) => Nudge((c, x, y) =>
     {
+        if (c.AutoSize) c.AutoSize = false;
+
         var (dxLoc, dyLoc, dw, dh) = handle switch
         {
             HandleKind.E => (0, 0, x, 0),
@@ -346,13 +393,27 @@ public static class LayoutEditModeService
             lines.Add($"{receiver}.Location = new Point({c.Location.X}, {c.Location.Y}); " +
                       $"// was ({baseline.Location.X}, {baseline.Location.Y})");
 
+        if (c.AutoSize != baseline.AutoSize)
+            lines.Add($"{receiver}.AutoSize = {(c.AutoSize ? "true" : "false")}; " +
+                      $"// was {(baseline.AutoSize ? "true" : "false")} - must come before the Size " +
+                      "assignment below or AutoSize will just recompute it again");
+
         if (c.Dock == DockStyle.None && c.Size != baseline.Size)
             lines.Add($"{receiver}.Size = new Size({c.Size.Width}, {c.Size.Height}); " +
                       $"// was ({baseline.Size.Width}, {baseline.Size.Height})");
 
+        if (c.Parent is { } parentControl && parentControl.AutoSize != baseline.ParentAutoSize)
+        {
+            var pRef = DescribeParentRef(parentControl, receiver);
+            lines.Add($"{pRef}.AutoSize = {(parentControl.AutoSize ? "true" : "false")}; " +
+                      $"// was {(baseline.ParentAutoSize == true ? "true" : "false")} - " +
+                      "FreezeAutoSizeParent turned this off so the Margin change above would actually " +
+                      "move the control instead of the parent silently resizing to cancel it out");
+        }
+
         if (c.Parent is TableLayoutPanel tlp)
         {
-            var parentRef = string.IsNullOrEmpty(tlp.Name) ? $"((TableLayoutPanel){receiver}.Parent)" : tlp.Name;
+            var parentRef = DescribeParentRef(tlp, receiver);
             var pos = tlp.GetPositionFromControl(c);
 
             if (baseline.RowIndex == pos.Row && pos.Row >= 0 && pos.Row < tlp.RowStyles.Count)
@@ -380,6 +441,12 @@ public static class LayoutEditModeService
         Clipboard.SetText(string.Join(Environment.NewLine, lines));
         LogService.Debug($"Layout edit: copied {lines.Count} line(s) to clipboard", "LayoutEdit");
     }
+
+    /// <summary>C# expression referring to <paramref name="parent"/> - its own <see cref="Control.Name"/>
+    /// if set, otherwise a cast off <paramref name="receiver"/>.Parent (the same fallback shape this
+    /// codebase's own field names mostly need, since a Control's Name is rarely set here).</summary>
+    private static string DescribeParentRef(Control parent, string receiver) =>
+        string.IsNullOrEmpty(parent.Name) ? $"(({parent.GetType().Name}){receiver}.Parent)" : parent.Name;
 
     /// <summary>Builds a human-readable locator for <paramref name="c"/> - its own type (plus
     /// <see cref="Control.Name"/> or, failing that, a short <see cref="Control.Text"/> if either is
@@ -524,7 +591,7 @@ public static class LayoutEditModeService
         if (_dragIsMove)
         {
             if (fillInTable) NudgeMoveFill(dx, dy);
-            else if (c.Parent is TableLayoutPanel or FlowLayoutPanel) NudgeMargin(dx, dy);
+            else if (c.Parent is TableLayoutPanel or FlowLayoutPanel) NudgeMovePosition(dx, dy);
             else if (c.Dock == DockStyle.None) NudgeLocation(dx, dy);
             // else: position is Dock-computed on a plain container - not directly draggable,
             // matching the keyboard's own gap for the same case.
@@ -579,7 +646,7 @@ public static class LayoutEditModeService
                 if (cs.SizeType == SizeType.Absolute) colW = cs.Width;
             }
         }
-        return new Snapshot(c.Margin, c.Padding, c.Location, c.Size, rowIdx, rowH, colIdx, colW);
+        return new Snapshot(c.Margin, c.Padding, c.Location, c.Size, c.AutoSize, c.Parent?.AutoSize, rowIdx, rowH, colIdx, colW);
     }
 
     /// <summary>

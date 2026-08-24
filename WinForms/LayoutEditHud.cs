@@ -116,7 +116,7 @@ internal sealed class LayoutEditHud : ThemedForm
         _boundsLabel.Text = $"Bounds: {selected.Bounds.X},{selected.Bounds.Y} {selected.Bounds.Width}x{selected.Bounds.Height}";
         _marginLabel.Text = $"Margin: {selected.Margin.Left},{selected.Margin.Top},{selected.Margin.Right},{selected.Margin.Bottom}";
         _paddingLabel.Text = $"Padding: {selected.Padding.Left},{selected.Padding.Top},{selected.Padding.Right},{selected.Padding.Bottom}";
-        _dockAnchorLabel.Text = $"Dock: {selected.Dock}   Anchor: {selected.Anchor}";
+        _dockAnchorLabel.Text = $"Dock: {selected.Dock}   Anchor: {selected.Anchor}   AutoSize: {selected.AutoSize}";
 
         if (selected.Parent is TableLayoutPanel tlp)
         {

@@ -354,21 +354,43 @@ internal sealed class LayoutEditModeMessageFilter : IMessageFilter
         return control?.PointToScreen(clientPt) ?? Cursor.Position;
     }
 
+    /// <summary>True if <paramref name="ancestor"/> is somewhere in <paramref name="control"/>'s
+    /// parent chain (not counting <paramref name="control"/> itself). Used to tell "the click landed
+    /// on the selected control's own parent panel/background, which a resize handle's outward reach
+    /// naturally spills into" apart from "the click landed on a genuinely different, separately-
+    /// selectable sibling control" - see <see cref="HandleMouseDown"/>.</summary>
+    private static bool IsAncestorOf(Control ancestor, Control? control)
+    {
+        for (var cur = control?.Parent; cur is not null; cur = cur.Parent)
+        {
+            if (ReferenceEquals(cur, ancestor)) return true;
+        }
+        return false;
+    }
+
     private static bool HandleMouseDown(IntPtr hwnd, IntPtr lParam)
     {
         var screenPt = ScreenPointOf(hwnd, lParam);
+        var control = Control.FromHandle(hwnd);
 
-        // Handle-rect hit-test is safe unconditionally: TryHitTestHandle's backing dict is
-        // null/empty whenever the current selection is a ToolStripItem (LayoutEditHighlight never
-        // draws handles for one) or nothing at all, so this can never misfire against a stale
-        // handle left over from a previous Control selection after switching away from it.
-        if (LayoutEditHighlight.TryHitTestHandle(screenPt, out var handle))
+        // A handle's hit box deliberately reaches a few pixels past the selected control's own edge
+        // (see LayoutEditHighlight's own doc comment) so it's easy to grab from just outside - but
+        // that same reach can spill into a DIFFERENT, real, separately-selectable control sitting
+        // close by (this app packs controls with only a few px of margin between neighbors, e.g.
+        // DifferForm's two Browse buttons). A handle hit only wins when the click didn't land on some
+        // other real control entirely - landing on a plain container (the parent panel/background the
+        // handle's outward reach naturally extends into) still lets the handle win, since that's not
+        // a control the user could have meant to switch selection to instead.
+        var clickedOtherControl = control is not null
+            && !ReferenceEquals(control, LayoutEditModeService.Selected)
+            && !IsAncestorOf(control, LayoutEditModeService.Selected);
+
+        if (!clickedOtherControl && LayoutEditHighlight.TryHitTestHandle(screenPt, out var handle))
         {
             LayoutEditModeService.BeginDrag(handle, isBodyMove: false, screenPt);
             return true;
         }
 
-        var control = Control.FromHandle(hwnd);
         if (control is null || control.FindForm() is LayoutEditHud)
             return false; // let clicks on the HUD itself (its Copy button) through normally
 
