@@ -47,7 +47,7 @@ public static class LayoutEditModeService
     /// <summary>Immutable geometry read at <see cref="Select"/> time - <see cref="ExportToClipboard"/>
     /// always diffs the control's current state against this, never against the previous nudge.</summary>
     private sealed record Snapshot(
-        Padding Margin, Padding Padding, Point Location,
+        Padding Margin, Padding Padding, Point Location, Size Size,
         int? RowIndex, float? RowHeight, int? ColIndex, float? ColWidth);
 
     /// <summary>Flips edit mode on/off. Turning off clears selection, highlight and the HUD.</summary>
@@ -242,14 +242,16 @@ public static class LayoutEditModeService
     /// <see cref="Select"/> time and copies a C# snippet for the properties that actually changed.
     /// Uses the control's own <see cref="Control.Name"/> as the snippet's receiver when set,
     /// otherwise a "&lt;selected&gt;" placeholder - most dialogs in this codebase never set a
-    /// button/field's Name, so the developer substitutes the real field identifier by hand; that's
-    /// an accepted limitation, not a defect to solve here.</summary>
+    /// button/field's Name, so a leading <see cref="DescribeLocation"/> comment (type/Text/parent
+    /// chain, e.g. "DifferForm > TableLayoutPanel[Row 1, Col 2] > RoundedButton "Browse…"") is what
+    /// actually lets the developer find the right field to substitute by hand - the placeholder
+    /// alone was not enough to identify which of a dialog's several unnamed buttons this was.</summary>
     public static void ExportToClipboard()
     {
         if (Selected is not { } c || _baseline is not { } baseline) return;
 
         var receiver = string.IsNullOrEmpty(c.Name) ? "<selected>" : c.Name;
-        var lines = new List<string>();
+        var lines = new List<string> { $"// {DescribeLocation(c)}" };
 
         if (c.Margin != baseline.Margin)
             lines.Add($"{receiver}.Margin = new Padding({c.Margin.Left}, {c.Margin.Top}, {c.Margin.Right}, {c.Margin.Bottom}); " +
@@ -262,6 +264,10 @@ public static class LayoutEditModeService
         if (c.Dock == DockStyle.None && c.Location != baseline.Location)
             lines.Add($"{receiver}.Location = new Point({c.Location.X}, {c.Location.Y}); " +
                       $"// was ({baseline.Location.X}, {baseline.Location.Y})");
+
+        if (c.Dock == DockStyle.None && c.Size != baseline.Size)
+            lines.Add($"{receiver}.Size = new Size({c.Size.Width}, {c.Size.Height}); " +
+                      $"// was ({baseline.Size.Width}, {baseline.Size.Height})");
 
         if (c.Parent is TableLayoutPanel tlp)
         {
@@ -284,7 +290,7 @@ public static class LayoutEditModeService
             }
         }
 
-        if (lines.Count == 0)
+        if (lines.Count == 1) // just the locator comment, no actual diff lines
         {
             LogService.Debug("Layout edit: nothing changed since selection, nothing copied", "LayoutEdit");
             return;
@@ -292,6 +298,38 @@ public static class LayoutEditModeService
 
         Clipboard.SetText(string.Join(Environment.NewLine, lines));
         LogService.Debug($"Layout edit: copied {lines.Count} line(s) to clipboard", "LayoutEdit");
+    }
+
+    /// <summary>Builds a human-readable locator for <paramref name="c"/> - its own type (plus
+    /// <see cref="Control.Name"/> or, failing that, a short <see cref="Control.Text"/> if either is
+    /// set) and its TableLayoutPanel Row/Col when applicable, then the same for each ancestor up to
+    /// and including the top-level Form. Most controls in this codebase have neither Name nor a
+    /// short Text (a bare button's "Обзор…" is the exception, not the rule), so this is best-effort
+    /// identification, not a guaranteed unique path - good enough to narrow down which of a dialog's
+    /// several unnamed buttons/panels the exported snippet is actually about.</summary>
+    private static string DescribeLocation(Control c)
+    {
+        var parts = new List<string>();
+        for (var cur = (Control?)c; cur is not null; cur = cur.Parent)
+        {
+            var label = cur.GetType().Name;
+            if (!string.IsNullOrEmpty(cur.Name))
+                label += $" \"{cur.Name}\"";
+            else if (!string.IsNullOrEmpty(cur.Text) && cur.Text.Length <= 40)
+                label += $" \"{cur.Text}\"";
+
+            if (cur.Parent is TableLayoutPanel ancestorTlp)
+            {
+                var pos = ancestorTlp.GetPositionFromControl(cur);
+                if (pos.Row >= 0 && pos.Column >= 0)
+                    label += $"[Row {pos.Row}, Col {pos.Column}]";
+            }
+
+            parts.Add(label);
+            if (cur is Form) break;
+        }
+        parts.Reverse();
+        return string.Join(" > ", parts);
     }
 
     /// <summary>Called from MainForm's FormClosed - erases any live highlight and disposes the HUD
@@ -404,7 +442,7 @@ public static class LayoutEditModeService
                 if (cs.SizeType == SizeType.Absolute) colW = cs.Width;
             }
         }
-        return new Snapshot(c.Margin, c.Padding, c.Location, rowIdx, rowH, colIdx, colW);
+        return new Snapshot(c.Margin, c.Padding, c.Location, c.Size, rowIdx, rowH, colIdx, colW);
     }
 
     /// <summary>
