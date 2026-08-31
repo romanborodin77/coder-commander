@@ -25,6 +25,12 @@ CoderCommander_crash.log
 ## ever gets written locally)
 *.pid
 
+## Scratch files debugging tooling drops in the working directory - the netcoredbg MCP server
+## writes its own {"server_pid":...,"processes":[...]} state as tmpXXXXXXXX.tmp in the current
+## directory, which is the repo root when the debuggee is launched from here. Nothing the build
+## produces uses this extension, so ignoring it wholesale is safe.
+*.tmp
+
 ## Local documentation and configuration (developer-only, not in repo)
 AGENTS.md
 CLAUDE.md
