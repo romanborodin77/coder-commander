@@ -54,12 +54,29 @@ public sealed partial class DifferForm : ThemedForm
         _compareBtn.Click += (_, _) => _ = CompareFilesAsync();
         _closeBtn.Click += (_, _) => Close();
 
-        // Only after the container is parented and docked: SplitContainer.Width is still its
-        // unparented 150px default during InitializeComponent, so setting SplitterDistance against
-        // ClientSize.Width any earlier either clamps to that tiny default or is silently orphaned
-        // once the container grows to fill the real client area, leaving the splitter stuck near one
-        // edge instead of centered.
-        _split.SplitterDistance = (ClientSize.Width - 4) / 2;
+        // SplitterDistance is centred in OnLayout, not here - see CentreSplitterOnce.
+    }
+
+    private bool _splitterCentred;
+
+    /// <summary>
+    /// Centres the diff splitter the first time the container has a real width. This used to run in
+    /// the constructor as <c>(ClientSize.Width - 4) / 2</c>, measuring the FORM rather than the
+    /// SplitContainer and doing it before layout had settled - it put the splitter at 726 of a
+    /// 900px container, so the right-hand file got 170px against the left's 726 instead of an even
+    /// split. Measuring <see cref="SplitContainer.Width"/> during layout is correct by construction:
+    /// it is the width being divided. One-shot, so dragging the splitter afterwards sticks.
+    /// </summary>
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        if (_splitterCentred || !_split.IsHandleCreated) return;
+
+        var usable = _split.Width - _split.SplitterWidth;
+        if (usable < _split.Panel1MinSize + _split.Panel2MinSize) return;
+
+        _split.SplitterDistance = usable / 2;
+        _splitterCentred = true;
     }
 
     /// <summary>A native folder/file picker only ever browses the real local disk - picking a

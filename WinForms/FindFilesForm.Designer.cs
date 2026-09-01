@@ -249,7 +249,14 @@ partial class FindFilesForm
         // _status
         //
         // Text is the "searching in <path>" line, built in code.
-        _status.AutoSize = true;
+        //
+        // AutoEllipsis, and therefore AutoSize=false, because a path is one unbreakable token: at
+        // AutoSize=true the label word-wrapped, and a path too long for what remains of line one
+        // moved to line two in its entirety - which this label's height does not show. The dialog
+        // then displayed "Searching in:" and no path at all, rather than a truncated one. Same
+        // treatment HotkeyBindingsForm._hint and OperationDialogForm._currentFileLabel already use.
+        _status.AutoEllipsis = true;
+        _status.AutoSize = false;
         _status.Dock = DockStyle.Fill;
         _status.Name = "_status";
         _uiMetadata.SetThemeRole(_status, ThemeRole.Hint);

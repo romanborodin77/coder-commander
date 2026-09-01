@@ -145,13 +145,16 @@ public sealed partial class SettingsForm : ThemedForm
         _showStatusBarCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowStatusBar", s.ShowStatusBar);
         _showFnButtonsCheck = AddFullWidthCheck(appearLayout, row++, "Settings.ShowFunctionButtons", s.ShowFunctionButtons);
 
-        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Toolbar.EditToolbar")), 0, row);
+        // No label in column 0 for these two: the button caption already reads "Customize Toolbar",
+        // and putting the very same localized string in the label beside it printed it twice on one
+        // row. It also broke the rows below - at the section's uniform 32px row height, "Customize
+        // Function Bar" wrapped onto a second line that ran straight into the "UI font:" label
+        // under it. A button that names its own action needs no separate caption.
         var editToolbarBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Toolbar.EditToolbar"));
         editToolbarBtn.Click += (_, _) => OnEditToolbarLayout(isFunctionBar: false);
         appearLayout.Controls.Add(editToolbarBtn, 1, row);
         row++;
 
-        appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Toolbar.EditFunctionBar")), 0, row);
         var editFnBarBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Toolbar.EditFunctionBar"));
         editFnBarBtn.Click += (_, _) => OnEditToolbarLayout(isFunctionBar: true);
         appearLayout.Controls.Add(editFnBarBtn, 1, row);

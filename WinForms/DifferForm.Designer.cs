@@ -174,13 +174,15 @@ partial class DifferForm
         // Height(88) minus Padding(8+8) leaves 72 for the two rows, and the RowStyles must sum to
         // exactly that: TableLayoutPanel dumps any leftover into the LAST row alone, which at the
         // old 32+32 made the Right row's Browse button render 34px against the Left row's 26px.
-        _topBar.ColumnCount = 4;
+        // Three columns, not four: label, path box, Browse button. A fourth Percent-50 column used
+        // to sit here with nothing in it, which split the free width evenly between the path box
+        // and 354px of dead space - the path boxes showed roughly half the path they had room for.
+        _topBar.ColumnCount = 3;
         _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60F));
-        _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         // Wide enough for the localized "Browse…" text - at the old 60 the button's EndEllipsis
         // silently truncated it to "Bro...".
         _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
-        _topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         _topBar.Controls.Add(_leftLabel, 0, 0);
         _topBar.Controls.Add(_leftPathBox, 1, 0);
         _topBar.Controls.Add(_leftBrowseBtn, 2, 0);
