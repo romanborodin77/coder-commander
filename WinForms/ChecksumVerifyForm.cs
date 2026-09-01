@@ -13,76 +13,36 @@ namespace CoderCommander.WinForms;
 /// fully specified (<see cref="ChecksumService.ExportSfvAsync"/>/<see cref="ChecksumService.ExportHashAsync"/>)
 /// with no corresponding import/compare path anywhere in the app.</para>
 /// </summary>
-public sealed class ChecksumVerifyForm : ThemedForm
+public sealed partial class ChecksumVerifyForm : ThemedForm
 {
-    private readonly ListView _resultList;
-    private readonly Label _statusLabel;
-    private readonly Button _closeBtn;
     private readonly IFileSystem _fs;
     private readonly string _checksumFilePath;
     private CancellationTokenSource? _cts;
 
     public ChecksumVerifyForm(IFileSystem fs, string checksumFilePath)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _fs = fs;
         _checksumFilePath = checksumFilePath;
 
         var L = LocalizationService.Current;
+        // Interpolates the checksum file's name, so it cannot travel as a plain LocalizationKey.
         Text = string.Format(CultureInfo.InvariantCulture,
             L.GetString("ChecksumVerify.Title"), VfsPath.GetName(checksumFilePath));
-        ClientSize = new Size(640, 480);
+
+        // A ColumnHeader is not a Control, so it cannot carry a LocalizationKey - the same reason
+        // FilePanelUserControl.Relocalize rewrites its own column captions by hand.
+        _colFileName.Text = L.GetString("Checksum.FileName");
+        _colStatus.Text = L.GetString("ChecksumVerify.Status");
+        _colHash.Text = L.GetString("Checksum.Hash");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(420, 300);
 
-        var p = ThemeService.Current;
-
-        _resultList = UiHelpers.CreateListView(
-            (L.GetString("Checksum.FileName"), 320),
-            (L.GetString("ChecksumVerify.Status"), 140),
-            (L.GetString("Checksum.Hash"), 160));
-        _resultList.Dock = DockStyle.Fill;
-
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Margin = new Padding(0);
         _closeBtn.Click += (_, _) => Close();
-
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_closeBtn);
-
-        var bottomPanel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        bottomPanel.Controls.Add(_statusLabel);
-        bottomPanel.Controls.Add(rightGroup);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(_resultList);
-        Controls.Add(bottomPanel);
-
-        CancelButton = _closeBtn;
         Load += (_, _) => _ = VerifyAsync();
         FormClosing += (_, _) =>
         {
@@ -167,15 +127,4 @@ public sealed class ChecksumVerifyForm : ThemedForm
         }
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _resultList?.Dispose();
-            _statusLabel?.Dispose();
-            _closeBtn?.Dispose();
-            _cts?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
