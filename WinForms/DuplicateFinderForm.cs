@@ -15,16 +15,10 @@ using DuplicateGroup = CoderCommander.Services.Search.DuplicateFinder.DuplicateG
 /// <para><b>VFS-aware.</b> Works through <see cref="IFileSystem"/> + <see cref="DuplicateFinder"/>,
 /// so duplicates can be found inside archives and remote connections, not only on local paths.</para>
 /// </summary>
-public sealed class DuplicateFinderForm : ThemedForm
+public sealed partial class DuplicateFinderForm : ThemedForm
 {
     private readonly IFileSystem _fs;
     private readonly string _rootPath;
-    private readonly ListView _resultList;
-    private readonly Button _scanBtn;
-    private readonly Button _deleteBtn;
-    private readonly Button _gotoBtn;
-    private readonly Button _closeBtn;
-    private readonly Label _statusLabel;
     private CancellationTokenSource? _cts;
     private List<(DuplicateGroup Group, int FileIndex)> _allRows = new();
     private Font? _boldFont;
@@ -40,81 +34,27 @@ public sealed class DuplicateFinderForm : ThemedForm
     /// <param name="rootPath">Root directory to scan recursively.</param>
     public DuplicateFinderForm(IFileSystem fs, string rootPath)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _fs = fs;
         _rootPath = rootPath;
 
         var L = LocalizationService.Current;
-        Text = L.GetString("Dup.Title");
-        ClientSize = new Size(700, 520);
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colName.Text = L.GetString("Dup.ColName");
+        _colSize.Text = L.GetString("Dup.ColSize");
+        _colPath.Text = L.GetString("Dup.ColPath");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(480, 360);
 
-        var p = ThemeService.Current;
-
-        _resultList = UiHelpers.CreateListView(
-            (L.GetString("Dup.ColName"), 280),
-            (L.GetString("Dup.ColSize"), 100),
-            (L.GetString("Dup.ColPath"), 280));
-        _resultList.Dock = DockStyle.Fill;
-        _resultList.CheckBoxes = true;
-        _resultList.FullRowSelect = true;
-
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Margin = new Padding(0, 0, 8, 0);
         _closeBtn.Click += (_, _) => Close();
-
-        _gotoBtn = ThemedForm.CreateThemedButton(L.GetString("Dup.GoTo"));
-        _gotoBtn.Margin = new Padding(0, 0, 8, 0);
-        _gotoBtn.Enabled = false;
         _gotoBtn.Click += (_, _) => OnGoTo();
-
-        _deleteBtn = ThemedForm.CreateThemedButton(L.GetString("Dup.Delete"));
-        _deleteBtn.Margin = new Padding(0, 0, 8, 0);
-        _deleteBtn.Enabled = false;
         _deleteBtn.Click += (_, _) => OnDelete();
-
-        _scanBtn = ThemedForm.CreateThemedButton(L.GetString("Dup.Scan"), accent: true);
-        _scanBtn.Margin = new Padding(0);
         _scanBtn.Click += (_, _) => _ = ScanAsync();
 
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_closeBtn);
-        rightGroup.Controls.Add(_gotoBtn);
-        rightGroup.Controls.Add(_deleteBtn);
-        rightGroup.Controls.Add(_scanBtn);
-
-        var bottomPanel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        bottomPanel.Controls.Add(_statusLabel);
-        bottomPanel.Controls.Add(rightGroup);
-
-        Controls.Add(_resultList);
-        Controls.Add(bottomPanel);
-
-        CancelButton = _closeBtn;
         _resultList.ItemSelectionChanged += (_, _) => UpdateButtonStates();
         _resultList.ItemChecked += (_, e) =>
         {
@@ -292,19 +232,4 @@ public sealed class DuplicateFinderForm : ThemedForm
                          // may see files still present, but user can re-scan manually if needed.
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _boldFont?.Dispose();
-            _resultList?.Dispose();
-            _scanBtn?.Dispose();
-            _gotoBtn?.Dispose();
-            _deleteBtn?.Dispose();
-            _closeBtn?.Dispose();
-            _statusLabel?.Dispose();
-            _cts?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }

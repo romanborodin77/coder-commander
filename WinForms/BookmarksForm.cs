@@ -110,12 +110,8 @@ public sealed class BookmarkStore
 /// <summary>
 /// Bookmark management form: add, remove, and navigate to folder bookmarks.
 /// </summary>
-public sealed class BookmarksForm : ThemedForm
+public sealed partial class BookmarksForm : ThemedForm
 {
-    private readonly ListView _listView;
-    private readonly Button _addBtn;
-    private readonly Button _removeBtn;
-    private readonly Button _closeBtn;
     private readonly Func<string, Task<bool>> _pathExists;
 
     /// <summary>Raised when a bookmark is double-clicked (navigate to it).</summary>
@@ -128,61 +124,27 @@ public sealed class BookmarksForm : ThemedForm
     /// bookmarked.</param>
     public BookmarksForm(Func<string, Task<bool>> pathExists)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _pathExists = pathExists;
+
         var L = LocalizationService.Current;
-        Text = L.GetString("Bookmark.Title");
-        ClientSize = new Size(600, 400);
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colName.Text = L.GetString("Bookmark.Col.Name");
+        _colPath.Text = L.GetString("Bookmark.Col.Path");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(400, 280);
 
         BookmarkStore.Instance.Load();
 
-        _listView = UiHelpers.CreateListView(
-            (L.GetString("Bookmark.Col.Name"), 150),
-            (L.GetString("Bookmark.Col.Path"), 400));
-        _listView.Dock = DockStyle.Fill;
         _listView.DoubleClick += OnBookmarkDoubleClick;
-
-        var p = ThemeService.Current;
-        var btnPanel = new Panel { Dock = DockStyle.Bottom, Height = 50, BackColor = p.HeaderBackground, Tag = ThemeRole.HeaderBackground, Padding = new Padding(16, 8, 16, 8) };
-
-        _addBtn = ThemedForm.CreateThemedButton(L.GetString("Bookmark.Add"), accent: true);
-        _addBtn.Margin = new Padding(0, 0, 8, 0);
         _addBtn.Click += (_, _) => AddBookmark();
-
-        _removeBtn = ThemedForm.CreateThemedButton(L.GetString("Bookmark.Remove"));
-        _removeBtn.Margin = new Padding(0);
         _removeBtn.Click += (_, _) => RemoveSelected();
-
-        // Two same-side Dock.Left buttons stack from the last-added control outward (outermost
-        // = leftmost), which had silently rendered these as "Remove Add" instead of "Add
-        // Remove" - a FlowLayoutPanel makes the visual order match the add order directly, and
-        // its Margin actually renders (Dock.Left/Right ignore it entirely).
-        var leftGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Left,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        leftGroup.Controls.Add(_addBtn);
-        leftGroup.Controls.Add(_removeBtn);
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Dock = DockStyle.Right;
         _closeBtn.Click += (_, _) => Close();
 
-        btnPanel.Controls.Add(_closeBtn);
-        btnPanel.Controls.Add(leftGroup);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(_listView);
-        Controls.Add(btnPanel);
-
-        CancelButton = _closeBtn;
         Load += (_, _) => RefreshList();
     }
 
@@ -270,15 +232,4 @@ public sealed class BookmarksForm : ThemedForm
         }
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _listView?.Dispose();
-            _addBtn?.Dispose();
-            _removeBtn?.Dispose();
-            _closeBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
