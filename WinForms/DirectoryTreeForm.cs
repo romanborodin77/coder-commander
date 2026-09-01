@@ -12,10 +12,8 @@ namespace CoderCommander.WinForms;
 /// don't understand an archive's <c>archive.zip|inner/dir</c> syntax or a connection's
 /// <c>sftp://host/dir</c> syntax at all.
 /// </summary>
-public sealed class DirectoryTreeForm : ThemedForm
+public sealed partial class DirectoryTreeForm : ThemedForm
 {
-    private readonly TreeView _tree;
-    private readonly Button _closeBtn;
     private readonly IFileSystem _fs;
 
     /// <summary>Raised when a node is double-clicked (navigate to that folder).</summary>
@@ -27,47 +25,22 @@ public sealed class DirectoryTreeForm : ThemedForm
     /// exactly what that panel is browsing, archive/connection included.</param>
     public DirectoryTreeForm(string rootPath, IFileSystem fs)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _fs = fs;
-        var L = LocalizationService.Current;
-        Text = L.GetString("DirTree.Title");
-        ClientSize = new Size(480, 520);
+        // Not serialized by the designer: ThemedForm.Resizable is this app's own property, applied
+        // in OnLoad rather than being a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(320, 300);
 
-        var p = ThemeService.Current;
-
-        _tree = new TreeView
-        {
-            Dock = DockStyle.Fill,
-            Font = p.GridFont,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            BorderStyle = BorderStyle.None,
-            ShowLines = true,
-            ShowPlusMinus = true,
-            ShowRootLines = true
-        };
         _tree.BeforeExpand += OnBeforeExpand;
         _tree.NodeMouseDoubleClick += (_, e) =>
         {
             if (e.Node.Tag is string path)
                 NavigateRequested?.Invoke(this, path);
         };
-
-        var bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 50, BackColor = p.HeaderBackground, Tag = ThemeRole.HeaderBackground, Padding = new Padding(16, 8, 16, 8) };
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Dock = DockStyle.Right;
         _closeBtn.Click += (_, _) => Close();
-        bottomPanel.Controls.Add(_closeBtn);
 
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings - WinForms lays
-        // out docked children from the last-added index down to the first, so adding Fill after
-        // Bottom here left _tree's layout extending under bottomPanel (invisible only because
-        // bottomPanel is opaque and added-first = frontmost z-order).
-        Controls.Add(_tree);
-        Controls.Add(bottomPanel);
-
-        CancelButton = _closeBtn;
         Load += (_, _) => _ = PopulateRootAsync(rootPath);
     }
 
@@ -168,13 +141,4 @@ public sealed class DirectoryTreeForm : ThemedForm
         }
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _tree?.Dispose();
-            _closeBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
