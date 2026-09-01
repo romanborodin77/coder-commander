@@ -26,15 +26,16 @@ public class ThemedForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        Font = ThemeService.Current.GridFont;
-        BackColor = ThemeService.Current.Background;
-        ForeColor = ThemeService.Current.Foreground;
-        Padding = new Padding(0);
-        // Not under a designer: it constructs and abandons instances of this class constantly, and
-        // every one that is never disposed would stay rooted in this static event inside the IDE
-        // process, with its handler firing against a dead form on the next theme change.
+        // At design time, avoid accessing ThemeService which may not be initialized properly in the IDE.
+        // Use default values instead - the form will get proper theming when it runs in the application.
         if (!DesignTime.IsActive)
+        {
+            Font = ThemeService.Current.GridFont;
+            BackColor = ThemeService.Current.Background;
+            ForeColor = ThemeService.Current.Foreground;
             ThemeService.ThemeChanged += OnThemeChanged;
+        }
+        Padding = new Padding(0);
     }
 
     // The three properties below are shadowed for one reason only: to stop the Windows Forms

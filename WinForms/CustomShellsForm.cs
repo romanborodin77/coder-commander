@@ -51,7 +51,7 @@ public sealed partial class CustomShellsForm : ThemedForm
         {
             _list.Items.Add(new ListViewItem(L.GetString("Settings.Terminal.CustomShells.Empty"))
             {
-                ForeColor = ThemeService.Current.DimForeground,
+                ForeColor = DesignerSafeThemeService.Current.DimForeground,
             });
         }
         else

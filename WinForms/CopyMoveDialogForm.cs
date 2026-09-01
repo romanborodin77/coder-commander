@@ -1,4 +1,4 @@
-﻿using CoderCommander.Models;
+using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Drawing.Drawing2D;
 
@@ -38,7 +38,7 @@ public sealed partial class CopyMoveDialogForm : ThemedForm
         _uiMetadata.ApplyLocalization();
 
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         // Copy and Move share this dialog, so both the title and the header caption pick one of two
         // keys rather than carrying a single fixed LocalizationKey.
@@ -50,7 +50,7 @@ public sealed partial class CopyMoveDialogForm : ThemedForm
         _colSize.Text = L.GetString("CopyMove.Col.Size");
         _colType.Text = L.GetString("CopyMove.Col.Type");
 
-        _iconBox.Paint += (_, e) => DrawTransferIcon(e.Graphics, isMove, ThemeService.Current.Accent);
+        _iconBox.Paint += (_, e) => DrawTransferIcon(e.Graphics, isMove, DesignerSafeThemeService.Current.Accent);
 
         _destBox.Text = defaultDest;
         _browseBtn.Click += (_, _) =>

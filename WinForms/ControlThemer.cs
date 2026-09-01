@@ -18,7 +18,7 @@ public interface ISelfThemedControl
 }
 
 /// <summary>
-/// Recursively applies the active <see cref="ThemeService.Current"/> palette to a control tree.
+/// Recursively applies the active <see cref="DesignerSafeThemeService.Current"/> palette to a control tree.
 /// <see cref="ThemedForm"/> uses this for its own descendants; any <see cref="ISelfThemedControl"/>
 /// (e.g. <see cref="ThemedTabControl"/>) can call it too, to theme its own children the same way.
 ///
@@ -33,13 +33,13 @@ public interface ISelfThemedControl
 public static class ControlThemer
 {
     /// <summary>
-    /// Recursively applies the active <see cref="ThemeService.Current"/> palette to every control
+    /// Recursively applies the active <see cref="DesignerSafeThemeService.Current"/> palette to every control
     /// in the tree. Delegates to <see cref="ISelfThemedControl.RefreshTheme"/> for composite
     /// controls that manage their own descendant theming.
     /// </summary>
     public static void ThemeDescendants(Control parent)
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         foreach (Control c in parent.Controls)
         {
@@ -426,7 +426,7 @@ public static class ControlThemer
     private static void OnTabControlPaint(object? sender, PaintEventArgs e)
     {
         if (sender is not TabControl tc) return;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var tabStripHeight = tc.ItemSize.Height + tc.Padding.Y * 2;
         var stripRect = new Rectangle(0, 0, tc.Width, tabStripHeight);
         using var bgBrush = new SolidBrush(p.Background);
@@ -438,7 +438,7 @@ public static class ControlThemer
     {
         if (sender is not TabControl tc) return;
 
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var tabRect = tc.GetTabRect(e.Index);
         var isSelected = e.Index == tc.SelectedIndex;
 

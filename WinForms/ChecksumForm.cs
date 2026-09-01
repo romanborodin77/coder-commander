@@ -124,7 +124,7 @@ public sealed partial class ChecksumForm : ThemedForm
                     var lvi = new ListViewItem(file.Name);
                     lvi.SubItems.Add(algoName);
                     lvi.SubItems.Add(ex.Message);
-                    lvi.ForeColor = ThemeService.Current.Danger;
+                    lvi.ForeColor = DesignerSafeThemeService.Current.Danger;
                     _resultList.Items.Add(lvi);
                 }
             }

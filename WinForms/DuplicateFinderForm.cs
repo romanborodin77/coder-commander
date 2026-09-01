@@ -79,7 +79,7 @@ public sealed partial class DuplicateFinderForm : ThemedForm
         // Recreate _boldFont so group headers follow the new theme's font family/size.
         // Update existing items' Font to avoid using a disposed font during a theme change mid-scan.
         var oldFont = _boldFont;
-        _boldFont = new Font(ThemeService.Current.GridFont, FontStyle.Bold);
+        _boldFont = new Font(DesignerSafeThemeService.Current.GridFont, FontStyle.Bold);
         if (oldFont != null)
         {
             foreach (ListViewItem lvi in _resultList.Items)
@@ -112,15 +112,15 @@ public sealed partial class DuplicateFinderForm : ThemedForm
 
             if (ct.IsCancellationRequested || IsDisposed) return;
 
-            _boldFont ??= new Font(ThemeService.Current.GridFont, FontStyle.Bold);
+            _boldFont ??= new Font(DesignerSafeThemeService.Current.GridFont, FontStyle.Bold);
 
             foreach (var group in groups)
             {
                 // Group header row — uncheckable separator.
                 var header = new ListViewItem(L.GetString("Dup.GroupHeader", group.Files.Count, UiHelpers.FormatSize(group.Size)))
                 {
-                    BackColor = ThemeService.Current.HeaderBackground,
-                    ForeColor = ThemeService.Current.HeaderForeground,
+                    BackColor = DesignerSafeThemeService.Current.HeaderBackground,
+                    ForeColor = DesignerSafeThemeService.Current.HeaderForeground,
                     Font = _boldFont
                 };
                 header.SubItems.Add("");

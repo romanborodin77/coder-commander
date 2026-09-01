@@ -94,7 +94,8 @@ public sealed class EmbeddedTerminalPanel : Panel
 
     private void InitializeComponents()
     {
-        BackColor = ThemeService.Current.Background;
+        if (!DesignTime.IsActive)
+            BackColor = DesignerSafeThemeService.Current.Background;
 
         if (!OsVersion.IsConPtySupported)
         {
@@ -161,7 +162,7 @@ public sealed class EmbeddedTerminalPanel : Panel
         if (IsDisposed)
             return;
 
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.Background;
         if (_newTabButton != null)
         {

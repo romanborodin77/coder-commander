@@ -145,7 +145,7 @@ public sealed partial class AboutForm : ThemedForm
 
     private Control BuildLinks()
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var panel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -248,7 +248,7 @@ public sealed partial class AboutForm : ThemedForm
 
     private static LinkLabel CreateLinkLabel(string text)
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var link = new LinkLabel
         {
             Text = text,
@@ -260,10 +260,10 @@ public sealed partial class AboutForm : ThemedForm
             Cursor = Cursors.Hand,
             LinkBehavior = LinkBehavior.NeverUnderline,
         };
-        // Read live from ThemeService.Current rather than the colors captured at construction -
+        // Read live from DesignerSafeThemeService.Current rather than the colors captured at construction -
         // otherwise hovering after a theme switch would flip back to the old theme's accent.
-        link.MouseEnter += (_, _) => link.LinkColor = ThemeService.Current.AccentHover;
-        link.MouseLeave += (_, _) => link.LinkColor = ThemeService.Current.Accent;
+        link.MouseEnter += (_, _) => link.LinkColor = DesignerSafeThemeService.Current.AccentHover;
+        link.MouseLeave += (_, _) => link.LinkColor = DesignerSafeThemeService.Current.Accent;
         return link;
     }
 
@@ -287,7 +287,7 @@ public sealed partial class AboutForm : ThemedForm
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            var p = ThemeService.Current;
+            var p = DesignerSafeThemeService.Current;
             var L = LocalizationService.Current;
             var g = e.Graphics;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;

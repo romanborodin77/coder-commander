@@ -55,9 +55,9 @@ public sealed partial class OperationQueueForm : ThemedForm
 #pragma warning disable CA2000 // disposed via AutoDisposeOnClose below, same as FilePanelUserControl's own context menu
         var menu = new ContextMenuStrip
         {
-            BackColor = ThemeService.Current.HeaderBackground,
-            ForeColor = ThemeService.Current.Foreground,
-            Font = ThemeService.Current.GridFont,
+            BackColor = DesignerSafeThemeService.Current.HeaderBackground,
+            ForeColor = DesignerSafeThemeService.Current.Foreground,
+            Font = DesignerSafeThemeService.Current.GridFont,
             Renderer = new ThemeRenderer()
         };
 #pragma warning restore CA2000

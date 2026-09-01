@@ -42,7 +42,7 @@ public static class AppLogo
     /// on-accent foreground.</summary>
     public static Bitmap Render(int pixelSize)
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var badge = VectorIcon.RoundedRect(2, 2, 60, 60, 14);
         // Stroke weight is in grid units, so it scales with the badge and the mark keeps the
         // same proportions whether it's drawn at 32px or 256px.

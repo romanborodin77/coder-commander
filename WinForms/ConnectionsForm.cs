@@ -61,7 +61,7 @@ public sealed partial class ConnectionsForm : ThemedForm
             var hasProviders = FileSystem.FileSystemProviderRegistry.Registered.Any();
             _list.Items.Add(new ListViewItem(L.GetString(hasProviders ? "Conn.Empty" : "Conn.NoProviders"))
             {
-                ForeColor = ThemeService.Current.DimForeground,
+                ForeColor = DesignerSafeThemeService.Current.DimForeground,
             });
         }
         else

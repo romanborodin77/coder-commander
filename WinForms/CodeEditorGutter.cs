@@ -47,7 +47,7 @@ internal sealed class CodeEditorGutter : Control
     /// <summary>Applies the current theme colors and font to the gutter.</summary>
     public void ApplyTheme()
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.PanelBackground;
         _font = p.MonoFont;
         RecalculateWidth();
@@ -74,7 +74,7 @@ internal sealed class CodeEditorGutter : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         g.Clear(p.PanelBackground);
 
         var lineHeight = _canvas.LineHeight;

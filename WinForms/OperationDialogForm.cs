@@ -1,4 +1,4 @@
-﻿using CoderCommander.Operations;
+using CoderCommander.Operations;
 using CoderCommander.Services;
 using System.Drawing.Drawing2D;
 
@@ -81,7 +81,7 @@ public sealed partial class OperationDialogForm : ThemedForm
         // _stateLabel's SectionFont + Accent combination doesn't map to any general text role
         // (Section itself pairs with HeaderForeground) - without this, the untagged-Label
         // default would reset it to GridFont/HeaderForeground on every theme switch.
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         _stateLabel.Font = p.SectionFont;
         _stateLabel.ForeColor = p.Accent;
     }

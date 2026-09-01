@@ -1,4 +1,4 @@
-﻿using CoderCommander.FileSystem;
+using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Globalization;
@@ -97,15 +97,15 @@ public sealed partial class MultiRenameForm : ThemedForm
             lvi.SubItems.Add(status);
 
             if (status == "!")
-                lvi.ForeColor = ThemeService.Current.Danger;
+                lvi.ForeColor = DesignerSafeThemeService.Current.Danger;
             else if (status == "->")
-                lvi.ForeColor = ThemeService.Current.Accent;
+                lvi.ForeColor = DesignerSafeThemeService.Current.Accent;
 
             _previewList.Items.Add(lvi);
 
             if (i + 1 >= MaxPreviewItems && _items.Count > MaxPreviewItems)
             {
-                var moreLvi = new ListViewItem($"… {_items.Count - MaxPreviewItems} more") { ForeColor = ThemeService.Current.DimForeground };
+                var moreLvi = new ListViewItem($"… {_items.Count - MaxPreviewItems} more") { ForeColor = DesignerSafeThemeService.Current.DimForeground };
                 moreLvi.SubItems.Add("");
                 moreLvi.SubItems.Add("");
                 _previewList.Items.Add(moreLvi);

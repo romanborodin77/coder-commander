@@ -238,7 +238,7 @@ internal sealed class CodeEditorCanvas : Control
     /// <summary>Re-measures glyph metrics (character width, line height) from the current theme font and zoom factor.</summary>
     internal void RescaleMetrics()
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var oldOwned = _ownedFont;
         if (Math.Abs(_zoomFactor - 1f) < 0.01f)
         {
@@ -283,7 +283,7 @@ internal sealed class CodeEditorCanvas : Control
     /// <summary>Applies the current theme colors and re-measures metrics.</summary>
     public void ApplyTheme()
     {
-        BackColor = ThemeService.Current.PanelBackground;
+        BackColor = DesignerSafeThemeService.Current.PanelBackground;
         RescaleMetrics();
         // Re-map cached tokens to new colors without re-tokenizing — O(runs), not O(document).
         _colorMap = BuildColorMap();
@@ -635,7 +635,7 @@ internal sealed class CodeEditorCanvas : Control
 
     private static Dictionary<TokenType, Color> BuildColorMap()
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         return new Dictionary<TokenType, Color>
         {
             [TokenType.Plain] = p.Foreground,
@@ -671,7 +671,7 @@ internal sealed class CodeEditorCanvas : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         g.Clear(p.PanelBackground);
 
         if (_lineHeight <= 0) return;

@@ -55,7 +55,7 @@ public sealed partial class ChecksumVerifyForm : ThemedForm
     private async Task VerifyAsync()
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();

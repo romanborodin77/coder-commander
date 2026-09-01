@@ -435,7 +435,7 @@ internal sealed class ListViewScrollbarOverlay : IDisposable
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            using var brush = new SolidBrush(ThemeService.Current.ScrollbarTrack);
+            using var brush = new SolidBrush(DesignerSafeThemeService.Current.ScrollbarTrack);
             e.Graphics.FillRectangle(brush, ClientRectangle);
         }
 

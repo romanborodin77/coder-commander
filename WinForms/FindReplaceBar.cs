@@ -132,7 +132,7 @@ internal sealed class FindReplaceBar : Panel
             Dock = DockStyle.Top,
             AutoSize = true,
             Visible = false,
-            BackColor = ThemeService.Current.HeaderBackground,
+            BackColor = DesignTime.IsActive ? Color.Empty : DesignerSafeThemeService.Current.HeaderBackground,
             Tag = ThemeRole.HeaderBackground
         };
         _replaceRow.Controls.Add(replaceFlow);
@@ -148,7 +148,7 @@ internal sealed class FindReplaceBar : Panel
     /// <summary>Applies the current theme to the bar background.</summary>
     public void ApplyTheme()
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.HeaderBackground;
         // FindReplaceBar is itself a Panel, so ThemedForm's generic control traversal also visits
         // it directly - tag it so that pass keeps re-applying HeaderBackground too, instead of

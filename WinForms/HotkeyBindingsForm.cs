@@ -184,7 +184,7 @@ public sealed partial class HotkeyBindingsForm : ThemedForm
     protected override void ApplyTheme()
     {
         base.ApplyTheme();
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         _list.BackColor = p.PanelBackground;
         _list.ForeColor = p.Foreground;
         NativeControlThemer.ApplyDarkScrollbars(_list);

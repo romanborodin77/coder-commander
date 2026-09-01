@@ -113,7 +113,8 @@ public sealed class CodeEditorControl : Panel
         Controls.Add(_gutter);
         Controls.Add(_findBar);
 
-        BackColor = ThemeService.Current.PanelBackground;
+        if (!DesignTime.IsActive)
+        BackColor = DesignerSafeThemeService.Current.PanelBackground;
     }
 
     protected override void Dispose(bool disposing)
@@ -193,7 +194,7 @@ public sealed class CodeEditorControl : Panel
     /// <summary>Applies the current theme to the canvas, gutter, find bar, and scrollbar controls.</summary>
     public void ApplyTheme()
     {
-        BackColor = ThemeService.Current.PanelBackground;
+        BackColor = DesignerSafeThemeService.Current.PanelBackground;
         _canvas.ApplyTheme();
         _gutter.ApplyTheme();
         _findBar.ApplyTheme();

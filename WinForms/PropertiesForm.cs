@@ -1,4 +1,4 @@
-﻿using CoderCommander.FileSystem;
+using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Globalization;
@@ -115,7 +115,7 @@ public sealed partial class PropertiesForm : ThemedForm
     private void BuildHeader(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         FileSystemItem item = _items[0];
 
         FileIconType iconType;
@@ -209,7 +209,7 @@ public sealed partial class PropertiesForm : ThemedForm
     private void BuildInfoSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         var grid = new TableLayoutPanel
         {
@@ -311,7 +311,7 @@ public sealed partial class PropertiesForm : ThemedForm
     private void BuildAttributesSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         var header = UiHelpers.CreateLabel(L.GetString("Props.EditAttributes"), bold: true);
         header.Dock = DockStyle.Top;
@@ -413,7 +413,7 @@ public sealed partial class PropertiesForm : ThemedForm
     private void BuildRecursiveCheckbox(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         _recursiveCheckbox = new ThemedCheckBox
         {
@@ -437,7 +437,7 @@ public sealed partial class PropertiesForm : ThemedForm
     private void BuildTimestampSection(TableLayoutPanel root)
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
 
         var header = UiHelpers.CreateLabel(L.GetString("Props.EditTimestamps"), bold: true);
         header.Dock = DockStyle.Top;

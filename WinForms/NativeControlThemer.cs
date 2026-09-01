@@ -237,7 +237,7 @@ public static class NativeControlThemer
     /// <summary>Owner-draws a single column header with gradient background, text, and gridline separator.</summary>
     private static void DrawThemedColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
     {
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         var rect = e.Bounds;
 
         using (var bg = new LinearGradientBrush(rect, p.ColumnHeaderGradient, p.HeaderBackground, 90f))

@@ -170,7 +170,7 @@ public sealed partial class BookmarksForm : ThemedForm
 
         if (BookmarkStore.Instance.Items.Count == 0)
         {
-            var empty = new ListViewItem(L.GetString("Bookmark.Empty")) { ForeColor = ThemeService.Current.DimForeground };
+            var empty = new ListViewItem(L.GetString("Bookmark.Empty")) { ForeColor = DesignerSafeThemeService.Current.DimForeground };
             _listView.Items.Add(empty);
         }
         else

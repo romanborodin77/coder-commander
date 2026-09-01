@@ -36,7 +36,7 @@ public sealed class SettingsNavControl : UserControl, ISelfThemedControl
     {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
 
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.Background;
 
         _navPanel = new FlowLayoutPanel

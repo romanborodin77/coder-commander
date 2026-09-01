@@ -1,4 +1,4 @@
-using CoderCommander.Archives;
+﻿using CoderCommander.Archives;
 using CoderCommander.Models;
 using CoderCommander.Services;
 
@@ -13,62 +13,8 @@ namespace CoderCommander.WinForms;
 /// <see cref="OnFormClosing"/> regardless of Save vs Cancel - window size is a UI preference, not
 /// part of the settings the dialog edits).
 /// </summary>
-public sealed class SettingsForm : ThemedForm
+public sealed partial class SettingsForm : ThemedForm
 {
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _nav?.Dispose();
-            _themeCombo?.Dispose();
-            _languageCombo?.Dispose();
-            _showHiddenCheck?.Dispose();
-            _showSystemCheck?.Dispose();
-            _showToolbarCheck?.Dispose();
-            _showStatusBarCheck?.Dispose();
-            _showFnButtonsCheck?.Dispose();
-            _dirsFirstCheck?.Dispose();
-            _flatViewCheck?.Dispose();
-            _uiFontDisplayLabel?.Dispose();
-            _monoFontDisplayLabel?.Dispose();
-            _compressionFormatCombo?.Dispose();
-            _compressionPresetCombo?.Dispose();
-            _defaultArchiveFormatCombo?.Dispose();
-            _skipCompressionCheck?.Dispose();
-            _deleteOriginalsAfterPackCheck?.Dispose();
-            _extensionsListBox?.Dispose();
-            _extensionAddBox?.Dispose();
-            _splitPartSizeCombo?.Dispose();
-            _splitWriteCrcCheck?.Dispose();
-            _deleteOriginalsAfterSplitCheck?.Dispose();
-            _verifyCrcAfterCombineCheck?.Dispose();
-            _deleteOriginalsAfterCombineCheck?.Dispose();
-            _confirmDeleteCheck?.Dispose();
-            _confirmOverwriteCheck?.Dispose();
-            _copyAttrsCheck?.Dispose();
-            _copyTsCheck?.Dispose();
-            _showExtInNameCheck?.Dispose();
-            _viewerWordWrapCheck?.Dispose();
-            _viewerImageFitCheck?.Dispose();
-            _viewerCsvDelimiterCombo?.Dispose();
-            _viewerCsvHasHeaderCheck?.Dispose();
-            _viewerEncodingCombo?.Dispose();
-            _viewerHtmlAllowScriptsCheck?.Dispose();
-            _externalViewerEnabledCheck?.Dispose();
-            _externalViewerPathBox?.Dispose();
-            _externalViewerArgsBox?.Dispose();
-            _externalEditorEnabledCheck?.Dispose();
-            _externalEditorPathBox?.Dispose();
-            _externalEditorArgsBox?.Dispose();
-            _defaultShellCombo?.Dispose();
-            _followPanelCwdCombo?.Dispose();
-            _keyBindingPresetCombo?.Dispose();
-            _loadShellProfileCheck?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
-
-    private readonly SettingsNavControl _nav;
     private readonly ThemedComboBox _themeCombo;
     private readonly ThemedComboBox _languageCombo;
     private readonly ThemedCheckBox _showHiddenCheck;
@@ -148,23 +94,22 @@ public sealed class SettingsForm : ThemedForm
     /// <summary>Initializes the settings dialog with current <see cref="AppSettings"/> values.</summary>
     public SettingsForm()
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         var L = LocalizationService.Current;
-        Text = L.GetString("Settings.Title");
         var s = SettingsService.Load();
+
+        // Restored size, so it cannot be a designer constant. MinimumSize is - see
+        // InitializeComponent.
         ClientSize = new Size(s.SettingsWindowWidth, s.SettingsWindowHeight);
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        // Was (560, 420) - didn't actually match SettingsService's own MinSettingsWindowWidth/
-        // Height (620/480) despite a doc comment there claiming it did (F140). At the old size,
-        // the Archives section's last row ("Restore defaults") sat right at the visible edge and
-        // got clipped by the AutoScroll viewport boundary at the dialog's own default size -
-        // caught by a 2x-zoomed offscreen screenshot, not by eye on a live run.
-        MinimumSize = new Size(620, 480);
 
         var p = ThemeService.Current;
         // Working copy - the Customize dialog mutates this in place; only persisted on Save.
         _customKeyBindings = new Dictionary<string, string>(s.TerminalCustomKeyBindings);
-
-        _nav = new SettingsNavControl { Dock = DockStyle.Fill };
 
         // ── Appearance section ──
         var appearLayout = CreateSectionLayout(rows: 9, columns: 2);
@@ -628,31 +573,9 @@ public sealed class SettingsForm : ThemedForm
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Hotkeys"), hotkeysLayout, "Settings.Nav.Hotkeys"));
 
-        // Bottom buttons
-        var saveBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Save"), accent: true);
-        saveBtn.Click += OnSave;
-        var cancelBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Cancel"));
-        cancelBtn.DialogResult = DialogResult.Cancel;
-        var bottomPanel = CreateBottomPanel(saveBtn, cancelBtn);
-        bottomPanel.Height = 54;
-
-        // Root layout — avoids Dock.Fill / Dock.Bottom ordering issues
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            BackColor = p.Background
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        root.Controls.Add(_nav, 0, 0);
-        root.Controls.Add(bottomPanel, 0, 1);
-
-        Controls.Add(root);
-
-        AcceptButton = saveBtn;
-        CancelButton = cancelBtn;
+        // The root grid, the nav host and the button bar all come from InitializeComponent - only
+        // the Save handler is wired here (Cancel closes via its own DialogResult).
+        _saveBtn.Click += OnSave;
         FormClosing += OnFormClosing;
     }
 

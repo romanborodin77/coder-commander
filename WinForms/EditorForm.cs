@@ -55,8 +55,9 @@ public sealed class EditorForm : ThemedForm
         Controls.SetChildIndex(_toolStrip, 1);
         Controls.SetChildIndex(_statusStrip, 2);
 
-        // Subscribe to theme changes
-        ThemeService.ThemeChanged += OnThemeChanged;
+        // Subscribe to theme changes (only at runtime, not in designer)
+        if (!DesignTime.IsActive)
+            ThemeService.ThemeChanged += OnThemeChanged;
 
         // Open initial file or create empty tab. Fire-and-forget, same as every other VFS read in
         // this app kicked off from a synchronous UI entry point (e.g. OnArchiveEntered) - the
@@ -97,7 +98,6 @@ public sealed class EditorForm : ThemedForm
     private void BuildToolbar()
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
 
         _toolStrip = new ToolStrip
         {
@@ -107,6 +107,12 @@ public sealed class EditorForm : ThemedForm
             Padding = new Padding(4, 2, 4, 2),
             Renderer = new ThemeRenderer()
         };
+
+        // Only apply theme colors at runtime, not in designer
+        if (!DesignTime.IsActive)
+        {
+            var p = DesignerSafeThemeService.Current;
+        }
 
         // File operations
         _toolStrip.Items.Add(CreateToolButton("New", "newdir", (_, _) => NewTab()));
@@ -190,7 +196,7 @@ public sealed class EditorForm : ThemedForm
         if (tabIndex < 0 || tabIndex >= _tabPages.Count) return;
 
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         // Built fresh on every right-click and never stored - self-disposes once closed (via
         // Closed below) instead of leaking a ContextMenuStrip per click. The analyzer can't trace
         // disposal happening inside the control's own event handler.
@@ -292,7 +298,6 @@ public sealed class EditorForm : ThemedForm
     private void BuildStatusBar()
     {
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
 
         _statusStrip = new StatusStrip
         {
@@ -301,38 +306,51 @@ public sealed class EditorForm : ThemedForm
             Renderer = new ThemeRenderer()
         };
 
+        // Only access ThemeService at runtime, not in designer
+        Color accentColor = Color.Empty;
+        Color dimForegroundColor = Color.Empty;
+        Font statusFont = SystemFonts.DefaultFont;
+
+        if (!DesignTime.IsActive)
+        {
+            var p = DesignerSafeThemeService.Current;
+            accentColor = p.Accent;
+            dimForegroundColor = p.DimForeground;
+            statusFont = p.GridFont;
+        }
+
         _lblModified = new ToolStripStatusLabel
         {
             Text = "",
-            ForeColor = p.Accent,
+            ForeColor = accentColor,
             Margin = new Padding(4, 0, 8, 0)
         };
 
         _lblPosition = new ToolStripStatusLabel
         {
             Text = L.GetString("Edit.StatusPosition", 1, 1),
-            ForeColor = p.DimForeground,
+            ForeColor = dimForegroundColor,
             Margin = new Padding(4, 0, 8, 0)
         };
 
         _lblLanguage = new ToolStripStatusLabel
         {
             Text = LanguageDetector.GetDisplayName(LanguageId.PlainText),
-            ForeColor = p.DimForeground,
+            ForeColor = dimForegroundColor,
             Margin = new Padding(4, 0, 8, 0)
         };
 
         _lblEncoding = new ToolStripStatusLabel
         {
             Text = "UTF-8",
-            ForeColor = p.DimForeground,
+            ForeColor = dimForegroundColor,
             Margin = new Padding(4, 0, 8, 0)
         };
 
         _lblFileSize = new ToolStripStatusLabel
         {
             Text = $"0 {LocalizationService.Current.GetString("Edit.Bytes")}",
-            ForeColor = p.DimForeground,
+            ForeColor = dimForegroundColor,
             Margin = new Padding(4, 0, 8, 0)
         };
 

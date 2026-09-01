@@ -140,7 +140,7 @@ public static class FileIcons
         var scale = baseSize / 16f;
         g.ScaleTransform(scale, scale);
 
-        var p = ThemeService.Current;
+        var p = DesignerSafeThemeService.Current;
         // Deliberate exception to the "no hardcoded colors" rule (see CLAUDE.md's Theming section):
         // these are brand/format accent colors (PDF red, Word blue, JS yellow, folder/file-type
         // tints, etc.) that are meant to stay recognizable and identical in both Dark and Light
@@ -293,7 +293,7 @@ public static class FileIcons
             default:
                 if (overlay.Length <= 2)
                 {
-                    using var font = new Font(ThemeService.Current.GridFont.FontFamily, overlay.Length == 1 ? 7f : 5.5f, FontStyle.Bold);
+                    using var font = new Font(DesignerSafeThemeService.Current.GridFont.FontFamily, overlay.Length == 1 ? 7f : 5.5f, FontStyle.Bold);
                     TextRenderer.DrawText(g, overlay, font, area, accent, flags);
                 }
                 break;
