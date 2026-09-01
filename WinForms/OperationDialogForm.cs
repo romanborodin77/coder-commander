@@ -1,4 +1,4 @@
-using CoderCommander.Operations;
+﻿using CoderCommander.Operations;
 using CoderCommander.Services;
 using System.Drawing.Drawing2D;
 
@@ -8,21 +8,9 @@ namespace CoderCommander.WinForms;
 /// Modern file-operation progress dialog with dual progress bars, speed/ETA display,
 /// current file preview, and control buttons.
 /// </summary>
-public sealed class OperationDialogForm : ThemedForm
+public sealed partial class OperationDialogForm : ThemedForm
 {
     private readonly IFileOperation _operation;
-    private readonly Label _titleLabel;
-    private readonly Label _currentFileLabel;
-    private readonly ThemedProgressBar _fileProgress;
-    private readonly ThemedProgressBar _overallProgress;
-    private readonly Label _speedLabel;
-    private readonly Label _etaLabel;
-    private readonly Label _filesLabel;
-    private readonly Label _stateLabel;
-    private readonly Button _skipBtn;
-    private readonly Button _pauseBtn;
-    private readonly Button _cancelBtn;
-    private readonly Label _iconLabel;
 
     /// <summary>Raised when the user clicks Skip.</summary>
     public event EventHandler? SkipRequested;
@@ -31,227 +19,38 @@ public sealed class OperationDialogForm : ThemedForm
     /// <param name="displayName">Display name shown in the dialog header.</param>
     public OperationDialogForm(IFileOperation operation, string displayName)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _operation = operation;
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
 
-        // operation.Title is a stable, always-English identifier (relied on as such elsewhere -
-        // see UiTests/OperationDialogsTests.cs's own doc comment on why CopyOperation.Title stays
-        // "Copy") - resolve it through Op.Title.* for display instead of showing it raw, which
-        // previously left the window title bar in English regardless of UI language (caught by
-        // visual inspection of a live build; the header label below it was already localized via
-        // the caller-supplied displayName).
+        // operation.Title is a stable, always-English identifier (relied on as such elsewhere - see
+        // UiTests/OperationDialogsTests.cs on why CopyOperation.Title stays "Copy"), so it is
+        // resolved through Op.Title.* for display rather than shown raw, which had left the window
+        // title in English regardless of UI language.
         Text = L.GetString("Op.Title." + operation.Title);
-        ClientSize = new Size(540, 380);
-        MaximizeBox = false;
-        MinimizeBox = false;
-        StartPosition = FormStartPosition.CenterParent;
-        BackColor = p.Background;
+        _titleLabel.Text = displayName;
 
-        var mainLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 5,
-            Padding = new Padding(0),
-            BackColor = p.Background
-        };
-        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Header
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));  // Progress
-        // statsPanel below needs 16 (overall progress) + 24 (speed/eta/files) + 12 (its own bottom
-        // padding) + ~22 (state label, SectionFont 10pt bold) = 74px; 60 starved the state label's
-        // row down to ~8px, clipping "Выполняется…"/etc. to a sliver bleeding into the row below
-        // (caught by visual inspection of a live build).
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));   // Stats
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // Spacer
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));   // Buttons
+        _speedLabel.Text = L.GetString("OpDlg.Speed", "0 B");
+        _etaLabel.Text = L.GetString("OpDlg.ETA", "0:00");
+        _filesLabel.Text = L.GetString("OpDlg.Files", 0, 0);
 
-        // ── Header ──
-        var headerPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(20, 16, 20, 16)
-        };
-
-        _iconLabel = new Label
-        {
-            Text = "",
-            Location = new Point(20, 14),
-            Size = new Size(32, 32),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        // Reads ThemeService.Current.Accent live rather than the `p` captured here, so the
-        // vector icon (drawn by hand, not from Text/Font) doesn't freeze at the theme that was
-        // active when the dialog was constructed.
+        // Reads ThemeService.Current.Accent live rather than a palette captured here, so the vector
+        // icon does not freeze at the theme active when the dialog was constructed.
         _iconLabel.Paint += (_, e) => DrawOperationIcon(e.Graphics, operation.Type, ThemeService.Current.Accent);
 
-        _titleLabel = new Label
-        {
-            Text = displayName,
-            Font = p.SubtitleFont,
-            ForeColor = p.Foreground,
-            Location = new Point(64, 14),
-            AutoSize = true,
-            AutoEllipsis = true,
-            MaximumSize = new Size(440, 32),
-            Tag = ThemeRole.Subtitle
-        };
+        // Both buttons only make sense for an operation that actually checks for pause/skip in its
+        // own per-file loop (audit findings G051/G052 - Pause was permanently disabled with no
+        // handler at all, and Skip raised an event nobody subscribed to).
+        _pauseBtn.Enabled = operation.SupportsPauseAndSkip;
+        _skipBtn.Enabled = operation.SupportsPauseAndSkip;
 
-        headerPanel.Controls.Add(_iconLabel);
-        headerPanel.Controls.Add(_titleLabel);
-        mainLayout.Controls.Add(headerPanel, 0, 0);
-
-        // ── Progress ──
-        var progressPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(20, 12, 20, 12),
-            BackColor = p.Background
-        };
-        progressPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        progressPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        progressPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 12));
-        progressPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        progressPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
-
-        var cfLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.CurrentFile"), bold: true);
-        cfLabel.Dock = DockStyle.Fill;
-        cfLabel.TextAlign = ContentAlignment.MiddleLeft;
-        progressPanel.Controls.Add(cfLabel, 0, 0);
-
-        _currentFileLabel = UiHelpers.CreateLabel("");
-        _currentFileLabel.Dock = DockStyle.Fill;
-        _currentFileLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _currentFileLabel.AutoEllipsis = true;
-        progressPanel.Controls.Add(_currentFileLabel, 0, 1);
-
-        _fileProgress = new ThemedProgressBar
-        {
-            Dock = DockStyle.Fill,
-            Height = 8
-        };
-        progressPanel.Controls.Add(_fileProgress, 0, 2);
-
-        var totalLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.Total"), bold: true);
-        totalLabel.Dock = DockStyle.Fill;
-        totalLabel.TextAlign = ContentAlignment.MiddleLeft;
-        progressPanel.Controls.Add(totalLabel, 0, 3);
-
-        mainLayout.Controls.Add(progressPanel, 0, 1);
-
-        // ── Overall progress + stats ──
-        var statsPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(20, 0, 20, 12),
-            BackColor = p.Background
-        };
-        statsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        statsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
-        statsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        statsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _overallProgress = new ThemedProgressBar
-        {
-            Dock = DockStyle.Fill,
-            Height = 16
-        };
-        statsPanel.Controls.Add(_overallProgress, 0, 0);
-
-        var infoPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            BackColor = p.Background
-        };
-        infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
-        infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
-        infoPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
-        infoPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _speedLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.Speed", "0 B"));
-        _speedLabel.Dock = DockStyle.Fill;
-        _speedLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _etaLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.ETA", "0:00"));
-        _etaLabel.Dock = DockStyle.Fill;
-        _etaLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _filesLabel = UiHelpers.CreateLabel(L.GetString("OpDlg.Files", 0, 0));
-        _filesLabel.Dock = DockStyle.Fill;
-        _filesLabel.TextAlign = ContentAlignment.MiddleLeft;
-        infoPanel.Controls.Add(_speedLabel, 0, 0);
-        infoPanel.Controls.Add(_etaLabel, 1, 0);
-        infoPanel.Controls.Add(_filesLabel, 2, 0);
-        statsPanel.Controls.Add(infoPanel, 0, 1);
-
-        _stateLabel = new Label
-        {
-            Text = L.GetString("OpDlg.Running"),
-            Font = p.SectionFont,
-            ForeColor = p.Accent,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-        statsPanel.Controls.Add(_stateLabel, 0, 2);
-
-        mainLayout.Controls.Add(statsPanel, 0, 2);
-
-        // Spacer
-        var spacer = new Panel { Dock = DockStyle.Fill, BackColor = p.Background };
-        mainLayout.Controls.Add(spacer, 0, 3);
-
-        // ── Buttons ─
-        // Two FlowLayoutPanels (Dock.Left for Skip+Pause, Dock.Right for Cancel) instead of
-        // pixel Locations computed from btnPanel.Width in the constructor, before the panel had
-        // actually been laid out - correctness used to depend entirely on the Resize handler
-        // below firing before the first paint.
-        var btnPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(20, 12, 20, 12)
-        };
-
-        // Fixed Size (Width) previously clobbered CreateThemedButton's own text-measured width
-        // (same class of bug as WinForms/AboutForm.cs/MultiRenameForm.cs), truncating
-        // "Пропустить" ("Skip") to "Пропус..." under Russian (caught by visual inspection of a
-        // live build) - Height-only override keeps the buttons a consistent height.
-        _skipBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Skip"));
-        _skipBtn.Height = 36;
-        _skipBtn.Margin = new Padding(0, 0, 8, 0);
-        // Was raising SkipRequested with nobody ever subscribed to it (audit finding G052) - a
-        // silent no-op click. IFileOperation.RequestSkip() now does the actual work directly;
-        // SkipRequested is kept (and still raised) for any external observer that wants to know a
-        // skip happened, but the operation no longer depends on one existing.
         _skipBtn.Click += (_, _) =>
         {
             _operation.RequestSkip();
             SkipRequested?.Invoke(this, EventArgs.Empty);
         };
-
-        _pauseBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Pause"));
-        _pauseBtn.Height = 36;
-        _pauseBtn.Margin = new Padding(0);
-        // The label toggles to "Resume"/"Продолжить" once paused (see OnOperationStateChanged) -
-        // CreateThemedButton only measures and sizes the button once, for the text given at
-        // construction time, so without this the wider Resume text would get clipped the same way
-        // Skip's own text used to be (see the comment above). Widen up front for the wider of the
-        // two labels the button will ever actually show.
-        var resumeWidth = TextRenderer.MeasureText(L.GetString("OpDlg.Resume"), p.GridFont).Width + 44;
-        _pauseBtn.Width = Math.Max(_pauseBtn.Width, resumeWidth);
-        // Was permanently disabled with no click handler at all (audit finding G051) -
-        // OperationState.Paused existed but nothing could ever reach it. Both buttons only make
-        // sense for an operation that actually checks for pause/skip in its own per-file loop.
-        _pauseBtn.Enabled = operation.SupportsPauseAndSkip;
-        _skipBtn.Enabled = operation.SupportsPauseAndSkip;
         _pauseBtn.Click += (_, _) =>
         {
             if (_operation.State == OperationState.Paused)
@@ -259,52 +58,19 @@ public sealed class OperationDialogForm : ThemedForm
             else
                 _operation.Pause();
         };
-
-        var leftGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Left,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        leftGroup.Controls.Add(_skipBtn);
-        leftGroup.Controls.Add(_pauseBtn);
-        btnPanel.Controls.Add(leftGroup);
-
-        _cancelBtn = ThemedForm.CreateThemedButton(L.GetString("OpDlg.Cancel"), accent: true);
-        _cancelBtn.Height = 36;
-        _cancelBtn.Margin = new Padding(0);
         _cancelBtn.Click += (_, _) =>
         {
             _operation.Cancel();
             Close();
         };
 
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_cancelBtn);
-        btnPanel.Controls.Add(rightGroup);
-
-        mainLayout.Controls.Add(btnPanel, 0, 4);
-
-        Controls.Add(mainLayout);
-
         _operation.StateChanged += OnOperationStateChanged;
 
         FormClosing += (_, _) =>
         {
             _operation.StateChanged -= OnOperationStateChanged;
-            // Closing via the X button should cancel the operation, not leave it running in the background.
-            // Cancel is a no-op if the operation is already in a terminal state (Completed/Canceled/Failed).
+            // Closing via the X button should cancel the operation, not leave it running in the
+            // background. Cancel is a no-op if the operation is already in a terminal state.
             _operation.Cancel();
         };
     }
@@ -440,23 +206,4 @@ public sealed class OperationDialogForm : ThemedForm
         }
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _titleLabel?.Dispose();
-            _stateLabel?.Dispose();
-            _currentFileLabel?.Dispose();
-            _filesLabel?.Dispose();
-            _speedLabel?.Dispose();
-            _etaLabel?.Dispose();
-            _iconLabel?.Dispose();
-            _fileProgress?.Dispose();
-            _overallProgress?.Dispose();
-            _pauseBtn?.Dispose();
-            _skipBtn?.Dispose();
-            _cancelBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
