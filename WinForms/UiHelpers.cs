@@ -246,6 +246,18 @@ public class RoundedButton : Button
         else
         {
             var centerFlags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+
+            // ControlThemer gives every RoundedButton that has no Padding of its own a default
+            // 16px on each side, which a wide button wants and a glyph-only one cannot afford: at
+            // the 40px width a "▲"/"▼" button is authored with, that leaves an 8px text rect for a
+            // ~13px glyph, and EndEllipsis then renders a clipped triangle plus its dots rather
+            // than the arrow. Ignore the horizontal padding whenever the text does not fit inside
+            // it but does fit the button - a button wide enough for its own padding is unaffected,
+            // so nothing that already centred correctly moves.
+            var needed = TextRenderer.MeasureText(g, Text, Font, new Size(int.MaxValue, Height), centerFlags).Width;
+            if (needed > textRect.Width && needed <= Width)
+                textRect = new Rectangle(0, textRect.Y, Width, textRect.Height);
+
             TextRenderer.DrawText(g, Text, Font, textRect, textColor, centerFlags);
         }
     }
