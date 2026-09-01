@@ -12,16 +12,8 @@ namespace CoderCommander.WinForms;
 /// paths. The previous implementation used <c>File.OpenRead</c> directly and was blind to any
 /// non-local filesystem.</para>
 /// </summary>
-public sealed class ChecksumForm : ThemedForm
+public sealed partial class ChecksumForm : ThemedForm
 {
-    private readonly ListView _fileList;
-    private readonly ListView _resultList;
-    private readonly ThemedComboBox _algoCombo;
-    private readonly Button _calcBtn;
-    private readonly Button _closeBtn;
-    private readonly Button _copyBtn;
-    private readonly Button _exportBtn;
-    private readonly Label _statusLabel;
     private readonly IFileSystem _fs;
     private readonly List<FileEntry> _files;
     private CancellationTokenSource? _cts;
@@ -42,119 +34,42 @@ public sealed class ChecksumForm : ThemedForm
     /// <param name="files">Files to compute checksums for.</param>
     public ChecksumForm(IFileSystem fs, IReadOnlyList<FileEntry> files)
     {
+        ArgumentNullException.ThrowIfNull(files);
+
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _fs = fs;
         _files = files.ToList();
 
         var L = LocalizationService.Current;
-        Text = L.GetString("Checksum.Title");
-        ClientSize = new Size(700, 520);
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colFileName.Text = L.GetString("Checksum.FileName");
+        _colFileSize.Text = L.GetString("Checksum.FileSize");
+        _colResultName.Text = L.GetString("Checksum.FileName");
+        _colResultAlgo.Text = L.GetString("Checksum.Algorithm");
+        _colResultHash.Text = L.GetString("Checksum.Hash");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(480, 360);
 
-        var p = ThemeService.Current;
-
-        // Top panel: files + algo
-        var topPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            ColumnCount = 2,
-            RowCount = 2,
-            Height = 200,
-            BackColor = p.Background,
-            Padding = new Padding(16, 12, 16, 12)
-        };
-        topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        topPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        topPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-
-        _fileList = UiHelpers.CreateListView(
-            (L.GetString("Checksum.FileName"), 400),
-            (L.GetString("Checksum.FileSize"), 120));
-        _fileList.Dock = DockStyle.Fill;
         foreach (var f in _files)
         {
             var lvi = new ListViewItem(f.Name) { Tag = f.FullPath };
             lvi.SubItems.Add(UiHelpers.FormatSize(f.Size));
             _fileList.Items.Add(lvi);
         }
-        topPanel.Controls.Add(_fileList, 1, 0);
 
-        topPanel.Controls.Add(UiHelpers.CreateLabel(L.GetString("Checksum.Algorithm")), 0, 1);
-
-        _algoCombo = new ThemedComboBox { Width = 120, Dock = DockStyle.Left };
+        // Protocol identifiers, deliberately not localized - CalculateAsync switches on them.
         _algoCombo.AddItems(AlgoCrc32, AlgoMd5, AlgoSha1, AlgoSha256);
         _algoCombo.SelectedIndex = 3; // SHA256 default
-        topPanel.Controls.Add(_algoCombo, 1, 1);
 
-        // Results
-        _resultList = UiHelpers.CreateListView(
-            (L.GetString("Checksum.FileName"), 200),
-            (L.GetString("Checksum.Algorithm"), 80),
-            (L.GetString("Checksum.Hash"), 400));
-        _resultList.Dock = DockStyle.Fill;
-
-        // Bottom
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Margin = new Padding(0, 0, 8, 0);
         _closeBtn.Click += (_, _) => Close();
-
-        _copyBtn = ThemedForm.CreateThemedButton(L.GetString("Checksum.CopyToClipboard"));
-        _copyBtn.Margin = new Padding(0, 0, 8, 0);
         _copyBtn.Click += (_, _) => CopyHash();
-
-        _exportBtn = ThemedForm.CreateThemedButton(L.GetString("Checksum.Export"));
-        _exportBtn.Margin = new Padding(0, 0, 8, 0);
         _exportBtn.Click += (_, _) => _ = ExportAsync();
-
-        _calcBtn = ThemedForm.CreateThemedButton(L.GetString("Checksum.Calculate"), accent: true);
-        _calcBtn.Margin = new Padding(0);
         _calcBtn.Click += (_, _) => _ = CalculateAsync();
 
-        // Dock.Right ignores Margin entirely, which had collapsed all three gaps - a
-        // right-aligned FlowLayoutPanel (add order = visual left-to-right order, matching the
-        // original Close/Copy/Export/Calc(accent, rightmost) layout) actually renders them.
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_closeBtn);
-        rightGroup.Controls.Add(_copyBtn);
-        rightGroup.Controls.Add(_exportBtn);
-        rightGroup.Controls.Add(_calcBtn);
-
-        var bottomPanel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        bottomPanel.Controls.Add(_statusLabel);
-        bottomPanel.Controls.Add(rightGroup);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(_resultList);
-        Controls.Add(bottomPanel);
-        Controls.Add(topPanel);
-
-        CancelButton = _closeBtn;
         Load += (_, _) => _ = CalculateAsync();
         FormClosing += (_, _) =>
         {
@@ -316,20 +231,4 @@ public sealed class ChecksumForm : ThemedForm
         return true;
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _algoCombo?.Dispose();
-            _calcBtn?.Dispose();
-            _closeBtn?.Dispose();
-            _copyBtn?.Dispose();
-            _exportBtn?.Dispose();
-            _fileList?.Dispose();
-            _resultList?.Dispose();
-            _statusLabel?.Dispose();
-            _cts?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
