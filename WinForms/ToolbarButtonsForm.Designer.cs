@@ -149,31 +149,46 @@ partial class ToolbarButtonsForm
         _middleColumn.Name = "_middleColumn";
         _middleColumn.WrapContents = false;
         //
+        // The three transfer buttons carry no fixed Width. "Add Separator" localizes to "Добавить
+        // разделитель", which needs ~140px at the 9pt UI font - at the flat 96px this column used
+        // to hardcode, a third of that caption was simply cut off. AutoSize sizes each to its own
+        // caption; ToolbarButtonsForm's constructor then raises all three MinimumSize to the widest
+        // preferred width so the column still reads as one aligned stack rather than a ragged edge.
+        //
         // _addBtn
         //
+        _addBtn.AutoSize = true;
+        _addBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         _addBtn.Margin = new Padding(4, 8, 4, 0);
+        _addBtn.MinimumSize = new Size(96, 32);
         _addBtn.Name = "_addBtn";
+        _addBtn.Padding = new Padding(12, 0, 12, 0);
         _addBtn.Role = ThemeRole.SecondaryButton;
-        _addBtn.Size = new Size(96, 32);
         _addBtn.Text = "Add →";
         _uiMetadata.SetLocalizationKey(_addBtn, "Settings.Toolbar.Add");
         //
         // _removeBtn
         //
+        _removeBtn.AutoSize = true;
+        _removeBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         _removeBtn.Margin = new Padding(4, 8, 4, 0);
+        _removeBtn.MinimumSize = new Size(96, 32);
         _removeBtn.Name = "_removeBtn";
+        _removeBtn.Padding = new Padding(12, 0, 12, 0);
         _removeBtn.Role = ThemeRole.SecondaryButton;
-        _removeBtn.Size = new Size(96, 32);
         _removeBtn.Text = "← Remove";
         _uiMetadata.SetLocalizationKey(_removeBtn, "Settings.Toolbar.Remove");
         //
         // _addSeparatorBtn
         //
         // Hidden for the function bar, which has no separators - the constructor decides.
+        _addSeparatorBtn.AutoSize = true;
+        _addSeparatorBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         _addSeparatorBtn.Margin = new Padding(4, 8, 4, 0);
+        _addSeparatorBtn.MinimumSize = new Size(96, 32);
         _addSeparatorBtn.Name = "_addSeparatorBtn";
+        _addSeparatorBtn.Padding = new Padding(12, 0, 12, 0);
         _addSeparatorBtn.Role = ThemeRole.SecondaryButton;
-        _addSeparatorBtn.Size = new Size(96, 32);
         _addSeparatorBtn.Text = "Separator";
         _uiMetadata.SetLocalizationKey(_addSeparatorBtn, "Settings.Toolbar.AddSeparator");
         //

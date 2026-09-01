@@ -1,4 +1,4 @@
-﻿using CoderCommander.Services;
+using CoderCommander.Services;
 using System.ComponentModel;
 using System.Drawing.Drawing2D;
 

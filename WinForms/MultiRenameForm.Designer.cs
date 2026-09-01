@@ -34,6 +34,7 @@ partial class MultiRenameForm
     private RoundedButton _okBtn = null!;
     private RoundedButton _cancelBtn = null!;
     private RoundedButton _resetBtn = null!;
+    private FlowLayoutPanel _leftGroup = null!;
 
     /// <summary>Explicit disposal of the control fields (CA2213).</summary>
     protected override void Dispose(bool disposing)
@@ -59,6 +60,7 @@ partial class MultiRenameForm
             _okBtn?.Dispose();
             _cancelBtn?.Dispose();
             _resetBtn?.Dispose();
+            _leftGroup?.Dispose();
             _buttonGroup?.Dispose();
             _bottomPanel?.Dispose();
             _spacer?.Dispose();
@@ -103,12 +105,14 @@ partial class MultiRenameForm
         _okBtn = new RoundedButton();
         _cancelBtn = new RoundedButton();
         _resetBtn = new RoundedButton();
+        _leftGroup = new FlowLayoutPanel();
         ((System.ComponentModel.ISupportInitialize)_startIndex).BeginInit();
         ((System.ComponentModel.ISupportInitialize)_stepIndex).BeginInit();
         _layout.SuspendLayout();
         _counterPanel.SuspendLayout();
         _replacePanel.SuspendLayout();
         _bottomPanel.SuspendLayout();
+        _leftGroup.SuspendLayout();
         _buttonGroup.SuspendLayout();
         SuspendLayout();
         //
@@ -337,7 +341,7 @@ partial class MultiRenameForm
         // _bottomPanel
         //
         _bottomPanel.Controls.Add(_buttonGroup);
-        _bottomPanel.Controls.Add(_resetBtn);
+        _bottomPanel.Controls.Add(_leftGroup);
         _bottomPanel.Dock = DockStyle.Bottom;
         _bottomPanel.Margin = new Padding(0);
         _bottomPanel.Name = "_bottomPanel";
@@ -385,11 +389,29 @@ partial class MultiRenameForm
         _okBtn.Text = "Rename";
         _uiMetadata.SetLocalizationKey(_okBtn, "Common.Rename");
         //
+        // _leftGroup
+        //
+        // Docking _resetBtn straight into _bottomPanel would stretch it to that panel's
+        // inner height (50 less 8px of padding top and bottom = 34px), leaving it
+        // visibly taller than the 32px buttons in _buttonGroup. A left-docked FlowLayoutPanel
+        // lets the button keep its natural size, and honours the Margin that Dock
+        // ignores outright - the same shape ConnectionsForm uses for its own Close.
+        _leftGroup.AutoSize = true;
+        _leftGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _leftGroup.BackColor = Color.Transparent;
+        _leftGroup.Controls.Add(_resetBtn);
+        _leftGroup.Dock = DockStyle.Left;
+        _leftGroup.FlowDirection = FlowDirection.LeftToRight;
+        _leftGroup.Name = "_leftGroup";
+        _leftGroup.WrapContents = false;
+        //
         // _resetBtn
         //
         _resetBtn.AutoSize = true;
         _resetBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        _resetBtn.Dock = DockStyle.Left;
+        _resetBtn.AutoSize = true;
+        _resetBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _resetBtn.Margin = new Padding(0);
         _resetBtn.MinimumSize = new Size(100, 32);
         _resetBtn.Name = "_resetBtn";
         _resetBtn.Padding = new Padding(20, 0, 20, 0);
@@ -417,6 +439,7 @@ partial class MultiRenameForm
         _counterPanel.PerformLayout();
         _replacePanel.ResumeLayout(false);
         _replacePanel.PerformLayout();
+        _leftGroup.ResumeLayout(false);
         _bottomPanel.ResumeLayout(false);
         _buttonGroup.ResumeLayout(false);
         ResumeLayout(false);

@@ -1,4 +1,4 @@
-﻿using CoderCommander.Services;
+using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 

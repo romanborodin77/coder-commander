@@ -10,6 +10,7 @@ partial class DirectoryTreeForm
     private TreeView _tree = null!;
     private Panel _bottomPanel = null!;
     private RoundedButton _closeBtn = null!;
+    private FlowLayoutPanel _rightGroup = null!;
 
     /// <summary>Explicit disposal of the control fields (CA2213).</summary>
     protected override void Dispose(bool disposing)
@@ -19,6 +20,7 @@ partial class DirectoryTreeForm
             components?.Dispose();
             _tree?.Dispose();
             _closeBtn?.Dispose();
+            _rightGroup?.Dispose();
             _bottomPanel?.Dispose();
         }
         base.Dispose(disposing);
@@ -34,7 +36,9 @@ partial class DirectoryTreeForm
         _tree = new TreeView();
         _bottomPanel = new Panel();
         _closeBtn = new RoundedButton();
+        _rightGroup = new FlowLayoutPanel();
         _bottomPanel.SuspendLayout();
+        _rightGroup.SuspendLayout();
         SuspendLayout();
         //
         // _tree
@@ -48,16 +52,34 @@ partial class DirectoryTreeForm
         //
         // _bottomPanel
         //
-        _bottomPanel.Controls.Add(_closeBtn);
+        _bottomPanel.Controls.Add(_rightGroup);
         _bottomPanel.Dock = DockStyle.Bottom;
         _bottomPanel.Name = "_bottomPanel";
         _bottomPanel.Padding = new Padding(16, 8, 16, 8);
         _bottomPanel.Size = new Size(480, 50);
         _uiMetadata.SetThemeRole(_bottomPanel, ThemeRole.HeaderBackground);
         //
+        // _rightGroup
+        //
+        // Docking _closeBtn straight into _bottomPanel would stretch it to that panel's
+        // inner height (50 less 8px of padding top and bottom = 34px), leaving it
+        // visibly taller than the same button on every other dialog. A right-docked FlowLayoutPanel
+        // lets the button keep its natural size, and honours the Margin that Dock
+        // ignores outright - the same shape ConnectionsForm uses for its own Close.
+        _rightGroup.AutoSize = true;
+        _rightGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _rightGroup.BackColor = Color.Transparent;
+        _rightGroup.Controls.Add(_closeBtn);
+        _rightGroup.Dock = DockStyle.Right;
+        _rightGroup.FlowDirection = FlowDirection.LeftToRight;
+        _rightGroup.Name = "_rightGroup";
+        _rightGroup.WrapContents = false;
+        //
         // _closeBtn
         //
-        _closeBtn.Dock = DockStyle.Right;
+        _closeBtn.AutoSize = true;
+        _closeBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _closeBtn.Margin = new Padding(0);
         _closeBtn.MinimumSize = new Size(100, 32);
         _closeBtn.Name = "_closeBtn";
         _closeBtn.Padding = new Padding(20, 0, 20, 0);
@@ -78,6 +100,7 @@ partial class DirectoryTreeForm
         Name = "DirectoryTreeForm";
         Text = "Directory tree";
         _uiMetadata.SetLocalizationKey(this, "DirTree.Title");
+        _rightGroup.ResumeLayout(false);
         _bottomPanel.ResumeLayout(false);
         ResumeLayout(false);
     }

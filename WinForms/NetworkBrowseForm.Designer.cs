@@ -11,6 +11,7 @@ partial class NetworkBrowseForm
     private Panel _bottomPanel = null!;
     private Label _statusLabel = null!;
     private RoundedButton _closeBtn = null!;
+    private FlowLayoutPanel _rightGroup = null!;
 
     /// <summary>Explicit disposal of the control fields (CA2213).</summary>
     protected override void Dispose(bool disposing)
@@ -20,6 +21,7 @@ partial class NetworkBrowseForm
             components?.Dispose();
             _tree?.Dispose();
             _closeBtn?.Dispose();
+            _rightGroup?.Dispose();
             _statusLabel?.Dispose();
             _bottomPanel?.Dispose();
         }
@@ -36,7 +38,9 @@ partial class NetworkBrowseForm
         _bottomPanel = new Panel();
         _statusLabel = new Label();
         _closeBtn = new RoundedButton();
+        _rightGroup = new FlowLayoutPanel();
         _bottomPanel.SuspendLayout();
+        _rightGroup.SuspendLayout();
         SuspendLayout();
         //
         // _tree
@@ -54,7 +58,7 @@ partial class NetworkBrowseForm
         // index down, so the right-docked button claims its width first and the filling status
         // label takes what is left - the reverse order would leave the label under the button.
         _bottomPanel.Controls.Add(_statusLabel);
-        _bottomPanel.Controls.Add(_closeBtn);
+        _bottomPanel.Controls.Add(_rightGroup);
         _bottomPanel.Dock = DockStyle.Bottom;
         _bottomPanel.Name = "_bottomPanel";
         _bottomPanel.Padding = new Padding(16, 8, 16, 8);
@@ -68,9 +72,27 @@ partial class NetworkBrowseForm
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _uiMetadata.SetThemeRole(_statusLabel, ThemeRole.Muted);
         //
+        // _rightGroup
+        //
+        // Docking _closeBtn straight into _bottomPanel would stretch it to that panel's
+        // inner height (50 less 8px of padding top and bottom = 34px), leaving it
+        // visibly taller than the same button on every other dialog. A right-docked FlowLayoutPanel
+        // lets the button keep its natural size, and honours the Margin that Dock
+        // ignores outright - the same shape ConnectionsForm uses for its own Close.
+        _rightGroup.AutoSize = true;
+        _rightGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _rightGroup.BackColor = Color.Transparent;
+        _rightGroup.Controls.Add(_closeBtn);
+        _rightGroup.Dock = DockStyle.Right;
+        _rightGroup.FlowDirection = FlowDirection.LeftToRight;
+        _rightGroup.Name = "_rightGroup";
+        _rightGroup.WrapContents = false;
+        //
         // _closeBtn
         //
-        _closeBtn.Dock = DockStyle.Right;
+        _closeBtn.AutoSize = true;
+        _closeBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _closeBtn.Margin = new Padding(0);
         _closeBtn.MinimumSize = new Size(100, 32);
         _closeBtn.Name = "_closeBtn";
         _closeBtn.Padding = new Padding(20, 0, 20, 0);
@@ -88,6 +110,7 @@ partial class NetworkBrowseForm
         Name = "NetworkBrowseForm";
         Text = "Network";
         _uiMetadata.SetLocalizationKey(this, "Network.Title");
+        _rightGroup.ResumeLayout(false);
         _bottomPanel.ResumeLayout(false);
         ResumeLayout(false);
     }

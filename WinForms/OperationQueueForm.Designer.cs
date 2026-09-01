@@ -14,6 +14,7 @@ partial class OperationQueueForm
     private Panel _btnPanel = null!;
     private Label _statusLabel = null!;
     private RoundedButton _closeBtn = null!;
+    private FlowLayoutPanel _rightGroup = null!;
     private FlowLayoutPanel _leftGroup = null!;
     private RoundedButton _cancelAllBtn = null!;
     private RoundedButton _clearBtn = null!;
@@ -29,6 +30,7 @@ partial class OperationQueueForm
             _cancelAllBtn?.Dispose();
             _clearBtn?.Dispose();
             _closeBtn?.Dispose();
+            _rightGroup?.Dispose();
             _leftGroup?.Dispose();
             _btnPanel?.Dispose();
         }
@@ -49,10 +51,12 @@ partial class OperationQueueForm
         _btnPanel = new Panel();
         _statusLabel = new Label();
         _closeBtn = new RoundedButton();
+        _rightGroup = new FlowLayoutPanel();
         _leftGroup = new FlowLayoutPanel();
         _cancelAllBtn = new RoundedButton();
         _clearBtn = new RoundedButton();
         _btnPanel.SuspendLayout();
+        _rightGroup.SuspendLayout();
         _leftGroup.SuspendLayout();
         SuspendLayout();
         //
@@ -86,7 +90,7 @@ partial class OperationQueueForm
         // Fill added first so it docks last and takes the remainder - added last it would have
         // claimed the whole panel before the Left/Right children carved out their own space.
         _btnPanel.Controls.Add(_statusLabel);
-        _btnPanel.Controls.Add(_closeBtn);
+        _btnPanel.Controls.Add(_rightGroup);
         _btnPanel.Controls.Add(_leftGroup);
         _btnPanel.Dock = DockStyle.Bottom;
         _btnPanel.Name = "_btnPanel";
@@ -102,9 +106,27 @@ partial class OperationQueueForm
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _uiMetadata.SetThemeRole(_statusLabel, ThemeRole.Muted);
         //
+        // _rightGroup
+        //
+        // Docking _closeBtn straight into _btnPanel would stretch it to that panel's
+        // inner height (50 less 8px of padding top and bottom = 34px), leaving it
+        // visibly taller than the 32px buttons in _leftGroup. A right-docked FlowLayoutPanel
+        // lets the button keep its natural size, and honours the Margin that Dock
+        // ignores outright - the same shape ConnectionsForm uses for its own Close.
+        _rightGroup.AutoSize = true;
+        _rightGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _rightGroup.BackColor = Color.Transparent;
+        _rightGroup.Controls.Add(_closeBtn);
+        _rightGroup.Dock = DockStyle.Right;
+        _rightGroup.FlowDirection = FlowDirection.LeftToRight;
+        _rightGroup.Name = "_rightGroup";
+        _rightGroup.WrapContents = false;
+        //
         // _closeBtn
         //
-        _closeBtn.Dock = DockStyle.Right;
+        _closeBtn.AutoSize = true;
+        _closeBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _closeBtn.Margin = new Padding(0);
         _closeBtn.MinimumSize = new Size(100, 32);
         _closeBtn.Name = "_closeBtn";
         _closeBtn.Padding = new Padding(20, 0, 20, 0);
@@ -163,6 +185,7 @@ partial class OperationQueueForm
         Name = "OperationQueueForm";
         Text = "Operation queue";
         _uiMetadata.SetLocalizationKey(this, "OpQueue.Title");
+        _rightGroup.ResumeLayout(false);
         _btnPanel.ResumeLayout(false);
         _leftGroup.ResumeLayout(false);
         ResumeLayout(false);

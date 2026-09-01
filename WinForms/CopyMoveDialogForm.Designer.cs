@@ -251,8 +251,12 @@ partial class CopyMoveDialogForm
         // _browseBtn
         //
         // An ellipsis glyph, not a word - no localization key.
+        //
+        // No Margin here on purpose: Dock ignores Margin outright, so the 4px gap this button
+        // carried before the designer conversion never actually rendered against _destBox - it sits
+        // flush, the usual browse-button idiom. Producing a real gap would need a wrapper panel;
+        // a Margin line would just re-state an intent nothing honours.
         _browseBtn.Dock = DockStyle.Right;
-        _browseBtn.Margin = new Padding(4, 0, 0, 0);
         _browseBtn.Name = "_browseBtn";
         _browseBtn.Role = ThemeRole.SecondaryButton;
         _browseBtn.Size = new Size(40, 32);

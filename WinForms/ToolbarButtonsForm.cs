@@ -43,6 +43,17 @@ public sealed partial class ToolbarButtonsForm : ThemedForm
         // The function bar has no separators.
         _addSeparatorBtn.Visible = !isFunctionBar;
 
+        // Only after ApplyLocalization has put the real captions in place. The three buttons
+        // AutoSize to their own text, which alone would leave a ragged column - "Добавить
+        // разделитель" is roughly half again as wide as "Добавить →". Raising every MinimumSize to
+        // the widest preferred width aligns them without capping any of them: AutoSize can no
+        // longer shrink a button below the widest caption, and none of them wants to grow past it.
+        var widest = 0;
+        foreach (var btn in new[] { _addBtn, _removeBtn, _addSeparatorBtn })
+            widest = Math.Max(widest, btn.PreferredSize.Width);
+        foreach (var btn in new[] { _addBtn, _removeBtn, _addSeparatorBtn })
+            btn.MinimumSize = new Size(widest, btn.MinimumSize.Height);
+
         _available.SelectedIndexChanged += (_, _) => UpdateButtonState();
         _current.SelectedIndexChanged += (_, _) => UpdateButtonState();
         _available.DoubleClick += (_, _) => AddSelected();

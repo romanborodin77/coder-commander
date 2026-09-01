@@ -15,6 +15,7 @@ partial class PropertiesForm
     private RoundedButton _closeBtn = null!;
     private RoundedButton _applyBtn = null!;
     private RoundedButton _resetBtn = null!;
+    private FlowLayoutPanel _leftGroup = null!;
 
     /// <summary>Explicit disposal of the control fields (CA2213). Controls added to
     /// <see cref="_root"/> by the section builders are owned by that panel and disposed with it.</summary>
@@ -27,6 +28,7 @@ partial class PropertiesForm
             _closeBtn?.Dispose();
             _applyBtn?.Dispose();
             _resetBtn?.Dispose();
+            _leftGroup?.Dispose();
             _rightGroup?.Dispose();
             _bottom?.Dispose();
             _root?.Dispose();
@@ -61,8 +63,10 @@ partial class PropertiesForm
         _closeBtn = new RoundedButton();
         _applyBtn = new RoundedButton();
         _resetBtn = new RoundedButton();
+        _leftGroup = new FlowLayoutPanel();
         _scroll.SuspendLayout();
         _bottom.SuspendLayout();
+        _leftGroup.SuspendLayout();
         _rightGroup.SuspendLayout();
         SuspendLayout();
         //
@@ -93,7 +97,7 @@ partial class PropertiesForm
         // Fill added first so it docks last and takes the remainder, then the two edge-docked groups.
         _bottom.Controls.Add(_statusLabel);
         _bottom.Controls.Add(_rightGroup);
-        _bottom.Controls.Add(_resetBtn);
+        _bottom.Controls.Add(_leftGroup);
         _bottom.Dock = DockStyle.Bottom;
         _bottom.Name = "_bottom";
         _bottom.Padding = new Padding(16, 10, 16, 10);
@@ -149,9 +153,27 @@ partial class PropertiesForm
         _applyBtn.Text = "Apply";
         _uiMetadata.SetLocalizationKey(_applyBtn, "Common.Apply");
         //
+        // _leftGroup
+        //
+        // Docking _resetBtn straight into _bottom would stretch it to that panel's
+        // inner height (54 less 10px of padding top and bottom = 34px), leaving it
+        // visibly taller than the 32px buttons in _rightGroup. A left-docked FlowLayoutPanel
+        // lets the button keep its natural size, and honours the Margin that Dock
+        // ignores outright - the same shape ConnectionsForm uses for its own Close.
+        _leftGroup.AutoSize = true;
+        _leftGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _leftGroup.BackColor = Color.Transparent;
+        _leftGroup.Controls.Add(_resetBtn);
+        _leftGroup.Dock = DockStyle.Left;
+        _leftGroup.FlowDirection = FlowDirection.LeftToRight;
+        _leftGroup.Name = "_leftGroup";
+        _leftGroup.WrapContents = false;
+        //
         // _resetBtn
         //
-        _resetBtn.Dock = DockStyle.Left;
+        _resetBtn.AutoSize = true;
+        _resetBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _resetBtn.Margin = new Padding(0);
         _resetBtn.MinimumSize = new Size(100, 32);
         _resetBtn.Name = "_resetBtn";
         _resetBtn.Padding = new Padding(20, 0, 20, 0);
@@ -177,6 +199,7 @@ partial class PropertiesForm
         Text = "Properties";
         _scroll.ResumeLayout(false);
         _scroll.PerformLayout();
+        _leftGroup.ResumeLayout(false);
         _bottom.ResumeLayout(false);
         _rightGroup.ResumeLayout(false);
         ResumeLayout(false);
