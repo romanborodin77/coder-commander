@@ -1,4 +1,5 @@
 using CoderCommander.Services;
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 
 namespace CoderCommander.WinForms;
@@ -14,29 +15,59 @@ public class RoundedButton : Button
     private bool _focused;
     private EventHandler? _themeChangedHandler;
 
+    // Every appearance property below carries [DefaultValue] for one specific reason: without it
+    // the Windows Forms Designer has no way to tell "the author chose this" from "this is just the
+    // default", so it serializes ALL of them into InitializeComponent() for every button on every
+    // designed form - twelve redundant lines each, including ShadowColor as a literal
+    // Color.FromArgb(48, 0, 0, 0). [Category] groups them sensibly in the Property Grid.
+
     /// <summary>Gets or sets the hover highlight color. Falls back to <see cref="ThemePalette.ToolbarHover"/> if empty.</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "")]
     public Color HoverColor { get; set; } = Color.Empty;
     /// <summary>Gets or sets the pressed state color. Falls back to <see cref="ThemePalette.ToolbarHover"/> if empty.</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "")]
     public Color PressedColor { get; set; } = Color.Empty;
     /// <summary>Gets or sets the border color. No border is drawn if empty.</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "")]
     public Color BorderColor { get; set; } = Color.Empty;
     /// <summary>Gets or sets the border width in pixels. No border is drawn if zero.</summary>
+    [Category("Appearance")]
+    [DefaultValue(0)]
     public int BorderWidth { get; set; } = 0;
     /// <summary>Gets or sets the corner radius for the rounded rectangle shape.</summary>
+    [Category("Appearance")]
+    [DefaultValue(4)]
     public int CornerRadius { get; set; } = 4;
     /// <summary>Gets or sets whether a vertical gradient is applied to the background.</summary>
+    [Category("Appearance")]
+    [DefaultValue(true)]
     public bool UseGradient { get; set; } = true;
     /// <summary>Gets or sets the custom gradient top color. Auto-generated if empty.</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "")]
     public Color GradientTopColor { get; set; } = Color.Empty;
     /// <summary>Gets or sets the custom gradient bottom color. Auto-generated if empty.</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "")]
     public Color GradientBottomColor { get; set; } = Color.Empty;
     /// <summary>Gets or sets whether a drop shadow is drawn beneath the button.</summary>
+    [Category("Appearance")]
+    [DefaultValue(false)]
     public bool DrawShadow { get; set; } = false;
     /// <summary>Gets or sets the shadow color (semi-transparent black by default).</summary>
+    [Category("Appearance")]
+    [DefaultValue(typeof(Color), "48, 0, 0, 0")]
     public Color ShadowColor { get; set; } = Color.FromArgb(48, 0, 0, 0);
     /// <summary>Gets or sets the shadow offset in pixels.</summary>
+    [Category("Appearance")]
+    [DefaultValue(2)]
     public int ShadowOffset { get; set; } = 2;
     /// <summary>Gets or sets the shadow blur radius.</summary>
+    [Category("Appearance")]
+    [DefaultValue(4)]
     public int ShadowBlur { get; set; } = 4;
 
     /// <summary>
@@ -44,8 +75,10 @@ public class RoundedButton : Button
     /// switch (Primary/Secondary/Danger). Null means "use the plain secondary scheme" - the
     /// same as before this existed, so hand-rolled RoundedButtons keep working unchanged.
     /// Set by <see cref="ThemedForm.CreateThemedButton"/>; assign directly for a button built
-    /// by hand.
+    /// by hand, or pick it from the Property Grid on a designed form.
     /// </summary>
+    [Category("Appearance")]
+    [DefaultValue(null)]
     public ThemeRole? Role { get; set; }
 
     /// <summary>Fired on right mouse button down. Standard Click only fires for left button.</summary>

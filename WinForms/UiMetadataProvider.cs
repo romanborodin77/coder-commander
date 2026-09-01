@@ -35,6 +35,11 @@ public sealed class UiMetadataProvider : Component, IExtenderProvider
     /// <c>Tag is ThemeRole</c> check in the codebase would then have to learn about.</summary>
     private readonly Dictionary<Control, string> _localizationKeys = new();
 
+    /// <summary>Assigned roles. Kept here rather than read straight back out of
+    /// <see cref="Control.Tag"/> so that at design time nothing writes to Tag at all - see
+    /// <see cref="SetThemeRole"/> for why that matters.</summary>
+    private readonly Dictionary<Control, ThemeRole> _themeRoles = new();
+
     /// <summary>Creates a provider that is not owned by a container.</summary>
     public UiMetadataProvider()
     {
@@ -64,16 +69,32 @@ public sealed class UiMetadataProvider : Component, IExtenderProvider
     public ThemeRole? GetThemeRole(Control control)
     {
         ArgumentNullException.ThrowIfNull(control);
-        return control.GetRole();
+        // Falls back to Tag so a role assigned by older hand-written code still shows up here.
+        return _themeRoles.TryGetValue(control, out var role) ? role : control.GetRole();
     }
 
-    /// <summary>Assigns a <see cref="Services.ThemeRole"/> by writing it into <see cref="Control.Tag"/> -
-    /// see this class's own doc comment for why that indirection is the point rather than a compromise.</summary>
+    /// <summary>
+    /// Assigns a <see cref="Services.ThemeRole"/>, writing it through to <see cref="Control.Tag"/> -
+    /// which is where <see cref="ControlThemer"/> reads it, so no extra call is needed from the form:
+    /// <c>InitializeComponent()</c> populates Tag long before <c>OnLoad</c> applies the theme.
+    ///
+    /// <para><b>Except at design time</b>, where it deliberately only records the role and leaves Tag
+    /// alone. Writing Tag there would make the designer treat it as a changed property and emit a
+    /// redundant <c>ctrl.Tag = ThemeRole.X;</c> line right next to the <c>SetThemeRole(...)</c> call
+    /// it already generates - twice the noise in every generated file, for no behavioural
+    /// difference.</para>
+    /// </summary>
     public void SetThemeRole(Control control, ThemeRole? role)
     {
         ArgumentNullException.ThrowIfNull(control);
-        if (role is { } r)
-            control.SetRole(r);
+
+        if (role is { } r) _themeRoles[control] = r;
+        else _themeRoles.Remove(control);
+
+        if (DesignTime.IsActive) return;
+
+        if (role is { } runtimeRole)
+            control.SetRole(runtimeRole);
         else if (control.Tag is ThemeRole)
             control.Tag = null; // only clear a Tag this provider owns, never someone else's
     }
@@ -119,7 +140,10 @@ public sealed class UiMetadataProvider : Component, IExtenderProvider
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _localizationKeys.Clear();
+            _themeRoles.Clear();
+        }
         base.Dispose(disposing);
     }
 }

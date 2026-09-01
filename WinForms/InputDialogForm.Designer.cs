@@ -52,130 +52,154 @@ partial class InputDialogForm
     {
         components = new System.ComponentModel.Container();
         _uiMetadata = new UiMetadataProvider(components);
-        _layout = new TableLayoutPanel();
         _promptLabel = new Label();
-        _textBox = new TextBox();
         _bottomPanel = new Panel();
         _buttonGroup = new FlowLayoutPanel();
-        _okBtn = new RoundedButton();
         _cancelBtn = new RoundedButton();
-        _layout.SuspendLayout();
+        _okBtn = new RoundedButton();
+        _layout = new TableLayoutPanel();
+        _textBox = new TextBox();
         _bottomPanel.SuspendLayout();
-        _buttonGroup.SuspendLayout();
+        _layout.SuspendLayout();
         SuspendLayout();
-        //
-        // _layout
-        //
-        _layout.ColumnCount = 1;
-        _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        _layout.Dock = DockStyle.Fill;
-        _layout.Name = "_layout";
-        _layout.Padding = new Padding(24, 20, 24, 8);
-        _layout.RowCount = 3;
-        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
-        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
-        _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        _layout.Controls.Add(_promptLabel, 0, 0);
-        _layout.Controls.Add(_textBox, 0, 1);
-        //
+        // 
         // _promptLabel
-        //
+        // 
         _promptLabel.AutoSize = true;
         _promptLabel.Dock = DockStyle.Fill;
+        _promptLabel.Location = new Point(27, 20);
         _promptLabel.Name = "_promptLabel";
+        _promptLabel.Size = new Size(366, 43);
+        _promptLabel.TabIndex = 0;
+        _promptLabel.Tag = ThemeRole.Body;
         _promptLabel.TextAlign = ContentAlignment.BottomLeft;
         _uiMetadata.SetThemeRole(_promptLabel, ThemeRole.Body);
-        //
-        // _textBox
-        //
-        _textBox.BorderStyle = BorderStyle.FixedSingle;
-        _textBox.Dock = DockStyle.Fill;
-        _textBox.Name = "_textBox";
-        //
+        // 
         // _bottomPanel
-        //
+        // 
+        _bottomPanel.Controls.Add(_okBtn);
+        _bottomPanel.Controls.Add(_cancelBtn);
+        _bottomPanel.Controls.Add(_buttonGroup);
         _bottomPanel.Dock = DockStyle.Bottom;
-        // Margin defaults to WinForms' built-in 3px on every side; zeroed here for the same reason
-        // ThemedForm.CreateBottomPanel zeroes it - a bottom panel that ever lands in a
-        // TableLayoutPanel cell would otherwise render 6px short of its stated Height.
+        _bottomPanel.Location = new Point(0, 120);
         _bottomPanel.Margin = new Padding(0);
         _bottomPanel.Name = "_bottomPanel";
         _bottomPanel.Padding = new Padding(16, 8, 16, 8);
         _bottomPanel.Size = new Size(420, 50);
-        _bottomPanel.Controls.Add(_buttonGroup);
+        _bottomPanel.TabIndex = 1;
+        _bottomPanel.Tag = ThemeRole.HeaderBackground;
         _uiMetadata.SetThemeRole(_bottomPanel, ThemeRole.HeaderBackground);
-        //
+        // 
         // _buttonGroup
-        //
+        // 
         _buttonGroup.AutoSize = true;
         _buttonGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        // Transparent is load-bearing, not cosmetic: ControlThemer's FlowLayoutPanel case treats a
-        // transparent background as "leave this alone" and skips it, which is what lets this group
-        // show the bottom panel's HeaderBackground rather than being repainted with the generic
-        // panel default.
         _buttonGroup.BackColor = Color.Transparent;
         _buttonGroup.Dock = DockStyle.Right;
-        _buttonGroup.FlowDirection = FlowDirection.LeftToRight;
+        _buttonGroup.Location = new Point(404, 8);
         _buttonGroup.Name = "_buttonGroup";
+        _buttonGroup.Size = new Size(0, 34);
+        _buttonGroup.TabIndex = 0;
         _buttonGroup.WrapContents = false;
-        // Secondary first, primary last, so the primary button ends up rightmost.
-        _buttonGroup.Controls.Add(_cancelBtn);
-        _buttonGroup.Controls.Add(_okBtn);
-        //
+        // 
         // _cancelBtn
-        //
+        // 
         _cancelBtn.AutoSize = true;
         _cancelBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _cancelBtn.BorderColor = Color.Empty;
+        _cancelBtn.BorderWidth = 0;
         _cancelBtn.CornerRadius = 4;
         _cancelBtn.Cursor = Cursors.Hand;
         _cancelBtn.DialogResult = DialogResult.Cancel;
         _cancelBtn.DrawShadow = false;
+        _cancelBtn.FlatStyle = FlatStyle.Flat;
+        _cancelBtn.GradientBottomColor = Color.Empty;
+        _cancelBtn.GradientTopColor = Color.Empty;
+        _cancelBtn.HoverColor = Color.Empty;
+        _uiMetadata.SetLocalizationKey(_cancelBtn, "Common.Cancel");
+        _cancelBtn.Location = new Point(203, 8);
         _cancelBtn.Margin = new Padding(0, 0, 8, 0);
-        // AutoSize with a floor, rather than the fixed width the hand-written version used: a
-        // translation longer than the English placeholder grows the button instead of being clipped.
         _cancelBtn.MinimumSize = new Size(100, 32);
         _cancelBtn.Name = "_cancelBtn";
         _cancelBtn.Padding = new Padding(20, 0, 20, 0);
+        _cancelBtn.PressedColor = Color.Empty;
         _cancelBtn.Role = ThemeRole.SecondaryButton;
+        _cancelBtn.ShadowBlur = 4;
+        _cancelBtn.ShadowColor = Color.FromArgb(48, 0, 0, 0);
+        _cancelBtn.ShadowOffset = 2;
+        _cancelBtn.Size = new Size(100, 32);
+        _cancelBtn.TabIndex = 0;
         _cancelBtn.Text = "Cancel";
         _cancelBtn.UseGradient = true;
-        _uiMetadata.SetLocalizationKey(_cancelBtn, "Common.Cancel");
-        //
+        // 
         // _okBtn
-        //
+        // 
         _okBtn.AutoSize = true;
         _okBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _okBtn.BorderColor = Color.Empty;
+        _okBtn.BorderWidth = 0;
         _okBtn.CornerRadius = 4;
         _okBtn.Cursor = Cursors.Hand;
         _okBtn.DialogResult = DialogResult.OK;
         _okBtn.DrawShadow = false;
+        _okBtn.FlatStyle = FlatStyle.Flat;
+        _okBtn.GradientBottomColor = Color.Empty;
+        _okBtn.GradientTopColor = Color.Empty;
+        _okBtn.HoverColor = Color.Empty;
+        _uiMetadata.SetLocalizationKey(_okBtn, "Common.OK");
+        _okBtn.Location = new Point(311, 9);
         _okBtn.Margin = new Padding(0);
         _okBtn.MinimumSize = new Size(100, 32);
         _okBtn.Name = "_okBtn";
         _okBtn.Padding = new Padding(20, 0, 20, 0);
+        _okBtn.PressedColor = Color.Empty;
         _okBtn.Role = ThemeRole.PrimaryButton;
+        _okBtn.ShadowBlur = 4;
+        _okBtn.ShadowColor = Color.FromArgb(48, 0, 0, 0);
+        _okBtn.ShadowOffset = 2;
+        _okBtn.Size = new Size(100, 32);
+        _okBtn.TabIndex = 1;
         _okBtn.Text = "OK";
         _okBtn.UseGradient = true;
-        _uiMetadata.SetLocalizationKey(_okBtn, "Common.OK");
-        //
+        // 
+        // _layout
+        // 
+        _layout.ColumnCount = 1;
+        _layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _layout.Controls.Add(_promptLabel, 0, 0);
+        _layout.Controls.Add(_textBox, 0, 1);
+        _layout.Dock = DockStyle.Fill;
+        _layout.Location = new Point(0, 0);
+        _layout.Name = "_layout";
+        _layout.Padding = new Padding(24, 20, 24, 8);
+        _layout.RowCount = 3;
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43F));
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+        _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        _layout.Size = new Size(420, 120);
+        _layout.TabIndex = 0;
+        // 
+        // _textBox
+        // 
+        _textBox.BorderStyle = BorderStyle.FixedSingle;
+        _textBox.Dock = DockStyle.Fill;
+        _textBox.Location = new Point(27, 66);
+        _textBox.Name = "_textBox";
+        _textBox.Size = new Size(366, 23);
+        _textBox.TabIndex = 1;
+        // 
         // InputDialogForm
-        //
+        // 
         AcceptButton = _okBtn;
         CancelButton = _cancelBtn;
         ClientSize = new Size(420, 170);
-        MaximizeBox = false;
-        MinimizeBox = false;
-        Name = "InputDialogForm";
-        // Dock=Fill must be added before its Dock=Bottom sibling: WinForms lays docked children out
-        // from the last Controls index down to the first, so a Fill added afterwards would be
-        // painted over the bottom panel (see WinForms/DirectoryTreeForm.cs for the full explanation).
         Controls.Add(_layout);
         Controls.Add(_bottomPanel);
-        _layout.ResumeLayout(false);
-        _layout.PerformLayout();
+        Name = "InputDialogForm";
         _bottomPanel.ResumeLayout(false);
         _bottomPanel.PerformLayout();
-        _buttonGroup.ResumeLayout(false);
+        _layout.ResumeLayout(false);
+        _layout.PerformLayout();
         ResumeLayout(false);
     }
 }
