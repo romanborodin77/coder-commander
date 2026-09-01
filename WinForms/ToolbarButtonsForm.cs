@@ -13,7 +13,7 @@ namespace CoderCommander.WinForms;
 /// other toolbar-affecting setting already requires (this app builds its toolbars once, in
 /// <c>MainForm</c>'s constructor, not on every settings change).
 /// </summary>
-public sealed class ToolbarButtonsForm : ThemedForm
+public sealed partial class ToolbarButtonsForm : ThemedForm
 {
     /// <summary>One row in either list box - <see cref="ToString"/> is what the ListBox actually
     /// displays (no separate DisplayMember wiring needed).</summary>
@@ -23,159 +23,41 @@ public sealed class ToolbarButtonsForm : ThemedForm
     }
 
     private readonly bool _isFunctionBar;
-    private readonly ListBox _available;
-    private readonly ListBox _current;
-    private readonly Button _addBtn;
-    private readonly Button _removeBtn;
-    private readonly Button _addSeparatorBtn;
-    private readonly Button _upBtn;
-    private readonly Button _downBtn;
-    private readonly Button _resetBtn;
 
     public ToolbarButtonsForm(bool isFunctionBar)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _isFunctionBar = isFunctionBar;
-        var L = LocalizationService.Current;
 
-        Text = L.GetString(isFunctionBar ? "Settings.Toolbar.EditFunctionBar" : "Settings.Toolbar.EditToolbar");
-        ClientSize = new Size(640, 420);
+        // The window title is one of two keys depending on which bar is being edited, so it cannot
+        // travel as a single fixed LocalizationKey.
+        Text = LocalizationService.Current.GetString(
+            isFunctionBar ? "Settings.Toolbar.EditFunctionBar" : "Settings.Toolbar.EditToolbar");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(520, 320);
 
-        _available = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
-        _current = new ListBox { Dock = DockStyle.Fill, IntegralHeight = false };
+        // The function bar has no separators.
+        _addSeparatorBtn.Visible = !isFunctionBar;
+
         _available.SelectedIndexChanged += (_, _) => UpdateButtonState();
         _current.SelectedIndexChanged += (_, _) => UpdateButtonState();
         _available.DoubleClick += (_, _) => AddSelected();
         _current.DoubleClick += (_, _) => RemoveSelected();
 
-        var availableGroup = LabeledGroup(L.GetString("Settings.Toolbar.Available"), _available);
-        var currentGroup = LabeledGroup(L.GetString("Settings.Toolbar.Current"), _current);
-
-        _addBtn = CreateThemedButton(L.GetString("Settings.Toolbar.Add"));
         _addBtn.Click += (_, _) => AddSelected();
-        _removeBtn = CreateThemedButton(L.GetString("Settings.Toolbar.Remove"));
         _removeBtn.Click += (_, _) => RemoveSelected();
-        _addSeparatorBtn = CreateThemedButton(L.GetString("Settings.Toolbar.AddSeparator"));
         _addSeparatorBtn.Click += (_, _) => AddSeparator();
-        _addSeparatorBtn.Visible = !isFunctionBar;
-        _upBtn = CreateThemedButton("▲");
         _upBtn.Click += (_, _) => MoveSelected(-1);
-        _downBtn = CreateThemedButton("▼");
         _downBtn.Click += (_, _) => MoveSelected(1);
-
-        var middleColumn = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Bottom,
-        };
-        foreach (var btn in new[] { _addBtn, _removeBtn, _addSeparatorBtn })
-        {
-            btn.Width = 96;
-            btn.Margin = new Padding(4, 8, 4, 0);
-            middleColumn.Controls.Add(btn);
-        }
-
-        var rightColumn = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Bottom,
-        };
-        foreach (var btn in new[] { _upBtn, _downBtn })
-        {
-            btn.Width = 40;
-            btn.Margin = new Padding(4, 8, 4, 0);
-            rightColumn.Controls.Add(btn);
-        }
-
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(12),
-            ColumnCount = 4,
-            RowCount = 1,
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        layout.Controls.Add(availableGroup, 0, 0);
-        layout.Controls.Add(middleColumn, 1, 0);
-        layout.Controls.Add(currentGroup, 2, 0);
-        layout.Controls.Add(rightColumn, 3, 0);
-
-        _resetBtn = CreateThemedButton(L.GetString("Settings.Toolbar.ResetDefault"));
         _resetBtn.Click += (_, _) => ResetToDefault();
+        _saveBtn.Click += (_, _) => SaveAndClose();
+        _closeBtn.Click += (_, _) => Close();
 
-        var saveBtn = CreateThemedButton(L.GetString("Common.Save"), accent: true);
-        saveBtn.Click += (_, _) => SaveAndClose();
-
-        var closeBtn = CreateThemedButton(L.GetString("Common.Cancel"));
-        closeBtn.Click += (_, _) => Close();
-
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-        };
-        saveBtn.Margin = new Padding(0, 0, 8, 0);
-        rightGroup.Controls.Add(closeBtn);
-        rightGroup.Controls.Add(saveBtn);
-
-        var leftGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Left,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-        };
-        leftGroup.Controls.Add(_resetBtn);
-
-        var buttonBar = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 56,
-            Padding = new Padding(16, 10, 16, 10),
-        };
-        buttonBar.SetRole(ThemeRole.HeaderBackground);
-        buttonBar.Controls.Add(rightGroup);
-        buttonBar.Controls.Add(leftGroup);
-
-        Controls.Add(layout);
-        Controls.Add(buttonBar);
-
-        CancelButton = closeBtn;
         Load += (_, _) => LoadLayout();
-    }
-
-    private static Panel LabeledGroup(string title, Control content)
-    {
-        var panel = new Panel { Dock = DockStyle.Fill };
-        var label = new Label
-        {
-            Dock = DockStyle.Top,
-            Height = 22,
-            Text = title,
-        };
-        label.SetRole(ThemeRole.Section);
-        content.Dock = DockStyle.Fill;
-        panel.Controls.Add(content);
-        panel.Controls.Add(label);
-        return panel;
     }
 
     private IReadOnlyList<ToolbarButtonSpec> Catalog =>
@@ -278,19 +160,4 @@ public sealed class ToolbarButtonsForm : ThemedForm
         Close();
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _available?.Dispose();
-            _current?.Dispose();
-            _addBtn?.Dispose();
-            _removeBtn?.Dispose();
-            _addSeparatorBtn?.Dispose();
-            _upBtn?.Dispose();
-            _downBtn?.Dispose();
-            _resetBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }

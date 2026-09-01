@@ -11,79 +11,46 @@ namespace CoderCommander.WinForms;
 /// actually needs when reporting a problem (runtime, OS, architecture, memory, settings folder),
 /// all copyable to the clipboard in one click.
 /// </summary>
-public sealed class AboutForm : ThemedForm
+public sealed partial class AboutForm : ThemedForm
 {
-    private readonly System.Windows.Forms.Timer _fadeTimer;
     private readonly LogoBanner _banner;
     private readonly List<(Label Caption, Label Value)> _infoRows = new();
-    private readonly Panel _btnPanel;
-    private readonly Button _copyBtn;
     private double _opacity;
 
     /// <summary>Initializes the about dialog with version info, environment facts, links, and
     /// the fade-in animation.</summary>
     public AboutForm()
     {
-        var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
 
-        Text = L.GetString("About.Title");
-        ClientSize = new Size(520, 484);
-        MaximizeBox = false;
-        MinimizeBox = false;
-        StartPosition = FormStartPosition.CenterParent;
-        BackColor = p.Background;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
         Opacity = 0;
 
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(0),
-        };
-        root.SetRole(ThemeRole.Background);
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 132)); // banner
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // info grid
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // links
-        // 68, not 60: the bar's own margin (3+3), padding (10+10) and 1px separator eat 27px,
-        // and the buttons need 40 (34 tall plus 3+3 margin). At 60 the flow panel ended up 33
-        // tall and clipped the bottom 4px off both buttons - caught by check_layout, invisible
-        // enough by eye to have shipped.
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));  // buttons
-
+        // Rows 0-2 are filled here, not in the designer - see InitializeComponent's own doc comment
+        // for why this form is a deliberate partial conversion. The banner paints itself, the info
+        // grid is live environment facts, and the links carry click handlers.
         _banner = new LogoBanner { Dock = DockStyle.Fill };
-        root.Controls.Add(_banner, 0, 1);   // Dock=Fill sibling first (docking-order pitfall)
-        root.Controls.Add(BuildInfoGrid(), 0, 1);
-        root.SetRow(_banner, 0);
+        _root.Controls.Add(_banner, 0, 0);
+        _root.Controls.Add(BuildInfoGrid(), 0, 1);
+        _root.Controls.Add(BuildLinks(), 0, 2);
 
-        root.Controls.Add(BuildLinks(), 0, 2);
+        _copyBtn.Click += (_, _) => CopyDiagnosticsToClipboard(_copyBtn);
+        _closeBtn.Click += (_, _) => Close();
 
-        _btnPanel = BuildButtonBar(out _copyBtn);
-        root.Controls.Add(_btnPanel, 0, 3);
-
-        Controls.Add(root);
-
-        _fadeTimer = new System.Windows.Forms.Timer { Interval = 16 };
-        _fadeTimer.Tick += (_, _) =>
-        {
-            _opacity += 0.08;
-            if (_opacity >= 1.0)
-            {
-                _opacity = 1.0;
-                _fadeTimer.Stop();
-            }
-            Opacity = _opacity;
-        };
+        _fadeTimer.Tick += OnFadeTick;
         _fadeTimer.Start();
+        FormClosing += (_, _) => _fadeTimer.Stop();
+    }
 
-        FormClosing += (_, _) =>
+    private void OnFadeTick(object? sender, EventArgs e)
+    {
+        _opacity += 0.08;
+        if (_opacity >= 1.0)
         {
+            _opacity = 1.0;
             _fadeTimer.Stop();
-            _fadeTimer.Dispose();
-        };
+        }
+        Opacity = _opacity;
     }
 
     // ── Content ─────────────────────────────────────────────────────────────────────────────
@@ -224,59 +191,6 @@ public sealed class AboutForm : ThemedForm
         return panel;
     }
 
-    private Panel BuildButtonBar(out Button copyBtn)
-    {
-        var L = LocalizationService.Current;
-        var panel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            Padding = new Padding(20, 10, 20, 10),
-        };
-        panel.SetRole(ThemeRole.HeaderBackground);
-
-        var topSep = new Panel { Dock = DockStyle.Top, Height = 1 };
-        topSep.SetRole(ThemeRole.PanelBackground);
-
-        // Margin is ignored on a control docked straight into a Panel, so the buttons live in a
-        // docked FlowLayoutPanel to get the gap between them.
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            FlowDirection = FlowDirection.LeftToRight,
-            AutoSize = true,
-            // Without GrowAndShrink the panel keeps its GrowOnly default and doesn't tighten to
-            // the buttons, so they end up reported (and laid out) past its edge - the same
-            // combination StyledMessageBoxForm.BuildButtonBar uses for this exact reason.
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            WrapContents = false,
-        };
-        buttons.SetRole(ThemeRole.HeaderBackground);
-
-        // Height-only override (not Size) - CreateThemedButton already measures each button's own
-        // text and sizes its Width to fit; a fixed Size here previously clobbered that back down to
-        // a hardcoded width, truncating "Скопировать сведения" ("Copy info") under Russian to
-        // "Скопировать све..." (caught by visual inspection of a live build).
-        copyBtn = ThemedForm.CreateThemedButton(L.GetString("About.CopyInfo"));
-        copyBtn.Height = 34;
-        copyBtn.Margin = new Padding(0, 3, 10, 3);
-        var captured = copyBtn;
-        copyBtn.Click += (_, _) => CopyDiagnosticsToClipboard(captured);
-
-        var closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"), accent: true);
-        closeBtn.Height = 34;
-        closeBtn.Margin = new Padding(0, 3, 0, 3);
-        closeBtn.Click += (_, _) => Close();
-        CancelButton = closeBtn;
-        AcceptButton = closeBtn;
-
-        buttons.Controls.Add(copyBtn);
-        buttons.Controls.Add(closeBtn);
-
-        panel.Controls.Add(buttons);
-        panel.Controls.Add(topSep);
-        return panel;
-    }
-
     /// <summary>Puts the same facts the dialog shows on the clipboard as plain text, so a bug
     /// report doesn't depend on the reporter retyping a version string correctly.</summary>
     private void CopyDiagnosticsToClipboard(Button button)
@@ -318,18 +232,6 @@ public sealed class AboutForm : ThemedForm
         // Every label/panel here carries a ThemeRole, so ControlThemer's generic pass handles
         // them; the banner paints itself from the palette and only needs a repaint.
         _banner?.Invalidate();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _fadeTimer?.Dispose();
-            _toolTip.Dispose();
-            _banner?.Dispose();
-            _btnPanel?.Dispose();
-        }
-        base.Dispose(disposing);
     }
 
     private static void OpenUrl(string url)
