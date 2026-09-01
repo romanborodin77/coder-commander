@@ -11,67 +11,24 @@ namespace CoderCommander.WinForms;
 /// protocol is disabled, the list may be empty even though Explorer shows some hosts; this is a
 /// Windows networking limitation, not an app bug (documented in AGENTS.md).</para>
 /// </summary>
-public sealed class NetworkBrowseForm : ThemedForm
+public sealed partial class NetworkBrowseForm : ThemedForm
 {
-    private readonly TreeView _tree;
-    private readonly Button _closeBtn;
-    private readonly Label _statusLabel;
-
     /// <summary>Raised when a share is double-clicked. EventArgs = UNC path (e.g. <c>\\NAS1\Public</c>).</summary>
     public event EventHandler<string>? NavigateRequested;
 
     public NetworkBrowseForm()
     {
-        var L = LocalizationService.Current;
-        Text = L.GetString("Network.Title");
-        ClientSize = new Size(480, 520);
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(320, 300);
 
-        var p = ThemeService.Current;
-
-        _tree = new TreeView
-        {
-            Dock = DockStyle.Fill,
-            Font = p.GridFont,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            BorderStyle = BorderStyle.None,
-            ShowLines = true,
-            ShowPlusMinus = true,
-            ShowRootLines = false
-        };
         _tree.BeforeExpand += OnBeforeExpand;
         _tree.NodeMouseDoubleClick += OnNodeDoubleClick;
-
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Dock = DockStyle.Right;
         _closeBtn.Click += (_, _) => Close();
 
-        var bottomPanel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        bottomPanel.Controls.Add(_statusLabel);
-        bottomPanel.Controls.Add(_closeBtn);
-
-        Controls.Add(_tree);
-        Controls.Add(bottomPanel);
-
-        CancelButton = _closeBtn;
         Load += (_, _) => _ = PopulateRootAsync();
     }
 
@@ -145,14 +102,4 @@ public sealed class NetworkBrowseForm : ThemedForm
         Close();
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _tree?.Dispose();
-            _closeBtn?.Dispose();
-            _statusLabel?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
