@@ -28,6 +28,26 @@ internal static class DesignTime
     /// the process check is cached and only the <see cref="LicenseManager"/> probe is live.</summary>
     public static bool IsActive => HostIsDesigner || LicenseManager.UsageMode == LicenseUsageMode.Designtime;
 
+    /// <summary>
+    /// Subscribes <paramref name="handler"/> to <see cref="ThemeService.ThemeChanged"/> unless a
+    /// designer is hosting us.
+    ///
+    /// <para>Every custom control in this app repaints itself on a theme switch by subscribing to
+    /// that static event in its constructor. The designer constructs and abandons controls
+    /// constantly - dropping one on a form, undoing, re-parenting - and never disposes most of them,
+    /// so each subscription would root a dead control inside the IDE for the rest of the session,
+    /// with its handler firing on the next theme change. Skipping the subscription at design time
+    /// costs nothing: no theme switch happens inside the designer anyway.</para>
+    ///
+    /// <para>The matching <c>-=</c> in Dispose needs no equivalent guard - unsubscribing a handler
+    /// that was never subscribed is a documented no-op.</para>
+    /// </summary>
+    public static void SubscribeThemeChanged(EventHandler handler)
+    {
+        if (!IsActive)
+            ThemeService.ThemeChanged += handler;
+    }
+
     private static bool DetectHost()
     {
         // Environment.ProcessPath rather than Process.GetCurrentProcess().ProcessName: it needs no

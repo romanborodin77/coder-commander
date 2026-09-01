@@ -5,17 +5,13 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Split dialog: destination folder, part size (a preset list plus a free-typed custom size in
 /// MB), whether to write a <c>.crc</c> sidecar, and whether to delete the source file(s) once
-/// split. Mirrors <see cref="PackDialogForm"/>'s shape - fixed layout built in the constructor,
-/// results exposed as read-only properties the caller reads after <c>ShowDialog</c> returns OK.
+/// split. Mirrors <see cref="PackDialogForm"/>'s shape - results exposed as read-only properties
+/// the caller reads after <c>ShowDialog</c> returns OK.
+///
+/// <para>Layout lives in <c>SplitDialogForm.Designer.cs</c> and is editable in Visual Studio.</para>
 /// </summary>
-public sealed class SplitDialogForm : ThemedForm
+public sealed partial class SplitDialogForm : ThemedForm
 {
-    private readonly TextBox _destDirBox;
-    private readonly ThemedComboBox _presetCombo;
-    private readonly TextBox _customSizeBox;
-    private readonly ThemedCheckBox _writeCrcCheck;
-    private readonly ThemedCheckBox _deleteSourceCheck;
-
     /// <summary>Preset sizes in bytes, in the same order as <see cref="_presetCombo"/>'s items.
     /// The last entry (0) is the sentinel for "use <see cref="_customSizeBox"/> instead".</summary>
     private static readonly long[] PresetSizes =
@@ -61,38 +57,24 @@ public sealed class SplitDialogForm : ThemedForm
     /// (<c>AppSettings.DeleteOriginalsAfterSplit</c>).</param>
     public SplitDialogForm(string destDir, long defaultPartSizeBytes = 0, bool writeCrcDefault = true, bool deleteSourceDefault = false)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
+        _destDirBox.Text = destDir;
+        _writeCrcCheck.Checked = writeCrcDefault;
+        _deleteSourceCheck.Checked = deleteSourceDefault;
+
+        PopulatePresets(defaultPartSizeBytes);
+
+        _customSizeBox.Enabled = IsCustomSelected;
+        _presetCombo.SelectedIndexChanged += (_, _) => _customSizeBox.Enabled = IsCustomSelected;
+    }
+
+    private bool IsCustomSelected => _presetCombo.SelectedIndex == PresetSizes.Length - 1;
+
+    private void PopulatePresets(long defaultPartSizeBytes)
+    {
         var L = LocalizationService.Current;
-
-        Text = L.GetString("Split.Title");
-        ClientSize = new Size(440, 330);
-        MaximizeBox = false;
-        MinimizeBox = false;
-
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 9,
-            BackColor = ThemeService.Current.Background,
-            Padding = new Padding(24, 20, 24, 8)
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var i = 0; i < 8; i++)
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, i % 2 == 0 ? 22 : 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var destLabel = UiHelpers.CreateLabel(L.GetString("Split.DestDir"));
-        destLabel.Dock = DockStyle.Fill;
-        destLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _destDirBox = UiHelpers.CreateTextBox(destDir, name: "SplitDestDirBox");
-        _destDirBox.Dock = DockStyle.Fill;
-
-        var presetLabel = UiHelpers.CreateLabel(L.GetString("Split.PartSize"));
-        presetLabel.Dock = DockStyle.Fill;
-        presetLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _presetCombo = new ThemedComboBox { Dock = DockStyle.Fill, Name = "SplitPresetCombo" };
         _presetCombo.AddItems(
             L.GetString("Split.Preset.Floppy"),
             L.GetString("Split.Preset.100Mb"),
@@ -100,66 +82,10 @@ public sealed class SplitDialogForm : ThemedForm
             L.GetString("Split.Preset.Cd700"),
             L.GetString("Split.Preset.Dvd"),
             L.GetString("Split.Preset.Custom"));
+
         var presetIndex = Array.IndexOf(PresetSizes, defaultPartSizeBytes);
         _presetCombo.SelectedIndex = presetIndex >= 0 && presetIndex < PresetSizes.Length - 1
             ? presetIndex
             : 1; // 100 MB - a sane default for most files, and for anything not matching a preset exactly.
-
-        var customLabel = UiHelpers.CreateLabel(L.GetString("Split.CustomSizeMb"));
-        customLabel.Dock = DockStyle.Fill;
-        customLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _customSizeBox = UiHelpers.CreateTextBox("10", name: "SplitCustomSizeBox");
-        _customSizeBox.Dock = DockStyle.Fill;
-        _customSizeBox.Enabled = _presetCombo.SelectedIndex == PresetSizes.Length - 1;
-        _presetCombo.SelectedIndexChanged += (_, _) =>
-            _customSizeBox.Enabled = _presetCombo.SelectedIndex == PresetSizes.Length - 1;
-
-        _writeCrcCheck = UiHelpers.CreateCheckBox(L.GetString("Split.WriteCrc"), writeCrcDefault, name: "SplitWriteCrcCheck");
-        _writeCrcCheck.AutoSize = true;
-        _writeCrcCheck.Dock = DockStyle.Left;
-
-        _deleteSourceCheck = UiHelpers.CreateCheckBox(L.GetString("Split.DeleteSource"), deleteSourceDefault, name: "SplitDeleteSourceCheck");
-        _deleteSourceCheck.AutoSize = true;
-        _deleteSourceCheck.Dock = DockStyle.Left;
-
-        var okBtn = CreateThemedButton(L.GetString("Common.OK"), accent: true, name: "SplitOkButton");
-        okBtn.DialogResult = DialogResult.OK;
-        okBtn.Width = 100;
-
-        var cancelBtn = CreateThemedButton(L.GetString("Common.Cancel"), accent: false, name: "SplitCancelButton");
-        cancelBtn.DialogResult = DialogResult.Cancel;
-        cancelBtn.Width = 100;
-
-        var bottomPanel = CreateBottomPanel(okBtn, cancelBtn);
-
-        layout.Controls.Add(destLabel, 0, 0);
-        layout.Controls.Add(_destDirBox, 0, 1);
-        layout.Controls.Add(presetLabel, 0, 2);
-        layout.Controls.Add(_presetCombo, 0, 3);
-        layout.Controls.Add(customLabel, 0, 4);
-        layout.Controls.Add(_customSizeBox, 0, 5);
-        layout.Controls.Add(_writeCrcCheck, 0, 6);
-        layout.Controls.Add(_deleteSourceCheck, 0, 7);
-
-        // Dock=Fill must be added before Dock=Bottom siblings (see DirectoryTreeForm.cs).
-        Controls.Add(layout);
-        Controls.Add(bottomPanel);
-
-        AcceptButton = okBtn;
-        CancelButton = cancelBtn;
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _presetCombo?.Dispose();
-            _customSizeBox?.Dispose();
-            _deleteSourceCheck?.Dispose();
-            _writeCrcCheck?.Dispose();
-            _destDirBox?.Dispose();
-        }
-        base.Dispose(disposing);
     }
 }

@@ -30,7 +30,7 @@ public sealed class ThemedProgressBar : Control, ISelfThemedControl
         SetStyle(ControlStyles.Selectable, false);
         TabStop = false;
 
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     /// <summary>Gets or sets the minimum value of the progress bar range.</summary>

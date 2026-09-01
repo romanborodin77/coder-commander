@@ -104,7 +104,7 @@ public sealed class ThemedScrollBar : Control
         _scrollTimer = new System.Windows.Forms.Timer { Interval = 60 };
         _scrollTimer.Tick += OnScrollTimerTick;
 
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     /// <summary>Stops the auto-repeat timer and unsubscribes from the theme change event.</summary>

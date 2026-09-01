@@ -60,7 +60,7 @@ public sealed class SettingsNavControl : UserControl, ISelfThemedControl
         // Dock=Fill must be added before Dock=Left - see WinForms/DirectoryTreeForm.cs for why.
         Controls.Add(_contentPanel);
         Controls.Add(_navPanel);
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => RefreshTheme();

@@ -68,7 +68,7 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
 
         Controls.Add(_contentPanel);
         Controls.Add(_buttonPanel);
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>

@@ -94,7 +94,7 @@ public class RoundedButton : Button
         SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
 
         _themeChangedHandler = (s, e) => Invalidate();
-        ThemeService.ThemeChanged += _themeChangedHandler;
+        DesignTime.SubscribeThemeChanged(_themeChangedHandler);
     }
 
     protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -274,7 +274,7 @@ public sealed class ThemedCheckBox : Control
             ControlStyles.Opaque,
             true);
         Cursor = Cursors.Hand;
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by invalidating the control.</summary>

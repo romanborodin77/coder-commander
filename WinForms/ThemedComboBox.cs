@@ -42,7 +42,7 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
             Renderer = new ThemeRenderer()
         };
         _menu.ItemClicked += OnMenuItemClicked;
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by calling <see cref="RefreshTheme"/>.</summary>
