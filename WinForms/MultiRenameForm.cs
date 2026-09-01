@@ -1,4 +1,4 @@
-using CoderCommander.FileSystem;
+﻿using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Globalization;
@@ -12,23 +12,10 @@ namespace CoderCommander.WinForms;
 /// [N-5] last N chars, [C] counter, [C10] counter starting at 10, [C2:10] counter step 2 start 10,
 /// [D] date (yyyy-MM-dd), [T] time (HHmmss), [P] parent directory name.
 /// </summary>
-public sealed class MultiRenameForm : ThemedForm
+public sealed partial class MultiRenameForm : ThemedForm
 {
     private readonly IReadOnlyList<FileSystemItem> _items;
     private readonly string _sourcePath;
-
-    private TextBox _patternBox = null!;
-    private TextBox _extBox = null!;
-    private NumericUpDown _startIndex = null!;
-    private NumericUpDown _stepIndex = null!;
-    private TextBox _findBox = null!;
-    private TextBox _replaceBox = null!;
-    private ThemedCheckBox _regexCheck = null!;
-    private ListView _previewList = null!;
-    private Button _okBtn = null!;
-    private Button _cancelBtn = null!;
-    private Button _resetBtn = null!;
-    private Label _hintLabel = null!;
 
     /// <summary>Results: pairs of (oldFullPath, newFullPath).</summary>
     public List<(string oldPath, string newPath)> Results { get; } = [];
@@ -37,204 +24,30 @@ public sealed class MultiRenameForm : ThemedForm
     /// <param name="sourcePath">Working directory containing the files.</param>
     public MultiRenameForm(IReadOnlyList<FileSystemItem> items, string sourcePath)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _items = items;
         _sourcePath = sourcePath;
+
+        var L = LocalizationService.Current;
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colOldName.Text = L.GetString("MultiRename.OldName");
+        _colNewName.Text = L.GetString("MultiRename.NewName");
+        _colStatus.Text = L.GetString("MultiRename.Status");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
 
-        var L = LocalizationService.Current;
-        Text = L.GetString("MultiRename.Title");
-        ClientSize = new Size(720, 520);
-        MinimumSize = new Size(600, 420);
-
-        BuildControls();
-    }
-
-    /// <summary>Builds all UI controls for the rename dialog.</summary>
-    private void BuildControls()
-    {
-        var L = LocalizationService.Current;
-        var p = ThemeService.Current;
-
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 8,
-            Padding = new Padding(16, 16, 16, 8),
-            BackColor = p.Background
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        int row = 0;
-
-        // Pattern
-        var lblPattern = UiHelpers.CreateLabel(L.GetString("MultiRename.Pattern"), bold: true);
-        lblPattern.Dock = DockStyle.Fill;
-        lblPattern.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(lblPattern, 0, row);
-
-        _patternBox = UiHelpers.CreateTextBox("[N]");
-        _patternBox.Dock = DockStyle.Fill;
         _patternBox.TextChanged += (_, _) => UpdatePreview();
-        layout.Controls.Add(_patternBox, 1, row);
-        row++;
-
-        // Extension
-        var lblExt = UiHelpers.CreateLabel(L.GetString("MultiRename.Extension"), bold: true);
-        lblExt.Dock = DockStyle.Fill;
-        lblExt.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(lblExt, 0, row);
-
-        _extBox = UiHelpers.CreateTextBox("[E]");
-        _extBox.Dock = DockStyle.Fill;
         _extBox.TextChanged += (_, _) => UpdatePreview();
-        layout.Controls.Add(_extBox, 1, row);
-        row++;
-
-        // Start index
-        var lblStart = UiHelpers.CreateLabel(L.GetString("MultiRename.StartAt"), bold: true);
-        lblStart.Dock = DockStyle.Fill;
-        lblStart.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(lblStart, 0, row);
-
-        // A FlowLayoutPanel, not a plain Panel - a plain Panel doesn't position undocked
-        // children at all, so all three used to land on top of each other at (0,0). Margin
-        // (below) only takes effect on children of a layout panel, same rule as
-        // StyledMessageBoxForm.BuildButtonBar's button row.
-        var counterPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        _startIndex = new NumericUpDown
-        {
-            Minimum = 0,
-            Maximum = 999999,
-            Value = 1,
-            Width = 80,
-            Margin = new Padding(0, 5, 0, 0),
-            Font = p.GridFont,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            BorderStyle = BorderStyle.FixedSingle
-        };
         _startIndex.ValueChanged += (_, _) => UpdatePreview();
-
-        var lblStep = UiHelpers.CreateLabel(L.GetString("MultiRename.Step"), false);
-        lblStep.Margin = new Padding(16, 9, 4, 0);
-        lblStep.TextAlign = ContentAlignment.MiddleLeft;
-
-        _stepIndex = new NumericUpDown
-        {
-            Minimum = 1,
-            Maximum = 999,
-            Value = 1,
-            Width = 60,
-            Margin = new Padding(0, 5, 0, 0),
-            Font = p.GridFont,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            BorderStyle = BorderStyle.FixedSingle
-        };
         _stepIndex.ValueChanged += (_, _) => UpdatePreview();
-
-        // Add order is the visual left-to-right order in a FlowLayoutPanel (unlike Dock, which
-        // goes from the highest Controls index down).
-        counterPanel.Controls.Add(_startIndex);
-        counterPanel.Controls.Add(lblStep);
-        counterPanel.Controls.Add(_stepIndex);
-        layout.Controls.Add(counterPanel, 1, row);
-        row++;
-
-        // Find/Replace - an extra pass applied to the name AFTER placeholder substitution (same
-        // order "Advanced Renamer"-style tools use), not a placeholder itself. Empty Find is a
-        // no-op, so existing patterns using only [N]/[C]/etc. are unaffected by default.
-        var lblFind = UiHelpers.CreateLabel(L.GetString("MultiRename.Find"), bold: true);
-        lblFind.Dock = DockStyle.Fill;
-        lblFind.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(lblFind, 0, row);
-
-        _findBox = UiHelpers.CreateTextBox();
-        _findBox.Dock = DockStyle.Fill;
         _findBox.TextChanged += (_, _) => UpdatePreview();
-        layout.Controls.Add(_findBox, 1, row);
-        row++;
-
-        var lblReplace = UiHelpers.CreateLabel(L.GetString("MultiRename.Replace"), bold: true);
-        lblReplace.Dock = DockStyle.Fill;
-        lblReplace.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(lblReplace, 0, row);
-
-        var replacePanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            BackColor = Color.Transparent
-        };
-        replacePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        replacePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-        _replaceBox = UiHelpers.CreateTextBox();
-        _replaceBox.Dock = DockStyle.Fill;
         _replaceBox.TextChanged += (_, _) => UpdatePreview();
-        replacePanel.Controls.Add(_replaceBox, 0, 0);
-
-        _regexCheck = UiHelpers.CreateCheckBox(L.GetString("MultiRename.UseRegex"));
-        _regexCheck.Margin = new Padding(12, 5, 0, 0);
-        _regexCheck.AutoSize = true;
         _regexCheck.CheckedChanged += (_, _) => UpdatePreview();
-        replacePanel.Controls.Add(_regexCheck, 1, 0);
 
-        layout.Controls.Add(replacePanel, 1, row);
-        row++;
-
-        // Hint
-        _hintLabel = UiHelpers.CreateLabel(L.GetString("MultiRename.Hint"), false);
-        _hintLabel.Dock = DockStyle.Fill;
-        _hintLabel.TextAlign = ContentAlignment.MiddleLeft;
-        _hintLabel.ForeColor = p.DimForeground;
-        layout.Controls.Add(_hintLabel, 0, row);
-        layout.SetColumnSpan(_hintLabel, 2);
-        row++;
-
-        // Spacer
-        var spacer = new Panel { Dock = DockStyle.Fill, BackColor = p.Background };
-        layout.Controls.Add(spacer, 0, row);
-        layout.SetColumnSpan(spacer, 2);
-        row++;
-
-        // Preview list
-        _previewList = UiHelpers.CreateListView(
-            (L.GetString("MultiRename.OldName"), 260),
-            (L.GetString("MultiRename.NewName"), 260),
-            (L.GetString("MultiRename.Status"), 80));
-        _previewList.Dock = DockStyle.Fill;
-        layout.Controls.Add(_previewList, 0, row);
-        layout.SetColumnSpan(_previewList, 2);
-
-        // Buttons. Fixed Width = 100 previously clobbered CreateThemedButton's own text-measured
-        // width (same class of bug as WinForms/AboutForm.cs's copy/close buttons), truncating
-        // "Переименовать" ("Rename") to "Переим..." under Russian (caught by visual inspection of
-        // a live build) - removed, letting each button size to its own localized text.
-        _okBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Rename"), accent: true);
-        _okBtn.DialogResult = DialogResult.OK;
-
-        _cancelBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Cancel"), accent: false);
-        _cancelBtn.DialogResult = DialogResult.Cancel;
-
-        _resetBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Reset"), accent: false);
         _resetBtn.Click += (_, _) =>
         {
             _patternBox.Text = "[N]";
@@ -246,18 +59,8 @@ public sealed class MultiRenameForm : ThemedForm
             _regexCheck.Checked = false;
         };
 
-        var bottomPanel = CreateBottomPanel(_okBtn, _cancelBtn, _resetBtn);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(layout);
-        Controls.Add(bottomPanel);
-
-        AcceptButton = _okBtn;
-        CancelButton = _cancelBtn;
-
-        // UpdatePreview() in the constructor is a no-op (IsHandleCreated == false).
-        // Load fires after the handle is created, so the preview fills on first show.
+        // UpdatePreview() in the constructor is a no-op (IsHandleCreated == false). Load fires
+        // after the handle is created, so the preview fills on first show.
         Load += (_, _) => UpdatePreview();
     }
 
@@ -546,23 +349,4 @@ public sealed class MultiRenameForm : ThemedForm
         base.OnFormClosing(e);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _patternBox?.Dispose();
-            _extBox?.Dispose();
-            _startIndex?.Dispose();
-            _stepIndex?.Dispose();
-            _findBox?.Dispose();
-            _replaceBox?.Dispose();
-            _regexCheck?.Dispose();
-            _previewList?.Dispose();
-            _hintLabel?.Dispose();
-            _okBtn?.Dispose();
-            _cancelBtn?.Dispose();
-            _resetBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
