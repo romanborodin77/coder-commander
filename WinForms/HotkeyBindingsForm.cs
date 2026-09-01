@@ -18,9 +18,8 @@ namespace CoderCommander.WinForms;
 /// Backspace and Ctrl+Backspace) shows as two separate rows, each independently rebindable.
 /// </para>
 /// </summary>
-public sealed class HotkeyBindingsForm : ThemedForm
+public sealed partial class HotkeyBindingsForm : ThemedForm
 {
-    private readonly ListView _list;
     private readonly Dictionary<string, Keys?> _working = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Keys> _defaults = new(StringComparer.Ordinal);
     private readonly List<HotkeyDef> _rows;
@@ -33,14 +32,15 @@ public sealed class HotkeyBindingsForm : ThemedForm
 
     public HotkeyBindingsForm(IReadOnlyDictionary<string, string> initialCustomBindings)
     {
-        var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        ArgumentNullException.ThrowIfNull(initialCustomBindings);
 
-        Text = L.GetString("Settings.Hotkeys.Title");
-        ClientSize = new Size(480, 480);
-        MaximizeBox = false;
-        MinimizeBox = false;
-        KeyPreview = true;
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
+        var L = LocalizationService.Current;
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colAction.Text = L.GetString("Settings.Hotkeys.Action");
+        _colShortcut.Text = L.GetString("Settings.Hotkeys.Shortcut");
 
         // A throwaway HotkeyManager just to enumerate the canonical default table - RegisterDefaults
         // doesn't touch the CommandEngine it's given, only HandleKey (dispatch) does, and dispatch
@@ -58,77 +58,34 @@ public sealed class HotkeyBindingsForm : ThemedForm
             if (!_defaults.ContainsKey(id)) continue; // stale id from an older version - ignore
             _working[id] = chordText.Length == 0 ? null : (TerminalKeyBindings.TryParseChord(chordText, out var c) ? c : _defaults[id]);
         }
+        RebuildRows();
 
-        _list = new ListView
-        {
-            Dock = DockStyle.Fill,
-            View = View.Details,
-            FullRowSelect = true,
-            MultiSelect = false,
-            HideSelection = false,
-            Font = p.GridFont,
-        };
-        _list.Columns.Add(L.GetString("Settings.Hotkeys.Action"), 260);
-        _list.Columns.Add(L.GetString("Settings.Hotkeys.Shortcut"), 160);
         _list.MouseDoubleClick += (_, e) =>
         {
             var item = _list.GetItemAt(e.X, e.Y);
             if (item?.Tag is string id) BeginCapture(id);
         };
-        RebuildRows();
 
-        var hint = UiHelpers.CreateLabel(L.GetString("Settings.Hotkeys.Hint"));
-        hint.Dock = DockStyle.Top;
-        hint.Height = 24;
-        hint.ForeColor = p.DimForeground;
-        hint.AutoEllipsis = true;
-
-        var clearBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Hotkeys.Clear"));
-        clearBtn.Click += (_, _) =>
+        _clearBtn.Click += (_, _) =>
         {
             if (_list.SelectedItems.Count == 0 || _list.SelectedItems[0].Tag is not string id) return;
             _working[id] = null;
             RebuildRows();
         };
 
-        var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Hotkeys.ResetAll"));
-        resetBtn.Click += (_, _) =>
+        _resetBtn.Click += (_, _) =>
         {
             foreach (var (id, shortcut) in _defaults)
                 _working[id] = shortcut;
             RebuildRows();
         };
 
-        var midPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(0, 6, 0, 6)
-        };
-        midPanel.Controls.Add(clearBtn);
-        midPanel.Controls.Add(resetBtn);
-
-        var okBtn = ThemedForm.CreateThemedButton(L.GetString("Common.OK"), accent: true);
-        okBtn.Click += (_, _) =>
+        _okBtn.Click += (_, _) =>
         {
             ResultBindings = ToSettingsDictionary();
             DialogResult = DialogResult.OK;
             Close();
         };
-        var cancelBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Cancel"));
-        cancelBtn.DialogResult = DialogResult.Cancel;
-
-        var bottomPanel = CreateBottomPanel(okBtn, cancelBtn);
-
-        // Dock=Fill first (WinForms docking order), then the Top/Bottom edge-docked siblings.
-        Controls.Add(_list);
-        Controls.Add(hint);
-        Controls.Add(midPanel);
-        Controls.Add(bottomPanel);
-
-        AcceptButton = okBtn;
-        CancelButton = cancelBtn;
 
         KeyDown += OnFormKeyDown;
     }
@@ -233,12 +190,4 @@ public sealed class HotkeyBindingsForm : ThemedForm
         NativeControlThemer.ApplyDarkScrollbars(_list);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _list?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }

@@ -13,9 +13,8 @@ namespace CoderCommander.WinForms;
 /// app, so one readable rendering in every language is a reasonable trade against ~25 more
 /// translation keys for a screen most users never open.
 /// </summary>
-public sealed class TerminalKeyBindingsForm : ThemedForm
+public sealed partial class TerminalKeyBindingsForm : ThemedForm
 {
-    private readonly ListView _list;
     private readonly Dictionary<TerminalAction, Keys?> _working = new();
     private TerminalAction? _capturingAction;
 
@@ -25,91 +24,43 @@ public sealed class TerminalKeyBindingsForm : ThemedForm
 
     public TerminalKeyBindingsForm(IReadOnlyDictionary<string, string> initialCustomBindings)
     {
-        var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
 
-        Text = L.GetString("Settings.Terminal.KeyBindings");
-        ClientSize = new Size(440, 420);
-        MaximizeBox = false;
-        MinimizeBox = false;
-        KeyPreview = true;
+        var L = LocalizationService.Current;
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colAction.Text = L.GetString("Settings.Terminal.KeyBindings.Action");
+        _colShortcut.Text = L.GetString("Settings.Terminal.KeyBindings.Shortcut");
 
         SeedWorking(initialCustomBindings);
+        RebuildRows();
 
-        _list = new ListView
-        {
-            Dock = DockStyle.Fill,
-            View = View.Details,
-            FullRowSelect = true,
-            MultiSelect = false,
-            HideSelection = false,
-            Font = p.GridFont,
-        };
-        _list.Columns.Add(L.GetString("Settings.Terminal.KeyBindings.Action"), 220);
-        _list.Columns.Add(L.GetString("Settings.Terminal.KeyBindings.Shortcut"), 160);
         _list.MouseDoubleClick += (_, e) =>
         {
             var item = _list.GetItemAt(e.X, e.Y);
             if (item?.Tag is TerminalAction action) BeginCapture(action);
         };
-        RebuildRows();
 
-        var hint = UiHelpers.CreateLabel(L.GetString("Settings.Terminal.KeyBindings.Hint"));
-        hint.Dock = DockStyle.Top;
-        hint.Height = 24;
-        hint.ForeColor = p.DimForeground;
-        // CreateLabel's AutoSize gets overridden by Dock=Top's width, and unlike
-        // WinForms/PropertiesForm.cs's equivalent hint label (F121), AutoEllipsis was never set -
-        // Russian's longer text was raw-clipped mid-word ("...для от") instead of degrading to
-        // "..." (caught by visual inspection of a live build).
-        hint.AutoEllipsis = true;
-
-        var clearBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Terminal.KeyBindings.Clear"));
-        clearBtn.Click += (_, _) =>
+        _clearBtn.Click += (_, _) =>
         {
             if (_list.SelectedItems.Count == 0 || _list.SelectedItems[0].Tag is not TerminalAction action) return;
             _working[action] = null;
             RebuildRows();
         };
 
-        var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Settings.Terminal.KeyBindings.ResetAll"));
-        resetBtn.Click += (_, _) =>
+        _resetBtn.Click += (_, _) =>
         {
             _working.Clear();
             SeedFromPreset(TerminalKeyBindings.WindowsTerminalPreset());
             RebuildRows();
         };
 
-        var midPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(0, 6, 0, 6)
-        };
-        midPanel.Controls.Add(clearBtn);
-        midPanel.Controls.Add(resetBtn);
-
-        var okBtn = ThemedForm.CreateThemedButton(L.GetString("Common.OK"), accent: true);
-        okBtn.Click += (_, _) =>
+        _okBtn.Click += (_, _) =>
         {
             ResultBindings = ToSettingsDictionary();
             DialogResult = DialogResult.OK;
             Close();
         };
-        var cancelBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Cancel"));
-        cancelBtn.DialogResult = DialogResult.Cancel;
-
-        var bottomPanel = CreateBottomPanel(okBtn, cancelBtn);
-
-        // Dock=Fill first (WinForms docking order), then the Top/Bottom edge-docked siblings.
-        Controls.Add(_list);
-        Controls.Add(hint);
-        Controls.Add(midPanel);
-        Controls.Add(bottomPanel);
-
-        AcceptButton = okBtn;
-        CancelButton = cancelBtn;
 
         KeyDown += OnFormKeyDown;
     }
@@ -233,12 +184,4 @@ public sealed class TerminalKeyBindingsForm : ThemedForm
         NativeControlThemer.ApplyDarkScrollbars(_list);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _list?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
