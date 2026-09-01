@@ -1,4 +1,4 @@
-using CoderCommander.FileSystem;
+﻿using CoderCommander.FileSystem;
 using CoderCommander.Models;
 using CoderCommander.Services;
 using System.Globalization;
@@ -9,7 +9,7 @@ namespace CoderCommander.WinForms;
 /// File/directory properties dialog. Read-only summary plus an editable
 /// Supports single item and multi-selection.
 /// </summary>
-public sealed class PropertiesForm : ThemedForm
+public sealed partial class PropertiesForm : ThemedForm
 {
     private static readonly FileAttributes[] EditableFlags =
     {
@@ -40,7 +40,6 @@ public sealed class PropertiesForm : ThemedForm
     private readonly string[] _timeKeys = { "Props.Modified", "Props.Created", "Props.Accessed" };
 
     private ThemedCheckBox? _recursiveCheckbox;
-    private Label? _statusLabel;
 
     // Snapshot of the original attribute per item, used by Reset and by Indeterminate semantics.
     private readonly FileAttributes[] _originalAttributes;
@@ -61,126 +60,49 @@ public sealed class PropertiesForm : ThemedForm
     {
         _fs = fs ?? throw new ArgumentNullException(nameof(fs));
         _items = items ?? throw new ArgumentNullException(nameof(items));
+
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _isSingle = items.Count == 1;
         _isDirectory = _isSingle && items[0].IsDirectory;
         _originalAttributes = new FileAttributes[items.Count];
-        for (int i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Count; i++)
             _originalAttributes[i] = items[i].Attributes;
 
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MaximizeBox = false;
-        MinimizeBox = false;
-        // 540, not 520: the content column below is Absolute 480 plus Padding(20,_,20,_) = 520,
-        // which is exactly the old window width with nothing left over for the AutoScroll
-        // panel's ~17px vertical scrollbar - the header/info labels lost their last ~15-30px to
-        // AutoEllipsis as a result.
-        MinimumSize = new Size(540, 360);
-        MaximumSize = new Size(540, 1200);
 
         var L = LocalizationService.Current;
-        var p = ThemeService.Current;
+        // Interpolates either the single item name or the selection count.
         Text = _isSingle
             ? $"{L.GetString("Props.Title")} — {_items[0].Name}"
             : string.Format(CultureInfo.InvariantCulture, L.GetString("Props.MultiTitle"), items.Count);
 
-        // ── Bottom button bar (added first so it docks Bottom) ──
-        var bottom = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 54,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 10, 16, 10)
-        };
+        _closeBtn.Click += (_, _) => Close();
+        _applyBtn.Click += (_, _) => ApplyChanges();
+        _resetBtn.Click += (_, _) => ResetToOriginal();
 
-        var closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        closeBtn.Margin = new Padding(0, 0, 8, 0);
-        closeBtn.DialogResult = DialogResult.Cancel;
-        closeBtn.Click += (_, _) => Close();
-
-        var applyBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Apply"), accent: true);
-        applyBtn.Margin = new Padding(0);
-        applyBtn.Click += (_, _) => ApplyChanges();
-
-        // Both were Dock.Right (ignores Margin, and same-side Dock stacks from the last-added
-        // control outward) - that had rendered Close as the rightmost/primary-looking button
-        // instead of the accent Apply button, with no visible gap between them either.
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(closeBtn);
-        rightGroup.Controls.Add(applyBtn);
-
-        var resetBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Reset"));
-        resetBtn.Dock = DockStyle.Left;
-        resetBtn.Click += (_, _) => ResetToOriginal();
-
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            Text = "",
-            AutoEllipsis = true,
-            Tag = ThemeRole.Muted
-        };
-
-        bottom.Controls.Add(_statusLabel);
-        bottom.Controls.Add(rightGroup);
-        bottom.Controls.Add(resetBtn);
-
-        AcceptButton = applyBtn;
-        CancelButton = closeBtn;
-
-        // ── Scrollable content ──
-        var scroll = new Panel
-        {
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            BackColor = p.Background
-        };
-
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 0,
-            BackColor = p.Background,
-            Padding = new Padding(20, 18, 20, 12)
-        };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 480));
-        scroll.Controls.Add(root);
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(scroll);
-        Controls.Add(bottom);
-
-        BuildHeader(root);
-        BuildInfoSection(root);
+        // The sections themselves are appended at runtime - which of them exist depends on the
+        // filesystem capabilities and on the selection, and every row is read from live metadata.
+        // See InitializeComponent for why this form is a deliberate partial conversion.
+        BuildHeader(_root);
+        BuildInfoSection(_root);
         if (_fs.Capabilities.HasFlag(FileSystemCapabilities.Attributes))
-            BuildAttributesSection(root);
+            BuildAttributesSection(_root);
 
         if (_isSingle && _isDirectory)
-            BuildRecursiveCheckbox(root);
+            BuildRecursiveCheckbox(_root);
 
-        // Was _isSingle-only ("mass timestamp change" README.md claimed doesn't exist" per the
-        // audit's doc-vs-code gap A1); the section itself already worked generically off
-        // _items[0]'s values as a seed and per-checkbox opt-in per field, same shape
-        // BuildAttributesSection already applies across every selected item - only ApplyChanges'
-        // own timestamp loop was hardcoded to _items[0].
+        // Was _isSingle-only (the audit doc-vs-code gap A1); the section already worked generically
+        // off _items[0] as a seed with per-checkbox opt-in per field, the same shape
+        // BuildAttributesSection applies across every selected item - only ApplyChanges' own
+        // timestamp loop had been hardcoded to _items[0].
         if (_fs.Capabilities.HasFlag(FileSystemCapabilities.NativePaths))
-            BuildTimestampSection(root);
+            BuildTimestampSection(_root);
 
-        // Kick off async scan for single-directory case.
+        // Kick off async scan for the single-directory case.
         if (_isSingle && _isDirectory)
             BeginScanDirectory(_items[0].FullPath);
 
@@ -691,7 +613,9 @@ public sealed class PropertiesForm : ThemedForm
     private void SetStatus(string text)
     {
         if (IsDisposed || !IsHandleCreated) return;
-        if (_statusLabel != null) _statusLabel.Text = text;
+        // No null check any more: the label is created by InitializeComponent, not conditionally by
+        // one of the section builders as it used to be.
+        _statusLabel.Text = text;
     }
 
     // ── Async directory scan (single folder only) ──────────────────────
@@ -1000,14 +924,4 @@ public sealed class PropertiesForm : ThemedForm
         base.OnFormClosed(e);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _cts?.Dispose();
-            _recursiveCheckbox?.Dispose();
-            _statusLabel?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
