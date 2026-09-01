@@ -375,7 +375,10 @@ internal readonly record struct ThemeFontSet(
     /// it to one size. Mono is entirely independent (its own family + size, no offset math).</summary>
     public static ThemeFontSet FromSettings()
     {
-        var s = SettingsService.Load();
+        // Design time gets the built-in defaults rather than the developer's real settings file -
+        // see DesignTime's own doc comment for why reading it from inside the IDE is a problem.
+        // Nothing about how a form lays out in the designer depends on the user's font preference.
+        var s = DesignTime.IsActive ? new AppSettings() : SettingsService.Load();
         var uiFamily = string.IsNullOrWhiteSpace(s.UiFontFamily) ? "Segoe UI" : s.UiFontFamily;
         var uiSize = s.UiFontSize > 0 ? (float)s.UiFontSize : 9F;
         var delta = uiSize - 9F;

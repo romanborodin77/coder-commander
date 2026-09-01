@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -29,7 +30,50 @@ public class ThemedForm : Form
         BackColor = ThemeService.Current.Background;
         ForeColor = ThemeService.Current.Foreground;
         Padding = new Padding(0);
-        ThemeService.ThemeChanged += OnThemeChanged;
+        // Not under a designer: it constructs and abandons instances of this class constantly, and
+        // every one that is never disposed would stay rooted in this static event inside the IDE
+        // process, with its handler firing against a dead form on the next theme change.
+        if (!DesignTime.IsActive)
+            ThemeService.ThemeChanged += OnThemeChanged;
+    }
+
+    // The three properties below are shadowed for one reason only: to stop the Windows Forms
+    // Designer from serializing them into InitializeComponent(). The constructor above assigns all
+    // three from the live palette, so the designer would see values that differ from the WinForms
+    // defaults and bake them into .Designer.cs as literals - Color.FromArgb(30, 30, 30) and
+    // new Font("Segoe UI", 9F) - freezing whichever theme happened to be active in the IDE and, for
+    // Font, minting a form-owned instance that gets disposed with the form, which is exactly the
+    // shared-instance contract FontCache exists to guarantee. Hiding them also keeps them out of the
+    // Property Grid, which is honest: setting a colour there would be futile, since ControlThemer
+    // re-applies the palette on every theme switch. Colours are chosen via ThemeRole instead.
+    // Child controls need no equivalent treatment - they inherit colour and font ambiently from the
+    // form, and the designer does not serialize a property whose value matches its ambient source.
+
+    /// <inheritdoc cref="Control.BackColor"/>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public new Color BackColor
+    {
+        get => base.BackColor;
+        set => base.BackColor = value;
+    }
+
+    /// <inheritdoc cref="Control.ForeColor"/>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public new Color ForeColor
+    {
+        get => base.ForeColor;
+        set => base.ForeColor = value;
+    }
+
+    /// <inheritdoc cref="Control.Font"/>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public new Font Font
+    {
+        get => base.Font;
+        set => base.Font = value;
     }
 
     /// <summary>Handles the <see cref="ThemeService.ThemeChanged"/> event by scheduling a theme refresh on the UI thread.</summary>
