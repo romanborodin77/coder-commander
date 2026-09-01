@@ -46,7 +46,10 @@ public sealed class ThemedTabControl : UserControl, ISelfThemedControl
     {
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
 
-        var p = ThemeService.Current;
+        // DesignerSafeThemeService, not ThemeService: this control has a parameterless constructor,
+        // so the designer can instantiate it - and ThemeService.Current would read the developer's
+        // real settings.json from inside the IDE process.
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.Background;
 
         _buttonPanel = new FlowLayoutPanel

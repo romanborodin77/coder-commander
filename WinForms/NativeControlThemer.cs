@@ -132,8 +132,8 @@ public static class NativeControlThemer
     /// <see cref="SetWindowTheme(IntPtr, string, string?)"/>(headerHandle, "DarkMode_Explorer",
     /// ...) alone does *not* reliably darken the header's background on every Windows build - it
     /// themes the sort-arrow glyph and some chrome but the header cells themselves can stay
-    /// system-light. Used by <see cref="ControlThemer"/> for every dialog ListView (built via
-    /// <see cref="UiHelpers.CreateListView"/> or by hand).
+    /// system-light. Used by <see cref="ControlThemer"/> for every dialog ListView (authored in the
+    /// Windows Forms Designer or built by hand).
     ///
     /// <b>Do not call this on a ListView that already owner-draws its own rows</b> - i.e.
     /// <see cref="Views.FilePanelUserControl"/>'s file list, which has its own

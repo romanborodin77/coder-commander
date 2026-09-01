@@ -27,7 +27,7 @@ internal sealed class UnsupportedOsPanel : Panel
         Controls.Add(_messageLabel);
 
         ApplyTheme();
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();
@@ -35,7 +35,9 @@ internal sealed class UnsupportedOsPanel : Panel
     private void ApplyTheme()
     {
         if (IsDisposed) return;
-        var p = ThemeService.Current;
+        // DesignerSafeThemeService, not ThemeService: the constructor calls this method, and this
+        // control has a parameterless constructor, so the designer can instantiate it.
+        var p = DesignerSafeThemeService.Current;
         BackColor = p.Background;
         _messageLabel.BackColor = p.Background;
         _messageLabel.ForeColor = p.DimForeground;

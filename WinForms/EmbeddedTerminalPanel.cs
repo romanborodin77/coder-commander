@@ -65,7 +65,7 @@ public sealed class EmbeddedTerminalPanel : Panel
     {
         InitializeComponents();
         ApplyTheme();
-        ThemeService.ThemeChanged += OnThemeChanged;
+        DesignTime.SubscribeThemeChanged(OnThemeChanged);
         LocalizationService.Current.LanguageChanged += OnLanguageChanged;
 
         _cwdSweepTimer = new System.Windows.Forms.Timer { Interval = 10_000 };

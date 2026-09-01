@@ -1,4 +1,4 @@
-using CoderCommander.Services;
+﻿using CoderCommander.Services;
 using System.ComponentModel;
 using System.Drawing.Drawing2D;
 
@@ -448,14 +448,6 @@ public sealed class ThemedCheckBox : Control
 /// </summary>
 public static class UiHelpers
 {
-    /// <summary>Creates a themed button via <see cref="ThemedForm.CreateThemedButton"/>.</summary>
-    public static Button CreateButton(string text, bool accent = false, string? name = null)
-    {
-        // Delegate to the canonical themed button factory to keep theming consistent.
-        // (Used by legacy call sites — prefer ThemedForm.CreateThemedButton in new code.)
-        return ThemedForm.CreateThemedButton(text, accent, name);
-    }
-
     /// <summary>No-op kept for backward compatibility; <see cref="RoundedButton"/> handles its own painting.</summary>
     internal static void ApplyRoundedRegion(Control c, int? radius = null)
     {
@@ -495,28 +487,6 @@ public static class UiHelpers
             ForeColor = p.Foreground,
             BorderStyle = BorderStyle.FixedSingle
         };
-    }
-
-    /// <summary>Creates a themed detail-view ListView with the specified columns.</summary>
-    /// <remarks><c>params</c> must be the last parameter, so unlike the other <c>Create*</c>
-    /// factories there is no leading optional <c>name</c> here - set <see cref="Control.Name"/> on
-    /// the returned instance directly when a call site needs a stable <c>AutomationId</c>.</remarks>
-    public static ListView CreateListView(params (string name, int width)[] columns)
-    {
-        var p = ThemeService.Current;
-        var lv = new ListView
-        {
-            View = View.Details,
-            FullRowSelect = true,
-            HideSelection = false,
-            BorderStyle = BorderStyle.None,
-            Font = p.GridFont,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground
-        };
-        foreach (var (name, width) in columns)
-            lv.Columns.Add(name, width);
-        return lv;
     }
 
     /// <summary>Formats a byte count into a human-readable string (e.g. "1.5 MB").</summary>

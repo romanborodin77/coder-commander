@@ -1,4 +1,4 @@
-using CoderCommander.Services;
+﻿using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
@@ -153,8 +153,8 @@ partial class ConnectionsForm
         //
         // Docking the Close button directly would stretch it to the panel's inner height (36px),
         // leaving it visibly taller than the 32px buttons on the left. A right-docked
-        // FlowLayoutPanel lets it keep its natural size - the same reason
-        // ThemedForm.CreateBottomPanel uses one.
+        // FlowLayoutPanel lets it keep its natural size - the same shape every other dialog's
+        // bottom button bar uses.
         _rightGroup.AutoSize = true;
         _rightGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         _rightGroup.BackColor = Color.Transparent;

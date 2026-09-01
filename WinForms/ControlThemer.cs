@@ -1,4 +1,4 @@
-using CoderCommander.Services;
+﻿using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
@@ -232,7 +232,7 @@ public static class ControlThemer
                 break;
 
             case FlowLayoutPanel flp:
-                // Same transparency exception as the Panel case below (e.g. CreateBottomPanel's
+                // Same transparency exception as the Panel case below (e.g. a bottom bar's
                 // right-aligned button group, which must show its parent bar's color, not the
                 // form's general background).
                 if (flp.BackColor == Color.Transparent)

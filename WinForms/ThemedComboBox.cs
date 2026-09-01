@@ -33,12 +33,17 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         Height = ScaledDefaultHeight;
         Width = ScaledDefaultWidth;
         Cursor = Cursors.Hand;
-        Font = ThemeService.Current.GridFont;
+        // DesignerSafeThemeService, not ThemeService: this control is dropped on seven designed
+        // forms, so its constructor runs inside DesignToolsServer.exe every time one of them is
+        // opened - and ThemeService.Current would read the developer's real settings.json from
+        // there. At design time this hands back a built-in default palette instead.
+        var p = DesignerSafeThemeService.Current;
+        Font = p.GridFont;
 
         _menu = new ContextMenuStrip
         {
-            BackColor = ThemeService.Current.PanelBackground,
-            ForeColor = ThemeService.Current.Foreground,
+            BackColor = p.PanelBackground,
+            ForeColor = p.Foreground,
             Renderer = new ThemeRenderer()
         };
         _menu.ItemClicked += OnMenuItemClicked;

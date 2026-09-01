@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -209,58 +209,5 @@ public class ThemedForm : Form
         };
         ControlThemer.ThemeSingleControl(btn, p);
         return btn;
-    }
-
-    /// <summary>Creates a bottom button panel with primary + secondary buttons.</summary>
-    protected Panel CreateBottomPanel(Button primary, Button? secondary = null, Button? tertiary = null)
-    {
-        var p = ThemeService.Current;
-        var panel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            // Margin defaults to WinForms' built-in 3px on every side. Harmless for a control
-            // added directly to a Form, but when this panel ends up inside a TableLayoutPanel
-            // cell (as in CopyMoveDialogForm's mainLayout, RowStyle Absolute 50), the layout
-            // engine subtracts Margin from the allocated row height - Height=50 rendered as
-            // 44px, 6px short, which cascaded through Padding into the button FlowLayoutPanel
-            // ending up 4px shorter than the 32px buttons it holds (check_layout() caught this
-            // as OK/Cancel "extends outside its parent FlowLayoutPanel's bounds" - confirmed
-            // via the exact Bounds numbers, not just the finding, before attributing it here).
-            Margin = new Padding(0),
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-
-        // Right-anchored buttons go in a left-to-right FlowLayoutPanel (secondary added first,
-        // primary last so primary ends up rightmost) instead of Dock=Right + Margin: docked
-        // children ignore Margin entirely, so the old approach rendered every button flush
-        // against its neighbor with no gap.
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-        };
-        if (secondary != null)
-        {
-            secondary.Margin = new Padding(0, 0, 8, 0);
-            rightGroup.Controls.Add(secondary);
-        }
-        primary.Margin = new Padding(0);
-        rightGroup.Controls.Add(primary);
-        panel.Controls.Add(rightGroup);
-
-        if (tertiary != null)
-        {
-            tertiary.Dock = DockStyle.Left;
-            panel.Controls.Add(tertiary);
-        }
-
-        return panel;
     }
 }

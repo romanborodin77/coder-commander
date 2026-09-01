@@ -100,7 +100,9 @@ internal sealed class ViewerFindBar : Panel
     /// <see cref="Panel"/> directly too, so it needs a role to keep re-applying on every switch.</summary>
     public void ApplyTheme()
     {
-        BackColor = ThemeService.Current.HeaderBackground;
+        // DesignerSafeThemeService, not ThemeService: the constructor calls this method, and this
+        // control has a parameterless constructor, so the designer can instantiate it.
+        BackColor = DesignerSafeThemeService.Current.HeaderBackground;
         Tag = ThemeRole.HeaderBackground;
     }
 
