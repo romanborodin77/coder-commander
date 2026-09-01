@@ -15,20 +15,11 @@ namespace CoderCommander.WinForms;
 /// "leave whatever is stored alone" rather than "clear it", and it is written only when
 /// <see cref="ConnectionProfile.SavePassword"/> is on.
 /// </summary>
-public sealed class ConnectionEditForm : ThemedForm
+public sealed partial class ConnectionEditForm : ThemedForm
 {
     private readonly ConnectionProfile _draft;
     private readonly CredentialStore _credentials;
     private readonly bool _hadStoredPassword;
-
-    private readonly TextBox _nameBox;
-    private readonly ThemedComboBox _schemeBox;
-    private readonly TextBox _urlBox;
-    private readonly TextBox _userBox;
-    private readonly TextBox _passwordBox;
-    private readonly ThemedCheckBox _savePasswordCheck;
-    private readonly ThemedCheckBox _autoConnectCheck;
-    private readonly TextBox _fingerprintBox;
 
     /// <summary>The edited profile - valid only after <see cref="Form.ShowDialog()"/> returned
     /// <see cref="DialogResult.OK"/>.</summary>
@@ -36,29 +27,38 @@ public sealed class ConnectionEditForm : ThemedForm
 
     public ConnectionEditForm(ConnectionProfile profile, CredentialStore? credentials = null)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _draft = profile.Clone();
         _credentials = credentials ?? CredentialStore.Instance;
         _hadStoredPassword = _credentials.Has(_draft.Id);
 
         var L = LocalizationService.Current;
-        Text = L.GetString("Conn.Edit.Title");
-        ClientSize = new Size(560, 400);
 
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 10,
-            Padding = new Padding(20, 16, 20, 8),
-        };
-        layout.SetRole(ThemeRole.Background);
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _nameBox.Text = _draft.Name;
+        _urlBox.Text = _draft.Url;
+        _userBox.Text = _draft.UserName;
+        _fingerprintBox.Text = _draft.AcceptedCertificateThumbprint;
+        _savePasswordCheck.Checked = _draft.SavePassword;
+        _autoConnectCheck.Checked = _draft.AutoConnect;
 
-        var row = 0;
-        _nameBox = AddTextRow(layout, ref row, L.GetString("Conn.Field.Name"), _draft.Name);
+        // Says a password exists without revealing anything about it - so the text depends on the
+        // credential store, not on a fixed key.
+        _passwordHint.Text = _hadStoredPassword ? L.GetString("Conn.PasswordStored") : "";
 
-        _schemeBox = new ThemedComboBox { Dock = DockStyle.Fill };
+        PopulateSchemes();
+
+        _okBtn.Click += OnOk;
+        _cancelBtn.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
+    }
+
+    /// <summary>Fills the scheme combo from the provider registry and selects the draft's own
+    /// scheme.</summary>
+    private void PopulateSchemes()
+    {
         // Only registered providers are offered - a profile whose scheme nothing can serve is a
         // button that fails on click, and SettingsService.Validate would drop it on next load.
         _schemeBox.AddItems(FileSystemProviderRegistry.Registered.Select(p => p.Scheme));
@@ -77,84 +77,6 @@ public sealed class ConnectionEditForm : ThemedForm
         }
         if (_schemeBox.Items.Count > 0)
             _schemeBox.SelectedIndex = Math.Max(0, schemeIndex);
-        AddRow(layout, ref row, L.GetString("Conn.Field.Type"), _schemeBox);
-
-        _urlBox = AddTextRow(layout, ref row, L.GetString("Conn.Field.Url"), _draft.Url);
-        _userBox = AddTextRow(layout, ref row, L.GetString("Conn.Field.User"), _draft.UserName);
-
-        _passwordBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
-        AddRow(layout, ref row, L.GetString("Conn.Field.Password"), _passwordBox);
-
-        // Says a password exists without revealing anything about it.
-        var passwordHint = UiHelpers.CreateLabel(_hadStoredPassword ? L.GetString("Conn.PasswordStored") : "");
-        passwordHint.Dock = DockStyle.Fill;
-        passwordHint.SetRole(ThemeRole.Hint);
-        // No filler control in column 0: TableLayoutPanel handles an empty cell by itself, and a
-        // bare `new Label()` would be an untagged control that ControlThemer resets to a generic
-        // default on every theme switch.
-        layout.Controls.Add(passwordHint, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        row++;
-
-        _savePasswordCheck = UiHelpers.CreateCheckBox(L.GetString("Conn.Field.SavePassword"), _draft.SavePassword);
-        _savePasswordCheck.Dock = DockStyle.Fill;
-        layout.Controls.Add(_savePasswordCheck, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        row++;
-
-        _autoConnectCheck = UiHelpers.CreateCheckBox(L.GetString("Conn.Field.AutoConnect"), _draft.AutoConnect);
-        _autoConnectCheck.Dock = DockStyle.Fill;
-        layout.Controls.Add(_autoConnectCheck, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        row++;
-
-        // The field that makes an untrusted server's identity acceptable - a TLS certificate's
-        // SHA-256 thumbprint, or an SSH host key's SHA-256 fingerprint. Without it here the
-        // profile's AcceptedCertificateThumbprint was unreachable: the trust policies read it, and
-        // nothing could ever set it, so a self-signed server simply could not be connected to.
-        _fingerprintBox = AddTextRow(layout, ref row, L.GetString("Conn.Field.Fingerprint"),
-            _draft.AcceptedCertificateThumbprint);
-
-        var fingerprintHint = UiHelpers.CreateLabel(L.GetString("Conn.FingerprintHint"));
-        fingerprintHint.Dock = DockStyle.Fill;
-        fingerprintHint.SetRole(ThemeRole.Hint);
-        layout.Controls.Add(fingerprintHint, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        row++;
-
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var okBtn = CreateThemedButton(L.GetString("Common.OK"), accent: true);
-        okBtn.Click += OnOk;
-        var cancelBtn = CreateThemedButton(L.GetString("Common.Cancel"));
-        cancelBtn.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
-
-        // Dock=Fill sibling first, then the docked bottom bar (docking order pitfall).
-        Controls.Add(layout);
-        Controls.Add(CreateBottomPanel(okBtn, cancelBtn));
-
-        AcceptButton = okBtn;
-        CancelButton = cancelBtn;
-    }
-
-    private static TextBox AddTextRow(TableLayoutPanel layout, ref int row, string caption, string value)
-    {
-        var box = UiHelpers.CreateTextBox();
-        box.Dock = DockStyle.Fill;
-        box.Text = value;
-        AddRow(layout, ref row, caption, box);
-        return box;
-    }
-
-    private static void AddRow(TableLayoutPanel layout, ref int row, string caption, Control control)
-    {
-        var label = UiHelpers.CreateLabel(caption);
-        label.Dock = DockStyle.Fill;
-        label.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(label, 0, row);
-        layout.Controls.Add(control, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        row++;
     }
 
     private void OnOk(object? sender, EventArgs e)
@@ -252,19 +174,4 @@ public sealed class ConnectionEditForm : ThemedForm
         focus.Focus();
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _nameBox?.Dispose();
-            _schemeBox?.Dispose();
-            _urlBox?.Dispose();
-            _userBox?.Dispose();
-            _passwordBox?.Dispose();
-            _fingerprintBox?.Dispose();
-            _savePasswordCheck?.Dispose();
-            _autoConnectCheck?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
