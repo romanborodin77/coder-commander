@@ -11,12 +11,8 @@ namespace CoderCommander.WinForms;
 /// just never exposed in the UI before). Replaces the bare <see cref="InputDialogForm"/> the Pack
 /// command used to show.
 /// </summary>
-public sealed class PackDialogForm : ThemedForm
+public sealed partial class PackDialogForm : ThemedForm
 {
-    private readonly TextBox _nameBox;
-    private readonly ThemedComboBox _formatCombo;
-    private readonly ThemedComboBox _compressionCombo;
-    private readonly ThemedCheckBox _moveCheck;
     private readonly List<IArchiveFormat> _formats;
     private readonly string _destDir;
 
@@ -58,91 +54,27 @@ public sealed class PackDialogForm : ThemedForm
     /// checkbox (see <c>AppSettings.DeleteOriginalsAfterPack</c>).</param>
     public PackDialogForm(string suggestedBaseName, string destDir, string defaultFormatId, bool deleteOriginalsDefault = false)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _destDir = destDir;
         var L = LocalizationService.Current;
-
-        Text = L.GetString("Archive.PackTitle");
-        ClientSize = new Size(440, 300);
-        MaximizeBox = false;
-        MinimizeBox = false;
 
         _formats = ArchiveFormatRegistry.Creatable.ToList();
         if (_formats.Count == 0)
             _formats.Add(Archives.Zip.ZipArchiveFormat.Instance);
 
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 7,
-            BackColor = ThemeService.Current.Background,
-            Padding = new Padding(24, 20, 24, 8)
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _nameBox.Text = suggestedBaseName;
+        _moveCheck.Checked = deleteOriginalsDefault;
 
-        var nameLabel = UiHelpers.CreateLabel(L.GetString("Archive.PackPrompt"));
-        nameLabel.Dock = DockStyle.Fill;
-        nameLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _nameBox = UiHelpers.CreateTextBox(suggestedBaseName);
-        _nameBox.Dock = DockStyle.Fill;
-
-        var formatLabel = UiHelpers.CreateLabel(L.GetString("Archive.PackFormat"));
-        formatLabel.Dock = DockStyle.Fill;
-        formatLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _formatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
         foreach (var format in _formats)
             _formatCombo.AddItem(L.GetString(format.DisplayNameKey));
-
-        var compressionLabel = UiHelpers.CreateLabel(L.GetString("Archive.PackCompression"));
-        compressionLabel.Dock = DockStyle.Fill;
-        compressionLabel.TextAlign = ContentAlignment.BottomLeft;
-
-        _compressionCombo = new ThemedComboBox { Dock = DockStyle.Fill };
 
         var defaultIndex = _formats.FindIndex(f => string.Equals(f.Id, defaultFormatId, StringComparison.OrdinalIgnoreCase));
         _formatCombo.SelectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
         PopulateCompressionCombo();
 
         _formatCombo.SelectedIndexChanged += (_, _) => PopulateCompressionCombo();
-
-        _moveCheck = UiHelpers.CreateCheckBox(L.GetString("Archive.PackMoveOriginals"), deleteOriginalsDefault);
-        _moveCheck.AutoSize = true;
-        _moveCheck.Dock = DockStyle.Left;
-
-        var okBtn = CreateThemedButton(L.GetString("Common.OK"), accent: true);
-        okBtn.DialogResult = DialogResult.OK;
-        okBtn.Width = 100;
-
-        var cancelBtn = CreateThemedButton(L.GetString("Common.Cancel"), accent: false);
-        cancelBtn.DialogResult = DialogResult.Cancel;
-        cancelBtn.Width = 100;
-
-        var bottomPanel = CreateBottomPanel(okBtn, cancelBtn);
-
-        layout.Controls.Add(nameLabel, 0, 0);
-        layout.Controls.Add(_nameBox, 0, 1);
-        layout.Controls.Add(formatLabel, 0, 2);
-        layout.Controls.Add(_formatCombo, 0, 3);
-        layout.Controls.Add(compressionLabel, 0, 4);
-        layout.Controls.Add(_compressionCombo, 0, 5);
-        layout.Controls.Add(_moveCheck, 0, 6);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(layout);
-        Controls.Add(bottomPanel);
-
-        AcceptButton = okBtn;
-        CancelButton = cancelBtn;
 
         FormClosing += (_, e) =>
         {
@@ -195,15 +127,4 @@ public sealed class PackDialogForm : ThemedForm
         return -1;
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _nameBox?.Dispose();
-            _formatCombo?.Dispose();
-            _compressionCombo?.Dispose();
-            _moveCheck?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
