@@ -1,4 +1,4 @@
-using CoderCommander.FileSystem;
+﻿using CoderCommander.FileSystem;
 using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
@@ -7,18 +7,8 @@ namespace CoderCommander.WinForms;
 /// Compares two directories by relative path + size + timestamp, lets the user
 /// queue copy operations to bring them in line.
 /// </summary>
-public sealed class SyncDirsForm : ThemedForm
+public sealed partial class SyncDirsForm : ThemedForm
 {
-    private readonly TextBox _leftBox;
-    private readonly TextBox _rightBox;
-    private readonly ThemedCheckBox _subdirsCheck;
-    private readonly ThemedCheckBox _ignoreTimeCheck;
-    private readonly ListView _diffList;
-    private readonly Label _statusLabel;
-    private readonly Button _compareBtn;
-    private readonly Button _copyLeftBtn;
-    private readonly Button _copyRightBtn;
-    private readonly Button _closeBtn;
     private readonly List<SyncEntry> _entries = new();
 
     // Each side starts on the file system the panel it came from is browsing (local disk,
@@ -40,157 +30,34 @@ public sealed class SyncDirsForm : ThemedForm
     /// <param name="rightFs">File system the right path lives on (normally the right panel's <c>CurrentFileSystem</c>).</param>
     public SyncDirsForm(string leftPath, string rightPath, IFileSystem leftFs, IFileSystem rightFs)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _leftFs = leftFs;
         _rightFs = rightFs;
+
         var L = LocalizationService.Current;
-        Text = L.GetString("SyncDirs.Title");
-        ClientSize = new Size(880, 620); // +20 to match the top panel's 132→152 growth below
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colStatus.Text = L.GetString("SyncDirs.Status");
+        _colPath.Text = L.GetString("SyncDirs.Path");
+        _colLeftSize.Text = L.GetString("SyncDirs.LeftSize");
+        _colRightSize.Text = L.GetString("SyncDirs.RightSize");
+        _colAction.Text = L.GetString("SyncDirs.Action");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(600, 420);
 
-        var p = ThemeService.Current;
+        _leftBox.Text = leftPath;
+        _rightBox.Text = rightPath;
+        _subdirsCheck.Checked = true;
 
-        // Path panel
-        var top = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            ColumnCount = 4,
-            RowCount = 4,
-            // 4 rows * 32 + Padding(12+12) = 152 - the previous 132 left the last row (the
-            // Compare button) squeezed to ~12px tall.
-            Height = 152,
-            BackColor = p.Background,
-            Padding = new Padding(16, 12, 16, 12)
-        };
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        // 80 wasn't enough once this column started also holding _ignoreTimeCheck's column-span
-        // (with column 3 below) on row 2 - the Russian "Игнорировать время (только размер)" is
-        // wider than the English "Ignore time (size only)" and the checkbox was hard-clipping it
-        // (LayoutAuditTests' TextOverflow detector, F122). 130 gives the combined span (this
-        // column + the 120px one below) enough room for the longer translation.
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-        // Wide enough for the localized "Browse…" text - CreateThemedButton's own auto-sizing
-        // would give it ~100px, and this used to be 80 (RoundedButton's EndEllipsis then silently
-        // truncated it to "Brows..."). 100 wasn't enough once this same column started also
-        // holding _compareBtn ("Compare" - longer than "Browse…"), which silently truncated to
-        // "Comp..." the same way - text truncation isn't something a Bounds-based check catches
-        // on its own, only an actual rendered screenshot shows it.
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        for (int i = 0; i < 4; i++) top.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-
-        top.Controls.Add(UiHelpers.CreateLabel(L.GetString("SyncDirs.Left")), 0, 0);
-        _leftBox = UiHelpers.CreateTextBox(leftPath);
-        _leftBox.Dock = DockStyle.Fill;
-        top.Controls.Add(_leftBox, 1, 0);
-
-        var leftBrowse = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
-        leftBrowse.Dock = DockStyle.Fill;
-        leftBrowse.Margin = new Padding(8, 0, 0, 0);
-        leftBrowse.Click += (_, _) => Browse(_leftBox, fs => _leftFs = fs);
-        top.Controls.Add(UiHelpers.CreateLabel(""), 2, 0);
-        top.Controls.Add(leftBrowse, 3, 0);
-
-        top.Controls.Add(UiHelpers.CreateLabel(L.GetString("SyncDirs.Right")), 0, 1);
-        _rightBox = UiHelpers.CreateTextBox(rightPath);
-        _rightBox.Dock = DockStyle.Fill;
-        top.Controls.Add(_rightBox, 1, 1);
-
-        var rightBrowse = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
-        rightBrowse.Dock = DockStyle.Fill;
-        rightBrowse.Margin = new Padding(8, 0, 0, 0);
-        rightBrowse.Click += (_, _) => Browse(_rightBox, fs => _rightFs = fs);
-        top.Controls.Add(UiHelpers.CreateLabel(""), 2, 1);
-        top.Controls.Add(rightBrowse, 3, 1);
-
-        _subdirsCheck = UiHelpers.CreateCheckBox(L.GetString("SyncDirs.Subdirs"), true);
-        _subdirsCheck.Dock = DockStyle.Fill;
-        top.Controls.Add(_subdirsCheck, 1, 2);
-
-        _ignoreTimeCheck = UiHelpers.CreateCheckBox(L.GetString("SyncDirs.IgnoreTime"), false);
-        _ignoreTimeCheck.Dock = DockStyle.Fill;
-        top.Controls.Add(_ignoreTimeCheck, 2, 2);
-        top.SetColumnSpan(_ignoreTimeCheck, 2);
-
-        _compareBtn = ThemedForm.CreateThemedButton(L.GetString("SyncDirs.Compare"), accent: true);
-        _compareBtn.Dock = DockStyle.Fill;
-        // Margin = 0: this cell's RowStyle is Absolute 32 - the default 3px-per-side
-        // Control.Margin would shrink the button's rendered height to 26px (same trap as every
-        // other Dock=Fill-in-a-TableLayoutPanel-cell control fixed elsewhere in this pass).
-        _compareBtn.Margin = new Padding(0);
-        // Row 3, not row 2 - _ignoreTimeCheck above already spans columns 2-3 on row 2, so placing
-        // this in the same cell fought it for space and squeezed the button down to "Com...".
-        top.Controls.Add(_compareBtn, 3, 3);
+        _leftBrowse.Click += (_, _) => Browse(_leftBox, fs => _leftFs = fs);
+        _rightBrowse.Click += (_, _) => Browse(_rightBox, fs => _rightFs = fs);
         _compareBtn.Click += (_, _) => _ = CompareAsync();
-
-        // Diff list
-        _diffList = UiHelpers.CreateListView(
-            (L.GetString("SyncDirs.Status"), 60),
-            (L.GetString("SyncDirs.Path"), 380),
-            (L.GetString("SyncDirs.LeftSize"), 100),
-            (L.GetString("SyncDirs.RightSize"), 100),
-            (L.GetString("SyncDirs.Action"), 200));
-        _diffList.Dock = DockStyle.Fill;
-        _diffList.CheckBoxes = true;
-        _diffList.FullRowSelect = true;
-
-        // Bottom panel
-        var bottom = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Margin = new Padding(0, 0, 8, 0);
         _closeBtn.Click += (_, _) => Close();
-
-        _copyRightBtn = ThemedForm.CreateThemedButton(L.GetString("SyncDirs.CopyToRight"));
-        _copyRightBtn.Margin = new Padding(0, 0, 8, 0);
         _copyRightBtn.Click += (_, _) => IssueCopy(SyncDirection.LeftToRight);
-
-        _copyLeftBtn = ThemedForm.CreateThemedButton(L.GetString("SyncDirs.CopyToLeft"));
-        _copyLeftBtn.Margin = new Padding(0);
         _copyLeftBtn.Click += (_, _) => IssueCopy(SyncDirection.RightToLeft);
-
-        // Three Dock.Right buttons ignored Margin entirely, collapsing all the gaps between
-        // them - a right-aligned FlowLayoutPanel (add order = visual left-to-right order)
-        // actually renders them, preserving the same Close/CopyRight/CopyLeft order the old
-        // same-side-Dock stacking produced.
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_closeBtn);
-        rightGroup.Controls.Add(_copyRightBtn);
-        rightGroup.Controls.Add(_copyLeftBtn);
-
-        bottom.Controls.Add(_statusLabel);
-        bottom.Controls.Add(rightGroup);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(_diffList);
-        Controls.Add(bottom);
-        Controls.Add(top);
-
-        CancelButton = _closeBtn;
     }
 
     /// <summary>A native folder picker only ever browses the real local disk - picking one always
@@ -428,23 +295,6 @@ public sealed class SyncDirsForm : ThemedForm
         return map;
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _leftBox?.Dispose();
-            _rightBox?.Dispose();
-            _diffList?.Dispose();
-            _compareBtn?.Dispose();
-            _copyLeftBtn?.Dispose();
-            _copyRightBtn?.Dispose();
-            _subdirsCheck?.Dispose();
-            _ignoreTimeCheck?.Dispose();
-            _statusLabel?.Dispose();
-            _closeBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
 
 /// <summary>Represents the comparison status of a single file or directory between left and right.</summary>
