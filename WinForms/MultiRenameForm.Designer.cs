@@ -299,7 +299,12 @@ partial class MultiRenameForm
         //
         // _hintLabel
         //
-        _hintLabel.AutoSize = true;
+        // AutoEllipsis, and therefore AutoSize=false: at AutoSize=true this label word-wrapped
+        // inside a row only one line tall, so everything past the wrap point was not truncated
+        // but silently dropped - no ellipsis, no clue anything was missing. Same treatment
+        // HotkeyBindingsForm._hint and TerminalKeyBindingsForm._hint already use.
+        _hintLabel.AutoEllipsis = true;
+        _hintLabel.AutoSize = false;
         _hintLabel.Dock = DockStyle.Fill;
         _hintLabel.Name = "_hintLabel";
         _hintLabel.Text = "[N] name, [E] extension, [C] counter";

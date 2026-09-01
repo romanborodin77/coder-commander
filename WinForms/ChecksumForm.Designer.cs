@@ -193,7 +193,13 @@ partial class ChecksumForm
         _topPanel.ColumnCount = 2;
         _topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));
         _topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        _topPanel.Controls.Add(_fileList, 1, 0);
+        // The source list starts at column 0 and spans both. Column 0 exists for the "Algorithm:"
+        // caption on the row below; row 0 has no caption of its own, so the list used to be added
+        // at column 1 and sat indented by 120px behind an empty block - narrower than the result
+        // list underneath it, which has always run the full width. Spanning from column 1 does not
+        // work: the span would run off the end of a two-column table.
+        _topPanel.Controls.Add(_fileList, 0, 0);
+        _topPanel.SetColumnSpan(_fileList, 2);
         _topPanel.Controls.Add(_algoLabel, 0, 1);
         _topPanel.Controls.Add(_algoCombo, 1, 1);
         _topPanel.Dock = DockStyle.Top;

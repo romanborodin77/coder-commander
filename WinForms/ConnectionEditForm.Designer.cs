@@ -260,7 +260,12 @@ partial class ConnectionEditForm
         //
         // _fingerprintHint
         //
-        _fingerprintHint.AutoSize = true;
+        // AutoEllipsis, and therefore AutoSize=false: at AutoSize=true this label word-wrapped
+        // inside a row only one line tall, so everything past the wrap point was not truncated
+        // but silently dropped - no ellipsis, no clue anything was missing. Same treatment
+        // HotkeyBindingsForm._hint and TerminalKeyBindingsForm._hint already use.
+        _fingerprintHint.AutoEllipsis = true;
+        _fingerprintHint.AutoSize = false;
         _fingerprintHint.Dock = DockStyle.Fill;
         _fingerprintHint.Name = "_fingerprintHint";
         _fingerprintHint.Text = "Leave empty to require a trusted chain.";

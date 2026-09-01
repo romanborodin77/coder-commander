@@ -159,7 +159,12 @@ partial class CustomShellEditForm
         //
         // _commandHint
         //
-        _commandHint.AutoSize = true;
+        // AutoEllipsis, and therefore AutoSize=false: at AutoSize=true this label word-wrapped
+        // inside a row only one line tall, so everything past the wrap point was not truncated
+        // but silently dropped - no ellipsis, no clue anything was missing. Same treatment
+        // HotkeyBindingsForm._hint and TerminalKeyBindingsForm._hint already use.
+        _commandHint.AutoEllipsis = true;
+        _commandHint.AutoSize = false;
         _commandHint.Dock = DockStyle.Fill;
         _commandHint.Name = "_commandHint";
         _commandHint.Text = "Absolute path, or a name resolved through PATH.";

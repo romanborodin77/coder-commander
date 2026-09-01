@@ -72,8 +72,10 @@ partial class PasswordPromptForm
         //
         // _promptLabel
         //
+        // AutoSize must stay false or the AutoEllipsis above does nothing at all - WinForms
+        // only ellipsizes a Label that is not sizing itself to its own text.
         _promptLabel.AutoEllipsis = true;
-        _promptLabel.AutoSize = true;
+        _promptLabel.AutoSize = false;
         _promptLabel.Dock = DockStyle.Fill;
         _promptLabel.Name = "_promptLabel";
         _promptLabel.TextAlign = ContentAlignment.BottomLeft;

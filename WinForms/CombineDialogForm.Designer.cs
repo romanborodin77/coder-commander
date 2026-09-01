@@ -82,7 +82,11 @@ partial class CombineDialogForm
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22F));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
-        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+        // AutoSize, not another Absolute 32: this row holds _checksLayout, a TopDown flow of TWO
+        // checkboxes needing about 54px together. At 32 the second one ("delete the parts after
+        // combining") was clipped away entirely - not merely cut off, but invisible and impossible
+        // to tick. SplitDialogForm avoids this by giving each of its checkboxes its own row.
+        _layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         //
         // _nameLabel
