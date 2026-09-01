@@ -1,4 +1,4 @@
-using CoderCommander.FileSystem;
+﻿using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Utils;
 using System.Globalization;
@@ -8,7 +8,7 @@ namespace CoderCommander.WinForms;
 /// <summary>
 /// Shows two files side-by-side with line-by-line highlighting of differences.
 /// </summary>
-public sealed class DifferForm : ThemedForm
+public sealed partial class DifferForm : ThemedForm
 {
     /// <summary>Above this (per file), reading the whole file into memory to diff it line-by-line
     /// is large enough to freeze the UI thread for seconds or throw
@@ -16,14 +16,6 @@ public sealed class DifferForm : ThemedForm
     /// <see cref="ViewerForm"/> uses for its own text mode.</summary>
     private const long LargeFileConfirmBytes = 16 * 1024 * 1024;
 
-    private readonly TextBox _leftBox;
-    private readonly TextBox _rightBox;
-    private readonly Label _statusLabel;
-    private readonly Button _closeBtn;
-    private readonly Button _leftBrowseBtn;
-    private readonly Button _rightBrowseBtn;
-    private readonly TextBox _leftPathBox;
-    private readonly TextBox _rightPathBox;
 
     // Each side starts on the file system the panel selection came from (so a file inside an
     // archive or on an SFTP/FTP/WebDAV connection can actually be diffed), but Browse... only
@@ -44,155 +36,30 @@ public sealed class DifferForm : ThemedForm
     /// panel's <c>CurrentFileSystem</c>, since both selected files come from the same panel.</param>
     public DifferForm(string? leftPath, string? rightPath, IFileSystem fileSystem)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _leftFs = fileSystem;
         _rightFs = fileSystem;
-        var L = LocalizationService.Current;
-        Text = L.GetString("Differ.Title");
-        ClientSize = new Size(900, 616); // +16 to match the top bar's 72→88 growth below
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(560, 400);
 
-        var p = ThemeService.Current;
+        _leftPathBox.Text = leftPath ?? "";
+        _rightPathBox.Text = rightPath ?? "";
 
-        // Top bar: two path inputs
-        var topBar = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            ColumnCount = 4,
-            RowCount = 2,
-            // Height(88) - Padding(8+8) = 72 available for the two rows below - RowStyles must sum
-            // to exactly that, or TableLayoutPanel dumps the leftover into the LAST row alone: at
-            // the old 32+32=64 (an 8px-short leftover from when this was still 72 total, before it
-            // grew to 88 without the row math following), the Right row's "Browse…" button rendered
-            // visibly taller than the Left row's - measured 34px vs 26px on a live screenshot.
-            Height = 88,
-            BackColor = p.Background,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
-        topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        // Wide enough for the localized "Browse…" text - CreateThemedButton's own auto-sizing
-        // would give it ~100px, and this column used to be 60 (RoundedButton's EndEllipsis then
-        // silently truncated it to "Bro...").
-        topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        topBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        topBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-
-        topBar.Controls.Add(UiHelpers.CreateLabel(L.GetString("Differ.Left")), 0, 0);
-        _leftPathBox = UiHelpers.CreateTextBox(leftPath ?? "");
-        _leftPathBox.Dock = DockStyle.Fill;
-        topBar.Controls.Add(_leftPathBox, 1, 0);
-        _leftBrowseBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
-        _leftBrowseBtn.Dock = DockStyle.Fill;
-        _leftBrowseBtn.Margin = new Padding(4, 3, 4, 7);
         _leftBrowseBtn.Click += (_, _) => Browse(_leftPathBox, fs => _leftFs = fs);
-        topBar.Controls.Add(_leftBrowseBtn, 2, 0);
-
-        topBar.Controls.Add(UiHelpers.CreateLabel(L.GetString("Differ.Right")), 0, 1);
-        _rightPathBox = UiHelpers.CreateTextBox(rightPath ?? "");
-        _rightPathBox.Dock = DockStyle.Fill;
-        topBar.Controls.Add(_rightPathBox, 1, 1);
-        _rightBrowseBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Browse"));
-        _rightBrowseBtn.Dock = DockStyle.Fill;
-        _rightBrowseBtn.Margin = new Padding(4, 3, 4, 7);
         _rightBrowseBtn.Click += (_, _) => Browse(_rightPathBox, fs => _rightFs = fs);
-        topBar.Controls.Add(_rightBrowseBtn, 2, 1);
-
-        // Split view
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            SplitterWidth = 4,
-            BackColor = p.GridLine,
-            BorderStyle = BorderStyle.None
-        };
-
-        _leftBox = CreateTextBox();
-        _rightBox = CreateTextBox();
-        split.Panel1.Controls.Add(_leftBox);
-        split.Panel2.Controls.Add(_rightBox);
-
-        // Bottom
-        _statusLabel = new Label
-        {
-            Dock = DockStyle.Fill,
-            ForeColor = p.DimForeground,
-            Font = p.GridFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Tag = ThemeRole.Muted
-        };
-
-        var compareBtn = ThemedForm.CreateThemedButton(L.GetString("Differ.Compare"), accent: true);
-        compareBtn.Margin = new Padding(0);
-        compareBtn.Click += (_, _) => _ = CompareFilesAsync();
-
-        _closeBtn = ThemedForm.CreateThemedButton(L.GetString("Common.Close"));
-        _closeBtn.Margin = new Padding(0, 0, 8, 0);
+        _compareBtn.Click += (_, _) => _ = CompareFilesAsync();
         _closeBtn.Click += (_, _) => Close();
 
-        var bottomPanel = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 50,
-            BackColor = p.HeaderBackground,
-            Tag = ThemeRole.HeaderBackground,
-            Padding = new Padding(16, 8, 16, 8)
-        };
-        // Right-aligned FlowLayoutPanel instead of Dock.Right + Margin (which Dock.Right
-        // ignores) so the gap between the two buttons actually renders.
-        var rightGroup = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent
-        };
-        rightGroup.Controls.Add(_closeBtn);
-        rightGroup.Controls.Add(compareBtn);
-        bottomPanel.Controls.Add(_statusLabel);
-        bottomPanel.Controls.Add(rightGroup);
-
-        // Dock=Fill must be added before Dock=Bottom/Top/Left/Right siblings (see
-        // WinForms/DirectoryTreeForm.cs for the full explanation).
-        Controls.Add(split);
-        Controls.Add(bottomPanel);
-        Controls.Add(topBar);
-
-        // Must be set only after `split` is parented and docked - SplitContainer.Width is still
-        // its unparented default (150px) at construction time, so setting SplitterDistance against
-        // ClientSize.Width earlier either clamps to that tiny default or gets silently orphaned
-        // once the container grows to fill the real client area, leaving the splitter stuck near
-        // one edge instead of centered (caught by visual inspection of a live build).
-        split.SplitterDistance = (ClientSize.Width - 4) / 2;
-
-        CancelButton = _closeBtn;
-
-        if (!string.IsNullOrEmpty(leftPath) && !string.IsNullOrEmpty(rightPath))
-        {
-            _leftPathBox.Text = leftPath;
-            _rightPathBox.Text = rightPath;
-        }
-    }
-
-    private static TextBox CreateTextBox()
-    {
-        var p = ThemeService.Current;
-        return new TextBox
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            Multiline = true,
-            WordWrap = false,
-            ScrollBars = ScrollBars.Both,
-            BackColor = p.PanelBackground,
-            ForeColor = p.Foreground,
-            Font = p.MonoFont,
-            BorderStyle = BorderStyle.None
-        };
+        // Only after the container is parented and docked: SplitContainer.Width is still its
+        // unparented 150px default during InitializeComponent, so setting SplitterDistance against
+        // ClientSize.Width any earlier either clamps to that tiny default or is silently orphaned
+        // once the container grows to fill the real client area, leaving the splitter stuck near one
+        // edge instead of centered.
+        _split.SplitterDistance = (ClientSize.Width - 4) / 2;
     }
 
     /// <summary>A native folder/file picker only ever browses the real local disk - picking a
@@ -328,21 +195,4 @@ public sealed class DifferForm : ThemedForm
         return lines;
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _compareCts?.Cancel();
-            _compareCts?.Dispose();
-            _leftPathBox?.Dispose();
-            _rightPathBox?.Dispose();
-            _leftBrowseBtn?.Dispose();
-            _rightBrowseBtn?.Dispose();
-            _leftBox?.Dispose();
-            _rightBox?.Dispose();
-            _statusLabel?.Dispose();
-            _closeBtn?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
