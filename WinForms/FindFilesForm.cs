@@ -1,4 +1,4 @@
-using CoderCommander.FileSystem;
+﻿using CoderCommander.FileSystem;
 using CoderCommander.Services;
 using CoderCommander.Services.Search;
 using System.Globalization;
@@ -18,7 +18,7 @@ namespace CoderCommander.WinForms;
 /// flushed on a timer, which is the difference between a responsive dialog and one that appears
 /// frozen while it is in fact working perfectly.</para>
 /// </summary>
-public sealed class FindFilesForm : ThemedForm
+public sealed partial class FindFilesForm : ThemedForm
 {
     /// <summary>How often accumulated hits are moved into the grid. Fast enough to look live, slow
     /// enough that the UI thread is never the bottleneck.</summary>
@@ -27,20 +27,8 @@ public sealed class FindFilesForm : ThemedForm
     private readonly IFileSystem _fs;
     private readonly string _rootPath;
 
-    private readonly TextBox _maskBox;
-    private readonly TextBox _textBox;
-    private readonly ThemedCheckBox _matchCaseCheck;
-    private readonly ThemedCheckBox _wholeWordCheck;
-    private readonly ThemedCheckBox _subdirectoriesCheck;
-    private readonly ThemedCheckBox _regexCheck;
-    private readonly ListView _results;
-    private readonly Label _status;
-    private readonly Button _startBtn;
-    private readonly Button _goToBtn;
-
     private readonly List<SearchHit> _pending = [];
     private readonly object _pendingLock = new();
-    private readonly System.Windows.Forms.Timer _flushTimer;
 
     private CancellationTokenSource? _cancellation;
     private SearchEngine.SearchProgress _progress;
@@ -52,110 +40,41 @@ public sealed class FindFilesForm : ThemedForm
 
     public FindFilesForm(IFileSystem fs, string rootPath)
     {
+        InitializeComponent();
+        _uiMetadata.ApplyLocalization();
+
         _fs = fs;
         _rootPath = rootPath;
 
         var L = LocalizationService.Current;
-        Text = L.GetString("Find.Title");
-        ClientSize = new Size(820, 520);
+        // A ColumnHeader is not a Control and cannot carry a LocalizationKey.
+        _colName.Text = L.GetString("Find.Col.Name");
+        _colFolder.Text = L.GetString("Find.Col.Folder");
+        _colSize.Text = L.GetString("Find.Col.Size");
+        _colLine.Text = L.GetString("Find.Col.Line");
+        _colText.Text = L.GetString("Find.Col.Text");
+
+        // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
+        // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;
-        MinimumSize = new Size(620, 400);
 
-        _maskBox = UiHelpers.CreateTextBox();
-        _maskBox.Dock = DockStyle.Fill;
-        _maskBox.Text = "*.*";
+        _status.Text = WhereLabel();
+        _startBtn.Text = L.GetString("Find.Start");
 
-        _textBox = UiHelpers.CreateTextBox();
-        _textBox.Dock = DockStyle.Fill;
+        // Only after ApplyLocalization has put the real captions in place - see SizeToText.
+        foreach (var check in new[] { _matchCaseCheck, _wholeWordCheck, _subdirectoriesCheck, _regexCheck })
+            SizeToText(check);
 
-        _matchCaseCheck = UiHelpers.CreateCheckBox(L.GetString("Find.MatchCase"), false);
-        _wholeWordCheck = UiHelpers.CreateCheckBox(L.GetString("Find.WholeWord"), false);
-        _subdirectoriesCheck = UiHelpers.CreateCheckBox(L.GetString("Find.Subdirectories"), true);
-        _regexCheck = UiHelpers.CreateCheckBox(L.GetString("Find.UseRegex"), false);
-
-        _results = UiHelpers.CreateListView(
-            (L.GetString("Find.Col.Name"), 200),
-            (L.GetString("Find.Col.Folder"), 260),
-            (L.GetString("Find.Col.Size"), 90),
-            (L.GetString("Find.Col.Line"), 60),
-            (L.GetString("Find.Col.Text"), 320));
-        _results.Dock = DockStyle.Fill;
         _results.DoubleClick += (_, _) => GoToSelected();
         _results.SelectedIndexChanged += (_, _) => UpdateButtonState();
-
-        _status = UiHelpers.CreateLabel(WhereLabel());
-        _status.Dock = DockStyle.Fill;
-        _status.SetRole(ThemeRole.Hint);
-
-        _startBtn = CreateThemedButton(L.GetString("Find.Start"), accent: true);
-        _startBtn.Margin = new Padding(0, 0, 8, 0);
         _startBtn.Click += (_, _) => ToggleSearch();
-
-        _goToBtn = CreateThemedButton(L.GetString("Find.GoTo"));
-        _goToBtn.Margin = new Padding(0, 0, 8, 0);
         _goToBtn.Click += (_, _) => GoToSelected();
+        _closeBtn.Click += (_, _) => Close();
 
-        var closeBtn = CreateThemedButton(L.GetString("Common.Close"));
-        closeBtn.Click += (_, _) => Close();
-
-        // Dock=Fill sibling first, then every docked sibling (docking order pitfall).
-        Controls.Add(BuildResultsArea());
-        Controls.Add(BuildQueryArea(L));
-        Controls.Add(BuildButtonBar(_startBtn, _goToBtn, closeBtn));
-
-        AcceptButton = _startBtn;
-        // Escape closes, per the convention every dialog here follows.
-        CancelButton = closeBtn;
-
-        _flushTimer = new System.Windows.Forms.Timer { Interval = (int)FlushInterval.TotalMilliseconds };
+        _flushTimer.Interval = (int)FlushInterval.TotalMilliseconds;
         _flushTimer.Tick += (_, _) => FlushPending();
 
         UpdateButtonState();
-    }
-
-    // ── Layout ──────────────────────────────────────────────────────────────────────────────
-
-    private Control BuildQueryArea(LocalizationService L)
-    {
-        // A fixed height, not AutoSize. An auto-sizing Dock=Top panel settles its height after the
-        // form's first layout pass, and the Dock=Fill sibling below it is measured before that
-        // happens - which pushes the bottom button bar past the client area and clips the buttons.
-        // Four rows of known height plus the padding is a number this dialog can simply state.
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            ColumnCount = 2,
-            RowCount = 4,
-            Height = 12 + 32 + 32 + 34 + 24 + 8,
-            Padding = new Padding(16, 12, 16, 8),
-        };
-        layout.SetRole(ThemeRole.Background);
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-        AddRow(layout, 0, L.GetString("Find.Field.Mask"), _maskBox);
-        AddRow(layout, 1, L.GetString("Find.Field.Text"), _textBox);
-
-        var options = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-        };
-        foreach (var check in new[] { _matchCaseCheck, _wholeWordCheck, _subdirectoriesCheck, _regexCheck })
-        {
-            SizeToText(check);
-            check.Margin = new Padding(0, 0, 16, 0);
-            options.Controls.Add(check);
-        }
-
-        layout.Controls.Add(options, 1, 2);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        layout.Controls.Add(_status, 1, 3);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-
-        return layout;
     }
 
     /// <summary>
@@ -172,43 +91,6 @@ public sealed class FindFilesForm : ThemedForm
         // Room for the box itself and the gap between it and the caption.
         check.Width = width + 34;
         check.Height = 28;
-    }
-
-    private void AddRow(TableLayoutPanel layout, int row, string caption, Control control)
-    {
-        var label = UiHelpers.CreateLabel(caption);
-        label.Dock = DockStyle.Fill;
-        label.TextAlign = ContentAlignment.MiddleLeft;
-        layout.Controls.Add(label, 0, row);
-        layout.Controls.Add(control, 1, row);
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-    }
-
-    private Control BuildResultsArea()
-    {
-        var host = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 0, 16, 0) };
-        host.SetRole(ThemeRole.Background);
-        host.Controls.Add(_results);
-        return host;
-    }
-
-    private Control BuildButtonBar(params Button[] buttons)
-    {
-        var group = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Right,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            BackColor = Color.Transparent,
-        };
-        foreach (var button in buttons) group.Controls.Add(button);
-
-        var bar = new Panel { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(16, 10, 16, 10) };
-        bar.SetRole(ThemeRole.HeaderBackground);
-        bar.Controls.Add(group);
-        return bar;
     }
 
     // ── Search ──────────────────────────────────────────────────────────────────────────────
@@ -385,24 +267,4 @@ public sealed class FindFilesForm : ThemedForm
         base.OnFormClosing(e);
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _cancellation?.Cancel();
-            _cancellation?.Dispose();
-            _flushTimer.Dispose();
-            _maskBox?.Dispose();
-            _textBox?.Dispose();
-            _results?.Dispose();
-            _matchCaseCheck?.Dispose();
-            _wholeWordCheck?.Dispose();
-            _subdirectoriesCheck?.Dispose();
-            _regexCheck?.Dispose();
-            _startBtn?.Dispose();
-            _goToBtn?.Dispose();
-            _status?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
 }
