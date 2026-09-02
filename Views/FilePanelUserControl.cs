@@ -835,7 +835,16 @@ public sealed class FilePanelUserControl : UserControl
                 CompactMode = true,
             };
             _quickViewHostFs = sourceFs;
-            _fileList.Parent!.Controls.Add(_quickViewHost);
+
+            var content = _fileList.Parent!;
+            content.Controls.Add(_quickViewHost);
+            // Straight into the file list's own slot in the Controls collection. WinForms resolves
+            // docking from the last-added child backwards, so a Dock=Fill added last claims the
+            // entire client area and leaves nothing for the Top-docked tab strip, breadcrumb and
+            // drive bar - which is why they vanished the moment Quick View came on, contradicting
+            // this class's own contract that only the content area changes. _fileList is added
+            // before those three bars for exactly this reason; the preview has to sit where it sat.
+            content.Controls.SetChildIndex(_quickViewHost, content.Controls.GetChildIndex(_fileList));
         }
         else
         {
