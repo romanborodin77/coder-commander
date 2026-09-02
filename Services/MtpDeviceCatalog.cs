@@ -76,7 +76,13 @@ public sealed class MtpDeviceCatalog : IDisposable
                 // present, which is the only thing this enumeration is trying to establish.
                 foreach (var d in devices)
                 {
-                    if (MtpConnectionRegistry.Get(d.DeviceId) is not null) continue;
+                    // The id is checked before it is looked up: WPD can hand back an entry with no
+                    // DeviceId at all, and the registry's dictionary throws on a null key. Thrown
+                    // from inside this finally the exception would bypass the catch below entirely
+                    // and, on the timer's thread-pool thread, go unhandled. A device with no id
+                    // cannot be one anybody is browsing, so it is disposed like any other.
+                    if (!string.IsNullOrEmpty(d.DeviceId) && MtpConnectionRegistry.Get(d.DeviceId) is not null)
+                        continue;
                     d.Dispose();
                 }
             }
