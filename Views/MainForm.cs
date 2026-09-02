@@ -1129,7 +1129,15 @@ public sealed class MainForm : Form
             if (shells.Count == 0) return;
 
             var preferredId = SettingsService.Load().DefaultShellType;
-            _terminalPanel.AddTerminalTab(shells.FirstOrDefault(s => s.Id == preferredId) ?? shells[0]);
+            var shell = shells.FirstOrDefault(s => s.Id == preferredId) ?? shells[0];
+
+            // Start it in the active panel's own folder. Not cosmetic: activating a terminal tab
+            // makes the panel follow that tab's tracked directory, so a tab opened in the shell's
+            // default home dragged the panel off the path it had just restored. GetShellPath is
+            // what decides whether there is a real Windows directory to hand over at all - inside
+            // an archive or on a connection there is none, and the shell keeps its own default.
+            var panel = _vm.ActivePanel;
+            _terminalPanel.AddTerminalTab(shell, panel.CurrentFileSystem.GetShellPath(panel.CurrentPath));
         }
         catch (Exception ex)
         {
