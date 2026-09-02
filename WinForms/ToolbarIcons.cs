@@ -23,15 +23,6 @@ public static class ToolbarIcons
 {
     private static readonly ConcurrentDictionary<string, Bitmap> _cache = new();
     private static int _lastDpi = 96;
-    private static List<Bitmap>? _pendingDisposal;
-
-    /// <summary>Guards <see cref="_pendingDisposal"/>/<see cref="_lastDpi"/> and the
-    /// generation-swap in <see cref="ClearCache"/> - see <see cref="FileIcons"/>'s identical lock
-    /// for why: <see cref="ClearCache"/> is called both from <c>ThemeService.ApplyTheme</c> and
-    /// from <see cref="Get"/>'s own DPI-change branch, and without this a race between the two
-    /// could double-dispose the same Bitmap or drop a generation out of
-    /// <see cref="_pendingDisposal"/> entirely.</summary>
-    private static readonly object _clearLock = new();
 
     /// <summary>Which palette colour an icon is drawn in.</summary>
     private enum Tint { Foreground, Accent, Danger, Dim }
@@ -46,12 +37,9 @@ public static class ToolbarIcons
     {
         if (string.IsNullOrEmpty(key)) return null;
 
-        // Deliberately unlocked out here (only ClearCache() itself takes _clearLock) - see
-        // FileIcons.Get's identical comment: the double-dispose/dropped-generation race lived
-        // inside ClearCache() and is closed by its own lock; two callers redundantly both calling
-        // ClearCache() after both observing a stale _lastDpi is harmless. Wrapping this compare in
-        // the same lock too made CA2000 lose track of ToolStripButton disposal ownership at
-        // unrelated call sites that use Get() inline in an object initializer.
+        // Unlocked - see FileIcons.Get's identical comment. The lock this class used to hold only
+        // existed to serialize ClearCache()'s generation swap, and ClearCache() no longer disposes
+        // anything, so there is no longer a race to serialize.
         var currentDpi = GetCurrentDpi();
         if (currentDpi != _lastDpi)
         {
@@ -63,21 +51,23 @@ public static class ToolbarIcons
     }
 
     /// <summary>
-    /// Clears the icon cache (call on theme change). Bitmaps handed out by <see cref="Get"/> are
-    /// assigned directly to long-lived controls (toolbar buttons, menu items) that don't necessarily
-    /// re-fetch and reassign their Image right away, so disposing them on the spot risks an
-    /// already-shown control drawing a disposed Bitmap. Keep this generation alive for one more
-    /// clear instead - bounds the leak to at most one extra generation.
+    /// Drops the cache so the next <see cref="Get"/> re-rasterizes at the current theme and DPI.
+    /// Call on a theme or DPI change.
     /// </summary>
-    public static void ClearCache()
-    {
-        lock (_clearLock)
-        {
-            _pendingDisposal?.ForEach(b => b.Dispose());
-            _pendingDisposal = _cache.Values.ToList();
-            _cache.Clear();
-        }
-    }
+    /// <remarks>
+    /// Deliberately does not dispose anything. Bitmaps handed out by <see cref="Get"/> are assigned
+    /// straight to long-lived controls, and only some of them ever re-fetch: the tool strip, menu
+    /// strip and function bar are refreshed by <c>MainForm.RefreshToolbarIconsForDpi</c>, but the
+    /// panel tab strip's "+" button, the drive bar buttons and the panel context menus keep the
+    /// bitmap they were handed at construction, forever. This used to keep one generation alive and
+    /// dispose the one before it, which merely delayed the problem: after a second clear - a theme
+    /// switch following a DPI change, say - those controls were left holding a disposed Bitmap, and
+    /// the next repaint threw ArgumentException out of <c>Image.get_Width</c> and took the whole
+    /// application down. Orphaning them for the GC instead costs a few dozen small bitmaps per
+    /// clear, on an event that happens when the user changes a theme or drags the window to another
+    /// monitor, and cannot dangle a reference anyone still holds.
+    /// </remarks>
+    public static void ClearCache() => _cache.Clear();
 
     private static int GetCurrentDpi()
     {

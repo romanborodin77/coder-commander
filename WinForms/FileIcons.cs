@@ -21,32 +21,19 @@ public static class FileIcons
 {
     private static readonly ConcurrentDictionary<(FileIconType, int), Bitmap> _sizedCache = new();
     private static int _lastDpi = 96;
-    private static List<Bitmap>? _pendingDisposal;
-
-    /// <summary>Guards <see cref="_pendingDisposal"/>/<see cref="_lastDpi"/> and the
-    /// generation-swap in <see cref="ClearCache"/> - it is called both from
-    /// <c>ThemeService.ApplyTheme</c> and from <see cref="Get(FileIconType, int)"/>'s own DPI-change
-    /// branch, and without this lock two concurrent calls could double-dispose the same Bitmap
-    /// (both threads reading the same <see cref="_pendingDisposal"/> before either replaces it) or
-    /// drop a generation's bitmaps out of <see cref="_pendingDisposal"/> entirely.</summary>
-    private static readonly object _clearLock = new();
 
     /// <summary>
-    /// Drops the cache. Bitmaps handed out by <see cref="Get(FileIconType, int)"/> are assigned
-    /// directly to long-lived controls (menu items, toolbar buttons, ImageLists) that don't
-    /// necessarily re-fetch and reassign their Image on every theme/DPI change, so disposing them
-    /// on the spot risks an already-shown control drawing a disposed Bitmap. Keep this generation
-    /// alive for one more clear instead - bounds the leak to at most one extra generation.
+    /// Drops the cache so the next <see cref="Get(FileIconType, int)"/> re-rasterizes at the
+    /// current theme and DPI. Call on a theme or DPI change.
     /// </summary>
-    public static void ClearCache()
-    {
-        lock (_clearLock)
-        {
-            _pendingDisposal?.ForEach(b => b.Dispose());
-            _pendingDisposal = _sizedCache.Values.ToList();
-            _sizedCache.Clear();
-        }
-    }
+    /// <remarks>
+    /// Deliberately does not dispose anything - see <see cref="ToolbarIcons.ClearCache"/> for the
+    /// crash the previous keep-one-generation-then-dispose scheme produced. The same reasoning
+    /// applies here: a bitmap handed to a control that never re-fetches must not be disposed
+    /// underneath it, and orphaning a few dozen small bitmaps to the GC on a theme switch is the
+    /// cheaper half of that trade by a wide margin.
+    /// </remarks>
+    public static void ClearCache() => _sizedCache.Clear();
 
     private static int GetCurrentDpi()
     {
@@ -106,15 +93,11 @@ public static class FileIcons
     /// <summary>Render an icon at the requested pixel size (vector quality, DPI-aware).</summary>
     public static Bitmap Get(FileIconType type, int px)
     {
-        // Deliberately unlocked out here (only ClearCache() itself takes _clearLock): two
-        // concurrent callers both observing a stale _lastDpi both call ClearCache() and both then
-        // (redundantly but harmlessly) write the same new _lastDpi - ClearCache()'s own lock is
-        // what actually matters, since that's where the double-dispose/dropped-generation race
-        // was. Wrapping this compare in the same lock too would close that last sliver of
-        // redundancy, but CA2000 loses track of ToolStripButton disposal ownership at unrelated
-        // call sites when Get() (used inline in an object initializer) contains a lock statement -
-        // a known analyzer sensitivity to try/finally shape in a value-returning callee, not a
-        // real defect there.
+        // Unlocked, and no lock anywhere in this class any more. The lock existed to serialize
+        // ClearCache()'s generation swap so two callers could not double-dispose the same Bitmap;
+        // ClearCache() no longer disposes anything, so there is nothing left to race over. Two
+        // concurrent callers both seeing a stale _lastDpi both clear a ConcurrentDictionary and
+        // both write the same new value - harmless.
         var currentDpi = GetCurrentDpi();
         if (currentDpi != _lastDpi)
         {

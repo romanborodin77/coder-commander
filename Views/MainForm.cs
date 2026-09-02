@@ -1087,13 +1087,55 @@ public sealed class MainForm : Form
             // "OnOpen" (TerminalFollowPanelCwd) means "push once per time the terminal becomes
             // visible" - reset so PushActivePathToTerminal's one-shot guard fires again.
             _terminalFollowedOnceSinceOpen = false;
-            PushActivePathToTerminal();
+            _ = OpenTerminalWithTabAsync();
         }
         else
         {
             // Restore focus to the active file panel so keyboard shortcuts work immediately.
             var target = _vm.ActivePanel == _vm.LeftPanel ? _leftPanel : _rightPanel;
             target.FocusFileList();
+        }
+    }
+
+    /// <summary>
+    /// Opens the terminal for F9: makes sure it has at least one tab, then pushes the active
+    /// panel's path into it. Ordered that way deliberately - the push is a no-op with no tab to
+    /// push into, so doing it first would leave a freshly opened shell sitting in whatever
+    /// directory it started in.
+    /// </summary>
+    private async Task OpenTerminalWithTabAsync()
+    {
+        await EnsureTerminalTabAsync().ConfigureAwait(true);
+        PushActivePathToTerminal();
+    }
+
+    /// <summary>
+    /// Opens one tab with <see cref="AppSettings.DefaultShellType"/> (or the first discovered
+    /// shell when that id is no longer installed) if the terminal is showing but has no tabs at
+    /// all. Toggling the panel on used to only flip its visibility, and tabs were only ever
+    /// restored when <c>OpenTerminalTabs</c> had entries - so a first F9, or a restart after
+    /// closing every tab, produced an empty black panel with nothing in it but a "+" button, which
+    /// reads as a broken feature rather than an empty one. Does nothing when a tab already exists,
+    /// so it never spawns a second shell, and nothing when no shell is installed at all - the same
+    /// silent no-op every other path here already accepts for an empty catalog.
+    /// </summary>
+    private async Task EnsureTerminalTabAsync()
+    {
+        try
+        {
+            if (_terminalPanel?.SessionManager is not { } sessions || sessions.Tabs.Count > 0) return;
+
+            var shells = await ShellCatalog.DiscoverAsync().ConfigureAwait(true);
+            if (shells.Count == 0) return;
+
+            var preferredId = SettingsService.Load().DefaultShellType;
+            _terminalPanel.AddTerminalTab(shells.FirstOrDefault(s => s.Id == preferredId) ?? shells[0]);
+        }
+        catch (Exception ex)
+        {
+            // Reached from a fire-and-forget path, where an escaping exception would be unobserved
+            // rather than reported. Failing to open a shell must not take the window down with it.
+            LogService.Error("EnsureTerminalTabAsync failed", ex);
         }
     }
 
@@ -3159,13 +3201,22 @@ public sealed class MainForm : Form
         _vm.SetActivePanel(_vm.LeftPanel);
 
         _terminalPanel.DefaultPath = s.LastTerminalPath;
-        if (s.TerminalVisible && s.OpenTerminalTabs.Count > 0)
+        if (s.TerminalVisible)
         {
-            var tabs = s.OpenTerminalTabs
-                .Select(entry => entry.Split('|', 2))
-                .Where(parts => parts.Length == 2 && Directory.Exists(parts[1]))
-                .Select(parts => (ShellId: parts[0], Path: parts[1]));
-            await _terminalPanel.RestoreTabsAsync(tabs);
+            if (s.OpenTerminalTabs.Count > 0)
+            {
+                var tabs = s.OpenTerminalTabs
+                    .Select(entry => entry.Split('|', 2))
+                    .Where(parts => parts.Length == 2 && Directory.Exists(parts[1]))
+                    .Select(parts => (ShellId: parts[0], Path: parts[1]));
+                await _terminalPanel.RestoreTabsAsync(tabs);
+            }
+
+            // Restoring can end with nothing: the list may be empty (every tab closed before exit),
+            // or every saved path may have since been deleted, which the Directory.Exists filter
+            // above drops silently. Either way the panel comes back visible and empty, so give it
+            // the same default tab F9 now opens.
+            await EnsureTerminalTabAsync();
         }
 
         // The ctor sets _terminalVisible/_terminalPanel.Visible directly from settings, bypassing
