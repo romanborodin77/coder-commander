@@ -261,6 +261,11 @@ public sealed class ThemePalette
     public Color FocusBorder { get; init; } = Color.FromArgb(14, 99, 156);
     /// <summary>Gradient start color for column header backgrounds in list views.</summary>
     public Color ColumnHeaderGradient { get; init; } = Color.FromArgb(68, 68, 68);
+    /// <summary>Colour of the file panel's sort-order arrow and the bar under the sorted column.
+    /// Deliberately not <see cref="Accent"/>: the accent is tuned to sit under white button text,
+    /// and at 14,99,156 it is nearly indistinguishable from the 68,68,68 column header behind it.
+    /// This is the same hue lifted to a brightness that actually reads against that header.</summary>
+    public Color SortIndicator { get; init; } = Color.FromArgb(92, 175, 245);
 
     /// <summary>Background color of the scrollbar track.</summary>
     public Color ScrollbarTrack { get; init; } = Color.FromArgb(30, 30, 30);
@@ -438,7 +443,8 @@ public static class ThemeService
         ArchiveColor = p.ArchiveColor, GitModifiedColor = p.GitModifiedColor, GitAddedColor = p.GitAddedColor,
         Danger = p.Danger, Warning = p.Warning, GlossOverlay = p.GlossOverlay, RowHover = p.RowHover,
         SplitterNormal = p.SplitterNormal, SplitterHover = p.SplitterHover, FocusBorder = p.FocusBorder,
-        ColumnHeaderGradient = p.ColumnHeaderGradient, ScrollbarTrack = p.ScrollbarTrack, ScrollbarThumb = p.ScrollbarThumb,
+        ColumnHeaderGradient = p.ColumnHeaderGradient, SortIndicator = p.SortIndicator,
+        ScrollbarTrack = p.ScrollbarTrack, ScrollbarThumb = p.ScrollbarThumb,
         ScrollbarThumbHover = p.ScrollbarThumbHover, ScrollbarThumbPressed = p.ScrollbarThumbPressed,
         ScrollbarArrow = p.ScrollbarArrow, ScrollbarArrowHover = p.ScrollbarArrowHover, ScrollbarBorder = p.ScrollbarBorder,
         Syntax = p.Syntax, Terminal = p.Terminal,
@@ -485,6 +491,9 @@ public static class ThemeService
         SplitterHover = Color.FromArgb(0, 122, 204),
         FocusBorder = Color.FromArgb(0, 122, 204),
         ColumnHeaderGradient = Color.FromArgb(210, 210, 210),
+        // Darker than the Dark theme's, for the same reason in reverse: it has to read against a
+        // 210,210,210 header rather than a 68,68,68 one.
+        SortIndicator = Color.FromArgb(0, 99, 177),
         ScrollbarTrack = Color.FromArgb(243, 243, 243),
         ScrollbarThumb = Color.FromArgb(193, 193, 193),
         ScrollbarThumbHover = Color.FromArgb(168, 168, 168),

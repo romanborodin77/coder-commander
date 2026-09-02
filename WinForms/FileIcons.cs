@@ -159,7 +159,9 @@ public static class FileIcons
             case FileIconType.Archive: DrawDoc(g, Color.FromArgb(255, 152, 0), p.Foreground, "zip"); break;
             case FileIconType.Executable: DrawDoc(g, Color.FromArgb(96, 125, 139), p.Foreground, "gear"); break;
             case FileIconType.Pdf: DrawDoc(g, Color.FromArgb(229, 57, 53), Color.White, "pdf"); break;
-            case FileIconType.Html: DrawDoc(g, Color.FromArgb(244, 81, 30), p.Foreground, "html"); break;
+            // "H", not "html": four characters do not fit the badge plaque at any icon size and
+            // were silently clipped to "HT". One letter reads cleanly, like Word/Excel/PowerPoint.
+            case FileIconType.Html: DrawDoc(g, Color.FromArgb(244, 81, 30), p.Foreground, "H"); break;
             case FileIconType.Css: DrawDoc(g, Color.FromArgb(30, 136, 229), p.Foreground, "css"); break;
             case FileIconType.Code: DrawDoc(g, Color.FromArgb(0, 150, 136), p.Foreground, "code"); break;
             case FileIconType.CSharp: DrawDoc(g, Color.FromArgb(121, 134, 203), Color.White, "C#"); break;
@@ -178,10 +180,54 @@ public static class FileIcons
         return bmp;
     }
 
+    /// <summary>
+    /// Draws a short type label ("PDF", "JS", "W", "{}") as a filled plaque with the text knocked
+    /// out of it, the way real file-type icons do it. Replaces bare text drawn straight onto the
+    /// page, which had three separate faults: it passed the page's own <c>accent</c> as the text
+    /// colour, so "pdf" was red on a red page and never appeared at all; it drew nothing unless the
+    /// label was one or two characters, which skipped "pdf" a second time over; and it went through
+    /// <see cref="TextRenderer"/>, i.e. GDI, which ignores the world transform the rest of this
+    /// class scales its geometry with - so the label stayed 16px-sized on a 32px icon instead of
+    /// growing with it. <see cref="GraphicsPath"/> honours the transform and blends against the
+    /// transparent bitmap, and the plaque guarantees contrast whatever the accent colour is.
+    /// </summary>
+    private static void DrawLabelBadge(Graphics g, string label, Color accent)
+    {
+        // Capped at three: the plaque is 11 units wide in a 16-unit icon, and a fourth character
+        // does not fit at any size - StringFormat would simply drop it, turning "HTML" into "HT"
+        // with nothing to say it had. Truncating here at least makes that visible in the source.
+        var text = label.ToUpperInvariant();
+        if (text.Length > 3) text = text.Substring(0, 3);
+        var plaque = new RectangleF(2.5f, 8.4f, 11f, 5.8f);
+
+        using (var plaqueBrush = new SolidBrush(accent))
+            g.FillRectangle(plaqueBrush, plaque);
+
+        // Black or white by the plaque's own luminance rather than a colour passed in by the
+        // caller: the label has to stay readable on every accent in the table above, and the
+        // yellow of JavaScript and the dark blue of Word do not want the same one.
+        var luminance = (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) / 255.0;
+        var ink = luminance > 0.6 ? Color.FromArgb(24, 24, 24) : Color.White;
+
+        var em = text.Length >= 3 ? 4.6f : text.Length == 2 ? 5.6f : 6.4f;
+        using var path = new GraphicsPath();
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+        };
+        path.AddString(text, DesignerSafeThemeService.Current.GridFont.FontFamily,
+            (int)FontStyle.Bold, em, plaque, format);
+        using var inkBrush = new SolidBrush(ink);
+        g.FillPath(inkBrush, path);
+    }
+
     private static void DrawDoc(Graphics g, Color accent, Color textColor, string overlay)
     {
-        using var fill = new SolidBrush(Color.FromArgb(20, accent));
-        using var pen = new Pen(Color.FromArgb(160, accent), 1.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        // Alphas raised from 20/160/120. At 8% the page fill was so close to the background that
+        // the icon read as a bare outline, and a 16px outline is most of what a row shows.
+        using var fill = new SolidBrush(Color.FromArgb(46, accent));
+        using var pen = new Pen(Color.FromArgb(210, accent), 1.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
 
         var body = new PointF[]
         {
@@ -191,14 +237,11 @@ public static class FileIcons
         g.DrawLines(pen, body);
         g.DrawLine(pen, 3, 1.5f, 3, 14.5f);
 
-        using var foldPen = new Pen(Color.FromArgb(120, accent), 1f);
+        using var foldPen = new Pen(Color.FromArgb(155, accent), 1f);
         g.DrawLine(foldPen, 10, 1.5f, 10, 4.5f);
         g.DrawLine(foldPen, 10, 4.5f, 13, 4.5f);
 
         if (string.IsNullOrEmpty(overlay)) return;
-
-        var area = new Rectangle(4, 6, 8, 7);
-        var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
 
         switch (overlay)
         {
@@ -291,11 +334,7 @@ public static class FileIcons
                 break;
 
             default:
-                if (overlay.Length <= 2)
-                {
-                    using var font = new Font(DesignerSafeThemeService.Current.GridFont.FontFamily, overlay.Length == 1 ? 7f : 5.5f, FontStyle.Bold);
-                    TextRenderer.DrawText(g, overlay, font, area, accent, flags);
-                }
+                DrawLabelBadge(g, overlay, accent);
                 break;
         }
     }

@@ -540,7 +540,14 @@ public sealed class FilePanelUserControl : UserControl
 
         // Columns (localized) — tuned widths
         var L = LocalizationService.Current;
-        _fileList.Columns.Add(L.GetString("Panel.Name"), 280);
+        // 240, not 280. FillLastColumnWidth below exists to make the columns land exactly on
+        // the panel width, and its own comment calls a horizontal scrollbar here spurious - but
+        // at 280 it could not deliver that: the first four columns came to 555 of the ~578 a
+        // panel gets at the default 1200px window, leaving 22 for the last one, which then
+        // clamped up to its 45px minimum and pushed the total past the panel. Every fresh start
+        // showed both panels with a horizontal scrollbar and the Attributes column half cut.
+        // Column widths are not persisted, so this only moves the starting layout.
+        _fileList.Columns.Add(L.GetString("Panel.Name"), 240);
         _fileList.Columns.Add(L.GetString("Panel.Ext"), 55);
         _fileList.Columns.Add(L.GetString("Panel.Size"), 85, HorizontalAlignment.Right);
         _fileList.Columns.Add(L.GetString("Panel.Modified"), 135);
@@ -2121,26 +2128,54 @@ public sealed class FilePanelUserControl : UserControl
         }
 
         var textRect = new Rectangle(rect.X + 6, rect.Y, rect.Width - 8, rect.Height);
+        var isSortColumn = e.ColumnIndex < SortColumnMap.Length && SortColumnMap[e.ColumnIndex] == _vm.SortColumn;
 
-        if (e.ColumnIndex < SortColumnMap.Length && SortColumnMap[e.ColumnIndex] == _vm.SortColumn)
+        if (isSortColumn)
         {
-            var arrowSize = 8;
-            var arrowX = rect.Right - arrowSize - 6;
-            var arrowY = rect.Y + (rect.Height - arrowSize) / 2;
-            var arrowRect = new Rectangle(arrowX, arrowY, arrowSize, arrowSize);
-            TextRenderer.DrawText(e.Graphics, _vm.SortDescending ? "\u25BC" : "\u25B2", p.GridFont, arrowRect,
-                p.HeaderForeground, TextFormatFlags.Left | TextFormatFlags.Top);
-            textRect.Width -= arrowSize + 8;
+            // A filled triangle, not a "\u25B2" glyph drawn into an 8x8 box. That glyph needs roughly
+            // 13x15px at the grid font, so it came out clipped to an unreadable speck - and an
+            // indicator whose entire job is to show a DIRECTION is worthless when you cannot tell
+            // which way it points. Drawing the shape sizes it exactly and drops the font dependency.
+            const int arrowW = 10;
+            const int arrowH = 6;
+            const int gap = 8;
+            var ax = rect.Right - gap - arrowW;
+            var ay = rect.Y + (rect.Height - arrowH) / 2;
+            var arrow = _vm.SortDescending
+                ? new[] { new Point(ax, ay), new Point(ax + arrowW, ay), new Point(ax + arrowW / 2, ay + arrowH) }
+                : new[] { new Point(ax + arrowW / 2, ay), new Point(ax + arrowW, ay + arrowH), new Point(ax, ay + arrowH) };
+
+            var previousMode = e.Graphics.SmoothingMode;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using (var arrowBrush = new SolidBrush(p.SortIndicator))
+                e.Graphics.FillPolygon(arrowBrush, arrow);
+            e.Graphics.SmoothingMode = previousMode;
+
+            textRect.Width -= arrowW + gap + 4;
         }
 
+        // The sorted column's caption takes the brighter body foreground, every other column the
+        // header's dimmer one, so which column drives the order reads from the caption as well and
+        // not from the arrow alone.
         TextRenderer.DrawText(e.Graphics, e.Header.Text, p.GridFontBold, textRect,
-            p.HeaderForeground, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            isSortColumn ? p.Foreground : p.HeaderForeground,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
         using var sep = new Pen(p.GridLine);
         e.Graphics.DrawLine(sep, rect.Right - 1, rect.Y + 3, rect.Right - 1, rect.Bottom - 3);
 
-        using var bottom = new Pen(p.GridLine);
-        e.Graphics.DrawLine(bottom, rect.X, rect.Bottom - 1, rect.Right, rect.Bottom - 1);
+        if (isSortColumn)
+        {
+            // A 2px accent bar along this column's bottom edge instead of its share of the plain
+            // grid line - the same "this one is active" cue a selected tab gets.
+            using var activeBar = new SolidBrush(p.SortIndicator);
+            e.Graphics.FillRectangle(activeBar, rect.X, rect.Bottom - 2, rect.Width, 2);
+        }
+        else
+        {
+            using var bottom = new Pen(p.GridLine);
+            e.Graphics.DrawLine(bottom, rect.X, rect.Bottom - 1, rect.Right, rect.Bottom - 1);
+        }
     }
 
     /// <summary>
