@@ -63,9 +63,22 @@ public sealed class MtpDeviceCatalog : IDisposable
             }
             finally
             {
-                // MediaDevice implements IDisposable (WPD COM objects) — must dispose after
-                // reading DeviceId/FriendlyName to avoid COM object leak on every 3s poll.
-                foreach (var d in devices) d.Dispose();
+                // MediaDevice implements IDisposable (WPD COM objects) and must be disposed after
+                // its DeviceId/FriendlyName have been read, or every poll leaks one.
+                //
+                // Except for a device somebody is actually browsing. MediaDevices hands back an
+                // instance representing the same underlying WPD device, and disposing it
+                // disconnects that device - including the session a file panel is holding. So this
+                // poll, running every three seconds, tore down the connection the user had just
+                // opened: the first folder opened fine and everything attempted more than three
+                // seconds later failed with "Not connected", which reads as "folders on the device
+                // do not open". A device that is registered as in use is already known to be
+                // present, which is the only thing this enumeration is trying to establish.
+                foreach (var d in devices)
+                {
+                    if (MtpConnectionRegistry.Get(d.DeviceId) is not null) continue;
+                    d.Dispose();
+                }
             }
         }
         catch (Exception ex)
