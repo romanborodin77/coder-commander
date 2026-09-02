@@ -1580,7 +1580,26 @@ public sealed class MainForm : Form
         else if (_vm.RightTabs.Contains(panel)) RefreshTabStrip(left: false);
     }
 
-    private static string TabTitle(PanelViewModel p) => FileSystem.VfsPath.GetName(p.CurrentPath);
+    /// <summary>
+    /// Caption for one panel tab: the current folder's name, capped so no single tab can take over
+    /// the strip.
+    /// </summary>
+    /// <remarks>
+    /// At the root of a remote location there is nothing below the host for
+    /// <see cref="FileSystem.VfsPath.GetName"/> to return, so it hands back the host itself - which
+    /// for MTP is the raw WPD device id. A tab reading
+    /// <c>\\?\usb#vid_0b05&amp;pid_7773&amp;mi_00#6&amp;6139889&amp;0&amp;0000#{6ac27878-...}</c> pushed everything
+    /// else off the strip. Roots use the same readable name the breadcrumb shows.
+    /// </remarks>
+    private static string TabTitle(PanelViewModel p)
+    {
+        var path = p.CurrentPath;
+        var name = FileSystem.RemotePath.IsRemote(path) && FileSystem.RemotePath.PathOf(path).Length == 0
+            ? FilePanelUserControl.DisplayNameForRemoteRoot(FileSystem.RemotePath.GetRoot(path))
+            : FileSystem.VfsPath.GetName(path);
+
+        return FilePanelUserControl.Shorten(name, 32);
+    }
 
     /// <summary>Rebuilds one side's tab strip from its current <c>PanelTabSet</c> state - titles
     /// (current folder name per tab) and which one is highlighted as active. Called whenever that

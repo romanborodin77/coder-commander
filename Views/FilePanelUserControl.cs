@@ -2038,7 +2038,15 @@ public sealed class FilePanelUserControl : UserControl
             btn.Size = new Size(MeasurePlacesButtonWidth(device.DisplayName, hasImage: true, toolbarScale), btnHeight);
 
             var deviceId = device.DeviceId;
-            btn.Click += (_, _) => MtpDeviceActivated?.Invoke(this, deviceId);
+            btn.Click += (_, _) =>
+            {
+                // ActivatePanel first, exactly as the drive and connection buttons above and below
+                // do. Without it this was the one button on the bar that ignored which bar it was
+                // on: MainForm.OnMtpDeviceActivated navigates the ACTIVE panel, so clicking the
+                // phone on the right-hand bar opened it on the left whenever the left had focus.
+                ActivatePanel();
+                MtpDeviceActivated?.Invoke(this, deviceId);
+            };
 
             _driveBar.Items.Add(btn);
             _driveButtons.Add(btn);
@@ -2480,15 +2488,28 @@ public sealed class FilePanelUserControl : UserControl
     /// are actually in off the end of it. The device catalog already knows the friendly name the
     /// places-bar button uses, so the crumb uses it too.
     /// </summary>
-    private static string DisplayNameForRemoteRoot(string remoteRoot)
+    internal static string DisplayNameForRemoteRoot(string remoteRoot)
     {
         if (!remoteRoot.StartsWith("mtp://", StringComparison.OrdinalIgnoreCase)) return remoteRoot;
 
         var deviceId = RemotePath.BodyOf(remoteRoot);
         var device = MtpDeviceCatalog.Instance.Current
             .FirstOrDefault(d => string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
-        return device?.DisplayName ?? remoteRoot;
+        if (device is not null && !string.IsNullOrEmpty(device.FriendlyName)) return device.FriendlyName;
+
+        // No friendly name to be had - a device that has just been unplugged, or one WPD declines
+        // to name. Showing the raw id is worse than showing nothing useful: it is forty characters
+        // of "\\?\usb#vid_0b05&pid_7773&..." that fills the breadcrumb and the tab and tells the
+        // user nothing. "mtp://…" at least says what kind of place this is.
+        return "mtp://…";
     }
+
+    /// <summary>Caps a tab or breadcrumb caption, keeping the end - which is the part that says
+    /// where you are - rather than the beginning.</summary>
+    internal static string Shorten(string text, int max) =>
+        string.IsNullOrEmpty(text) || text.Length <= max
+            ? text
+            : "…" + text[^(max - 1)..];
 
     private void RebuildBreadcrumb()
     {
@@ -2551,7 +2572,10 @@ public sealed class FilePanelUserControl : UserControl
 
             var seg = new Label
             {
-                Text = display,
+                // Capped per segment: one very long name - a device id, a generated folder name -
+                // otherwise fills the whole bar and pushes the folder actually being viewed off the
+                // end of it. The full path stays available in the path bar above.
+                Text = Shorten(display, 40),
                 AutoSize = true,
                 Margin = new Padding(0, 5, 2, 0),
                 Padding = new Padding(4, 2, 4, 2),

@@ -98,6 +98,18 @@ public sealed class MtpDeviceCatalog : IDisposable
         lock (_lock)
         {
             if (_disposed) return;
+
+            // A device that is already open reports an empty FriendlyName on a later poll, and
+            // MtpDeviceInfo falls back to the raw WPD id when the name is empty - so the drive
+            // button, the panel tab and the breadcrumb all swapped a readable "ROG Phone 8" for
+            // forty characters of device id a few seconds after it was opened. A name once learned
+            // is kept: WPD declining to repeat it is not the device renaming itself.
+            snapshot = snapshot
+                .Select(d => string.IsNullOrEmpty(d.FriendlyName)
+                    ? d with { FriendlyName = _current.FirstOrDefault(p => p.DeviceId == d.DeviceId)?.FriendlyName ?? "" }
+                    : d)
+                .ToList();
+
             changed = snapshot.Count != _current.Count ||
                 !snapshot.SequenceEqual(_current);
             _current = snapshot;
