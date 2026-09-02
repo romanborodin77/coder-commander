@@ -262,6 +262,7 @@ Settings.ShowCommandLine=Show command line
 Settings.ShowFunctionButtons=Show function buttons
 Settings.DirectoriesFirst=Directories first
 Settings.FlatView=Flat View by default
+Settings.QuickViewRemote=Quick View for files on connections (FTP/SFTP/WebDAV)
 Settings.UiFont=UI font:
 Settings.MonoFont=Monospace font:
 Settings.Font.Change=Change…

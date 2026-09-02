@@ -28,7 +28,8 @@ public sealed class ViewerForm : ThemedForm
         _host = new ViewerHostControl(fileSystem, path, files, currentIndex, SettingsService.Load());
 
         Text = TitleFor(_host.CurrentPath);
-        ClientSize = new Size(1000, 700);
+        var settings = SettingsService.Load();
+        ClientSize = new Size(settings.ViewerWindowWidth, settings.ViewerWindowHeight);
         Resizable = true;
         MinimumSize = new Size(500, 400);
         // Form sees every key first (Escape/arrows/F5/Ctrl+F/1-4/etc.) regardless of which child
@@ -49,6 +50,22 @@ public sealed class ViewerForm : ThemedForm
 
     private static string TitleFor(string path) =>
         $"{LocalizationService.Current.GetString("View.Title")} — {VfsPath.GetName(path)}";
+
+    /// <summary>
+    /// Remembers the window's size. Saved whichever way the window is closed, the same way the
+    /// Settings dialog does it - this window used to open at a hardcoded 1000x700 every time, so
+    /// resizing it lasted only as long as the window itself.
+    /// </summary>
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+        if (e.Cancel || WindowState != FormWindowState.Normal) return;
+
+        var s = SettingsService.Load();
+        s.ViewerWindowWidth = ClientSize.Width;
+        s.ViewerWindowHeight = ClientSize.Height;
+        SettingsService.Save(s);
+    }
 
     protected override void Dispose(bool disposing)
     {

@@ -73,11 +73,17 @@ public sealed class MainForm : Form
         Text = LocalizationService.Current.GetString("About.AppName");
         Width = settings.WindowWidth;
         Height = settings.WindowHeight;
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = RestoreWindowPosition(settings)
+            ? FormStartPosition.Manual
+            : FormStartPosition.CenterScreen;
         KeyPreview = true;
         Font = ThemeService.Current.GridFont;
         DoubleBuffered = true;
         _terminalHeight = settings.TerminalHeight; // read before BuildTerminalPanel() sizes the panel
+        // Read before the panels are built, so the very first layout already uses the saved
+        // proportion instead of splitting evenly and then jumping.
+        if (settings.MainSplitterRatio is > 0.05 and < 0.95)
+            _splitRatio = settings.MainSplitterRatio;
 
         // Build all controls (order of Controls.Add determines z-order:
         // first added = lowest z-index = docks last = innermost)
@@ -437,6 +443,30 @@ public sealed class MainForm : Form
         // trick, which always read the bitmap's own fixed 96 DPI metadata.
         var scale = DeviceDpi / 96f;
         return (int)Math.Round(16 * scale);
+    }
+
+    /// <summary>
+    /// Puts the window back where it was left, and reports whether it did. Returns false - leaving
+    /// the caller to centre the window - when nothing was ever saved, or when the saved rectangle
+    /// no longer meets any connected screen: a window restored onto a monitor that has since been
+    /// unplugged lands in empty virtual desktop space where it cannot be seen, moved or closed.
+    /// A generous overlap is enough, since a window hanging slightly off an edge is still usable
+    /// and is very often exactly where the user put it.
+    /// </summary>
+    private bool RestoreWindowPosition(AppSettings settings)
+    {
+        if (settings.WindowX == int.MinValue || settings.WindowY == int.MinValue) return false;
+
+        var target = new Rectangle(settings.WindowX, settings.WindowY, Width, Height);
+        var visible = Screen.AllScreens.Any(screen =>
+        {
+            var overlap = Rectangle.Intersect(screen.WorkingArea, target);
+            return overlap.Width >= 120 && overlap.Height >= 60;
+        });
+        if (!visible) return false;
+
+        Location = new Point(settings.WindowX, settings.WindowY);
+        return true;
     }
 
     /// <summary>Regenerates toolbar icons at the new DPI scale and repositions scrollbar overlays.</summary>
@@ -1687,7 +1717,7 @@ public sealed class MainForm : Form
             StyledMessageBox.Show(ex.Message, LocalizationService.Current.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
         }
 
-        CenterSplitter();
+        ApplyInitialSplitRatio();
     }
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
@@ -3100,7 +3130,13 @@ public sealed class MainForm : Form
         {
             s.WindowWidth = Width;
             s.WindowHeight = Height;
+            // Position alongside the size, and for the same reason: restoring one without the other
+            // put a window back at its old size in the middle of the primary screen.
+            s.WindowX = Left;
+            s.WindowY = Top;
         }
+        // The ratio, not the pixel distance - see AppSettings.MainSplitterRatio.
+        s.MainSplitterRatio = _splitRatio;
         if (WindowState != FormWindowState.Minimized)
             s.WindowMaximized = WindowState == FormWindowState.Maximized;
         s.LeftPath = _vm.LeftPanel.CurrentPath;
@@ -3133,13 +3169,18 @@ public sealed class MainForm : Form
         SettingsService.Save(s);
     }
 
-    /// <summary>Centers the split - used only once, on first load. Resizing afterward goes
-    /// through ApplySplitRatio so it doesn't undo a user-dragged proportion.</summary>
-    private void CenterSplitter()
-    {
-        _splitRatio = 0.5;
-        ApplySplitRatio();
-    }
+    /// <summary>
+    /// Puts the divider at its starting proportion, once, on first load. Resizing afterwards goes
+    /// through <see cref="ApplySplitRatio"/> so it never undoes a proportion the user dragged to.
+    /// </summary>
+    /// <remarks>
+    /// This used to assign 0.5 before applying, which centred the panels unconditionally. That was
+    /// harmless while the proportion was forgotten at shutdown, but it is exactly what discarded
+    /// the restored one once it started being saved - <c>_splitRatio</c> already holds either the
+    /// even default or the value read from settings by the time this runs, so applying it is all
+    /// that is wanted.
+    /// </remarks>
+    private void ApplyInitialSplitRatio() => ApplySplitRatio();
 
     private double ComputeSplitRatio()
     {

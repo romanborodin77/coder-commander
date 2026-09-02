@@ -41,7 +41,8 @@ public sealed class EditorForm : ThemedForm
     {
         var L = LocalizationService.Current;
         Text = L.GetString("Edit.Title");
-        ClientSize = new Size(1000, 700);
+        var startupSettings = SettingsService.Load();
+        ClientSize = new Size(startupSettings.EditorWindowWidth, startupSettings.EditorWindowHeight);
         Resizable = true;
         MinimumSize = new Size(500, 400);
 
@@ -849,6 +850,16 @@ public sealed class EditorForm : ThemedForm
 
         if (_closeConfirmed || !_tabs.Any(t => t.IsModified))
         {
+            // Size remembered here rather than at the top of the method: this window can cancel its
+            // own close to resolve a save prompt, and a cancelled attempt must not record anything.
+            if (WindowState == FormWindowState.Normal)
+            {
+                var geometry = SettingsService.Load();
+                geometry.EditorWindowWidth = ClientSize.Width;
+                geometry.EditorWindowHeight = ClientSize.Height;
+                SettingsService.Save(geometry);
+            }
+
             // Only unsubscribe once we're actually going through with the close - a cancelled
             // attempt (Cancel button, below) must leave this window still reacting to theme changes.
             ThemeService.ThemeChanged -= OnThemeChanged;

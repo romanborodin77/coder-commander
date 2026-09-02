@@ -260,6 +260,7 @@ Settings.ShowCommandLine=Показывать командную строку
 Settings.ShowFunctionButtons=Показывать кнопки F1-F10
 Settings.DirectoriesFirst=Каталоги первыми
 Settings.FlatView=Плоский вид по умолчанию
+Settings.QuickViewRemote=Быстрый просмотр для файлов на подключениях (FTP/SFTP/WebDAV)
 Settings.UiFont=Шрифт интерфейса:
 Settings.MonoFont=Моноширинный шрифт:
 Settings.Font.Change=Изменить…

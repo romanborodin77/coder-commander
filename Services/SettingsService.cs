@@ -38,6 +38,43 @@ public sealed class AppSettings
     public int WindowHeight { get; set; } = 800;
     public bool WindowMaximized { get; set; }
 
+    /// <summary>
+    /// Where the main window was last left, in virtual-desktop coordinates.
+    /// <see cref="int.MinValue"/> means "never saved" and centres the window the way the app always
+    /// did. Only the size used to be remembered, so a window moved to a second monitor - or simply
+    /// off-centre - jumped back to the middle of the primary screen on every start.
+    /// <c>MainForm</c> discards a saved position that no longer lands on any connected screen, so
+    /// unplugging that monitor cannot strand the window somewhere unreachable.
+    /// </summary>
+    public int WindowX { get; set; } = int.MinValue;
+
+    /// <summary>Vertical counterpart of <see cref="WindowX"/>.</summary>
+    public int WindowY { get; set; } = int.MinValue;
+
+    /// <summary>Last size of the F3 viewer window. Both it and the editor opened at a hardcoded
+    /// 1000x700 every time, so resizing either one lasted exactly as long as that window did -
+    /// unlike the Settings dialog, which has remembered its own size for a while.</summary>
+    public int ViewerWindowWidth { get; set; } = 1000;
+
+    /// <summary>Height counterpart of <see cref="ViewerWindowWidth"/>.</summary>
+    public int ViewerWindowHeight { get; set; } = 700;
+
+    /// <summary>Last size of the F4 editor window - see <see cref="ViewerWindowWidth"/>.</summary>
+    public int EditorWindowWidth { get; set; } = 1000;
+
+    /// <summary>Height counterpart of <see cref="EditorWindowWidth"/>.</summary>
+    public int EditorWindowHeight { get; set; } = 700;
+
+    /// <summary>
+    /// Where the divider between the two file panels sits, as a fraction of the available width.
+    /// <c>0</c> means "never saved", which leaves the panels evenly split. A fraction rather than a
+    /// pixel distance because that is what <c>MainForm</c> itself tracks - it already preserves the
+    /// proportion across a window resize, and an absolute distance restored into a differently
+    /// sized window would not be the split the user chose. Dragging the divider used to last only
+    /// until the window closed.
+    /// </summary>
+    public double MainSplitterRatio { get; set; }
+
     /// <summary>Last size of the Settings dialog itself (resizable since the Ф1 nav rewrite).
     /// 640x580, not the original fixed 560x520 (F140) - the nav column (176px) permanently
     /// narrowed every section's content width, and the densest section (Archives, with its

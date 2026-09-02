@@ -24,6 +24,7 @@ public sealed partial class SettingsForm : ThemedForm
     private readonly ThemedCheckBox _showFnButtonsCheck;
     private readonly ThemedCheckBox _dirsFirstCheck;
     private readonly ThemedCheckBox _flatViewCheck;
+    private readonly ThemedCheckBox _quickViewRemoteCheck;
     private readonly Label _uiFontDisplayLabel;
     private readonly Label _monoFontDisplayLabel;
     private string _workingUiFontFamily;
@@ -193,7 +194,7 @@ public sealed partial class SettingsForm : ThemedForm
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Appearance"), appearLayout, "Settings.Nav.Appearance"));
 
         // ── Panels section ──
-        var panelsLayout = CreateSectionLayout(rows: 5);
+        var panelsLayout = CreateSectionLayout(rows: 6);
         int prow = 0;
         _showHiddenCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowHidden", s.ShowHidden);
         _showSystemCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.ShowSystem", s.ShowSystem);
@@ -203,6 +204,10 @@ public sealed partial class SettingsForm : ThemedForm
         // touching this (see MainForm.OpenSettings's fix for the round-trip bug this used to have,
         // audit finding G056).
         _flatViewCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.FlatView", s.FlatView);
+        // QuickViewRemoteEnabled had no control anywhere in the app: it was read by the panel and
+        // written by nothing, so it could only ever hold its default and Quick View stayed off for
+        // remote files no matter what the user wanted.
+        _quickViewRemoteCheck = AddFullWidthCheck(panelsLayout, prow++, "Settings.QuickViewRemote", s.QuickViewRemoteEnabled);
 
         _nav.AddPage(new SettingsNavPage(L.GetString("Settings.Panels"), panelsLayout, "Settings.Nav.Panels"));
 
@@ -974,6 +979,7 @@ public sealed partial class SettingsForm : ThemedForm
         s.ShowHidden = _showHiddenCheck.Checked;
         s.ShowSystem = _showSystemCheck.Checked;
         s.FlatView = _flatViewCheck.Checked;
+        s.QuickViewRemoteEnabled = _quickViewRemoteCheck.Checked;
         s.ShowToolbar = _showToolbarCheck.Checked;
         s.ShowStatusBar = _showStatusBarCheck.Checked;
         s.ShowFunctionButtons = _showFnButtonsCheck.Checked;

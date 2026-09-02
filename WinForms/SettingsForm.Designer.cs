@@ -57,6 +57,7 @@ partial class SettingsForm
             _externalViewerEnabledCheck?.Dispose();
             _externalViewerPathBox?.Dispose();
             _flatViewCheck?.Dispose();
+            _quickViewRemoteCheck?.Dispose();
             _followPanelCwdCombo?.Dispose();
             _keyBindingPresetCombo?.Dispose();
             _languageCombo?.Dispose();

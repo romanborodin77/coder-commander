@@ -414,6 +414,7 @@ public sealed class LocalizationService
         _strings["Settings.ShowFunctionButtons"] = "Show function buttons";
         _strings["Settings.DirectoriesFirst"] = "Directories first";
         _strings["Settings.FlatView"] = "Flat View by default";
+        _strings["Settings.QuickViewRemote"] = "Quick View for files on connections (FTP/SFTP/WebDAV)";
         _strings["Settings.UiFont"] = "UI font:";
         _strings["Settings.MonoFont"] = "Monospace font:";
         _strings["Settings.Font.Change"] = "Change…";
