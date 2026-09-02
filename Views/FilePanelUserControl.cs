@@ -1890,6 +1890,31 @@ public sealed class FilePanelUserControl : UserControl
 
     // -- Drive bar --
 
+    /// <summary>
+    /// Width for one places-bar button, measured from what it actually shows.
+    /// </summary>
+    /// <remarks>
+    /// The drive buttons used to be pinned at a flat 80px whatever their content, so "C:" sat in a
+    /// button half of which was empty. The obvious repair - AutoSize - does not work here: these
+    /// buttons need a uniform height, and assigning Height to a ToolStripItem clears its AutoSize
+    /// flag and leaves the width wherever it happened to be, which clipped the drive letters to
+    /// "C" and ellipsized the MTP device name to "ROG Pho...". Measuring is the reliable way to get
+    /// both, and the MTP and connection buttons - which had the AutoSize-then-Height bug already -
+    /// now go through it too. Capped so one long device or connection name cannot push every other
+    /// button off the bar.
+    /// </remarks>
+    private int MeasurePlacesButtonWidth(string text, bool hasImage, float toolbarScale)
+    {
+        var horizontalPadding = (int)Math.Round(8 * toolbarScale) * 2;
+        var iconWidth = hasImage ? _driveBar.ImageScalingSize.Width + (int)Math.Round(5 * toolbarScale) : 0;
+        var textWidth = string.IsNullOrEmpty(text)
+            ? 0
+            : TextRenderer.MeasureText(text, _driveBar.Font).Width;
+
+        var width = iconWidth + textWidth + horizontalPadding + (int)Math.Round(6 * toolbarScale);
+        return Math.Clamp(width, (int)Math.Round(34 * toolbarScale), (int)Math.Round(190 * toolbarScale));
+    }
+
     private void PopulateDriveBar()
     {
         // Dispose old buttons — ToolStripItemCollection.Clear() does NOT call Dispose on items,
@@ -1903,9 +1928,7 @@ public sealed class FilePanelUserControl : UserControl
         var L = LocalizationService.Current;
         var currentRoot = Path.GetPathRoot(_vm.CurrentPath);
         var toolbarScale = GetToolbarScale();
-        var iconW = _driveBar.ImageScalingSize.Width;
         var btnHeight = _driveBar.Height - 6;
-        var btnWidth = (int)Math.Round(80 * toolbarScale);
 
         // Drives come from DriveCatalog's cached snapshot, never from DriveInfo directly: IsReady,
         // VolumeLabel and TotalSize all issue a device query that blocks for seconds on an empty
@@ -1947,7 +1970,7 @@ public sealed class FilePanelUserControl : UserControl
                 AutoSize = false,
                 Overflow = ToolStripItemOverflow.AsNeeded
             };
-            btn.Size = new Size(btnWidth, btnHeight);
+            btn.Size = new Size(MeasurePlacesButtonWidth(drive.Letter, hasImage: true, toolbarScale), btnHeight);
             btn.Click += (_, _) =>
             {
                 ActivatePanel();
@@ -2009,10 +2032,10 @@ public sealed class FilePanelUserControl : UserControl
                 TextImageRelation = TextImageRelation.ImageBeforeText,
                 Padding = new Padding((int)Math.Round(8 * toolbarScale), 0, (int)Math.Round(8 * toolbarScale), 0),
                 Margin = new Padding((int)Math.Round(3 * toolbarScale), 0, (int)Math.Round(3 * toolbarScale), 0),
-                AutoSize = true,
+                AutoSize = false,
                 Overflow = ToolStripItemOverflow.AsNeeded
             };
-            btn.Height = btnHeight;
+            btn.Size = new Size(MeasurePlacesButtonWidth(device.DisplayName, hasImage: true, toolbarScale), btnHeight);
 
             var deviceId = device.DeviceId;
             btn.Click += (_, _) => MtpDeviceActivated?.Invoke(this, deviceId);
@@ -2064,7 +2087,7 @@ public sealed class FilePanelUserControl : UserControl
                 TextImageRelation = TextImageRelation.ImageBeforeText,
                 Padding = new Padding((int)Math.Round(8 * toolbarScale), 0, (int)Math.Round(8 * toolbarScale), 0),
                 Margin = new Padding((int)Math.Round(3 * toolbarScale), 0, (int)Math.Round(3 * toolbarScale), 0),
-                AutoSize = true,
+                AutoSize = false,
                 Overflow = ToolStripItemOverflow.AsNeeded,
                 // Not connected yet is a normal state, not an error - only a failed attempt is
                 // dimmed, so "never tried" and "tried and failed" stay distinguishable.
@@ -2072,7 +2095,7 @@ public sealed class FilePanelUserControl : UserControl
                     ? ThemeService.Current.DimForeground
                     : ThemeService.Current.HeaderForeground,
             };
-            btn.Height = btnHeight;
+            btn.Size = new Size(MeasurePlacesButtonWidth(status.Name, hasImage: true, toolbarScale), btnHeight);
 
             var id = status.ProfileId;
             btn.Click += (_, _) =>
