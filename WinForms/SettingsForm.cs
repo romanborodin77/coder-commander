@@ -114,7 +114,11 @@ public sealed partial class SettingsForm : ThemedForm
 
         // ── Appearance section ──
         var appearLayout = CreateSectionLayout(rows: 9, columns: 2);
-        appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+        // 170, matching the Archives, Viewer and Terminal sections. At 130 this was the one caption
+        // column narrower than the rest, and the longest Russian caption here ("Моноширинный
+        // шрифт:") needs 146 - so it wrapped onto two lines while the same dialog's other sections
+        // had room to spare. Widening also lines every section's controls up with each other.
+        appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         appearLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         int row = 0;
