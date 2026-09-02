@@ -323,7 +323,14 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Config.Settings", "settings", "", null, () => OpenSettings()));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Config.Bookmarks", "bookmarks", "", null, () => OpenBookmarks()));
-        m.DropDownItems.Add(Mi("Conn.Title", "connection", "", null, () => OpenConnections()));
+
+        // A submenu rather than a single entry: saved connections and attached devices are both
+        // "places you can reach that are not a local disk", but they are managed quite differently
+        // - one is a list the user edits, the other a list the machine reports.
+        var connections = new ToolStripMenuItem(L.GetString("Conn.Title"));
+        connections.DropDownItems.Add(Mi("Conn.Manage", "connection", "", null, () => OpenConnections()));
+        connections.DropDownItems.Add(Mi("Mtp.Devices.Title", "drive_usb", "", null, () => OpenMtpDevices()));
+        m.DropDownItems.Add(connections);
 
         _menuStrip.Items.Add(m);
     }
@@ -1318,6 +1325,19 @@ public sealed class MainForm : Form
     {
         using var dlg = new BookmarksForm(_vm.PathExistsAsync);
         dlg.BookmarkActivated += (_, path) => _ = _vm.ActivePanel.NavigateAsync(path);
+        dlg.ShowDialog(this);
+    }
+
+    /// <summary>
+    /// Configuration ▸ Connections ▸ Devices. Opening a device from here goes through the same
+    /// handler the places-bar button uses, so a device already open is reused rather than
+    /// reconnected, and it lands in the active panel.
+    /// </summary>
+    private void OpenMtpDevices()
+    {
+        using var dlg = new MtpDevicesForm();
+        dlg.OpenDeviceRequested += (_, rootPath) =>
+            OnMtpDeviceActivated(this, FileSystem.RemotePath.HostOf(rootPath));
         dlg.ShowDialog(this);
     }
 

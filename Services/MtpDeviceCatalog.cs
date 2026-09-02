@@ -49,6 +49,33 @@ public sealed class MtpDeviceCatalog : IDisposable
     }
 
     /// <summary>Re-reads the device list immediately.</summary>
+    /// <summary>
+    /// The device's name, read without opening a session.
+    /// </summary>
+    /// <remarks>
+    /// FriendlyName answers on a device nobody has connected to; Description and Model do not -
+    /// they throw NotConnectedException, and one throw here aborts the whole enumeration, empties
+    /// the catalog and takes every device button off the places bar with it. They are therefore
+    /// only consulted for a device that already has a session open, which is precisely the case
+    /// where FriendlyName comes back empty. Whatever this returns, a name learned by an earlier
+    /// poll is preserved by the merge in <see cref="Refresh"/> rather than replaced with "".
+    /// </remarks>
+    private static string ReadName(MediaDevice device)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(device.FriendlyName)) return device.FriendlyName;
+            if (!device.IsConnected) return "";
+            if (!string.IsNullOrWhiteSpace(device.Description)) return device.Description;
+            return device.Model ?? "";
+        }
+        catch (Exception ex)
+        {
+            LogService.Warning($"MTP: could not read a device name: {ex.Message}");
+            return "";
+        }
+    }
+
     public void Refresh()
     {
         IReadOnlyList<MtpDeviceInfo> snapshot;
@@ -58,7 +85,7 @@ public sealed class MtpDeviceCatalog : IDisposable
             try
             {
                 snapshot = devices
-                    .Select(d => new MtpDeviceInfo(d.DeviceId, d.FriendlyName))
+                    .Select(d => new MtpDeviceInfo(d.DeviceId, ReadName(d)))
                     .ToList();
             }
             finally
