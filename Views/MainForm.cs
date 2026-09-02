@@ -2322,13 +2322,35 @@ public sealed class MainForm : Form
                 return;
             }
 
-            var allDevices = MediaDevice.GetDevices();
-            MediaDevice? device = null;
-            foreach (var d in allDevices)
+            // Off the UI thread: enumerating portable devices and opening a session are blocking
+            // WPD calls, and a phone that is asleep, locked, or still deciding whether to trust
+            // this PC can take seconds to answer. Run on the UI thread they froze the whole window
+            // for that long - the same rule ConnectionManager already follows for every network
+            // provider. Connect is done here too, so the handoff back to the UI happens with a
+            // device that is either usable or already thrown.
+            var device = await Task.Run(() =>
             {
-                if (d.DeviceId == deviceId) { device = d; continue; }
-                d.Dispose(); // dispose non-matching devices to avoid COM leak
-            }
+                var allDevices = MediaDevice.GetDevices();
+                MediaDevice? found = null;
+                foreach (var d in allDevices)
+                {
+                    if (d.DeviceId == deviceId) { found = d; continue; }
+                    d.Dispose(); // dispose non-matching devices to avoid COM leak
+                }
+                if (found is null) return null;
+
+                try
+                {
+                    found.Connect();
+                }
+                catch
+                {
+                    found.Dispose();
+                    throw;
+                }
+                return found;
+            }).ConfigureAwait(true);
+
             if (device is null)
             {
                 StyledMessageBox.Show(
@@ -2338,15 +2360,6 @@ public sealed class MainForm : Form
                 return;
             }
 
-            try
-            {
-                device.Connect();
-            }
-            catch
-            {
-                device.Dispose();
-                throw;
-            }
             MtpFileSystem fs;
             try
             {

@@ -95,19 +95,23 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
             {
                 lock (_deviceLock)
                 {
-                    foreach (var dir in _device.GetDirectories(devicePath))
+                    foreach (var full in _device.GetDirectories(devicePath))
                     {
+                        // MediaDevices returns FULL device paths here - "\Internal shared storage",
+                        // not "Internal shared storage". Treating them as bare names broke browsing
+                        // outright: the safety check below rejects anything containing a separator,
+                        // so every single entry was dropped and every MTP device listed as empty.
+                        //
                         // The device names the entry, the same way a WebDAV/FTP/SFTP server does -
                         // that name goes on to build a real local path during a download, so it is
                         // checked exactly like a server-supplied listing entry (see
                         // WebDavPropfindParser's own identical check). Every other remote provider
                         // does this; MTP was the one gap.
-                        if (!RemotePath.IsSafeEntryName(dir))
+                        if (!RemotePath.IsSafeEntryName(GetName(full)))
                         {
                             LogService.Warning("MTP: rejected a directory listing entry with an unsafe name");
                             continue;
                         }
-                        var full = devicePath.TrimEnd('\\') + "\\" + dir;
                         long size = 0;
                         DateTime writeTime = default;
                         try
@@ -122,14 +126,14 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
                             size: size, attributes: FileAttributes.Directory,
                             lastWriteTimeUtc: writeTime));
                     }
-                    foreach (var file in _device.GetFiles(devicePath))
+                    // Full device paths again, exactly as for the directories above.
+                    foreach (var full in _device.GetFiles(devicePath))
                     {
-                        if (!RemotePath.IsSafeEntryName(file))
+                        if (!RemotePath.IsSafeEntryName(GetName(full)))
                         {
                             LogService.Warning("MTP: rejected a file listing entry with an unsafe name");
                             continue;
                         }
-                        var full = devicePath.TrimEnd('\\') + "\\" + file;
                         long size = 0;
                         DateTime writeTime = default;
                         try
@@ -344,8 +348,45 @@ internal sealed class MtpFileSystem : IFileSystem, IDisposable
     public Task SetAttributesAsync(string path, FileAttributes attributes, CancellationToken ct = default) =>
         Task.CompletedTask; // MTP doesn't support arbitrary attribute changes
 
+    /// <summary>
+    /// Free and total bytes for the storage the path lives on. This used to return zeros with a
+    /// comment saying MediaDevice does not expose free space - it does, just not on the device:
+    /// <c>GetDrives()</c> returns one entry per storage with real capacity figures (a phone reports
+    /// its internal storage and any card separately). The panel's status bar therefore showed
+    /// nothing at all for a device that knows perfectly well how full it is.
+    /// </summary>
     public Task<(long free, long total)> GetDriveSpaceAsync(string path, CancellationToken ct = default) =>
-        Task.FromResult((0L, 0L)); // MediaDevice doesn't expose free space
+        Task.Run(() =>
+        {
+            EnsureConnected();
+            var devicePath = ToDevice(path);
+
+            try
+            {
+                lock (_deviceLock)
+                {
+                    var drives = _device.GetDrives().ToList();
+                    if (drives.Count == 0) return (0L, 0L);
+
+                    // A device path starts with its storage's own name, so the storage the path
+                    // belongs to is the one whose root the path starts with. At the device root
+                    // itself there is no storage named yet - report the first, which is the
+                    // internal one on every phone this was tried against.
+                    var drive = drives.FirstOrDefault(d =>
+                        d.Name is { Length: > 0 } &&
+                        devicePath.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase))
+                        ?? drives[0];
+
+                    return ((long)drive.TotalFreeSpace, (long)drive.TotalSize);
+                }
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Capacity is decoration on a status bar; a device that will not answer should not
+                // turn a panel refresh into an error.
+                return (0L, 0L);
+            }
+        }, ct);
 
     public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default) =>
         Task.Run<Stream>(() =>

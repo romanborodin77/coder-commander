@@ -2471,6 +2471,25 @@ public sealed class FilePanelUserControl : UserControl
         RebuildBreadcrumb();
     }
 
+    /// <summary>
+    /// What the first breadcrumb of a remote path should read. Every scheme but MTP already has a
+    /// readable root - "dav://host", "sftp://host". An MTP root is the raw Windows Portable Devices
+    /// id, which for a phone looks like
+    /// <c>mtp://\\?\usb#vid_0b05&amp;pid_7773&amp;mi_00#6&amp;6139889&amp;0&amp;0000#{6ac27878-...}</c>: forty
+    /// characters of nothing the user can read, filling the whole bar and pushing the folder they
+    /// are actually in off the end of it. The device catalog already knows the friendly name the
+    /// places-bar button uses, so the crumb uses it too.
+    /// </summary>
+    private static string DisplayNameForRemoteRoot(string remoteRoot)
+    {
+        if (!remoteRoot.StartsWith("mtp://", StringComparison.OrdinalIgnoreCase)) return remoteRoot;
+
+        var deviceId = RemotePath.BodyOf(remoteRoot);
+        var device = MtpDeviceCatalog.Instance.Current
+            .FirstOrDefault(d => string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+        return device?.DisplayName ?? remoteRoot;
+    }
+
     private void RebuildBreadcrumb()
     {
         _breadcrumbBar.SuspendLayout();
@@ -2494,7 +2513,7 @@ public sealed class FilePanelUserControl : UserControl
             // existing `?? trimmed` fallback would not catch it - and the bar would start with an
             // empty crumb pointing nowhere.
             var remoteRoot = RemotePath.GetRoot(currentPath);
-            parts.Add((remoteRoot, remoteRoot));
+            parts.Add((DisplayNameForRemoteRoot(remoteRoot), remoteRoot));
 
             var acc = remoteRoot;
             foreach (var seg in RemotePath.PathOf(currentPath).Split('/', StringSplitOptions.RemoveEmptyEntries))
@@ -2536,7 +2555,11 @@ public sealed class FilePanelUserControl : UserControl
                 AutoSize = true,
                 Margin = new Padding(0, 5, 2, 0),
                 Padding = new Padding(4, 2, 4, 2),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                // A Label eats '&' as a mnemonic prefix by default, so a folder called "Rock & Roll"
+                // showed as "Rock  Roll" with the R underlined, and an MTP device id lost every
+                // ampersand it contains. Path segments are data, never accelerators.
+                UseMnemonic = false,
             };
             // A role, not a colour and font set here. ControlThemer resets every untagged control
             // to its generic default on each theme switch, so a hand-set colour survives only until

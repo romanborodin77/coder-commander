@@ -219,6 +219,16 @@ public sealed class CopyOperation : FileOperation
                 {
                     LogService.Warning($"Copy: failed for {entry.FullPath}: {ex.Message}");
                     copyFailures.Add(entry.FullPath);
+
+                    // Stop rather than grind through the rest of the queue against hardware that
+                    // is no longer there. Whatever has already been copied stays copied, and the
+                    // failure list reported at the end still names this file.
+                    // The finally below still runs on the way out, so EndFile is not repeated here.
+                    if (!await BothEndsStillPresentAsync().ConfigureAwait(false))
+                    {
+                        throw new IOException(
+                            $"The source or destination is no longer available; the copy stopped after {_filesProcessed} file(s).", ex);
+                    }
                 }
                 finally
                 {
@@ -358,14 +368,62 @@ public sealed class CopyOperation : FileOperation
         return resolution.TargetPath;
     }
 
+    /// <summary>
+    /// Best-effort removal of a destination file whose write did not finish. Never throws: it runs
+    /// on a path that is already failing, and the reason the copy died is quite often that the
+    /// destination itself went away - in which case there is nothing to remove and nothing to
+    /// report. Uses <see cref="CancellationToken.None"/> because the token that governs the copy
+    /// may be exactly the one that just fired.
+    /// </summary>
+    private async Task TryRemovePartialDestinationAsync(string destPath)
+    {
+        if (!_destFs.Capabilities.HasFlag(FileSystemCapabilities.Deletable)) return;
+
+        try
+        {
+            if (await _destFs.ExistsAsync(destPath, CancellationToken.None).ConfigureAwait(false))
+            {
+                await _destFs.DeleteAsync(destPath, recursive: false, CancellationToken.None).ConfigureAwait(false);
+                LogService.Info($"Copy: removed the partially written {destPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Warning($"Copy: could not remove the partially written {destPath}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Whether both ends of the copy are still there. Called after a file fails, because the usual
+    /// reason a file fails part-way is that its device or volume is no longer attached - and then
+    /// every remaining file fails too, one error and one timeout at a time, for as long as the
+    /// queue lasts. One cheap existence check per failure turns thousands of individual failures
+    /// into a single accurate one.
+    /// </summary>
+    private async Task<bool> BothEndsStillPresentAsync()
+    {
+        try
+        {
+            return await _sourceFs.ExistsAsync(_sourceBasePath, CancellationToken.None).ConfigureAwait(false)
+                && await _destFs.ExistsAsync(_destPath, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A provider that throws rather than answering is itself the answer.
+            return false;
+        }
+    }
+
     private async Task CopyFileWithProgress(FileEntry file, string destPath, CancellationToken ct)
     {
         var actualDestPath = await PrepareFileDestinationAsync(file, destPath, ct).ConfigureAwait(false);
         if (actualDestPath == null)
             return;
 
-        using (var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false))
+        try
         {
+            using var src = await _sourceFs.OpenReadAsync(file.FullPath, ct).ConfigureAwait(false);
+
             // Reports progress as bytes are actually read, not only once the whole file finishes -
             // without this (audit finding G050), copying a single very large file left the
             // indicator frozen until the entire file had already landed. Also the pause checkpoint
@@ -378,6 +436,21 @@ public sealed class CopyOperation : FileOperation
                 ReportThrottled(() => ReportProgress(file.Name));
             });
             await _destFs.CopyFromStreamAsync(actualDestPath, progressSrc, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Pull a half-written destination back out. CopyFromStreamAsync opens the destination
+            // for writing before the first byte arrives, so a copy that dies part-way - a phone
+            // unplugged, a USB volume yanked, a share dropped - has already truncated it. Leaving
+            // that behind is the destructive outcome: over an existing file it has replaced good
+            // content with a fragment that still looks like a file and still has its name, and a
+            // later glance at the folder cannot tell the two apart. An absent file is honest.
+            //
+            // Deliberately NOT done for a cancellation: Skip and Cancel both accept a truncated
+            // destination by this class's own long-standing contract, and Pack/Unpack are written
+            // against that same expectation.
+            await TryRemovePartialDestinationAsync(actualDestPath).ConfigureAwait(false);
+            throw;
         }
 
         _writtenPaths.Add(file.FullPath);
