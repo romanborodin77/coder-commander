@@ -85,11 +85,13 @@ public sealed class CopyOperation : FileOperation
     public override OperationType Type => OperationType.Copy;
     public override string Title => "Copy";
 
-    /// <summary>Wired into the per-file (non-batch) copy loop below - see <see cref="ExecuteCoreAsync"/>.
-    /// Not honored on the batch-archive-source path (<see cref="CopyFilesBatchAsync"/>), which reads
-    /// through a format-specific <see cref="IBatchReadableFileSystem.CopyManyToAsync"/> single pass
-    /// that has no natural per-file interruption point without threading pause/skip into every
-    /// implementer of that interface - deferred.</summary>
+    /// <summary>Wired into the per-file (non-batch) copy loop below - see <see cref="ExecuteCoreAsync"/>,
+    /// and into the batch-archive-source path (<see cref="CopyFilesBatchAsync"/>) between files: the
+    /// prepare loop pauses before each destination is resolved and the batch callback pauses after
+    /// each file lands, so Pause takes effect at file granularity without threading anything into
+    /// <see cref="IBatchReadableFileSystem.CopyManyToAsync"/> implementers. Skip stays deferred on
+    /// the batch path - a single sequential pass cannot abort the file it is streaming without
+    /// killing the whole scan, and cannot re-position to skip it "later".</summary>
     public override bool SupportsPauseAndSkip => true;
 
     private readonly IFileSystem _sourceFs;
@@ -482,6 +484,10 @@ public sealed class CopyOperation : FileOperation
         foreach (var (entry, destFullPath) in fileEntries)
         {
             ct.ThrowIfCancellationRequested();
+            // Same gate as the per-file loop: Pause between files. Cancel while paused surfaces
+            // as OperationCanceledException from the gate itself, handled upstream like any other
+            // cancellation of the whole operation.
+            await WaitIfPausedAsync(ct).ConfigureAwait(false);
 
             string? actualDestPath;
             try
@@ -529,6 +535,12 @@ public sealed class CopyOperation : FileOperation
 
                 _filesProcessed++;
                 ReportProgress(target.Entry.Name);
+
+                // Pause gate for the batch path: the callback runs after each file has fully
+                // landed, so this is exactly "pause between files" of the single scan. Cancel
+                // while paused throws OperationCanceledException from the gate, which unwinds
+                // CopyManyToAsync's ScanAsync loop and reports as a normal cancellation.
+                await WaitIfPausedAsync(ct).ConfigureAwait(false);
             }, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
