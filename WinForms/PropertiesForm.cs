@@ -294,7 +294,8 @@ public sealed partial class PropertiesForm : ThemedForm
 
             AddPlain("Props.Type", string.Format(CultureInfo.InvariantCulture, L.GetString("Props.CountFilesDirs"), fileCount, dirCount));
             AddPlain("Props.TotalSize", UiHelpers.FormatSize(totalBytes));
-            AddPlain("Props.Size", UiHelpers.FormatSize(totalBytes));
+            // No separate "Size" row here: with no per-item meaning for a multi-selection it would
+            // repeat the total byte-for-byte (the old layout showed the same number twice).
             AddPlain("Props.Name", string.Format(CultureInfo.InvariantCulture, L.GetString("Props.MultiTitle"), _items.Count));
         }
 

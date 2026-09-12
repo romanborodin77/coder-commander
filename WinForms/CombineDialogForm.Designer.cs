@@ -119,6 +119,10 @@ partial class CombineDialogForm
         //
         _partsList.BorderStyle = BorderStyle.FixedSingle;
         _partsList.Dock = DockStyle.Fill;
+        // Part paths are absolute and routinely wider than the dialog - without this the list
+        // silently clips the tail of every path, which is the part that says which archive the
+        // part belongs to. HorizontalExtent stays 0, so the scroll width follows the items.
+        _partsList.HorizontalScrollbar = true;
         _partsList.Name = "CombinePartsList";
         //
         // _checksLayout
