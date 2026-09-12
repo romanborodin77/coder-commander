@@ -199,6 +199,16 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         base.OnKeyDown(e);
         if (_items.Count == 0) return;
 
+        // Escape while the drop-down is open closes it. Reached through a queued WM_KEYDOWN in an
+        // automated run (no OS focus anywhere) as well as by a real keypress - see the
+        // accessibility object's DoDefaultAction for the open counterpart.
+        if (e.KeyCode == Keys.Escape && _menu.Visible)
+        {
+            CloseDropDown();
+            e.Handled = true;
+            return;
+        }
+
         if (e.KeyCode == Keys.F4 || e.KeyCode == Keys.Space || (e.KeyCode == Keys.Down && e.Alt))
         {
             ShowDropDown();
@@ -342,6 +352,51 @@ public sealed class ThemedComboBox : UserControl, ISelfThemedControl
         }
 
         _menu.Show(this, new Point(0, Height));
+    }
+
+    /// <summary>Closes the drop-down programmatically. Exists for the accessibility object:
+    /// UIA's Collapse needs a way to dismiss the menu that doesn't depend on the menu holding
+    /// real keyboard focus (an offscreen/automated run has none to give it).</summary>
+    internal void CloseDropDown() => _menu.Close();
+
+    /// <summary>Whether the drop-down is currently open - surfaced verbatim through the
+    /// accessibility object's <c>ExpandCollapseState</c>.</summary>
+    internal bool IsDropDownOpen => _menu.Visible;
+
+    /// <summary>Opens the drop-down from the accessibility layer - the same
+    /// <see cref="ShowDropDown"/> the mouse and F4 reach, exposed for UIA's
+    /// <c>ExpandCollapsePattern</c>.</summary>
+    internal void ShowDropDownForAccessibility() => ShowDropDown();
+
+    /// <summary>Exposes the combo's open/close as its accessible default action: screen readers
+    /// announce "Expand"/"Collapse", and UI automation (UiTests) can open/choose/close the
+    /// drop-down through <c>LegacyIAccessible.DoDefaultAction</c> - without a real mouse click,
+    /// which the test driver deliberately never performs (a test run must not move the operator's
+    /// cursor or steal their focus). The ExpandCollapse UIA pattern itself is out of reach for a
+    /// custom WinForms AccessibleObject - its WinForms-side virtuals are internal to the
+    /// framework assembly - so the legacy default action is the supported hook.</summary>
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedComboBoxAccessibleObject(this);
+
+    /// <summary>The <see cref="AccessibleObject"/> backing <see cref="CreateAccessibilityInstance"/>:
+    /// turns DoDefaultAction into an expand/collapse toggle and names the control for screen readers.</summary>
+    private sealed class ThemedComboBoxAccessibleObject : AccessibleObject
+    {
+        private readonly ThemedComboBox _owner;
+
+        public ThemedComboBoxAccessibleObject(ThemedComboBox owner)
+        {
+            _owner = owner;
+        }
+
+        public override string? Name => _owner.AccessibleName ?? base.Name;
+
+        public override string? DefaultAction => _owner.IsDropDownOpen ? "Collapse" : "Expand";
+
+        public override void DoDefaultAction()
+        {
+            if (_owner.IsDropDownOpen) _owner.CloseDropDown();
+            else _owner.ShowDropDownForAccessibility();
+        }
     }
 
     /// <summary>Handles drop-down menu item clicks, resolving the selected index by stored Tag.</summary>

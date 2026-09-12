@@ -56,9 +56,14 @@ public sealed partial class PackDialogForm : ThemedForm
     {
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+        var L = LocalizationService.Current;
+
+        // Screen readers / UI automation need a name on the combo itself (the visible label is a
+        // separate control and is not part of the combo's accessible surface).
+        _formatCombo.AccessibleName = L.GetString("Archive.PackFormat");
+        _compressionCombo.AccessibleName = L.GetString("Archive.PackCompression");
 
         _destDir = destDir;
-        var L = LocalizationService.Current;
 
         _formats = ArchiveFormatRegistry.Creatable.ToList();
         if (_formats.Count == 0)

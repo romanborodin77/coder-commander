@@ -386,6 +386,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.Exit, _ => ExitRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.About, _ => AboutRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.OpenSettings, _ => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.Connections, _ => ConnectionsRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.Bookmarks, _ => BookmarksRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.Differ, _ => DifferRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.ShowProperties, _ => ShowProperties());
         Commands.Register(CommandIds.CalculateFolderSize, _ => CalculateFolderSize());
         Commands.Register(CommandIds.DiskInfo, p => { _ = SafeExecuteAsync(ShowDiskInfoAsync, "DiskInfo"); });
@@ -393,7 +396,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.GoToRoot, _ => GoToRoot());
         Commands.Register(CommandIds.GoToHome, _ => GoToHome());
         Commands.Register(CommandIds.ChangeDir, _ => ChangeDir());
-        Commands.Register(CommandIds.SelectGroup, _ => SelectGroup());
+        // A non-empty param is a wildcard mask applied directly (no prompt): the diagnostic
+        // channel and scripted runs use it to select a known file programmatically.
+        Commands.Register(CommandIds.SelectGroup, p =>
+        {
+            if (!string.IsNullOrEmpty(p)) ActivePanel.SelectByPattern(p);
+            else SelectGroup();
+        });
         Commands.Register(CommandIds.DeselectGroup, _ => DeselectGroup());
         Commands.Register(CommandIds.EditNew, _ => EditNewRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.PackFiles, _ => PackFiles());
@@ -1413,6 +1422,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// button routes through this instead of calling <c>MainForm.OpenSettings</c> directly, so
     /// it's a real command like every other customizable toolbar button (F5.2).</summary>
     public event EventHandler? SettingsRequested;
+
+    /// <summary>Raised by the <see cref="CommandIds.Connections"/> command - MainForm opens the
+    /// saved-connections dialog in response (dialog ownership lives in the view, as everywhere).</summary>
+    public event EventHandler? ConnectionsRequested;
+
+    /// <summary>Raised by the <see cref="CommandIds.Bookmarks"/> command - MainForm opens the
+    /// bookmarks dialog in response (dialog ownership lives in the view, as everywhere).</summary>
+    public event EventHandler? BookmarksRequested;
+
+    /// <summary>Raised by the <see cref="CommandIds.Differ"/> command - MainForm opens the file
+    /// compare dialog in response (dialog ownership lives in the view, as everywhere).</summary>
+    public event EventHandler? DifferRequested;
     /// <summary>Raised when a delete needs user confirmation before proceeding.</summary>
     public event EventHandler<IReadOnlyList<Models.FileSystemItem>>? DeleteConfirmRequested;
     /// <summary>Raised when a wipe operation needs user confirmation before proceeding.</summary>

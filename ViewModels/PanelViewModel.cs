@@ -1077,6 +1077,11 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
             if (i.IsParent) continue;
             i.IsSelected = mask.Matches(i.Name);
         }
+        // Point SelectedItem at the first match: single-item commands (Rename/View/Edit) read it,
+        // not the IsSelected flags - without this a group selection left those commands all
+        // silently no-op (reproduced: SelectByPattern, then Rename did nothing at all).
+        SelectedItem = Items.FirstOrDefault(i => !i.IsParent && i.IsSelected);
+        RefreshDisplay();
         NotifySelectionChanged();
     }
 

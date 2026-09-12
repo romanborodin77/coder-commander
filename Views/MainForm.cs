@@ -265,7 +265,7 @@ public sealed class MainForm : Form
         m.DropDownItems.Add(Mi("Menu.Commands.Checksum", "properties", "", CommandIds.Checksum));
         m.DropDownItems.Add(Mi("Menu.Commands.CalculateFolderSize", "properties", "Ctrl+Alt+Space", CommandIds.CalculateFolderSize));
         m.DropDownItems.Add(Mi("Menu.Commands.DiskInfo", "properties", "", CommandIds.DiskInfo));
-        m.DropDownItems.Add(Mi("Menu.Commands.Differ", "view", "", null, () => OpenDiffer()));
+        m.DropDownItems.Add(Mi("Menu.Commands.Differ", "view", "", CommandIds.Differ));
         m.DropDownItems.Add(new ToolStripSeparator());
         m.DropDownItems.Add(Mi("Menu.Commands.OpQueue", "settings", "", null, () => OpenOperationQueue()));
 
@@ -322,13 +322,13 @@ public sealed class MainForm : Form
 
         m.DropDownItems.Add(Mi("Menu.Config.Settings", "settings", "", null, () => OpenSettings()));
         m.DropDownItems.Add(new ToolStripSeparator());
-        m.DropDownItems.Add(Mi("Menu.Config.Bookmarks", "bookmarks", "", null, () => OpenBookmarks()));
+        m.DropDownItems.Add(Mi("Menu.Config.Bookmarks", "bookmarks", "", CommandIds.Bookmarks));
 
         // A submenu rather than a single entry: saved connections and attached devices are both
         // "places you can reach that are not a local disk", but they are managed quite differently
         // - one is a list the user edits, the other a list the machine reports.
         var connections = new ToolStripMenuItem(L.GetString("Conn.Title"));
-        connections.DropDownItems.Add(Mi("Conn.Manage", "connection", "", null, () => OpenConnections()));
+        connections.DropDownItems.Add(Mi("Conn.Manage", "connection", "", CommandIds.Connections));
         connections.DropDownItems.Add(Mi("Mtp.Devices.Title", "drive_usb", "", null, () => OpenMtpDevices()));
         m.DropDownItems.Add(connections);
 
@@ -1494,6 +1494,9 @@ public sealed class MainForm : Form
         _vm.ExitRequested += (_, _) => Close();
         _vm.AboutRequested += (_, _) => OpenAbout();
         _vm.SettingsRequested += (_, _) => OpenSettings();
+        _vm.ConnectionsRequested += (_, _) => OpenConnections();
+        _vm.BookmarksRequested += (_, _) => OpenBookmarks();
+        _vm.DifferRequested += (_, _) => OpenDiffer();
         _vm.ThemeChanged += (_, _) => ApplyTheme();
         _vm.ShowExtensionInNameChanged += (_, _) => OnShowExtensionInNameChanged();
         _vm.OperationStarted += OnOperationStarted;

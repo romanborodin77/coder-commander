@@ -1,4 +1,4 @@
-﻿using CoderCommander.Archives;
+using CoderCommander.Archives;
 using CoderCommander.Models;
 using CoderCommander.Services;
 
@@ -249,6 +249,8 @@ public sealed partial class SettingsForm : ThemedForm
         archivesLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.DefaultArchiveFormat")), 0, 0);
         _compressionFormats = ArchiveFormatRegistry.Creatable.ToList();
         _defaultArchiveFormatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        // Accessible name for screen readers / UI automation (the visible label is a separate control).
+        _defaultArchiveFormatCombo.AccessibleName = L.GetString("Settings.DefaultArchiveFormat");
         foreach (var format in _compressionFormats)
             _defaultArchiveFormatCombo.AddItem(L.GetString(format.DisplayNameKey));
         var defaultFormatIndex = _compressionFormats.FindIndex(f => string.Equals(f.Id, s.DefaultArchiveFormat, StringComparison.OrdinalIgnoreCase));
@@ -288,6 +290,9 @@ public sealed partial class SettingsForm : ThemedForm
         }
 
         _compressionFormatCombo.SelectedIndexChanged += (_, _) => LoadPresetComboForSelectedFormat();
+        // Accessible name for screen readers / UI automation: the visible label is a separate
+        // control and never part of the combo's own accessible surface.
+        _compressionPresetCombo.AccessibleName = L.GetString("Settings.ArchiveCompressionFormat");
         _compressionPresetCombo.SelectedIndexChanged += (_, _) => CommitSelectedPreset();
         if (_compressionFormats.Count > 0)
         {

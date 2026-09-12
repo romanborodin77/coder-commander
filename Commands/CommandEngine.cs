@@ -156,6 +156,12 @@ public static class CommandIds
     /// <c>OpenSettings()</c> call, not through the command engine (F5.2's customizable toolbar
     /// needs every button to be a real command, this one included).</summary>
     public const string OpenSettings = "cm_OpenSettings";
+    /// <summary>Open the saved-connections manager (Configuration ▸ Connections ▸ Connection list…).</summary>
+    public const string Connections = "cm_Connections";
+    /// <summary>Open the bookmarks manager (Configuration ▸ Bookmarks…).</summary>
+    public const string Bookmarks = "cm_Bookmarks";
+    /// <summary>Open the file-compare dialog (Commands ▸ Compare Files…).</summary>
+    public const string Differ = "cm_Differ";
 }
 
 /// <summary>
