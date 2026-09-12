@@ -106,11 +106,15 @@
 
   <!-- UiTests is a separate FlaUI/NUnit test project nested under this folder for convenience -
        exclude it from this project's default SDK-style globbing so its packages/attributes don't
-       leak into the main app's compilation. -->
+       leak into the main app's compilation. DevHarness is the same shape: a nested local-only
+       exe that references this project one way. -->
   <ItemGroup>
     <Compile Remove="UiTests\**" />
     <EmbeddedResource Remove="UiTests\**" />
     <None Remove="UiTests\**" />
+    <Compile Remove="DevHarness\**" />
+    <EmbeddedResource Remove="DevHarness\**" />
+    <None Remove="DevHarness\**" />
   </ItemGroup>
 
   <ItemGroup>

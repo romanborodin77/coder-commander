@@ -35,6 +35,7 @@ CoderCommander_crash.log
 AGENTS.md
 CLAUDE.md
 .claude/
+.zcode/
 debug.ps1
 DEBUG.md
 FIXES.md
@@ -45,4 +46,8 @@ AUDIT-FULL-PROMPT.md
 ## not the reverse) and there is no .sln, so a clone without this folder still builds normally.
 UiTests/
 
+## Local offscreen-render harness (see DevHarness/DEVHARNESS.md) - same one-way ProjectReference
+## shape as UiTests; baselines are machine-local (DPI/fonts/drives are part of the picture), so
+## they are never committed. Excluded from the main csproj's globbing the same way UiTests is.
+DevHarness/
 
