@@ -37,9 +37,7 @@ CLAUDE.md
 .claude/
 .zcode/
 debug.ps1
-DEBUG.md
-FIXES.md
-AUDIT-FULL-PROMPT.md
+docs-history/
 
 ## UI-automation test suite (FlaUI + NUnit) - developer-only, same as the audit docs above.
 ## Nothing in the main project references it (the ProjectReference runs UiTests -> CoderCommander,
@@ -51,3 +49,6 @@ UiTests/
 ## they are never committed. Excluded from the main csproj's globbing the same way UiTests is.
 DevHarness/
 
+
+## Knowledge graph artifacts (graphify) - local tooling output
+.graphify/
