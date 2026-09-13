@@ -383,6 +383,7 @@ public sealed partial class SettingsForm : ThemedForm
         var splitLayout = CreateSectionLayout(rows: 5, columns: 2);
         splitLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Split.PartSize")), 0, 0);
         _splitPartSizeCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _splitPartSizeCombo.AccessibleName = L.GetString("Split.PartSize");
         _splitPartSizeCombo.AddItems(
             L.GetString("Split.Preset.Floppy"),
             L.GetString("Split.Preset.100Mb"),
@@ -416,6 +417,7 @@ public sealed partial class SettingsForm : ThemedForm
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("View.Csv.Delimiter")), 0, 2);
         _viewerCsvDelimiterCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _viewerCsvDelimiterCombo.AccessibleName = L.GetString("View.Csv.Delimiter");
         // Index <-> stored value mapping kept in one place (this array) rather than a switch in
         // both directions, matching the ArchiveFormatRegistry-driven combos above.
         foreach (var (_, key) in CsvDelimiterOptions)
@@ -428,6 +430,7 @@ public sealed partial class SettingsForm : ThemedForm
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("View.Encoding")), 0, 4);
         _viewerEncodingCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _viewerEncodingCombo.AccessibleName = L.GetString("View.Encoding");
         _viewerEncodingCombo.AddItem(L.GetString("View.Encoding.Auto"));
         foreach (var entry in EncodingCatalog.Entries)
             _viewerEncodingCombo.AddItem(L.GetString(entry.DisplayNameKey));
@@ -470,10 +473,12 @@ public sealed partial class SettingsForm : ThemedForm
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolPath")), 0, 8);
         _externalViewerPathBox = UiHelpers.CreateTextBox(s.ExternalViewerPath, "ExternalViewerPathBox");
+        _externalViewerPathBox.AccessibleName = L.GetString("Settings.ExternalToolPath");
         viewerLayout.Controls.Add(BuildPathPickerRow(_externalViewerPathBox), 1, 8);
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolArgs")), 0, 9);
         _externalViewerArgsBox = UiHelpers.CreateTextBox(s.ExternalViewerArgs, "ExternalViewerArgsBox");
+        _externalViewerArgsBox.AccessibleName = L.GetString("Settings.ExternalToolArgs");
         _externalViewerArgsBox.Dock = DockStyle.Fill;
         viewerLayout.Controls.Add(_externalViewerArgsBox, 1, 9);
 
@@ -482,10 +487,12 @@ public sealed partial class SettingsForm : ThemedForm
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolPath")), 0, 11);
         _externalEditorPathBox = UiHelpers.CreateTextBox(s.ExternalEditorPath, "ExternalEditorPathBox");
+        _externalEditorPathBox.AccessibleName = L.GetString("Settings.ExternalToolPath");
         viewerLayout.Controls.Add(BuildPathPickerRow(_externalEditorPathBox), 1, 11);
 
         viewerLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ExternalToolArgs")), 0, 12);
         _externalEditorArgsBox = UiHelpers.CreateTextBox(s.ExternalEditorArgs, "ExternalEditorArgsBox");
+        _externalEditorArgsBox.AccessibleName = L.GetString("Settings.ExternalToolArgs");
         _externalEditorArgsBox.Dock = DockStyle.Fill;
         viewerLayout.Controls.Add(_externalEditorArgsBox, 1, 12);
 
@@ -519,6 +526,7 @@ public sealed partial class SettingsForm : ThemedForm
         // Settings) and refreshed asynchronously otherwise - never blocks dialog construction.
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.DefaultShell")), 0, 0);
         _defaultShellCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _defaultShellCombo.AccessibleName = L.GetString("Settings.DefaultShell");
         terminalLayout.Controls.Add(_defaultShellCombo, 1, 0);
         PopulateShellComboAsync(s.DefaultShellType);
 
@@ -532,6 +540,7 @@ public sealed partial class SettingsForm : ThemedForm
             WrapContents = true
         };
         _keyBindingPresetCombo = new ThemedComboBox { Width = 160, Margin = new Padding(0, 0, 8, 4) };
+        _keyBindingPresetCombo.AccessibleName = L.GetString("Settings.Terminal.KeyBindingPreset");
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.WindowsTerminal"));
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Classic"));
         _keyBindingPresetCombo.AddItem(L.GetString("Settings.Terminal.KeyBindingPreset.Custom"));
@@ -544,6 +553,7 @@ public sealed partial class SettingsForm : ThemedForm
 
         terminalLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Terminal.FollowPanelCwd")), 0, 2);
         _followPanelCwdCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _followPanelCwdCombo.AccessibleName = L.GetString("Settings.Terminal.FollowPanelCwd");
         _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.Never"));
         _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.OnOpen"));
         _followPanelCwdCombo.AddItem(L.GetString("Settings.Terminal.FollowPanelCwd.Always"));
