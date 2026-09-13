@@ -455,6 +455,17 @@ public sealed class EditorForm : ThemedForm
             try
             {
                 tab = new EditorTab(fs, path);
+                // The error presentation lives here, not in the tab: warn only when this form is
+                // actually on screen. A load racing the form's teardown (an automated layout audit
+                // disposing forms around an in-flight read, or the user closing the editor early)
+                // used to pop a modal on top of whatever the operator was doing.
+                tab.LoadFailed += (failedPath, ex) =>
+                {
+                    if (IsDisposed || !Visible) return;
+                    var L = LocalizationService.Current;
+                    StyledMessageBox.Show(L.GetString("Edit.ErrorLoading", ex.Message),
+                        L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error, this);
+                };
                 var loaded = await tab.LoadFileAsync(path).ConfigureAwait(true);
                 if (!loaded)
                 {

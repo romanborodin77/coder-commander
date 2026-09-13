@@ -76,6 +76,10 @@ public sealed class EditorTab : IDisposable
         Editor = new CodeEditorControl { Dock = DockStyle.Fill, Language = Language };
     }
 
+    /// <summary>Raised when <see cref="LoadFileAsync"/> failed. The owning form decides how (and
+    /// whether) to present it - the tab itself never opens a modal.</summary>
+    public event Action<string, Exception>? LoadFailed;
+
     /// <summary>
     /// Reads the file at <paramref name="path"/> into the editor, auto-detecting encoding and language.
     /// </summary>
@@ -112,10 +116,11 @@ public sealed class EditorTab : IDisposable
         }
         catch (Exception ex)
         {
-            var L = LocalizationService.Current;
-            StyledMessageBox.Show(L.GetString("Edit.ErrorLoading", ex.Message),
-                L.GetString("Common.Error"), MsgBoxButtons.OK, MsgBoxIcon.Error);
             LogService.Error($"Error loading file {path}: {ex.Message}");
+            // The modal presentation belongs to the owning form (EditorForm subscribes and only
+            // warns when it is actually on screen) - a bare tab has no idea whether anyone is
+            // watching, and a modal for a tab whose host already closed blocks test hosts.
+            LoadFailed?.Invoke(path, ex);
             return false;
         }
     }
