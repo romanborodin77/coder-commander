@@ -124,6 +124,7 @@ public sealed partial class SettingsForm : ThemedForm
         int row = 0;
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Theme")), 0, row);
         _themeCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _themeCombo.AccessibleName = L.GetString("Settings.Theme");
         _themeCombo.AddItem(L.GetString("Settings.Theme.Dark"));
         _themeCombo.AddItem(L.GetString("Settings.Theme.Light"));
         _themeCombo.AddItem(L.GetString("Settings.Theme.System"));
@@ -133,6 +134,7 @@ public sealed partial class SettingsForm : ThemedForm
 
         appearLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.Language")), 0, row);
         _languageCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _languageCombo.AccessibleName = L.GetString("Settings.Language");
         var languages = LocalizationService.Current.GetAvailableLanguages();
         var currentLangIndex = 0;
         for (int i = 0; i < languages.Count; i++)
@@ -264,6 +266,7 @@ public sealed partial class SettingsForm : ThemedForm
         // Built entirely from the registry, so a future creatable format gets a row here for free.
         archivesLayout.Controls.Add(UiHelpers.CreateLabel(L.GetString("Settings.ArchiveCompressionFormat")), 0, 1);
         _compressionFormatCombo = new ThemedComboBox { Dock = DockStyle.Fill };
+        _compressionFormatCombo.AccessibleName = L.GetString("Settings.ArchiveCompressionFormat");
         foreach (var format in _compressionFormats)
             _compressionFormatCombo.AddItem(L.GetString(format.DisplayNameKey));
         archivesLayout.Controls.Add(_compressionFormatCombo, 1, 1);

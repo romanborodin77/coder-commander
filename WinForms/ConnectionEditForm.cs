@@ -31,6 +31,8 @@ public sealed partial class ConnectionEditForm : ThemedForm
 
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+        var L0 = LocalizationService.Current;
+        _schemeBox.AccessibleName = L0.GetString("Conn.Field.Type");
 
         _draft = profile.Clone();
         _credentials = credentials ?? CredentialStore.Instance;

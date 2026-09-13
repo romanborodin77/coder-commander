@@ -59,6 +59,7 @@ public sealed partial class SplitDialogForm : ThemedForm
     {
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+        _presetCombo.AccessibleName = LocalizationService.Current.GetString("Split.PartSize");
 
         _destDirBox.Text = destDir;
         _writeCrcCheck.Checked = writeCrcDefault;

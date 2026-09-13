@@ -49,6 +49,7 @@ public sealed partial class ChecksumForm : ThemedForm
         _colResultName.Text = L.GetString("Checksum.FileName");
         _colResultAlgo.Text = L.GetString("Checksum.Algorithm");
         _colResultHash.Text = L.GetString("Checksum.Hash");
+        _algoCombo.AccessibleName = L.GetString("Checksum.Algorithm");
 
         // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
         // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.

@@ -25,6 +25,7 @@ public sealed partial class SelectShellDialog : ThemedForm
 
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+        _shellComboBox.AccessibleName = LocalizationService.Current.GetString("Terminal.SelectType");
 
         PopulateShells(availableShells, preferredShellId);
         SelectedShell = availableShells[0];

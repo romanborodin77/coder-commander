@@ -36,6 +36,7 @@ public sealed partial class CopyMoveDialogForm : ThemedForm
 
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+        _overwriteCombo.AccessibleName = LocalizationService.Current.GetString("CopyMove.OverwritePolicy");
 
         var L = LocalizationService.Current;
         var p = DesignerSafeThemeService.Current;
