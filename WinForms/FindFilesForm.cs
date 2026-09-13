@@ -57,6 +57,18 @@ public sealed partial class FindFilesForm : ThemedForm
         // The field captions are separate Labels, so the text boxes need their own accessible names.
         _maskBox.AccessibleName = L.GetString("Find.Field.Mask");
         _textBox.AccessibleName = L.GetString("Find.Field.Text");
+        _sizeMinBox.AccessibleName = L.GetString("Find.Field.Size");
+        _sizeMaxBox.AccessibleName = L.GetString("Find.Field.Size");
+        _modifiedFromPicker.AccessibleName = L.GetString("Find.Field.Modified");
+        _modifiedToPicker.AccessibleName = L.GetString("Find.Field.Modified");
+        // Pin both pickers to today: a designer-baked date would go stale inside the binary and
+        // show up pre-checked next year. Checked=false must come AFTER Value - assigning Value
+        // implicitly checks the checkbox, and a checked bound would silently filter every
+        // default search down to files modified today.
+        _modifiedFromPicker.Value = DateTime.Now.Date;
+        _modifiedFromPicker.Checked = false;
+        _modifiedToPicker.Value = DateTime.Now.Date;
+        _modifiedToPicker.Checked = false;
 
         // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
         // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
@@ -123,7 +135,12 @@ public sealed partial class FindFilesForm : ThemedForm
             _matchCaseCheck.Checked,
             _wholeWordCheck.Checked,
             _subdirectoriesCheck.Checked,
-            _regexCheck.Checked);
+            _regexCheck.Checked,
+            SizeMinBytes: _sizeMinBox.Value > 0 ? (long)(_sizeMinBox.Value * 1024) : null,
+            SizeMaxBytes: _sizeMaxBox.Value > 0 ? (long)(_sizeMaxBox.Value * 1024) : null,
+            ModifiedFrom: _modifiedFromPicker.Checked ? _modifiedFromPicker.Value.Date : null,
+            // "To" is a date, so include that entire last day.
+            ModifiedTo: _modifiedToPicker.Checked ? _modifiedToPicker.Value.Date.AddDays(1).AddTicks(-1) : null);
 
         var engine = new SearchEngine(_fs, query);
 

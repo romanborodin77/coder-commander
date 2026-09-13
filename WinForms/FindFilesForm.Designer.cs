@@ -24,6 +24,15 @@ partial class FindFilesForm
     private ThemedCheckBox _wholeWordCheck = null!;
     private ThemedCheckBox _subdirectoriesCheck = null!;
     private ThemedCheckBox _regexCheck = null!;
+    private Label _sizeLabel = null!;
+    private FlowLayoutPanel _sizePanel = null!;
+    private NumericUpDown _sizeMinBox = null!;
+    private Label _sizeToLabel = null!;
+    private NumericUpDown _sizeMaxBox = null!;
+    private Label _modifiedLabel = null!;
+    private FlowLayoutPanel _datePanel = null!;
+    private DateTimePicker _modifiedFromPicker = null!;
+    private DateTimePicker _modifiedToPicker = null!;
     private Label _status = null!;
     private Panel _buttonBar = null!;
     private FlowLayoutPanel _buttonGroup = null!;
@@ -55,6 +64,15 @@ partial class FindFilesForm
             _buttonGroup?.Dispose();
             _buttonBar?.Dispose();
             _options?.Dispose();
+            _sizeLabel?.Dispose();
+            _sizePanel?.Dispose();
+            _sizeMinBox?.Dispose();
+            _sizeToLabel?.Dispose();
+            _sizeMaxBox?.Dispose();
+            _modifiedLabel?.Dispose();
+            _datePanel?.Dispose();
+            _modifiedFromPicker?.Dispose();
+            _modifiedToPicker?.Dispose();
             _queryLayout?.Dispose();
             _resultsHost?.Dispose();
             // Owned by the behaviour half; cancelled first because a search may still be running.
@@ -88,6 +106,15 @@ partial class FindFilesForm
         _wholeWordCheck = new ThemedCheckBox();
         _subdirectoriesCheck = new ThemedCheckBox();
         _regexCheck = new ThemedCheckBox();
+        _sizeLabel = new Label();
+        _sizePanel = new FlowLayoutPanel();
+        _sizeMinBox = new NumericUpDown();
+        _sizeToLabel = new Label();
+        _sizeMaxBox = new NumericUpDown();
+        _modifiedLabel = new Label();
+        _datePanel = new FlowLayoutPanel();
+        _modifiedFromPicker = new DateTimePicker();
+        _modifiedToPicker = new DateTimePicker();
         _status = new Label();
         _buttonBar = new Panel();
         _buttonGroup = new FlowLayoutPanel();
@@ -97,6 +124,8 @@ partial class FindFilesForm
         _resultsHost.SuspendLayout();
         _queryLayout.SuspendLayout();
         _options.SuspendLayout();
+        _sizePanel.SuspendLayout();
+        _datePanel.SuspendLayout();
         _buttonBar.SuspendLayout();
         _buttonGroup.SuspendLayout();
         SuspendLayout();
@@ -149,7 +178,7 @@ partial class FindFilesForm
         // A fixed height, not AutoSize: an auto-sizing Dock=Top panel settles its height after the
         // form's first layout pass, and the Dock=Fill sibling below it is measured before that
         // happens - which pushed the bottom button bar past the client area and clipped the buttons.
-        // Four rows of known height plus the padding is a number this dialog can simply state.
+        // Six rows of known height plus the padding is a number this dialog can simply state.
         _queryLayout.ColumnCount = 2;
         _queryLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130F));
         _queryLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -157,17 +186,23 @@ partial class FindFilesForm
         _queryLayout.Controls.Add(_maskBox, 1, 0);
         _queryLayout.Controls.Add(_textLabel, 0, 1);
         _queryLayout.Controls.Add(_textBox, 1, 1);
-        _queryLayout.Controls.Add(_options, 1, 2);
-        _queryLayout.Controls.Add(_status, 1, 3);
+        _queryLayout.Controls.Add(_sizeLabel, 0, 2);
+        _queryLayout.Controls.Add(_sizePanel, 1, 2);
+        _queryLayout.Controls.Add(_modifiedLabel, 0, 3);
+        _queryLayout.Controls.Add(_datePanel, 1, 3);
+        _queryLayout.Controls.Add(_options, 1, 4);
+        _queryLayout.Controls.Add(_status, 1, 5);
         _queryLayout.Dock = DockStyle.Top;
         _queryLayout.Name = "_queryLayout";
         _queryLayout.Padding = new Padding(16, 12, 16, 8);
-        _queryLayout.RowCount = 4;
+        _queryLayout.RowCount = 6;
+        _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+        _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
         _queryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
-        _queryLayout.Size = new Size(820, 142); // 12 + 32 + 32 + 34 + 24 + 8
+        _queryLayout.Size = new Size(820, 206); // 12 + 32 + 32 + 32 + 32 + 34 + 24 + 8
         _uiMetadata.SetThemeRole(_queryLayout, ThemeRole.Background);
         //
         // _maskLabel
@@ -245,6 +280,94 @@ partial class FindFilesForm
         _regexCheck.Name = "_regexCheck";
         _regexCheck.Text = "Regular expression";
         _uiMetadata.SetLocalizationKey(_regexCheck, "Find.UseRegex");
+        //
+        // _sizeLabel
+        //
+        _sizeLabel.AutoSize = true;
+        _sizeLabel.Dock = DockStyle.Fill;
+        _sizeLabel.Name = "_sizeLabel";
+        _sizeLabel.Text = "Size (KB):";
+        _sizeLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _uiMetadata.SetLocalizationKey(_sizeLabel, "Find.Field.Size");
+        _uiMetadata.SetThemeRole(_sizeLabel, ThemeRole.Body);
+        //
+        // _sizePanel
+        //
+        // Both bounds are inclusive KB values; 0 means "no bound" (the constructor clamps the
+        // NumericUpDowns at 0). Min has a right margin, the "–" caption carries the gap.
+        _sizePanel.BackColor = Color.Transparent;
+        _sizePanel.Controls.Add(_sizeMinBox);
+        _sizePanel.Controls.Add(_sizeToLabel);
+        _sizePanel.Controls.Add(_sizeMaxBox);
+        _sizePanel.Dock = DockStyle.Fill;
+        _sizePanel.FlowDirection = FlowDirection.LeftToRight;
+        _sizePanel.Name = "_sizePanel";
+        _sizePanel.WrapContents = false;
+        //
+        // _sizeMinBox
+        //
+        _sizeMinBox.Margin = new Padding(0, 5, 0, 0);
+        _sizeMinBox.Maximum = 1000000000;
+        _sizeMinBox.Name = "_sizeMinBox";
+        _sizeMinBox.ThousandsSeparator = true;
+        _sizeMinBox.Width = 90;
+        //
+        // _sizeToLabel
+        //
+        _sizeToLabel.AutoSize = true;
+        _sizeToLabel.Margin = new Padding(6, 9, 6, 0);
+        _sizeToLabel.Name = "_sizeToLabel";
+        _sizeToLabel.Text = "–";
+        _sizeToLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _uiMetadata.SetThemeRole(_sizeToLabel, ThemeRole.Muted);
+        //
+        // _sizeMaxBox
+        //
+        _sizeMaxBox.Margin = new Padding(0, 5, 0, 0);
+        _sizeMaxBox.Maximum = 1000000000;
+        _sizeMaxBox.Name = "_sizeMaxBox";
+        _sizeMaxBox.ThousandsSeparator = true;
+        _sizeMaxBox.Width = 90;
+        //
+        // _modifiedLabel
+        //
+        _modifiedLabel.AutoSize = true;
+        _modifiedLabel.Dock = DockStyle.Fill;
+        _modifiedLabel.Name = "_modifiedLabel";
+        _modifiedLabel.Text = "Modified:";
+        _modifiedLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _uiMetadata.SetLocalizationKey(_modifiedLabel, "Find.Field.Modified");
+        _uiMetadata.SetThemeRole(_modifiedLabel, ThemeRole.Body);
+        //
+        // _datePanel
+        //
+        // Each picker carries its own checkbox (unchecked = the bound is off); the constructor
+        // pins Value to today so the short-format text is a real date rather than a designer one.
+        _datePanel.BackColor = Color.Transparent;
+        _datePanel.Controls.Add(_modifiedFromPicker);
+        _datePanel.Controls.Add(_modifiedToPicker);
+        _datePanel.Dock = DockStyle.Fill;
+        _datePanel.FlowDirection = FlowDirection.LeftToRight;
+        _datePanel.Name = "_datePanel";
+        _datePanel.WrapContents = false;
+        //
+        // _modifiedFromPicker
+        //
+        _modifiedFromPicker.Checked = false;
+        _modifiedFromPicker.Format = DateTimePickerFormat.Short;
+        _modifiedFromPicker.Margin = new Padding(0, 5, 8, 0);
+        _modifiedFromPicker.Name = "_modifiedFromPicker";
+        _modifiedFromPicker.ShowCheckBox = true;
+        _modifiedFromPicker.Width = 130;
+        //
+        // _modifiedToPicker
+        //
+        _modifiedToPicker.Checked = false;
+        _modifiedToPicker.Format = DateTimePickerFormat.Short;
+        _modifiedToPicker.Margin = new Padding(0, 5, 0, 0);
+        _modifiedToPicker.Name = "_modifiedToPicker";
+        _modifiedToPicker.ShowCheckBox = true;
+        _modifiedToPicker.Width = 130;
         //
         // _status
         //
@@ -340,6 +463,8 @@ partial class FindFilesForm
         _queryLayout.ResumeLayout(false);
         _queryLayout.PerformLayout();
         _options.ResumeLayout(false);
+        _sizePanel.ResumeLayout(false);
+        _datePanel.ResumeLayout(false);
         _buttonBar.ResumeLayout(false);
         _buttonGroup.ResumeLayout(false);
         ResumeLayout(false);

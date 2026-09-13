@@ -461,6 +461,8 @@ public sealed class LocalizationService
         _strings["Find.Title"] = "Search for files";
         _strings["Find.Field.Mask"] = "File mask";
         _strings["Find.Field.Text"] = "Containing text";
+        _strings["Find.Field.Size"] = "Size (KB):";
+        _strings["Find.Field.Modified"] = "Modified:";
         _strings["Find.MatchCase"] = "Match case";
         _strings["Find.WholeWord"] = "Whole words only";
         _strings["Find.Subdirectories"] = "Include subfolders";

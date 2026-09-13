@@ -15,13 +15,23 @@ namespace CoderCommander.Services.Search;
 /// <paramref name="ContentText"/> as regular expressions instead of a wildcard mask / literal
 /// substring. <paramref name="WholeWord"/> has no effect in this mode - a regex already expresses
 /// word boundaries itself, via <c>\b</c>, when the user wants them.</param>
+/// <param name="SizeMinBytes">Smallest file size to consider, in bytes; <c>null</c> = no floor.</param>
+/// <param name="SizeMaxBytes">Largest file size to consider, in bytes; <c>null</c> = no ceiling.</param>
+/// <param name="ModifiedFrom">Inclusive lower bound on the file's local last-write time;
+/// <c>null</c> = unbounded.</param>
+/// <param name="ModifiedTo">Inclusive upper bound on the file's local last-write time;
+/// <c>null</c> = unbounded.</param>
 public sealed record SearchQuery(
     string NameMask,
     string ContentText = "",
     bool MatchCase = false,
     bool WholeWord = false,
     bool SearchSubdirectories = true,
-    bool UseRegex = false);
+    bool UseRegex = false,
+    long? SizeMinBytes = null,
+    long? SizeMaxBytes = null,
+    DateTime? ModifiedFrom = null,
+    DateTime? ModifiedTo = null);
 
 /// <summary>One file the search matched.</summary>
 /// <param name="LineNumber">Line of the content match, or 0 for a name-only match.</param>
@@ -91,12 +101,23 @@ public sealed class SearchEngine
 
     /// <summary>False when <see cref="SearchQuery.NameMask"/> failed to compile as a regex - see
     /// <see cref="FileMask.IsValid"/>. Check before calling <see cref="RunAsync"/>.</summary>
-    public bool IsNameMaskValid => _mask.IsValid;
-
-    /// <summary>True when <see cref="SearchQuery.ContentText"/> failed to compile as a regex (only
+    public bool IsNameMaskValid => _mask.IsValid;    /// <summary>True when <see cref="SearchQuery.ContentText"/> failed to compile as a regex (only
     /// meaningful when <see cref="SearchQuery.UseRegex"/> is true and content text is non-empty).
     /// Check before calling <see cref="RunAsync"/>.</summary>
     public bool ContentRegexInvalid { get; }
+
+    /// <summary>Whether <paramref name="entry"/> passes <paramref name="query"/>'s size and
+    /// last-write-time window. Pure and UI-free so the bounds can be tested without a filesystem:
+    /// size bounds are inclusive byte values, the time bounds are inclusive instants expressed in
+    /// the same (local) kind <see cref="FileEntry.LastWriteTime"/> reports.</summary>
+    public static bool MatchesFileFilters(SearchQuery query, FileEntry entry)
+    {
+        if (query.SizeMinBytes is { } min && entry.Size < min) return false;
+        if (query.SizeMaxBytes is { } max && entry.Size > max) return false;
+        if (query.ModifiedFrom is { } from && entry.LastWriteTime < from) return false;
+        if (query.ModifiedTo is { } to && entry.LastWriteTime > to) return false;
+        return true;
+    }
 
     /// <summary>Whether the search stopped because it reached <see cref="MaxResults"/>.</summary>
     public bool WasTruncated { get; private set; }
@@ -172,7 +193,9 @@ public sealed class SearchEngine
                     continue;
                 }
 
-                if (_mask.Matches(entry.Name)) candidates.Add(entry);
+                // Size/date filters gate BEFORE the content scan: a size-bounded query must not
+                // open (or even stream) a 4 GB file it is going to reject anyway.
+                if (_mask.Matches(entry.Name) && MatchesFileFilters(_query, entry)) candidates.Add(entry);
             }
 
             if (candidates.Count == 0) continue;
