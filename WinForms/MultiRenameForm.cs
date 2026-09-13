@@ -56,6 +56,18 @@ public sealed partial class MultiRenameForm : ThemedForm
         _replaceBox.TextChanged += (_, _) => UpdatePreview();
         _regexCheck.CheckedChanged += (_, _) => UpdatePreview();
 
+        // Case is the third pass (after placeholders and find/replace). Combo items cannot carry
+        // a LocalizationKey, so they are filled here from lang/*.lng; As-is is the default and
+        // leaves every existing pattern's output unchanged.
+        _caseCombo.AddItems(
+            L.GetString("MultiRename.Case.AsIs"),
+            L.GetString("MultiRename.Case.Upper"),
+            L.GetString("MultiRename.Case.Lower"),
+            L.GetString("MultiRename.Case.Pascal"));
+        _caseCombo.SelectedIndex = 0;
+        _caseCombo.AccessibleName = L.GetString("MultiRename.Case");
+        _caseCombo.SelectedIndexChanged += (_, _) => UpdatePreview();
+
         _resetBtn.Click += (_, _) =>
         {
             _patternBox.Text = "[N]";
@@ -140,6 +152,13 @@ public sealed partial class MultiRenameForm : ThemedForm
         // which placeholders built the name in the first place.
         name = ApplyFindReplace(name, _findBox.Text, _replaceBox.Text, _regexCheck.Checked);
 
+        // Case is a third pass over the resolved name and extension alike - "lower" on a photo
+        // batch is expected to normalize the extension too. The clamp only guards the
+        // pre-initialization gap: the constructor sets SelectedIndex = 0 before any preview runs.
+        var mode = (CaseMode)Math.Max(0, _caseCombo.SelectedIndex);
+        name = ApplyCase(name, mode);
+        ext = ApplyCase(ext, mode);
+
         return (name, ext);
     }
 
@@ -171,6 +190,59 @@ public sealed partial class MultiRenameForm : ThemedForm
             return name;
         }
     }
+
+    /// <summary>Case-normalization modes for the Case combo, in combo order.</summary>
+    private enum CaseMode
+    {
+        /// <summary>Leave the component exactly as produced by the earlier passes.</summary>
+        AsIs = 0,
+        /// <summary>Force every letter to upper case.</summary>
+        Upper = 1,
+        /// <summary>Force every letter to lower case.</summary>
+        Lower = 2,
+        /// <summary>First letter of each word upper case, the rest lower (see <see cref="ApplyCase"/>).</summary>
+        Pascal = 3
+    }
+
+    /// <summary>Applies the selected case mode to a name or extension component. Culture-invariant
+    /// on purpose: file renames must not depend on the OS locale. Pascal uppercases the first
+    /// letter of each word - any non-alphanumeric character starts a new word - and lowercases
+    /// the rest, so "VACATION photo-2" becomes "Vacation Photo-2".</summary>
+#pragma warning disable CA1308 // Lowercasing here is the user-facing rename feature itself, not comparison canonicalization
+    private static string ApplyCase(string value, CaseMode mode)
+    {
+        return mode switch
+        {
+            CaseMode.Upper => value.ToUpperInvariant(),
+            CaseMode.Lower => value.ToLowerInvariant(),
+            CaseMode.Pascal => MakePascal(value),
+            _ => value
+        };
+    }
+
+    /// <summary>Pascal-case helper for <see cref="CaseMode.Pascal"/>; see <see cref="ApplyCase"/>.</summary>
+    private static string MakePascal(string value)
+    {
+        if (value.Length == 0) return value;
+
+        var chars = value.ToLowerInvariant().ToCharArray();
+        var upperNext = true;
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (upperNext && char.IsLetter(chars[i]))
+            {
+                chars[i] = char.ToUpperInvariant(chars[i]);
+                upperNext = false;
+            }
+            else if (!char.IsLetterOrDigit(chars[i]))
+            {
+                upperNext = true;
+            }
+        }
+
+        return new string(chars);
+    }
+#pragma warning restore CA1308
 
     /// <summary>Replaces all recognized placeholders in a pattern string with their computed values.</summary>
     private static string ReplacePlaceholders(

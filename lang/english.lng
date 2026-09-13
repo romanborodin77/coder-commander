@@ -602,6 +602,11 @@ MultiRename.StartAt=Start at:
 MultiRename.Step=Step:
 MultiRename.Find=Find:
 MultiRename.Replace=Replace:
+MultiRename.Case=Case:
+MultiRename.Case.AsIs=As is
+MultiRename.Case.Upper=UPPER CASE
+MultiRename.Case.Lower=lower case
+MultiRename.Case.Pascal=Pascal Case
 MultiRename.UseRegex=Regex
 MultiRename.Hint=[N]=name  [E]=ext  [N3]=first 3 chars  [N-3]=last 3  [C]=counter  [C2:10]=width 2 start 10  [D]=date  [T]=time  [P]=parent dir
 MultiRename.OldName=Old Name

@@ -23,6 +23,8 @@ partial class MultiRenameForm
     private TableLayoutPanel _replacePanel = null!;
     private TextBox _replaceBox = null!;
     private ThemedCheckBox _regexCheck = null!;
+    private Label _lblCase = null!;
+    private ThemedComboBox _caseCombo = null!;
     private Label _hintLabel = null!;
     private Panel _spacer = null!;
     private ListView _previewList = null!;
@@ -49,6 +51,8 @@ partial class MultiRenameForm
             _findBox?.Dispose();
             _replaceBox?.Dispose();
             _regexCheck?.Dispose();
+            _lblCase?.Dispose();
+            _caseCombo?.Dispose();
             _previewList?.Dispose();
             _lblPattern?.Dispose();
             _lblExt?.Dispose();
@@ -94,6 +98,8 @@ partial class MultiRenameForm
         _replacePanel = new TableLayoutPanel();
         _replaceBox = new TextBox();
         _regexCheck = new ThemedCheckBox();
+        _lblCase = new Label();
+        _caseCombo = new ThemedComboBox();
         _hintLabel = new Label();
         _spacer = new Panel();
         _previewList = new ListView();
@@ -131,13 +137,16 @@ partial class MultiRenameForm
         _layout.Controls.Add(_findBox, 1, 3);
         _layout.Controls.Add(_lblReplace, 0, 4);
         _layout.Controls.Add(_replacePanel, 1, 4);
-        _layout.Controls.Add(_hintLabel, 0, 5);
-        _layout.Controls.Add(_spacer, 0, 6);
-        _layout.Controls.Add(_previewList, 0, 7);
+        _layout.Controls.Add(_lblCase, 0, 5);
+        _layout.Controls.Add(_caseCombo, 1, 5);
+        _layout.Controls.Add(_hintLabel, 0, 6);
+        _layout.Controls.Add(_spacer, 0, 7);
+        _layout.Controls.Add(_previewList, 0, 8);
         _layout.Dock = DockStyle.Fill;
         _layout.Name = "_layout";
         _layout.Padding = new Padding(16, 16, 16, 8);
-        _layout.RowCount = 8;
+        _layout.RowCount = 9;
+        _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
         _layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
@@ -296,6 +305,23 @@ partial class MultiRenameForm
         _regexCheck.Name = "_regexCheck";
         _regexCheck.Text = "Regular expression";
         _uiMetadata.SetLocalizationKey(_regexCheck, "MultiRename.UseRegex");
+        //
+        // _lblCase
+        //
+        _lblCase.AutoSize = true;
+        _lblCase.Dock = DockStyle.Fill;
+        _lblCase.Name = "_lblCase";
+        _lblCase.Text = "Case:";
+        _lblCase.TextAlign = ContentAlignment.MiddleLeft;
+        _uiMetadata.SetLocalizationKey(_lblCase, "MultiRename.Case");
+        _uiMetadata.SetThemeRole(_lblCase, ThemeRole.Emphasis);
+        //
+        // _caseCombo
+        //
+        // Items come from the constructor (combo items cannot carry a LocalizationKey); the
+        // default As-is keeps every existing pattern byte-for-byte identical.
+        _caseCombo.Dock = DockStyle.Fill;
+        _caseCombo.Name = "_caseCombo";
         //
         // _hintLabel
         //
