@@ -36,6 +36,14 @@ public sealed partial class MultiRenameForm : ThemedForm
         _colNewName.Text = L.GetString("MultiRename.NewName");
         _colStatus.Text = L.GetString("MultiRename.Status");
 
+        // The field captions are separate Labels, so the editors need their own accessible names.
+        _patternBox.AccessibleName = L.GetString("MultiRename.Pattern");
+        _extBox.AccessibleName = L.GetString("MultiRename.Extension");
+        _findBox.AccessibleName = L.GetString("MultiRename.Find");
+        _replaceBox.AccessibleName = L.GetString("MultiRename.Replace");
+        _startIndex.AccessibleName = L.GetString("MultiRename.StartAt");
+        _stepIndex.AccessibleName = L.GetString("MultiRename.Step");
+
         // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
         // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;

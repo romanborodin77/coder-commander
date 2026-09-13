@@ -62,6 +62,7 @@ public sealed partial class PackDialogForm : ThemedForm
         // separate control and is not part of the combo's accessible surface).
         _formatCombo.AccessibleName = L.GetString("Archive.PackFormat");
         _compressionCombo.AccessibleName = L.GetString("Archive.PackCompression");
+        _nameBox.AccessibleName = L.GetString("Archive.PackPrompt");
 
         _destDir = destDir;
 

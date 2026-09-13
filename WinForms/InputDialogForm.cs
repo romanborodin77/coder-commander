@@ -25,6 +25,8 @@ public sealed partial class InputDialogForm : ThemedForm
 
         Text = title;
         _promptLabel.Text = prompt;
+        // The prompt is a separate Label control, so a screen reader sees the text box unnamed.
+        _textBox.AccessibleName = prompt;
         _textBox.Text = defaultValue;
         _textBox.KeyDown += OnTextBoxKeyDown;
     }

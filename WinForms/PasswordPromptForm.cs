@@ -29,6 +29,8 @@ public sealed partial class PasswordPromptForm : ThemedForm
         // path deliberately does not model - it would need the provider to carry per-control
         // arguments too, for the handful of labels that interpolate something.
         _promptLabel.Text = LocalizationService.Current.GetString("Archive.PasswordPrompt", archiveName);
+        // The prompt is a separate Label control, so a screen reader sees the text box unnamed.
+        _textBox.AccessibleName = LocalizationService.Current.GetString("Archive.PasswordPrompt", archiveName);
 
         _textBox.KeyDown += OnTextBoxKeyDown;
         _showCheck.CheckedChanged += (_, _) => _textBox.UseSystemPasswordChar = !_showCheck.Checked;

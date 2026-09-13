@@ -44,6 +44,10 @@ public sealed partial class SyncDirsForm : ThemedForm
         _colRightSize.Text = L.GetString("SyncDirs.RightSize");
         _colAction.Text = L.GetString("SyncDirs.Action");
 
+        // The captions are separate Labels, so the path boxes need their own accessible names.
+        _leftBox.AccessibleName = L.GetString("SyncDirs.Left");
+        _rightBox.AccessibleName = L.GetString("SyncDirs.Right");
+
         // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
         // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;

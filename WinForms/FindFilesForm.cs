@@ -54,6 +54,10 @@ public sealed partial class FindFilesForm : ThemedForm
         _colLine.Text = L.GetString("Find.Col.Line");
         _colText.Text = L.GetString("Find.Col.Text");
 
+        // The field captions are separate Labels, so the text boxes need their own accessible names.
+        _maskBox.AccessibleName = L.GetString("Find.Field.Mask");
+        _textBox.AccessibleName = L.GetString("Find.Field.Text");
+
         // Set here rather than in the designer: ThemedForm.Resizable is this app's own property,
         // applied in OnLoad rather than a real FormBorderStyle the designer could round-trip.
         Resizable = true;

@@ -1,4 +1,5 @@
 using CoderCommander.FileSystem;
+using CoderCommander.Services;
 
 namespace CoderCommander.WinForms;
 
@@ -45,6 +46,9 @@ public sealed partial class CombineDialogForm : ThemedForm
 
         InitializeComponent();
         _uiMetadata.ApplyLocalization();
+
+        // The caption is a separate Label, so the text box needs its own accessible name.
+        _outputNameBox.AccessibleName = LocalizationService.Current.GetString("Combine.OutputName");
 
         _destDir = destDir;
         _outputNameBox.Text = suggestedName;

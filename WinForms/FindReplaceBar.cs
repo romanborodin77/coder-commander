@@ -68,6 +68,7 @@ internal sealed class FindReplaceBar : Panel
         };
 
         _findBox = UiHelpers.CreateTextBox();
+        _findBox.AccessibleName = L.GetString("Edit.Toolbar.Find");
         _findBox.Width = 220;
         _findBox.Margin = new Padding(0, 3, 6, 3);
         _findBox.TextChanged += (_, _) => OnPatternChanged();
@@ -113,6 +114,7 @@ internal sealed class FindReplaceBar : Panel
         };
 
         _replaceBox = UiHelpers.CreateTextBox();
+        _replaceBox.AccessibleName = L.GetString("Edit.Toolbar.Replace");
         _replaceBox.Width = 220;
         _replaceBox.Margin = new Padding(0, 3, 6, 3);
 

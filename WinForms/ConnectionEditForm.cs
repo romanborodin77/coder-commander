@@ -33,6 +33,11 @@ public sealed partial class ConnectionEditForm : ThemedForm
         _uiMetadata.ApplyLocalization();
         var L0 = LocalizationService.Current;
         _schemeBox.AccessibleName = L0.GetString("Conn.Field.Type");
+        _nameBox.AccessibleName = L0.GetString("Conn.Field.Name");
+        _urlBox.AccessibleName = L0.GetString("Conn.Field.Url");
+        _userBox.AccessibleName = L0.GetString("Conn.Field.User");
+        _passwordBox.AccessibleName = L0.GetString("Conn.Field.Password");
+        _fingerprintBox.AccessibleName = L0.GetString("Conn.Field.Fingerprint");
 
         _draft = profile.Clone();
         _credentials = credentials ?? CredentialStore.Instance;
