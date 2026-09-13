@@ -403,7 +403,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (!string.IsNullOrEmpty(p)) ActivePanel.SelectByPattern(p);
             else SelectGroup();
         });
-        Commands.Register(CommandIds.DeselectGroup, _ => DeselectGroup());
+        // Same mask-param shortcut as SelectGroup: scripts deselect a known file programmatically.
+        Commands.Register(CommandIds.DeselectGroup, p =>
+        {
+            if (!string.IsNullOrEmpty(p)) ActivePanel.DeselectByPattern(p);
+            else DeselectGroup();
+        });
         Commands.Register(CommandIds.EditNew, _ => EditNewRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.PackFiles, _ => PackFiles());
         Commands.Register(CommandIds.UnpackFiles, _ => UnpackFiles());
