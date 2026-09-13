@@ -124,15 +124,15 @@ public sealed partial class HotkeyBindingsForm : ThemedForm
         ApplyTheme();
     }
 
-    /// <summary>"cm_GoToParent" + null -&gt; "Go To Parent"; "cm_SetTheme" + "Dark" -&gt;
-    /// "Set Theme (Dark)". Same "one readable rendering across languages, not individually
-    /// localized" trade-off as <see cref="TerminalKeyBindingsForm.SplitPascalCase"/> - this is a
-    /// power-user editor over the same internal <c>CommandIds</c> names the app already uses
-    /// everywhere else, not user-facing prose.</summary>
+    /// <summary>"cm_GoToParent" -&gt; the localized command title ("На уровень вверх" in the ru
+    /// UI); a command id with no Cmd.* title falls back to the readable Pascal-case split, which
+    /// keeps future commands legible before their caption lands in lang/*.lng.</summary>
     private static string FormatCommandLabel(string commandId, string? param)
     {
         var name = commandId.StartsWith("cm_", StringComparison.Ordinal) ? commandId[3..] : commandId;
-        var label = TerminalKeyBindingsForm.SplitPascalCase(name);
+        var key = "Cmd." + name;
+        var localized = LocalizationService.Current.GetString(key);
+        var label = localized == key ? TerminalKeyBindingsForm.SplitPascalCase(name) : localized;
         return string.IsNullOrEmpty(param) ? label : $"{label} ({param})";
     }
 

@@ -108,7 +108,7 @@ public sealed partial class TerminalKeyBindingsForm : ThemedForm
         {
             if (action == TerminalAction.None) continue;
             var chord = _working[action];
-            var item = new ListViewItem(SplitPascalCase(action.ToString())) { Tag = action };
+            var item = new ListViewItem(LocalizedActionName(action)) { Tag = action };
             item.SubItems.Add(chord is { } c ? TerminalKeyBindings.FormatChord(c) : "—");
             _list.Items.Add(item);
         }
@@ -126,6 +126,16 @@ public sealed partial class TerminalKeyBindingsForm : ThemedForm
             sb.Append(name[i]);
         }
         return sb.ToString();
+    }
+
+    /// <summary>The localized title of a <see cref="TerminalAction"/> ("На строку вверх" in the
+    /// ru UI); an action with no TermAction.* title falls back to the readable Pascal-case split,
+    /// which keeps future actions legible before their caption lands in lang/*.lng.</summary>
+    internal static string LocalizedActionName(TerminalAction action)
+    {
+        var key = "TermAction." + action;
+        var localized = LocalizationService.Current.GetString(key);
+        return localized == key ? SplitPascalCase(action.ToString()) : localized;
     }
 
     private void BeginCapture(TerminalAction action)
@@ -158,7 +168,7 @@ public sealed partial class TerminalKeyBindingsForm : ThemedForm
         {
             var L = LocalizationService.Current;
             var proceed = StyledMessageBox.Show(
-                L.GetString("Settings.Terminal.KeyBindings.ConflictConfirm", TerminalKeyBindings.FormatChord(chord), SplitPascalCase(conflict.Key.ToString())),
+                L.GetString("Settings.Terminal.KeyBindings.ConflictConfirm", TerminalKeyBindings.FormatChord(chord), LocalizedActionName(conflict.Key)),
                 L.GetString("Common.Confirm"), MsgBoxButtons.YesNo, MsgBoxIcon.Warning, this) == MsgBoxResult.Yes;
             if (!proceed) return;
             _working[conflict.Key] = null;

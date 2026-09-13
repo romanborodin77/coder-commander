@@ -455,6 +455,82 @@ public sealed class LocalizationService
         _strings["Settings.Hotkeys.PressKeys"] = "Press a key combination…";
         _strings["Settings.Hotkeys.ConflictConfirm"] = "\"{0}\" is already used by \"{1}\". Reassign it to this action instead?";
 
+        // Localized command titles for the hotkey editors - "cm_"-prefixed CommandIds keyed as
+        // "Cmd.<Name>". HotkeyBindingsForm falls back to a Pascal-case split when a title is
+        // missing, so new commands stay legible before their caption lands here.
+        _strings["Cmd.ChangeDir"] = "Change directory";
+        _strings["Cmd.ClipboardCopy"] = "Copy to clipboard";
+        _strings["Cmd.ClipboardCut"] = "Cut to clipboard";
+        _strings["Cmd.ClipboardPaste"] = "Paste from clipboard";
+        _strings["Cmd.CloseTab"] = "Close tab";
+        _strings["Cmd.Copy"] = "Copy";
+        _strings["Cmd.CalculateFolderSize"] = "Calculate folder size";
+        _strings["Cmd.Delete"] = "Delete";
+        _strings["Cmd.DeselectAll"] = "Deselect all";
+        _strings["Cmd.DeselectGroup"] = "Deselect by mask";
+        _strings["Cmd.Edit"] = "Edit";
+        _strings["Cmd.EditNew"] = "New file";
+        _strings["Cmd.Exit"] = "Exit";
+        _strings["Cmd.FindFiles"] = "Find files";
+        _strings["Cmd.GoBack"] = "Back";
+        _strings["Cmd.GoForward"] = "Forward";
+        _strings["Cmd.GoToHome"] = "Go to home";
+        _strings["Cmd.GoToParent"] = "Go to parent";
+        _strings["Cmd.GoToRoot"] = "Go to root";
+        _strings["Cmd.InvertSelection"] = "Invert selection";
+        _strings["Cmd.MakeDir"] = "Make directory";
+        _strings["Cmd.Move"] = "Move";
+        _strings["Cmd.MultiRename"] = "Multi-rename";
+        _strings["Cmd.NewTab"] = "New tab";
+        _strings["Cmd.NextTab"] = "Next tab";
+        _strings["Cmd.PackFiles"] = "Pack files";
+        _strings["Cmd.PreviousTab"] = "Previous tab";
+        _strings["Cmd.Refresh"] = "Refresh";
+        _strings["Cmd.RefreshDrives"] = "Refresh drives";
+        _strings["Cmd.Rename"] = "Rename";
+        _strings["Cmd.SelectAll"] = "Select all";
+        _strings["Cmd.SelectGroup"] = "Select by mask";
+        _strings["Cmd.SetTheme"] = "Set theme";
+        _strings["Cmd.ShowProperties"] = "Properties";
+        _strings["Cmd.ToggleFlatView"] = "Flat view";
+        _strings["Cmd.ToggleHidden"] = "Show hidden files";
+        _strings["Cmd.ToggleQuickView"] = "Quick view";
+        _strings["Cmd.ToggleTerminal"] = "Terminal";
+        _strings["Cmd.UnpackFiles"] = "Unpack files";
+        _strings["Cmd.View"] = "View";
+        _strings["Cmd.Wipe"] = "Wipe";
+
+        // Localized terminal-action titles for the terminal hotkey editor - TerminalAction names
+        // keyed as "TermAction.<Name>"; English mirrors the Pascal-case split it replaces.
+        _strings["TermAction.Copy"] = "Copy";
+        _strings["TermAction.Paste"] = "Paste";
+        _strings["TermAction.CopyOrInterrupt"] = "Copy Or Interrupt";
+        _strings["TermAction.SelectAll"] = "Select All";
+        _strings["TermAction.Find"] = "Find";
+        _strings["TermAction.ClearBuffer"] = "Clear Buffer";
+        _strings["TermAction.ResetTerminal"] = "Reset Terminal";
+        _strings["TermAction.NewTab"] = "New Tab";
+        _strings["TermAction.CloseTab"] = "Close Tab";
+        _strings["TermAction.NextTab"] = "Next Tab";
+        _strings["TermAction.PrevTab"] = "Prev Tab";
+        _strings["TermAction.RenameTab"] = "Rename Tab";
+        _strings["TermAction.ScrollLineUp"] = "Scroll Line Up";
+        _strings["TermAction.ScrollLineDown"] = "Scroll Line Down";
+        _strings["TermAction.ScrollPageUp"] = "Scroll Page Up";
+        _strings["TermAction.ScrollPageDown"] = "Scroll Page Down";
+        _strings["TermAction.ScrollToTop"] = "Scroll To Top";
+        _strings["TermAction.ScrollToBottom"] = "Scroll To Bottom";
+        _strings["TermAction.IncreaseFont"] = "Increase Font";
+        _strings["TermAction.DecreaseFont"] = "Decrease Font";
+        _strings["TermAction.ResetFont"] = "Reset Font";
+        _strings["TermAction.ToggleTerminalPanel"] = "Toggle Terminal Panel";
+        _strings["TermAction.AppCopy"] = "App Copy";
+        _strings["TermAction.AppMove"] = "App Move";
+        _strings["TermAction.AppMakeDir"] = "App Make Dir";
+        _strings["TermAction.AppDelete"] = "App Delete";
+        _strings["TermAction.AppRefresh"] = "App Refresh";
+        _strings["TermAction.AppChangeDir"] = "App Change Dir";
+
         // ═══ Bookmarks ═══
         _strings["Conn.NoProviders"] = "No connection types are available in this build yet.";
         _strings["Menu.Commands.Find"] = "Search...";
