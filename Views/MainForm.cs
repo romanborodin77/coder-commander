@@ -597,8 +597,18 @@ public sealed class MainForm : Form
             UpdateSplitterOverlay(stillOver);
         };
 
-        _leftPanel.PanelActivated += (_, _) => _vm.SetActivePanel(_vm.LeftPanel);
-        _rightPanel.PanelActivated += (_, _) => _vm.SetActivePanel(_vm.RightPanel);
+        // GotFocus fires whenever WinForms reassigns focus - including during form close, when
+        // the tab sets may already be disposed (MainViewModel.Dispose clears them). The count
+        // guard makes that late activation a no-op instead of an ArgumentOutOfRangeException
+        // thrown out of the message loop as the blocking crash dialog.
+        _leftPanel.PanelActivated += (_, _) =>
+        {
+            if (_vm.LeftTabs.Count > 0) _vm.SetActivePanel(_vm.LeftPanel);
+        };
+        _rightPanel.PanelActivated += (_, _) =>
+        {
+            if (_vm.RightTabs.Count > 0) _vm.SetActivePanel(_vm.RightPanel);
+        };
         _leftPanel.ItemActivated += OnItemActivated;
         _rightPanel.ItemActivated += OnItemActivated;
         _leftPanel.ArchiveEntered += OnArchiveEntered;

@@ -118,5 +118,10 @@ public sealed class PanelTabSet : IDisposable
             panel.Dispose();
         }
         _tabs.Clear();
+        // Back to the documented "no tabs yet" state: ActiveIndex must stay within [-1, Count-1]
+        // unconditionally. Without this reset a late reader after disposal (a panel focus event
+        // racing form close) indexed into the cleared list and threw ArgumentOutOfRangeException
+        // out of the message loop - the stock crash dialog, blocking exit.
+        _activeIndex = -1;
     }
 }

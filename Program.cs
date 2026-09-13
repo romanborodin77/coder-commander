@@ -104,6 +104,26 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
 
+        // UI-thread exceptions otherwise die in the stock ThreadExceptionDialog with their stack
+        // gone the moment the dialog closes - neither UnhandledException (which only covers
+        // non-UI threads while the message loop keeps running) nor app.log ever sees them. Log
+        // the full exception, then re-show the stock dialog so the user still makes the
+        // Continue/Quit call exactly as before.
+        Application.ThreadException += (_, args) =>
+        {
+            LogCrash("UI THREAD: " + args.Exception);
+            try
+            {
+                LogService.Error($"Unhandled UI-thread exception: {args.Exception}");
+            }
+            catch
+            {
+                // Crash-path logging must never throw back into the dispatcher.
+            }
+            using var dlg = new ThreadExceptionDialog(args.Exception);
+            dlg.ShowDialog();
+        };
+
         // Apply theme
         ThemeService.ApplyTheme(SettingsService.GetEffectiveTheme());
 
