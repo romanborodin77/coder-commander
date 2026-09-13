@@ -2941,6 +2941,16 @@ public sealed class MainForm : Form
         var panel = _vm.ActivePanel;
         using var dlg = new FindFilesForm(panel.CurrentFileSystem, panel.CurrentPath);
 
+        // "Show in panel": feed the deduplicated results to the INACTIVE panel (Total Commander's
+        // own "load list to panel" keeps the results away from the panel being browsed), then make
+        // it active so the user actually sees them.
+        dlg.FeedToPanelRequested += (_, e) =>
+        {
+            var target = ReferenceEquals(_vm.InactivePanel, _vm.LeftPanel) ? _vm.LeftPanel : _vm.RightPanel;
+            target.LoadStaticResults(e.FileSystem, e.Items, e.Title);
+            _vm.SetActivePanel(target);
+        };
+
         if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrEmpty(dlg.SelectedPath)) return;
 
         var folder = FileSystem.VfsPath.GetParent(dlg.SelectedPath);

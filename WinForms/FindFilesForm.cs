@@ -1,4 +1,5 @@
 ﻿using CoderCommander.FileSystem;
+using CoderCommander.Models;
 using CoderCommander.Services;
 using CoderCommander.Services.Search;
 using System.Globalization;
@@ -30,10 +31,20 @@ public sealed partial class FindFilesForm : ThemedForm
     private readonly List<SearchHit> _pending = [];
     private readonly object _pendingLock = new();
 
+    /// <summary>Every hit of the current search, in discovery order - the source for the "show in
+    /// panel" feed, which needs the full <see cref="SearchHit.Entry"/> objects (size, attributes,
+    /// times), not just the columns the grid shows.</summary>
+    private readonly List<SearchHit> _allHits = [];
+
     private CancellationTokenSource? _cancellation;
     private SearchEngine.SearchProgress _progress;
     private readonly object _progressLock = new();
     private bool _running;
+
+    /// <summary>Feeds the current result set to a file panel. Wired by MainForm to the INACTIVE
+    /// panel - the results stay away from the panel being browsed, matching Total Commander's own
+    /// "load list to panel".</summary>
+    public event EventHandler<FeedToPanelEventArgs>? FeedToPanelRequested;
 
     /// <summary>The file the user chose, valid after <see cref="DialogResult.OK"/>.</summary>
     public string? SelectedPath { get; private set; }
@@ -85,6 +96,7 @@ public sealed partial class FindFilesForm : ThemedForm
         _results.SelectedIndexChanged += (_, _) => UpdateButtonState();
         _startBtn.Click += (_, _) => ToggleSearch();
         _goToBtn.Click += (_, _) => GoToSelected();
+        _feedBtn.Click += (_, _) => FeedToPanel();
         _closeBtn.Click += (_, _) => Close();
 
         _flushTimer.Interval = (int)FlushInterval.TotalMilliseconds;
@@ -126,6 +138,7 @@ public sealed partial class FindFilesForm : ThemedForm
         var L = LocalizationService.Current;
 
         _results.Items.Clear();
+        _allHits.Clear();
         lock (_pendingLock) _pending.Clear();
         _progress = default;
 
@@ -226,6 +239,8 @@ public sealed partial class FindFilesForm : ThemedForm
             _pending.Clear();
         }
 
+        _allHits.AddRange(batch);
+
         _results.BeginUpdate();
         try
         {
@@ -274,6 +289,24 @@ public sealed partial class FindFilesForm : ThemedForm
         var L = LocalizationService.Current;
         _startBtn.Text = _running ? L.GetString("Find.Stop") : L.GetString("Find.Start");
         _goToBtn.Enabled = _results.SelectedItems.Count > 0;
+        _feedBtn.Enabled = _results.Items.Count > 0;
+    }
+
+    /// <summary>Feeds the deduplicated result set to the panel the host app points at (MainForm
+    /// targets the inactive one). Files only keep their discovery order; duplicates by full path
+    /// collapse to the first hit - content search cannot hit the same file twice anyway, but the
+    /// dedup makes the invariant explicit.</summary>
+    private void FeedToPanel()
+    {
+        var byPath = new Dictionary<string, FileEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var hit in _allHits)
+            byPath.TryAdd(hit.Entry.FullPath, hit.Entry);
+
+        if (byPath.Count == 0) return;
+
+        var items = byPath.Values.Select(e => new FileSystemItem(e)).ToList();
+        FeedToPanelRequested?.Invoke(this, new FeedToPanelEventArgs(
+            _fs, items, LocalizationService.Current.GetString("Find.PanelTitle")));
     }
 
     private string WhereLabel() =>
@@ -288,4 +321,14 @@ public sealed partial class FindFilesForm : ThemedForm
         base.OnFormClosing(e);
     }
 
+}
+
+/// <summary>Event payload for <see cref="FindFilesForm.FeedToPanelRequested"/> - the filesystem the
+/// search ran on plus the deduplicated hit entries and the pseudo folder title for the panel.</summary>
+public sealed class FeedToPanelEventArgs(IFileSystem fs, IReadOnlyList<FileSystemItem> items, string title)
+    : EventArgs
+{
+    public IFileSystem FileSystem { get; } = fs;
+    public IReadOnlyList<FileSystemItem> Items { get; } = items;
+    public string Title { get; } = title;
 }

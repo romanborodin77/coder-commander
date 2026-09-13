@@ -111,6 +111,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     /// <summary>All loaded items (before filtering).</summary>
     private List<FileSystemItem> _allItems = [];
 
+    /// <summary>True while the panel shows a static listing (the file search's result set fed by
+    /// FindFilesForm's "show in panel"): RefreshAsync is a no-op, because re-enumerating the
+    /// pseudo path would wipe the snapshot, and the FileSystemWatcher self-selects out (the title
+    /// is not a real directory). Any navigation drops back into normal filesystem browsing.</summary>
+    private bool _staticResults;
+
     /// <summary>File system provider used by this panel (may change when entering an archive).</summary>
     public IFileSystem CurrentFileSystem
     {
@@ -472,6 +478,7 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     public async Task NavigateAsync(string path)
     {
         if (string.IsNullOrEmpty(path)) return;
+        _staticResults = false;
 
         // Releases a held archive lease the moment the panel is about to show a path outside that
         // archive - the single choke point every navigation source (drive button, bookmark,
@@ -797,6 +804,26 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Shows a static listing - the file search's result set fed by FindFilesForm's "show in
+    /// panel" button.
+    /// </summary>
+    /// <param name="fs">The filesystem the search ran on - the items are real entries on it, so
+    /// sorting, properties and file operations keep working off their full paths.</param>
+    /// <param name="items">Deduplicated result entries, in the order the search produced them.</param>
+    /// <param name="title">Pseudo folder name shown as the panel's current path (not a real
+    /// directory - navigating away drops the snapshot and resumes normal browsing).</param>
+    public void LoadStaticResults(IFileSystem fs, IReadOnlyList<FileSystemItem> items, string title)
+    {
+        _staticResults = true;
+        _fs = fs;
+        CurrentPath = title;
+        _allItems = [.. items];
+        SelectedItem = null;
+        ApplyFilter();
+        ItemsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
     /// Reloads the current directory contents.
     /// </summary>
     public async Task RefreshAsync(CancellationToken ct = default)
@@ -808,6 +835,12 @@ public sealed partial class PanelViewModel : ObservableObject, IDisposable
         if (string.IsNullOrEmpty(path))
             return;
         if (_disposed)
+            return;
+
+        // Static listing (search results feed): F5/watcher-driven refreshes must not wipe the
+        // snapshot with a filesystem enumeration of the pseudo folder. Sorting still works - it
+        // reassigns Items from _allItems without going through this method.
+        if (_staticResults)
             return;
 
         // No ConfigureAwait(false) here either - see the comment in NavigateAsync above. Everything

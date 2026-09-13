@@ -539,6 +539,8 @@ public sealed class LocalizationService
         _strings["Find.Field.Text"] = "Containing text";
         _strings["Find.Field.Size"] = "Size (KB):";
         _strings["Find.Field.Modified"] = "Modified:";
+        _strings["Find.FeedToPanel"] = "Show in panel";
+        _strings["Find.PanelTitle"] = "Search results";
         _strings["Find.MatchCase"] = "Match case";
         _strings["Find.WholeWord"] = "Whole words only";
         _strings["Find.Subdirectories"] = "Include subfolders";

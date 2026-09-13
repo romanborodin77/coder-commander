@@ -38,6 +38,7 @@ partial class FindFilesForm
     private FlowLayoutPanel _buttonGroup = null!;
     private RoundedButton _startBtn = null!;
     private RoundedButton _goToBtn = null!;
+    private RoundedButton _feedBtn = null!;
     private RoundedButton _closeBtn = null!;
     private System.Windows.Forms.Timer _flushTimer = null!;
 
@@ -60,6 +61,7 @@ partial class FindFilesForm
             _status?.Dispose();
             _startBtn?.Dispose();
             _goToBtn?.Dispose();
+            _feedBtn?.Dispose();
             _closeBtn?.Dispose();
             _buttonGroup?.Dispose();
             _buttonBar?.Dispose();
@@ -120,6 +122,7 @@ partial class FindFilesForm
         _buttonGroup = new FlowLayoutPanel();
         _startBtn = new RoundedButton();
         _goToBtn = new RoundedButton();
+        _feedBtn = new RoundedButton();
         _closeBtn = new RoundedButton();
         _resultsHost.SuspendLayout();
         _queryLayout.SuspendLayout();
@@ -400,6 +403,7 @@ partial class FindFilesForm
         _buttonGroup.BackColor = Color.Transparent;
         _buttonGroup.Controls.Add(_startBtn);
         _buttonGroup.Controls.Add(_goToBtn);
+        _buttonGroup.Controls.Add(_feedBtn);
         _buttonGroup.Controls.Add(_closeBtn);
         _buttonGroup.Dock = DockStyle.Right;
         _buttonGroup.FlowDirection = FlowDirection.LeftToRight;
@@ -429,6 +433,19 @@ partial class FindFilesForm
         _goToBtn.Role = ThemeRole.SecondaryButton;
         _goToBtn.Text = "Go to file";
         _uiMetadata.SetLocalizationKey(_goToBtn, "Find.GoTo");
+        //
+        // _feedBtn
+        //
+        // Left=8 matches the sibling gap convention (see _closeBtn's mirror comment).
+        _feedBtn.AutoSize = true;
+        _feedBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _feedBtn.Margin = new Padding(8, 0, 0, 0);
+        _feedBtn.MinimumSize = new Size(100, 32);
+        _feedBtn.Name = "_feedBtn";
+        _feedBtn.Padding = new Padding(20, 0, 20, 0);
+        _feedBtn.Role = ThemeRole.SecondaryButton;
+        _feedBtn.Text = "Show in panel";
+        _uiMetadata.SetLocalizationKey(_feedBtn, "Find.FeedToPanel");
         //
         // _closeBtn
         //
