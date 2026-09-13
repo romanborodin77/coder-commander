@@ -311,6 +311,10 @@ partial class FindFilesForm
         //
         _closeBtn.AutoSize = true;
         _closeBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        // Left=8 matches the inter-button gap of the siblings (their Margin.Right); Top=0 keeps
+        // the button on the same optical line - the default (3,3,3,3) margin sank it 3px below
+        // the other two (LayoutAuditTests Detector 6/7).
+        _closeBtn.Margin = new Padding(8, 0, 0, 0);
         _closeBtn.MinimumSize = new Size(100, 32);
         _closeBtn.Name = "_closeBtn";
         _closeBtn.Padding = new Padding(20, 0, 20, 0);
