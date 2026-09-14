@@ -127,6 +127,21 @@ internal static class Program
         // Apply theme
         ThemeService.ApplyTheme(SettingsService.GetEffectiveTheme());
 
+        // The WindowsFormsSynchronizationContext is normally installed by the first Control's
+        // constructor - which used to be the MainForm, created AFTER MainViewModel. Every
+        // PanelViewModel built inside the MainViewModel constructor captured
+        // SynchronizationContext.Current at that moment (null), so their FileSystemWatcher
+        // refresh-marshaling (ScheduleRefresh's _uiContext?.Post) silently dropped every external
+        // file change: the two startup panels never auto-refreshed until a manual F5. Installing
+        // the context here, before any ViewModel exists, gives those panels a live marshal target
+        // (a hidden control on this same UI thread) - tabs created later were always fine.
+        // Ownership of the context transfers to SynchronizationContext.Current - it lives for the
+        // process, disposal is not applicable (same rationale as MainForm's dialog CA2000 sites).
+#pragma warning disable CA2000
+        if (SynchronizationContext.Current is not System.Windows.Forms.WindowsFormsSynchronizationContext)
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Forms.WindowsFormsSynchronizationContext());
+#pragma warning restore CA2000
+
         // Load saved language
         var settings = SettingsService.Load();
         if (!string.IsNullOrEmpty(settings.Language))

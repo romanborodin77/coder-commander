@@ -66,6 +66,19 @@ public sealed partial class OperationDialogForm : ThemedForm
 
         _operation.StateChanged += OnOperationStateChanged;
 
+        // A fast operation can reach a terminal state BEFORE this dialog got built and subscribed
+        // (MainForm learns about the operation through an event raised the moment RunAsync queues
+        // it) - the Completed/Canceled/Failed change event then never arrives, and the dialog
+        // would sit open forever over a finished operation (observed: packing a tiny file left a
+        // stuck "Pack" dialog). Replay the current state through the same handler; the handle
+        // does not exist yet at construction time, so the replay's BeginInvoke(Close) is a no-op
+        // and the actual close happens in OnShown via the flag it sets below.
+        if (_operation.State is OperationState.Completed or OperationState.Canceled or OperationState.Failed)
+        {
+            _closeWhenShown = true;
+            OnOperationStateChanged(_operation, _operation.State);
+        }
+
         FormClosing += (_, _) =>
         {
             _operation.StateChanged -= OnOperationStateChanged;
@@ -73,6 +86,17 @@ public sealed partial class OperationDialogForm : ThemedForm
             // background. Cancel is a no-op if the operation is already in a terminal state.
             _operation.Cancel();
         };
+    }
+
+    /// <summary>Set when the replayed state was already terminal at construction (see the
+    /// constructor comment) - the dialog closes as soon as it is actually shown.</summary>
+    private bool _closeWhenShown;
+
+    /// <inheritdoc />
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        if (_closeWhenShown) Close();
     }
 
     protected override void ApplyTheme()

@@ -509,6 +509,10 @@ public sealed partial class PropertiesForm : ThemedForm
                 Dock = DockStyle.Fill,
                 Enabled = false
             };
+            // Rule 10 (a11y): a DateTimePicker has no Text of its own and surfaces to UIA/screen
+            // readers as an unnamed combo box - its caption ("Modified:" etc.) lives in the
+            // checkbox next to it, so the name must be attached here.
+            dtp.AccessibleName = cb.Text;
             void OnChecked(object? s, EventArgs e)
             {
                 if (cb.Checked)

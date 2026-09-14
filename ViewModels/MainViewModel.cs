@@ -422,6 +422,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Commands.Register(CommandIds.CloseTerminalTab, _ => CloseTerminalTabRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.NextTerminalTab, _ => NextTerminalTabRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.PreviousTerminalTab, _ => PreviousTerminalTabRequested?.Invoke(this, EventArgs.Empty));
+        Commands.Register(CommandIds.RenameTerminalTab, _ => RenameTerminalTabRequested?.Invoke(this, EventArgs.Empty));
         Commands.Register(CommandIds.SetSortColumn, param => { if (param != null) ActivePanel.SortColumn = param; });
         Commands.Register(CommandIds.SetSortDescending, _ => ActivePanel.SortDescending = !ActivePanel.SortDescending);
         Commands.Register(CommandIds.SetDirectoriesFirst, _ => ActivePanel.DirectoriesFirst = !ActivePanel.DirectoriesFirst);
@@ -1509,6 +1510,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public event EventHandler? NextTerminalTabRequested;
     /// <summary>Raised when the user switches to the previous terminal tab.</summary>
     public event EventHandler? PreviousTerminalTabRequested;
+    /// <summary>Raised when the user wants to rename the active terminal tab - the CommandEngine
+    /// path into the same dialog the tab strip's right-click menu shows.</summary>
+    public event EventHandler? RenameTerminalTabRequested;
     /// <summary>Raised when the user wants to synchronise the two panel directories.</summary>
     public event EventHandler<(string leftPath, string rightPath)>? SyncDirsRequested;
     /// <summary>Raised when a pack operation needs UI input (archive path, format, compression).</summary>

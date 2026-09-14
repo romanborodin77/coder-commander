@@ -223,6 +223,11 @@ public sealed partial class MtpDevicesForm : ThemedForm
     {
         _details.BeginUpdate();
         _details.Items.Clear();
+        // The greyed placeholder row carries its sentence in the SECOND sub-item on purpose (a
+        // sentence does not fit the narrow "Property" column, and a native ListView paints over
+        // any managed sibling laid on top of it - see this method's doc comment). ListViewItem has
+        // no AccessibleName property to attach the text to, so this row is a documented unnamed
+        // element: the UiTests sweep allow-lists it by AutomationId.
         _details.Items.Add(new ListViewItem(new[] { "", text })
         {
             ForeColor = ThemeService.Current.DimForeground,

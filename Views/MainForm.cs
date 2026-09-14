@@ -1255,6 +1255,12 @@ public sealed class MainForm : Form
             _terminalPanel?.PreviousTab();
     }
 
+    private void RenameTerminalTab()
+    {
+        if (_terminalPanel?.Visible == true)
+            _terminalPanel?.RenameActiveTab();
+    }
+
     // ═══════════════════════════════════════════
     // STATUS BAR
     // ═══════════════════════════════════════════
@@ -1501,6 +1507,7 @@ public sealed class MainForm : Form
         _vm.CloseTerminalTabRequested += (_, _) => CloseTerminalTab();
         _vm.NextTerminalTabRequested += (_, _) => NextTerminalTab();
         _vm.PreviousTerminalTabRequested += (_, _) => PreviousTerminalTab();
+        _vm.RenameTerminalTabRequested += (_, _) => RenameTerminalTab();
         _vm.ExitRequested += (_, _) => Close();
         _vm.AboutRequested += (_, _) => OpenAbout();
         _vm.SettingsRequested += (_, _) => OpenSettings();

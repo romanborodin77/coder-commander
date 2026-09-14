@@ -2005,6 +2005,9 @@ public sealed class FilePanelUserControl : UserControl
             Overflow = ToolStripItemOverflow.AsNeeded
         };
         btn.Size = new Size((int)Math.Round(32 * toolbarScale), btnHeight);
+        // Rule 10 (a11y): an image-only button has no Text for screen readers (or the UI test
+        // sweep) to read - the accessible name must carry the tooltip's text explicitly.
+        btn.AccessibleName = L.GetString("Panel.NetworkButton");
         btn.Click += (_, _) => NetworkBrowseRequested?.Invoke(this, EventArgs.Empty);
         _driveBar.Items.Add(btn);
         _driveButtons.Add(btn);

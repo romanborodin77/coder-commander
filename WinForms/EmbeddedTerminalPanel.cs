@@ -548,8 +548,10 @@ public sealed class EmbeddedTerminalPanel : Panel
     }
 
     /// <summary>Renames whichever tab is currently active - what <see cref="TerminalAction.RenameTab"/>
-    /// needs, since a key chord (unlike a tab-strip right-click) carries no tab index of its own.</summary>
-    private void RenameActiveTab()
+    /// needs, since a key chord (unlike a tab-strip right-click) carries no tab index of its own.
+    /// Public because <see cref="CommandIds.RenameTerminalTab"/> (MainForm's wiring of the
+    /// CommandEngine path - diagnostic channel / a future hotkey assignment) lands here too.</summary>
+    public void RenameActiveTab()
     {
         if (_sessionManager?.ActiveTab is not { } tab) return;
         ShowRenameTabDialog(tab.Id, tab);

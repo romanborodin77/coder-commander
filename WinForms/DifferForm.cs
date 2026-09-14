@@ -49,6 +49,11 @@ public sealed partial class DifferForm : ThemedForm
         _leftPathBox.Text = leftPath ?? "";
         _rightPathBox.Text = rightPath ?? "";
 
+        // Rule 10 (a11y): the content boxes have no captions of their own - the labels above them
+        // ("Left:"/"Right:") never enter their accessible surface, so the names must be set here.
+        _leftBox.AccessibleName = LocalizationService.Current.GetString("Differ.Left");
+        _rightBox.AccessibleName = LocalizationService.Current.GetString("Differ.Right");
+
         _leftBrowseBtn.Click += (_, _) => Browse(_leftPathBox, fs => _leftFs = fs);
         _rightBrowseBtn.Click += (_, _) => Browse(_rightPathBox, fs => _rightFs = fs);
         _compareBtn.Click += (_, _) => _ = CompareFilesAsync();
