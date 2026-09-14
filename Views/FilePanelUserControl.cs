@@ -607,6 +607,9 @@ public sealed class FilePanelUserControl : UserControl
             ForeColor = p.HeaderForeground
         };
         _filterBox.TextChanged += (_, _) => _vm.Filter = _filterBox.Text;
+        // Rule 10 (a11y): the box's caption lives in the separate _filterLabel (built below), so
+        // the box must carry the same text as its accessible name - read from the same key.
+        _filterBox.AccessibleName = L.GetString("Panel.Filter");
         _filterBox.KeyDown += (_, e) =>
         {
             if (e.KeyCode != Keys.Escape) return;
