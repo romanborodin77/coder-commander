@@ -104,6 +104,13 @@ public sealed class FilePanelUserControl : UserControl
     /// file list.</summary>
     public bool IsQuickViewActive { get; private set; }
 
+    // ── Quick search (type-to-jump) ──
+    // Chars typed while the file list has focus accumulate into this buffer and move the cursor +
+    // selection to the first entry whose name starts with it (Total Commander's Ctrl+Alt-letter
+    // quick search, minus the popup). A 1.5 s pause or Escape clears the buffer.
+    private string _quickSearchBuffer = "";
+    private readonly System.Windows.Forms.Timer _quickSearchResetTimer = new() { Interval = 1500 };
+
     private readonly List<ToolStripButton> _driveButtons = new();
 
     private bool _suppressSelectionEvent;
@@ -508,6 +515,7 @@ public sealed class FilePanelUserControl : UserControl
         _fileList.SelectedIndexChanged += OnSelectedIndexChanged;
         _fileList.DoubleClick += OnItemDoubleClick;
         _fileList.KeyDown += OnFileListKeyDown;
+        _fileList.KeyPress += OnFileListKeyPress;
         _fileList.MouseClick += OnFileListMouseClick;
         _fileList.GotFocus += (_, _) => ActivatePanel();
         _fileList.MouseDown += OnFileListMouseDown;
@@ -1231,6 +1239,14 @@ public sealed class FilePanelUserControl : UserControl
 
     private void OnFileListKeyDown(object? sender, KeyEventArgs e)
     {
+        // Escape = clear the type-to-jump buffer (the match jump itself never holds it long)
+        if (e.KeyCode == Keys.Escape && _quickSearchBuffer.Length > 0)
+        {
+            ResetQuickSearch();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+
         // Space = toggle selection
         if (e.KeyCode == Keys.Space && _fileList.FocusedItem?.Tag is FileSystemItem item && !item.IsParent)
         {
@@ -1256,6 +1272,51 @@ public sealed class FilePanelUserControl : UserControl
             e.Handled = true;
             e.SuppressKeyPress = true;
         }
+    }
+
+    /// <summary>Type-to-jump: printable keys accumulate into a search buffer and the cursor +
+    /// selection move to the first entry whose name starts with it. Selection (not just focus)
+    /// is what moves, so the status bar reflects the hit and every selection-consuming command
+    /// acts on it — the same contract the panel's own Space-toggle uses.</summary>
+    private void OnFileListKeyPress(object? sender, KeyPressEventArgs e)
+    {
+        if (!char.IsLetterOrDigit(e.KeyChar) && e.KeyChar is not ('_' or '.' or '-' or ' ' or '#')) return;
+        e.Handled = true;
+
+        _quickSearchBuffer += char.ToLowerInvariant(e.KeyChar);
+        RestartQuickSearchResetTimer();
+        JumpToQuickSearchMatch();
+    }
+
+    private void RestartQuickSearchResetTimer()
+    {
+        _quickSearchResetTimer.Stop();
+        _quickSearchResetTimer.Start();
+    }
+
+    private void ResetQuickSearch()
+    {
+        _quickSearchResetTimer.Stop();
+        _quickSearchBuffer = "";
+    }
+
+    private void JumpToQuickSearchMatch()
+    {
+        var items = _vm.Items;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i].IsParent) continue;
+            if (!items[i].Name.StartsWith(_quickSearchBuffer, StringComparison.OrdinalIgnoreCase)) continue;
+
+            _fileList.SelectedIndices.Clear();
+            _fileList.Items[i].Selected = true;
+            _fileList.FocusedItem = _fileList.Items[i];
+            _fileList.EnsureVisible(i);
+            UpdateStatus();
+            return;
+        }
+        // No match: keep the buffer — the user may extend the typed text toward an existing name;
+        // the reset timer clears it on pause.
     }
 
     private void OnFileListMouseDown(object? sender, MouseEventArgs e)
@@ -2672,6 +2733,7 @@ public sealed class FilePanelUserControl : UserControl
             MtpDeviceCatalog.Instance.Changed -= OnDrivesChanged;
             _vm.ItemsChanged -= OnItemsChanged;
             _vm.PropertyChanged -= OnVmPropertyChanged;
+            _quickSearchResetTimer.Dispose();
             _scrollOverlay?.Dispose();
             // ImageList is a Component, not a Control - it's never in the Controls collection, so
             // base.Dispose()'s recursive walk below never reaches it. The context menu built by
