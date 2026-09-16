@@ -231,6 +231,14 @@ public sealed class FilePanelUserControl : UserControl
     /// <summary>Raised when "Combine from parts..." is requested from the context menu.</summary>
     public event EventHandler? CombineRequested;
 
+    /// <summary>Raised when "Pack..." is requested from the context menu - MainForm executes
+    /// <see cref="Commands.CommandIds.PackFiles"/> on the active selection.</summary>
+    public event EventHandler? PackRequested;
+
+    /// <summary>Raised when "Extract..." is requested from the context menu - MainForm executes
+    /// <see cref="Commands.CommandIds.UnpackFiles"/> on the active selection.</summary>
+    public event EventHandler? UnpackRequested;
+
     /// <summary>Raised when files are dropped onto this panel via drag &amp; drop.</summary>
     public event EventHandler<PanelDropEventArgs>? ItemsDropped;
 
@@ -1749,6 +1757,14 @@ public sealed class FilePanelUserControl : UserControl
         {
             var checksumItem = single;
             CtxItem(menu, "Ctx.VerifyChecksum", "properties", () => VerifyChecksumRequested?.Invoke(this, checksumItem));
+        }
+        // Pack always makes sense for a non-empty selection (folders included); "Extract..."
+        // only when the selection actually looks like an archive - otherwise the command would
+        // just answer "unsupported format" for every file clicked.
+        CtxItem(menu, "Ctx.Pack", "pack", () => PackRequested?.Invoke(this, EventArgs.Empty));
+        if (targets.Any(t => !t.IsParent && !t.IsDirectory && Archives.ArchiveFormatRegistry.IsSupportedArchiveFile(t.FullPath)))
+        {
+            CtxItem(menu, "Ctx.Unpack", "extract", () => UnpackRequested?.Invoke(this, EventArgs.Empty));
         }
         // "Create Link" submenu - only for a native-path filesystem: a symlink/hardlink needs a
         // real path the OS can resolve, which an archive entry or remote file has none of.

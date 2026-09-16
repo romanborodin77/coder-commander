@@ -672,6 +672,8 @@ public sealed class MainForm : Form
         panel.DeleteRequested += (_, _) => _vm.Commands.Execute(CommandIds.Delete);
         panel.PropertiesRequested += (_, _) => _vm.Commands.Execute(CommandIds.ShowProperties);
         panel.SplitRequested += (_, _) => _vm.Commands.Execute(CommandIds.SplitFile);
+        panel.PackRequested += (_, _) => _vm.Commands.Execute(CommandIds.PackFiles);
+        panel.UnpackRequested += (_, _) => _vm.Commands.Execute(CommandIds.UnpackFiles);
         panel.CombineRequested += (_, _) => _vm.Commands.Execute(CommandIds.CombineFiles);
         panel.VerifyChecksumRequested += (_, item) => OnVerifyChecksum(panel, item);
         panel.CreateSymlinkRequested += (_, item) => OnCreateSymlink(panel, item);

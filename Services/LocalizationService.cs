@@ -707,6 +707,8 @@ public sealed class LocalizationService
         _strings["Ctx.Split"] = "Split into parts...";
         _strings["Ctx.Combine"] = "Combine from parts...";
         _strings["Ctx.VerifyChecksum"] = "Verify checksums...";
+        _strings["Ctx.Pack"] = "Pack...";
+        _strings["Ctx.Unpack"] = "Extract...";
         _strings["Ctx.Properties"] = "Properties";
         _strings["Ctx.CreateLink"] = "Create Link";
         _strings["Ctx.CreateSymlink"] = "Symbolic Link…";
