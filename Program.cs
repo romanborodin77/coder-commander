@@ -169,7 +169,13 @@ internal static class Program
         Application.Run(mainForm);
     }
 
-    private static readonly string CrashLogPath = Path.Combine(Path.GetTempPath(), "CoderCommander_crash.log");
+    // A test instance (data-directory override set, see Services.DataDirectory.IsOverridden)
+    // must not write into the operator's shared %TEMP% log: one full UiTests run leaves hundreds
+    // of startup markers there, burying any real crash between them. Sandboxed instances log to
+    // their own sandbox file, which the sandbox teardown deletes together with everything else.
+    private static readonly string CrashLogPath = Services.DataDirectory.IsOverridden
+        ? Path.Combine(Services.DataDirectory.Root, "crash.log")
+        : Path.Combine(Path.GetTempPath(), "CoderCommander_crash.log");
 
     /// <summary>Crash log is rotated to <c>.old</c> once it passes this size, the same one-generation
     /// scheme <see cref="LogService"/> already uses for app.log - previously this file was never

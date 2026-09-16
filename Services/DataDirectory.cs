@@ -28,6 +28,12 @@ public static class DataDirectory
 
     public static readonly string Root = ResolveRoot();
 
+    /// <summary>True when <see cref="Root"/> points at a caller-provided sandbox (the override
+    /// variable is set) rather than the real %APPDATA% - per-instance logs (the crash log) branch
+    /// on this so automated runs never write into the operator's shared files.</summary>
+    public static readonly bool IsOverridden =
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(OverrideEnvironmentVariable));
+
     private static string ResolveRoot()
     {
         // Used as-is, with no "CoderCommander" subfolder appended on top - unlike the default
